@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "manifest-tree.schema.json",
+  "title": "Synapse Core manifest tree v0.1",
+  "type": "object",
+  "required": ["object_type", "schema_version", "entries", "extensions"],
+  "properties": {
+    "object_type": { "const": "tree" },
+    "schema_version": { "$ref": "common.schema.json#/$defs/SchemaVersion" },
+    "entries": {
+      "type": "object",
+      "propertyNames": {
+        "pattern": "^(?!\\.$)(?!\\.\\.$)[^/\\u0000]+$"
+      },
+      "additionalProperties": {
+        "oneOf": [
+          {
+            "type": "object",
+            "required": ["entry_kind", "oid"],
+            "properties": {
+              "entry_kind": { "const": "blob" },
+              "oid": { "$ref": "common.schema.json#/$defs/BlobOid" }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": ["entry_kind", "oid"],
+            "properties": {
+              "entry_kind": { "const": "record" },
+              "oid": { "$ref": "common.schema.json#/$defs/RecordOid" }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": ["entry_kind", "oid"],
+            "properties": {
+              "entry_kind": { "const": "tree" },
+              "oid": { "$ref": "common.schema.json#/$defs/TreeOid" }
+            },
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": ["entry_kind", "oid"],
+            "properties": {
+              "entry_kind": { "const": "commit" },
+              "oid": { "$ref": "common.schema.json#/$defs/CommitOid" }
+            },
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+  },
+  "additionalProperties": false
+}

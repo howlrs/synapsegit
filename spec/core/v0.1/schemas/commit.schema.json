@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "commit.schema.json",
+  "title": "Synapse Core commit v0.1",
+  "type": "object",
+  "required": [
+    "object_type",
+    "schema_version",
+    "commit_kind",
+    "parents",
+    "snapshot",
+    "transition_refs",
+    "bound_declaration_refs",
+    "author_ref",
+    "authored_at",
+    "extensions"
+  ],
+  "properties": {
+    "object_type": { "const": "commit" },
+    "schema_version": { "$ref": "common.schema.json#/$defs/SchemaVersion" },
+    "commit_kind": {
+      "enum": ["checkpoint", "decision", "merge", "release", "migration"]
+    },
+    "parents": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/CommitOid" },
+      "uniqueItems": true,
+      "x-synapse-order": "sequence"
+    },
+    "snapshot": { "$ref": "common.schema.json#/$defs/TreeOid" },
+    "transition_refs": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/RecordOid" },
+      "uniqueItems": true,
+      "x-synapse-order": "set"
+    },
+    "bound_declaration_refs": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/RecordOid" },
+      "uniqueItems": true,
+      "x-synapse-order": "set"
+    },
+    "author_ref": { "$ref": "common.schema.json#/$defs/EntityId" },
+    "authored_at": { "$ref": "common.schema.json#/$defs/Timestamp" },
+    "message": { "type": "string", "maxLength": 2000 },
+    "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "commit_kind": { "const": "merge" } },
+        "required": ["commit_kind"]
+      },
+      "then": {
+        "properties": { "parents": { "minItems": 2 } }
+      }
+    },
+    {
+      "if": {
+        "properties": { "commit_kind": { "not": { "const": "merge" } } },
+        "required": ["commit_kind"]
+      },
+      "then": {
+        "properties": { "parents": { "maxItems": 1 } }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

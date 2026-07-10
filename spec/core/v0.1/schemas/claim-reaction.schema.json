@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "claim-reaction.schema.json",
+  "title": "Synapse Core claim reaction record v0.1",
+  "allOf": [
+    { "$ref": "record-envelope.schema.json" },
+    {
+      "properties": {
+        "record_type": { "const": "claim_reaction" },
+        "payload": {
+          "type": "object",
+          "required": ["claim_ref", "reaction"],
+          "properties": {
+            "claim_ref": { "$ref": "common.schema.json#/$defs/RecordOid" },
+            "reaction": {
+              "enum": [
+                "acknowledge",
+                "endorse",
+                "dispute",
+                "reject",
+                "withdraw",
+                "moderate"
+              ]
+            },
+            "reason": { "type": "string", "maxLength": 5000 },
+            "evidence_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RoleOidRef" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

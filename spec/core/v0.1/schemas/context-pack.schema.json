@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "context-pack.schema.json",
+  "title": "Synapse Core creative AI context pack record v0.1",
+  "allOf": [
+    { "$ref": "record-envelope.schema.json" },
+    {
+      "properties": {
+        "record_type": { "const": "context_pack" },
+        "payload": {
+          "type": "object",
+          "required": [
+            "base_commit",
+            "base_ref_name",
+            "expected_ref_head",
+            "selected_context_refs",
+            "must_preserve_constraints",
+            "allowed_transformations",
+            "unresolved_questions",
+            "policy_snapshot_ref",
+            "delegation_grant_ref",
+            "data_classification"
+          ],
+          "properties": {
+            "task_ref": { "$ref": "common.schema.json#/$defs/Oid" },
+            "base_commit": { "$ref": "common.schema.json#/$defs/CommitOid" },
+            "base_ref_name": { "$ref": "common.schema.json#/$defs/RefName" },
+            "expected_ref_head": { "$ref": "common.schema.json#/$defs/CommitOid" },
+            "subject_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/EntityId" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "selected_context_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/Oid" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "accepted_decision_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RecordOid" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "rejected_or_deferred_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RecordOid" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "must_preserve_constraints": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1, "maxLength": 2000 },
+              "x-synapse-order": "sequence"
+            },
+            "allowed_transformations": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1, "maxLength": 500 },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "unresolved_questions": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1, "maxLength": 2000 },
+              "x-synapse-order": "sequence"
+            },
+            "evidence_gap_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RecordOid" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "policy_snapshot_ref": { "$ref": "common.schema.json#/$defs/RecordOid" },
+            "delegation_grant_ref": { "$ref": "common.schema.json#/$defs/RecordOid" },
+            "redaction_profile_ref": { "$ref": "common.schema.json#/$defs/RecordOid" },
+            "data_classification": {
+              "enum": ["public", "internal", "confidential", "restricted"]
+            },
+            "retrieval_method": { "type": "string", "maxLength": 500 },
+            "staleness_warnings": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 1000 },
+              "x-synapse-order": "sequence"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

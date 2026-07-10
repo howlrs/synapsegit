@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "policy.schema.json",
+  "title": "Synapse Core policy snapshot record v0.1",
+  "allOf": [
+    { "$ref": "record-envelope.schema.json" },
+    {
+      "properties": {
+        "record_type": { "const": "policy" },
+        "payload": {
+          "type": "object",
+          "required": ["scope_refs", "rules", "default_effect"],
+          "properties": {
+            "scope_refs": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  { "$ref": "common.schema.json#/$defs/EntityId" },
+                  { "$ref": "common.schema.json#/$defs/Oid" }
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "rules": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["rule_id", "effect", "action", "resource_selector"],
+                "properties": {
+                  "rule_id": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9._-]{0,99}$",
+                    "x-synapse-string": "identifier-nfc"
+                  },
+                  "effect": { "enum": ["allow", "deny", "require_human_gate"] },
+                  "action": {
+                    "enum": [
+                      "read",
+                      "analyze",
+                      "derive",
+                      "propose",
+                      "publish",
+                      "external_egress",
+                      "erase",
+                      "train_project_local",
+                      "train_external"
+                    ]
+                  },
+                  "resource_selector": { "type": "string", "minLength": 1, "maxLength": 1000 },
+                  "human_gate": {
+                    "enum": [
+                      "before_decision_ref",
+                      "before_release_ref",
+                      "before_external_egress",
+                      "before_policy_change",
+                      "before_erasure",
+                      "before_physical_effect"
+                    ]
+                  },
+                  "condition_text": { "type": "string", "maxLength": 2000 }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": { "effect": { "const": "require_human_gate" } },
+                      "required": ["effect"]
+                    },
+                    "then": { "required": ["human_gate"] }
+                  }
+                ],
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "x-synapse-order": "sequence"
+            },
+            "default_effect": { "enum": ["deny", "allow"] },
+            "notes": { "type": "string", "maxLength": 5000 }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

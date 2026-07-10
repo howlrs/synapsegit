@@ -1,0 +1,43 @@
+{
+  "object_type": "record",
+  "schema_version": "0.1.0",
+  "record_type": "activity",
+  "entity_id": "urn:uuid:00000000-0000-4000-8000-000000000060",
+  "valid_time": {
+    "kind": "instant",
+    "at": "2026-07-11T00:06:00.000000000Z",
+    "precision": { "kind": "resolution", "value": { "mantissa": "1", "scale": 0, "unit": "s" } }
+  },
+  "recorded_at": "2026-07-11T00:06:30.000000000Z",
+  "asserted_by": "urn:uuid:00000000-0000-4000-8000-000000000002",
+  "origin": "tool_recorded",
+  "source_refs": [],
+  "payload": {
+    "activity_kind": "ai_run",
+    "actor_refs": [
+      { "role": "responsible_principal", "actor_ref": "urn:uuid:00000000-0000-4000-8000-000000000001" },
+      { "role": "agent", "actor_ref": "urn:uuid:00000000-0000-4000-8000-000000000002" }
+    ],
+    "subject_refs": ["urn:uuid:00000000-0000-4000-8000-000000000020"],
+    "input_refs": [
+      { "role": "context", "oid": "record:sg-oid-v1:sha256:1f20182b831ac15cd28344e1386e119ebda5975a7e610f582899893e733b737d" }
+    ],
+    "output_refs": [
+      { "role": "proposal", "oid": "blob:sg-oid-v1:sha256:0601e763908d07ad94396b6eea24f1b4f3da3b3250c643a90beef19bb12f798b" }
+    ],
+    "reversibility": "reversible",
+    "summary": "Generated two bounded palette/layout variants.",
+    "side_effect_class": "none",
+    "ai_run": {
+      "agent_ref": "urn:uuid:00000000-0000-4000-8000-000000000002",
+      "responsible_principal_ref": "urn:uuid:00000000-0000-4000-8000-000000000001",
+      "context_pack_ref": "record:sg-oid-v1:sha256:1f20182b831ac15cd28344e1386e119ebda5975a7e610f582899893e733b737d",
+      "delegation_grant_ref": "record:sg-oid-v1:sha256:e4605ecf2cc5fb0e0cab0fd1e6b2cd06b16bc65795efed5ad1001f8d0fa6e890",
+      "requested_capabilities": ["analyze", "propose_branch", "read_context"],
+      "required_human_gates": ["before_decision_ref", "before_release_ref"],
+      "status": "proposal_ready",
+      "reproducibility_class": "provider_versioned"
+    }
+  },
+  "extensions": {}
+}

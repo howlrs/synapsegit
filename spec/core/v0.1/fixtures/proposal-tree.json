@@ -1,0 +1,10 @@
+{
+  "object_type": "tree",
+  "schema_version": "0.1.0",
+  "entries": {
+    "context.json": { "entry_kind": "record", "oid": "record:sg-oid-v1:sha256:1f20182b831ac15cd28344e1386e119ebda5975a7e610f582899893e733b737d" },
+    "proposal.txt": { "entry_kind": "blob", "oid": "blob:sg-oid-v1:sha256:0601e763908d07ad94396b6eea24f1b4f3da3b3250c643a90beef19bb12f798b" },
+    "run.json": { "entry_kind": "record", "oid": "record:sg-oid-v1:sha256:3092664346c7fb12f80ee917ce45d762b05572024085f354d8a3d7f9a166523c" }
+  },
+  "extensions": {}
+}

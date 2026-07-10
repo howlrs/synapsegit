@@ -1,0 +1,15 @@
+.DS_Store
+*.swp
+*.tmp
+
+.env
+.env.*
+!.env.example
+
+node_modules/
+target/
+dist/
+coverage/
+
+.idea/
+.vscode/

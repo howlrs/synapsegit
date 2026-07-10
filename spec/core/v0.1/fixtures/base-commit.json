@@ -1,0 +1,13 @@
+{
+  "object_type": "commit",
+  "schema_version": "0.1.0",
+  "commit_kind": "checkpoint",
+  "parents": [],
+  "snapshot": "tree:sg-oid-v1:sha256:2aa80b0bcbc436c881adda0f118e3e9057505a07f42b30f37154f639bc4862f8",
+  "transition_refs": [],
+  "bound_declaration_refs": [],
+  "author_ref": "urn:uuid:00000000-0000-4000-8000-000000000001",
+  "authored_at": "2026-07-11T00:04:00.000000000Z",
+  "message": "Fixture base",
+  "extensions": {}
+}

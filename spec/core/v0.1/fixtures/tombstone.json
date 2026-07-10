@@ -1,0 +1,18 @@
+{
+  "object_type": "record",
+  "schema_version": "0.1.0",
+  "record_type": "tombstone",
+  "entity_id": "urn:uuid:00000000-0000-4000-8000-000000000080",
+  "recorded_at": "2026-07-11T00:09:00.000000000Z",
+  "asserted_by": "urn:uuid:00000000-0000-4000-8000-000000000001",
+  "origin": "self_declared",
+  "source_refs": [],
+  "payload": {
+    "target_ref": "blob:sg-oid-v1:sha256:0601e763908d07ad94396b6eea24f1b4f3da3b3250c643a90beef19bb12f798b",
+    "erasure_kind": "payload_erased",
+    "reason_code": "project_policy",
+    "acted_at": "2026-07-11T00:09:00.000000000Z",
+    "public_note": "Fixture simulates payload erasure while preserving history."
+  },
+  "extensions": {}
+}

@@ -1,0 +1,135 @@
+{
+  "profile": "synapsegit/core/v0.1",
+  "objects": [
+    {
+      "path": "fixtures/actor-ai.json",
+      "canonical_length": 567,
+      "canonical_sha256": "0cd00fe217ce92967568d57d9d65b52fac2fc8de0429a80d21a2a8edba23ce85",
+      "oid": "record:sg-oid-v1:sha256:5dd39e82254efafd6e3cdfbbab48fe06308ed7b59bc45af2531def0eaa0e79a4"
+    },
+    {
+      "path": "fixtures/actor-creator-a.json",
+      "canonical_length": 383,
+      "canonical_sha256": "28b023f419971aee2ac6da368e7157b82561d0b7b8fd788ae2b31fa20921c04c",
+      "oid": "record:sg-oid-v1:sha256:30d1365a55320e55de638075b50ac3abae58397a03b35d8102f10d379789bc00"
+    },
+    {
+      "path": "fixtures/actor-creator-b.json",
+      "canonical_length": 383,
+      "canonical_sha256": "28b023f419971aee2ac6da368e7157b82561d0b7b8fd788ae2b31fa20921c04c",
+      "oid": "record:sg-oid-v1:sha256:30d1365a55320e55de638075b50ac3abae58397a03b35d8102f10d379789bc00"
+    },
+    {
+      "path": "fixtures/actor-creator-nfd.json",
+      "canonical_length": 384,
+      "canonical_sha256": "0e9c034addfb40d4776c23ac405bd95894127bf96f53a9309d9795aba11bda66",
+      "oid": "record:sg-oid-v1:sha256:afb6a19c0f159953509d7e2ff74ff52fa56577a849ae0dba0072bdbb67fc3063"
+    },
+    {
+      "path": "fixtures/ai-activity.json",
+      "canonical_length": 1694,
+      "canonical_sha256": "820569802d6da4adcff6f29bc94c8a749329d1ffaf8be6f7828417bbfc7d95e7",
+      "oid": "record:sg-oid-v1:sha256:3092664346c7fb12f80ee917ce45d762b05572024085f354d8a3d7f9a166523c"
+    },
+    {
+      "path": "fixtures/base-commit.json",
+      "canonical_length": 387,
+      "canonical_sha256": "6014fc4dcd9ecc8c8dd516d0616f939b60b978c8e965ef244a69e56f546776fe",
+      "oid": "commit:sg-oid-v1:sha256:0b1370e0f6eb296f698c650740cb9fd9e0fbaa4cb86707c4967d034d7a27ca13"
+    },
+    {
+      "path": "fixtures/base-tree-a.json",
+      "canonical_length": 581,
+      "canonical_sha256": "ced666f7c9ce700b171a8ddb9838cab191abd2d8bc99d177ad9610b8d448d13d",
+      "oid": "tree:sg-oid-v1:sha256:2aa80b0bcbc436c881adda0f118e3e9057505a07f42b30f37154f639bc4862f8"
+    },
+    {
+      "path": "fixtures/base-tree-b.json",
+      "canonical_length": 581,
+      "canonical_sha256": "ced666f7c9ce700b171a8ddb9838cab191abd2d8bc99d177ad9610b8d448d13d",
+      "oid": "tree:sg-oid-v1:sha256:2aa80b0bcbc436c881adda0f118e3e9057505a07f42b30f37154f639bc4862f8"
+    },
+    {
+      "path": "fixtures/context-pack.json",
+      "canonical_length": 1261,
+      "canonical_sha256": "3203ef4e4e2d048315dccaa2ead791186f29e5e4bcf35223d7c14e9a23e80001",
+      "oid": "record:sg-oid-v1:sha256:1f20182b831ac15cd28344e1386e119ebda5975a7e610f582899893e733b737d"
+    },
+    {
+      "path": "fixtures/decision-feedback.json",
+      "canonical_length": 738,
+      "canonical_sha256": "4e48af489300bef4964d44be47fbff40ed55b7e08b9d0197d3409f5c1c8174d2",
+      "oid": "record:sg-oid-v1:sha256:3b0f91a31381df03ea90464a0e0aa4f69ede2364c7149b424e1a38bb513ad290"
+    },
+    {
+      "path": "fixtures/delegation-grant.json",
+      "canonical_length": 1180,
+      "canonical_sha256": "884499ee77083b36cd1e4d384ede3d3692d7e6ec8f5bf08b8d063391b9f01f5a",
+      "oid": "record:sg-oid-v1:sha256:e4605ecf2cc5fb0e0cab0fd1e6b2cd06b16bc65795efed5ad1001f8d0fa6e890"
+    },
+    {
+      "path": "fixtures/merge-commit-swapped.json",
+      "canonical_length": 575,
+      "canonical_sha256": "e49a0b199b4249aacc9409798fce3337c5e4ee27f7c9dfa72ac8b1d40063bb6d",
+      "oid": "commit:sg-oid-v1:sha256:07821a826e1ffd17c6c9a2eac4ac8f6eb2ac71770a02c9098e748f19fd811759"
+    },
+    {
+      "path": "fixtures/merge-commit.json",
+      "canonical_length": 575,
+      "canonical_sha256": "176fdc22485d5155230cf4a08d09be8ace0de6b5a3e8221eaf8c191ba1fd7902",
+      "oid": "commit:sg-oid-v1:sha256:4ea39438428c8eb34077bf7eed8fcc91df50b4f0d51674c1aeaca08e04b6cdb7"
+    },
+    {
+      "path": "fixtures/policy.json",
+      "canonical_length": 744,
+      "canonical_sha256": "74b327312a5b9b5b7cd3b3476be72d7b0a075e2d4eae42f80304ec56395c03ff",
+      "oid": "record:sg-oid-v1:sha256:b01a3d24cc51d93f60f4325896781e6fd371cd9c5518fdf3e5a416ba06fa74d7"
+    },
+    {
+      "path": "fixtures/proposal-commit.json",
+      "canonical_length": 603,
+      "canonical_sha256": "562299d1b7716f6e8c47aea85a0d2c4e089c44d2cd0f4e131e9c69c48fe3a38d",
+      "oid": "commit:sg-oid-v1:sha256:21f1e5825721dafad3847c6b0f7d2143f46288fe72082da4dedae62c0db82b00"
+    },
+    {
+      "path": "fixtures/proposal-tree.json",
+      "canonical_length": 475,
+      "canonical_sha256": "031e74c43b3e33b4c10f8e516f1bfa0858d190a537e6c9ebf765ef849654eed2",
+      "oid": "tree:sg-oid-v1:sha256:f0083149e4dcdba17385c9feb700c3bb1d772dea1cf7d465baf452d18c6f931c"
+    },
+    {
+      "path": "fixtures/tombstone.json",
+      "canonical_length": 599,
+      "canonical_sha256": "cb2c22aef668c6cc496c3b4c3dfb8e712ea9c082d1c37bcc360057ee42b964aa",
+      "oid": "record:sg-oid-v1:sha256:6127573f88b2a3a0636b85d566e48de68357e6653680e921d7ed6f50fea108e8"
+    }
+  ],
+  "blobs": [
+    {
+      "path": "fixtures/proposal.txt",
+      "byte_length": 57,
+      "sha256": "0601e763908d07ad94396b6eea24f1b4f3da3b3250c643a90beef19bb12f798b",
+      "oid": "blob:sg-oid-v1:sha256:0601e763908d07ad94396b6eea24f1b4f3da3b3250c643a90beef19bb12f798b"
+    }
+  ],
+  "equivalent_groups": [
+    [
+      "fixtures/actor-creator-a.json",
+      "fixtures/actor-creator-b.json"
+    ],
+    [
+      "fixtures/base-tree-a.json",
+      "fixtures/base-tree-b.json"
+    ]
+  ],
+  "distinct_pairs": [
+    [
+      "fixtures/actor-creator-a.json",
+      "fixtures/actor-creator-nfd.json"
+    ],
+    [
+      "fixtures/merge-commit.json",
+      "fixtures/merge-commit-swapped.json"
+    ]
+  ]
+}

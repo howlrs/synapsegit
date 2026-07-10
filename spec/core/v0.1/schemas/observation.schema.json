@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "observation.schema.json",
+  "title": "Synapse Core observation record v0.1",
+  "allOf": [
+    { "$ref": "record-envelope.schema.json" },
+    {
+      "properties": {
+        "record_type": { "const": "observation" },
+        "payload": {
+          "type": "object",
+          "required": [
+            "subject_ref",
+            "series_ref",
+            "capture_time",
+            "media_refs",
+            "missing_regions"
+          ],
+          "properties": {
+            "subject_ref": { "$ref": "common.schema.json#/$defs/EntityId" },
+            "series_ref": { "$ref": "common.schema.json#/$defs/EntityId" },
+            "capture_time": { "$ref": "common.schema.json#/$defs/ValidTime" },
+            "clock_uncertainty": { "$ref": "common.schema.json#/$defs/ScaledInteger" },
+            "capture_profile_ref": { "$ref": "common.schema.json#/$defs/RecordOid" },
+            "station_ref": { "$ref": "common.schema.json#/$defs/EntityId" },
+            "station_deployment_ref": { "$ref": "common.schema.json#/$defs/RecordOid" },
+            "calibration_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RecordOid" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "media_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RoleBlobRef" },
+              "minItems": 1,
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "spatial_coverage": {
+              "$ref": "common.schema.json#/$defs/SpatialRegion"
+            },
+            "protocol_deviations": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1, "maxLength": 500 },
+              "x-synapse-order": "sequence"
+            },
+            "quality_measurements": {
+              "type": "object",
+              "additionalProperties": { "$ref": "common.schema.json#/$defs/ScaledInteger" }
+            },
+            "environment_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RecordOid" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "missing_regions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["reason"],
+                "properties": {
+                  "reason": {
+                    "enum": [
+                      "not_captured",
+                      "out_of_frame",
+                      "occluded",
+                      "blurred",
+                      "underexposed",
+                      "overexposed",
+                      "reflection",
+                      "weather",
+                      "registration_unresolved",
+                      "redacted",
+                      "corrupt",
+                      "unsupported",
+                      "unknown"
+                    ]
+                  },
+                  "region": { "$ref": "common.schema.json#/$defs/SpatialRegion" },
+                  "note": { "type": "string", "maxLength": 1000 }
+                },
+                "additionalProperties": false
+              },
+              "x-synapse-order": "sequence"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

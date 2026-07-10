@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "decision-feedback.schema.json",
+  "title": "Synapse Core decision feedback record v0.1",
+  "allOf": [
+    { "$ref": "record-envelope.schema.json" },
+    {
+      "properties": {
+        "record_type": { "const": "decision_feedback" },
+        "payload": {
+          "type": "object",
+          "required": ["proposal_ref", "disposition", "reason_codes", "training_use_policy"],
+          "properties": {
+            "proposal_ref": { "$ref": "common.schema.json#/$defs/Oid" },
+            "scope_regions": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/SpatialRegion" },
+              "x-synapse-order": "sequence"
+            },
+            "disposition": {
+              "enum": [
+                "adopted_unchanged",
+                "adopted_modified",
+                "partially_adopted",
+                "rejected",
+                "deferred",
+                "experiment_only"
+              ]
+            },
+            "reason_codes": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "goal_fit",
+                  "aesthetic_fit",
+                  "constraint",
+                  "feasibility",
+                  "cost",
+                  "safety",
+                  "rights",
+                  "redundancy",
+                  "timing",
+                  "insufficient_evidence",
+                  "unspecified"
+                ]
+              },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "human_rationale": { "type": "string", "maxLength": 5000 },
+            "applies_to_subjects": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/EntityId" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "valid_until": { "$ref": "common.schema.json#/$defs/Timestamp" },
+            "visibility": { "enum": ["private", "project", "team", "public"] },
+            "training_use_policy": {
+              "enum": ["prohibited", "project_local_only", "explicit_opt_in_required"]
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

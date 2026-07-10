@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "assurance.schema.json",
+  "title": "Synapse Core detached assurance record v0.1",
+  "allOf": [
+    { "$ref": "record-envelope.schema.json" },
+    {
+      "properties": {
+        "record_type": { "const": "assurance" },
+        "payload": {
+          "type": "object",
+          "required": ["target_ref", "assurance_kind", "result", "checked_at", "method"],
+          "properties": {
+            "target_ref": { "$ref": "common.schema.json#/$defs/Oid" },
+            "assurance_kind": {
+              "enum": [
+                "hash_verification",
+                "signature_verification",
+                "server_receipt",
+                "external_timestamp"
+              ]
+            },
+            "result": { "enum": ["verified", "failed", "indeterminate"] },
+            "checked_at": { "$ref": "common.schema.json#/$defs/Timestamp" },
+            "claimed_event_time": {
+              "type": "object",
+              "required": ["time_kind", "at"],
+              "properties": {
+                "time_kind": { "enum": ["received_at", "signed_at", "anchored_at"] },
+                "at": { "$ref": "common.schema.json#/$defs/Timestamp" }
+              },
+              "additionalProperties": false
+            },
+            "method": {
+              "type": "object",
+              "required": ["id", "version"],
+              "properties": {
+                "id": { "type": "string", "minLength": 1, "maxLength": 300 },
+                "version": { "type": "string", "minLength": 1, "maxLength": 100 }
+              },
+              "additionalProperties": false
+            },
+            "signer_ref": { "$ref": "common.schema.json#/$defs/EntityId" },
+            "evidence_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RoleOidRef" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "limitations": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 2000 },
+              "x-synapse-order": "sequence"
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": { "assurance_kind": { "const": "server_receipt" } },
+                "required": ["assurance_kind"]
+              },
+              "then": {
+                "required": ["claimed_event_time"],
+                "properties": {
+                  "claimed_event_time": {
+                    "properties": { "time_kind": { "const": "received_at" } }
+                  }
+                }
+              }
+            },
+            {
+              "if": {
+                "properties": { "assurance_kind": { "const": "external_timestamp" } },
+                "required": ["assurance_kind"]
+              },
+              "then": {
+                "required": ["claimed_event_time"],
+                "properties": {
+                  "claimed_event_time": {
+                    "properties": { "time_kind": { "const": "anchored_at" } }
+                  }
+                }
+              }
+            }
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

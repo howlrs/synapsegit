@@ -1,0 +1,13 @@
+{
+  "object_type": "commit",
+  "schema_version": "0.1.0",
+  "commit_kind": "checkpoint",
+  "parents": ["commit:sg-oid-v1:sha256:0b1370e0f6eb296f698c650740cb9fd9e0fbaa4cb86707c4967d034d7a27ca13"],
+  "snapshot": "tree:sg-oid-v1:sha256:f0083149e4dcdba17385c9feb700c3bb1d772dea1cf7d465baf452d18c6f931c",
+  "transition_refs": ["record:sg-oid-v1:sha256:3092664346c7fb12f80ee917ce45d762b05572024085f354d8a3d7f9a166523c"],
+  "bound_declaration_refs": [],
+  "author_ref": "urn:uuid:00000000-0000-4000-8000-000000000002",
+  "authored_at": "2026-07-11T00:07:00.000000000Z",
+  "message": "AI proposal only; does not advance decision/main",
+  "extensions": {}
+}

@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "analysis-result.schema.json",
+  "title": "Synapse Core analysis result record v0.1",
+  "allOf": [
+    { "$ref": "record-envelope.schema.json" },
+    {
+      "properties": {
+        "record_type": { "const": "analysis_result" },
+        "payload": {
+          "type": "object",
+          "required": [
+            "analysis_kind",
+            "comparison_kind",
+            "inputs",
+            "adapter",
+            "status",
+            "comparability",
+            "reason_codes",
+            "derived_blob_refs",
+            "warnings",
+            "limitations"
+          ],
+          "properties": {
+            "analysis_kind": { "type": "string", "minLength": 1, "maxLength": 300 },
+            "comparison_kind": {
+              "enum": [
+                "revision",
+                "temporal_observation",
+                "plan_observation",
+                "before_after_activity",
+                "cross_modal",
+                "intent"
+              ]
+            },
+            "inputs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "required": ["role", "ref"],
+                "properties": {
+                  "role": { "type": "string", "minLength": 1, "maxLength": 100 },
+                  "ref": { "$ref": "common.schema.json#/$defs/Oid" }
+                },
+                "additionalProperties": false
+              },
+              "minItems": 1,
+              "x-synapse-order": "sequence"
+            },
+            "adapter": {
+              "type": "object",
+              "required": ["id", "version", "implementation_digest", "configuration_digest", "determinism"],
+              "properties": {
+                "id": { "type": "string", "minLength": 1, "maxLength": 300 },
+                "version": { "type": "string", "minLength": 1, "maxLength": 100 },
+                "implementation_digest": { "$ref": "common.schema.json#/$defs/Oid" },
+                "configuration_digest": { "$ref": "common.schema.json#/$defs/Oid" },
+                "determinism": { "enum": ["deterministic", "seeded", "probabilistic"] },
+                "seed": { "type": "string", "maxLength": 300 }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": { "determinism": { "const": "seeded" } },
+                    "required": ["determinism"]
+                  },
+                  "then": { "required": ["seed"] }
+                }
+              ],
+              "additionalProperties": false
+            },
+            "status": {
+              "enum": ["succeeded", "failed", "not_run"]
+            },
+            "comparability": {
+              "enum": ["comparable", "partial", "incomparable"]
+            },
+            "reason_codes": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1, "maxLength": 200 },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "transform_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RecordOid" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "derived_blob_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/BlobOid" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "mask_refs": {
+              "type": "object",
+              "properties": {
+                "changed": { "$ref": "common.schema.json#/$defs/BlobOid" },
+                "unchanged": { "$ref": "common.schema.json#/$defs/BlobOid" },
+                "ambiguous": { "$ref": "common.schema.json#/$defs/BlobOid" },
+                "unobservable": { "$ref": "common.schema.json#/$defs/BlobOid" },
+                "validity": { "$ref": "common.schema.json#/$defs/BlobOid" }
+              },
+              "additionalProperties": false
+            },
+            "metrics": {
+              "type": "object",
+              "additionalProperties": { "$ref": "common.schema.json#/$defs/ScaledInteger" }
+            },
+            "confidence": { "$ref": "common.schema.json#/$defs/Confidence" },
+            "warnings": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 1000 },
+              "x-synapse-order": "sequence"
+            },
+            "limitations": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 2000 },
+              "x-synapse-order": "sequence"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

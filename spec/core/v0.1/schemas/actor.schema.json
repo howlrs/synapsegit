@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "actor.schema.json",
+  "title": "Synapse Core actor record v0.1",
+  "allOf": [
+    { "$ref": "record-envelope.schema.json" },
+    {
+      "properties": {
+        "record_type": { "const": "actor" },
+        "payload": {
+          "type": "object",
+          "required": ["actor_kind", "display_name"],
+          "properties": {
+            "actor_kind": {
+              "enum": ["human", "organization", "ai_agent", "software_tool", "device"]
+            },
+            "display_name": { "type": "string", "minLength": 1, "maxLength": 300 },
+            "ai_profile": {
+              "type": "object",
+              "required": ["model_id", "model_version", "capabilities"],
+              "properties": {
+                "provider": { "type": "string", "maxLength": 200 },
+                "model_id": { "type": "string", "minLength": 1, "maxLength": 300 },
+                "model_version": { "type": "string", "minLength": 1, "maxLength": 300 },
+                "runtime_digest": { "$ref": "common.schema.json#/$defs/Oid" },
+                "configuration_digest": { "$ref": "common.schema.json#/$defs/Oid" },
+                "capabilities": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "read_context",
+                      "analyze",
+                      "propose_branch",
+                      "submit_claim",
+                      "request_review",
+                      "render_preview"
+                    ]
+                  },
+                  "uniqueItems": true,
+                  "x-synapse-order": "set"
+                }
+              },
+              "additionalProperties": false
+            },
+            "description": { "type": "string", "maxLength": 2000 }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": { "actor_kind": { "const": "ai_agent" } },
+                "required": ["actor_kind"]
+              },
+              "then": { "required": ["ai_profile"] },
+              "else": { "not": { "required": ["ai_profile"] } }
+            }
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

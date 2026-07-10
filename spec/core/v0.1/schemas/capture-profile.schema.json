@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "capture-profile.schema.json",
+  "title": "Synapse Core capture profile record v0.1",
+  "allOf": [
+    { "$ref": "record-envelope.schema.json" },
+    {
+      "properties": {
+        "record_type": { "const": "capture_profile" },
+        "payload": {
+          "type": "object",
+          "required": ["profile_level", "required_conditions", "allowed_claims"],
+          "properties": {
+            "profile_level": {
+              "enum": ["imported", "repeatable", "calibrated"]
+            },
+            "required_conditions": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "station",
+                  "viewpoint_tolerance",
+                  "fiducial",
+                  "scale_reference",
+                  "color_reference",
+                  "controlled_lighting",
+                  "clock_assurance"
+                ]
+              },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "allowed_claims": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "reference_only",
+                  "appearance_change_candidate",
+                  "spatial_change_candidate",
+                  "color_change_candidate",
+                  "dimension_change_candidate"
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "tolerances": {
+              "type": "object",
+              "additionalProperties": { "$ref": "common.schema.json#/$defs/ScaledInteger" }
+            },
+            "description": { "type": "string", "maxLength": 3000 }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

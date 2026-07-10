@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "delegation-grant.schema.json",
+  "title": "Synapse Core creative AI delegation grant record v0.1",
+  "allOf": [
+    { "$ref": "record-envelope.schema.json" },
+    {
+      "properties": {
+        "record_type": { "const": "delegation_grant" },
+        "payload": {
+          "type": "object",
+          "required": [
+            "principal_ref",
+            "delegate_ref",
+            "project_ref",
+            "purpose",
+            "capabilities",
+            "writable_ref_prefixes",
+            "data_classes",
+            "allowed_egress",
+            "may_delegate",
+            "max_child_depth",
+            "required_human_gates",
+            "expires_at"
+          ],
+          "properties": {
+            "principal_ref": { "$ref": "common.schema.json#/$defs/EntityId" },
+            "delegate_ref": { "$ref": "common.schema.json#/$defs/EntityId" },
+            "project_ref": { "$ref": "common.schema.json#/$defs/EntityId" },
+            "purpose": { "type": "string", "minLength": 1, "maxLength": 1000 },
+            "capabilities": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "read_context",
+                  "analyze",
+                  "propose_branch",
+                  "submit_claim",
+                  "request_review",
+                  "render_preview"
+                ]
+              },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "resource_selectors": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 1000 },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "writable_ref_prefixes": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "pattern": "^proposal(/[a-z0-9][a-z0-9._:-]{0,127})+/?$",
+                "maxLength": 500,
+                "x-synapse-string": "identifier-nfc"
+              },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "data_classes": {
+              "type": "array",
+              "items": { "enum": ["public", "internal", "confidential", "restricted"] },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "allowed_egress": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 500 },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "may_delegate": { "type": "boolean" },
+            "max_child_depth": { "type": "integer", "minimum": 0, "maximum": 8 },
+            "max_output_bytes": { "type": "integer", "minimum": 0 },
+            "required_human_gates": {
+              "type": "array",
+              "items": {
+                "enum": [
+                  "before_decision_ref",
+                  "before_release_ref",
+                  "before_external_egress",
+                  "before_policy_change",
+                  "before_erasure",
+                  "before_physical_effect"
+                ]
+              },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "expires_at": { "$ref": "common.schema.json#/$defs/Timestamp" }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

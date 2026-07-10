@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "evidence-gap.schema.json",
+  "title": "Synapse Core evidence gap record v0.1",
+  "allOf": [
+    { "$ref": "record-envelope.schema.json" },
+    {
+      "properties": {
+        "record_type": { "const": "evidence_gap" },
+        "payload": {
+          "type": "object",
+          "required": ["subject_refs", "gap_kind", "affected_time", "reason"],
+          "properties": {
+            "subject_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/EntityId" },
+              "minItems": 1,
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "gap_kind": {
+              "enum": [
+                "not_captured",
+                "unavailable",
+                "redacted",
+                "destroyed",
+                "corrupt",
+                "unsupported",
+                "unknown"
+              ]
+            },
+            "affected_time": { "$ref": "common.schema.json#/$defs/ValidTime" },
+            "affected_region": { "$ref": "common.schema.json#/$defs/SpatialRegion" },
+            "expected_evidence_role": { "$ref": "common.schema.json#/$defs/Role" },
+            "reason": { "type": "string", "minLength": 1, "maxLength": 5000 },
+            "mitigation": { "type": "string", "maxLength": 5000 },
+            "related_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RoleOidRef" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

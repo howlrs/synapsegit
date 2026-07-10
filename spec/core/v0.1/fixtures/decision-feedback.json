@@ -1,0 +1,20 @@
+{
+  "object_type": "record",
+  "schema_version": "0.1.0",
+  "record_type": "decision_feedback",
+  "entity_id": "urn:uuid:00000000-0000-4000-8000-000000000070",
+  "recorded_at": "2026-07-11T00:08:00.000000000Z",
+  "asserted_by": "urn:uuid:00000000-0000-4000-8000-000000000001",
+  "origin": "self_declared",
+  "source_refs": [],
+  "payload": {
+    "proposal_ref": "commit:sg-oid-v1:sha256:21f1e5825721dafad3847c6b0f7d2143f46288fe72082da4dedae62c0db82b00",
+    "disposition": "adopted_modified",
+    "reason_codes": ["aesthetic_fit", "constraint", "goal_fit"],
+    "human_rationale": "Keep the shadow palette; simplify the layout before adoption.",
+    "applies_to_subjects": ["urn:uuid:00000000-0000-4000-8000-000000000020"],
+    "visibility": "project",
+    "training_use_policy": "project_local_only"
+  },
+  "extensions": {}
+}

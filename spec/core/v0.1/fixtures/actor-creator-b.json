@@ -1,0 +1,7 @@
+{ "payload": { "description": "Caf\u00e9 muralist", "display_name": "\u0041ki", "actor_kind": "human" },
+  "source_refs": [ ], "origin": "self_declared",
+  "asserted_by": "urn:uuid:00000000-0000-4000-8000-000000000001",
+  "recorded_at": "2026-07-11T00:00:00.000000000Z",
+  "entity_id": "urn:uuid:00000000-0000-4000-8000-000000000001",
+  "record_type": "actor", "schema_version": "0.1.0",
+  "extensions": { }, "object_type": "record" }

@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tombstone.schema.json",
+  "title": "Synapse Core tombstone record v0.1",
+  "allOf": [
+    { "$ref": "record-envelope.schema.json" },
+    {
+      "properties": {
+        "record_type": { "const": "tombstone" },
+        "payload": {
+          "type": "object",
+          "required": ["target_ref", "erasure_kind", "reason_code", "acted_at"],
+          "properties": {
+            "target_ref": { "$ref": "common.schema.json#/$defs/Oid" },
+            "erasure_kind": {
+              "enum": ["payload_erased", "cryptographic_erasure", "withheld"]
+            },
+            "reason_code": {
+              "enum": [
+                "rights_request",
+                "consent_withdrawn",
+                "retention_expired",
+                "security_response",
+                "illegal_content",
+                "project_policy",
+                "unspecified"
+              ]
+            },
+            "acted_at": { "$ref": "common.schema.json#/$defs/Timestamp" },
+            "replacement_ref": { "$ref": "common.schema.json#/$defs/Oid" },
+            "public_note": { "type": "string", "maxLength": 2000 },
+            "affected_derivative_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/Oid" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

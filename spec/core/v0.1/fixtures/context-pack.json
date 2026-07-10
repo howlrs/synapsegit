@@ -1,0 +1,25 @@
+{
+  "object_type": "record",
+  "schema_version": "0.1.0",
+  "record_type": "context_pack",
+  "entity_id": "urn:uuid:00000000-0000-4000-8000-000000000050",
+  "recorded_at": "2026-07-11T00:05:00.000000000Z",
+  "asserted_by": "urn:uuid:00000000-0000-4000-8000-000000000001",
+  "origin": "tool_recorded",
+  "source_refs": [],
+  "payload": {
+    "base_commit": "commit:sg-oid-v1:sha256:0b1370e0f6eb296f698c650740cb9fd9e0fbaa4cb86707c4967d034d7a27ca13",
+    "base_ref_name": "decision/main",
+    "expected_ref_head": "commit:sg-oid-v1:sha256:0b1370e0f6eb296f698c650740cb9fd9e0fbaa4cb86707c4967d034d7a27ca13",
+    "subject_refs": ["urn:uuid:00000000-0000-4000-8000-000000000020"],
+    "selected_context_refs": ["commit:sg-oid-v1:sha256:0b1370e0f6eb296f698c650740cb9fd9e0fbaa4cb86707c4967d034d7a27ca13"],
+    "must_preserve_constraints": ["Preserve the creator-approved wall boundary."],
+    "allowed_transformations": ["color_variant", "layout_variant"],
+    "unresolved_questions": ["How warm should the ground color become?"],
+    "policy_snapshot_ref": "record:sg-oid-v1:sha256:b01a3d24cc51d93f60f4325896781e6fd371cd9c5518fdf3e5a416ba06fa74d7",
+    "delegation_grant_ref": "record:sg-oid-v1:sha256:e4605ecf2cc5fb0e0cab0fd1e6b2cd06b16bc65795efed5ad1001f8d0fa6e890",
+    "data_classification": "confidential",
+    "retrieval_method": "explicit OID selection"
+  },
+  "extensions": {}
+}

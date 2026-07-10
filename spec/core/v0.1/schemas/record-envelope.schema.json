@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "record-envelope.schema.json",
+  "title": "Synapse Core immutable record envelope v0.1",
+  "type": "object",
+  "required": [
+    "object_type",
+    "schema_version",
+    "record_type",
+    "entity_id",
+    "recorded_at",
+    "asserted_by",
+    "origin",
+    "source_refs",
+    "payload",
+    "extensions"
+  ],
+  "properties": {
+    "object_type": { "const": "record" },
+    "schema_version": { "$ref": "common.schema.json#/$defs/SchemaVersion" },
+    "record_type": {
+      "enum": [
+        "actor",
+        "subject",
+        "activity",
+        "observation",
+        "claim",
+        "claim_reaction",
+        "capture_profile",
+        "analysis_result",
+        "context_pack",
+        "delegation_grant",
+        "decision_feedback",
+        "policy",
+        "assurance",
+        "evidence_gap",
+        "tombstone"
+      ]
+    },
+    "entity_id": { "$ref": "common.schema.json#/$defs/EntityId" },
+    "valid_time": { "$ref": "common.schema.json#/$defs/ValidTime" },
+    "recorded_at": { "$ref": "common.schema.json#/$defs/Timestamp" },
+    "asserted_by": { "$ref": "common.schema.json#/$defs/EntityId" },
+    "origin": {
+      "enum": [
+        "tool_recorded",
+        "device_recorded",
+        "imported",
+        "self_declared",
+        "inferred"
+      ]
+    },
+    "source_refs": {
+      "type": "array",
+      "items": { "$ref": "common.schema.json#/$defs/RoleOidRef" },
+      "uniqueItems": true,
+      "x-synapse-order": "set"
+    },
+    "supersedes": { "$ref": "common.schema.json#/$defs/RecordOid" },
+    "payload": { "type": "object" },
+    "extensions": { "$ref": "common.schema.json#/$defs/Extensions" }
+  },
+  "additionalProperties": false
+}

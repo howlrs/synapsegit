@@ -1,0 +1,16 @@
+{
+  "object_type": "commit",
+  "schema_version": "0.1.0",
+  "commit_kind": "merge",
+  "parents": [
+    "commit:sg-oid-v1:sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "commit:sg-oid-v1:sha256:2222222222222222222222222222222222222222222222222222222222222222"
+  ],
+  "snapshot": "tree:sg-oid-v1:sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "transition_refs": [],
+  "bound_declaration_refs": [],
+  "author_ref": "urn:uuid:00000000-0000-4000-8000-000000000001",
+  "authored_at": "2026-07-11T00:10:00.000000000Z",
+  "message": "First parent is mainline",
+  "extensions": {}
+}

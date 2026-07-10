@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "record.schema.json",
+  "title": "Synapse Core concrete record dispatcher v0.1",
+  "oneOf": [
+    { "$ref": "actor.schema.json" },
+    { "$ref": "subject.schema.json" },
+    { "$ref": "activity.schema.json" },
+    { "$ref": "observation.schema.json" },
+    { "$ref": "claim.schema.json" },
+    { "$ref": "claim-reaction.schema.json" },
+    { "$ref": "capture-profile.schema.json" },
+    { "$ref": "analysis-result.schema.json" },
+    { "$ref": "context-pack.schema.json" },
+    { "$ref": "delegation-grant.schema.json" },
+    { "$ref": "decision-feedback.schema.json" },
+    { "$ref": "policy.schema.json" },
+    { "$ref": "assurance.schema.json" },
+    { "$ref": "evidence-gap.schema.json" },
+    { "$ref": "tombstone.schema.json" }
+  ]
+}

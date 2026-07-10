@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "claim.schema.json",
+  "title": "Synapse Core claim record v0.1",
+  "allOf": [
+    { "$ref": "record-envelope.schema.json" },
+    {
+      "properties": {
+        "record_type": { "const": "claim" },
+        "payload": {
+          "type": "object",
+          "required": ["claim_kind", "epistemic_class", "subject_refs", "predicate", "evidence_refs"],
+          "properties": {
+            "claim_kind": {
+              "enum": [
+                "declaration",
+                "interpretation",
+                "contribution",
+                "authorship",
+                "rights",
+                "reception",
+                "decision_rationale",
+                "review"
+              ]
+            },
+            "epistemic_class": {
+              "enum": ["declared", "inferred", "suggested"]
+            },
+            "ai_run_ref": { "$ref": "common.schema.json#/$defs/RecordOid" },
+            "subject_refs": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  { "$ref": "common.schema.json#/$defs/EntityId" },
+                  { "$ref": "common.schema.json#/$defs/Oid" }
+                ]
+              },
+              "minItems": 1,
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "predicate": { "type": "string", "minLength": 1, "maxLength": 300 },
+            "object_refs": {
+              "type": "array",
+              "items": {
+                "oneOf": [
+                  { "$ref": "common.schema.json#/$defs/EntityId" },
+                  { "$ref": "common.schema.json#/$defs/Oid" }
+                ]
+              },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "value_text": { "type": "string", "maxLength": 10000 },
+            "evidence_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RoleOidRef" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "confidence": { "$ref": "common.schema.json#/$defs/Confidence" },
+            "alternative_claim_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RecordOid" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "region_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/SpatialRegion" },
+              "x-synapse-order": "sequence"
+            },
+            "assumptions": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 2000 },
+              "x-synapse-order": "sequence"
+            },
+            "limitations": {
+              "type": "array",
+              "items": { "type": "string", "maxLength": 2000 },
+              "x-synapse-order": "sequence"
+            }
+          },
+          "anyOf": [
+            { "required": ["object_refs"] },
+            { "required": ["value_text"] }
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}

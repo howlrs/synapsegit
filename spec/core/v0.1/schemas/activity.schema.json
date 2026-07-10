@@ -1,0 +1,151 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "activity.schema.json",
+  "title": "Synapse Core activity record v0.1",
+  "allOf": [
+    { "$ref": "record-envelope.schema.json" },
+    {
+      "required": ["valid_time"],
+      "properties": {
+        "record_type": { "const": "activity" },
+        "payload": {
+          "type": "object",
+          "required": ["activity_kind", "actor_refs", "subject_refs", "input_refs", "output_refs", "reversibility"],
+          "properties": {
+            "activity_kind": {
+              "enum": [
+                "material_event",
+                "design",
+                "edit",
+                "capture",
+                "ai_run",
+                "review",
+                "import",
+                "export",
+                "migration",
+                "other"
+              ]
+            },
+            "actor_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RoleActorRef" },
+              "minItems": 1,
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "subject_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/EntityId" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "input_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RoleOidRef" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "output_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RoleOidRef" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "before_observation_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RecordOid" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "after_observation_refs": {
+              "type": "array",
+              "items": { "$ref": "common.schema.json#/$defs/RecordOid" },
+              "uniqueItems": true,
+              "x-synapse-order": "set"
+            },
+            "procedure_step_ref": { "$ref": "common.schema.json#/$defs/Oid" },
+            "session_ref": { "$ref": "common.schema.json#/$defs/EntityId" },
+            "reversibility": {
+              "enum": ["reversible", "conditionally_reversible", "irreversible", "unknown"]
+            },
+            "summary": { "type": "string", "maxLength": 2000 },
+            "side_effect_class": {
+              "enum": ["none", "project_internal", "external", "physical"]
+            },
+            "ai_run": {
+              "type": "object",
+              "required": [
+                "agent_ref",
+                "responsible_principal_ref",
+                "context_pack_ref",
+                "delegation_grant_ref",
+                "requested_capabilities",
+                "required_human_gates",
+                "status"
+              ],
+              "properties": {
+                "agent_ref": { "$ref": "common.schema.json#/$defs/EntityId" },
+                "responsible_principal_ref": { "$ref": "common.schema.json#/$defs/EntityId" },
+                "context_pack_ref": { "$ref": "common.schema.json#/$defs/RecordOid" },
+                "delegation_grant_ref": { "$ref": "common.schema.json#/$defs/RecordOid" },
+                "requested_capabilities": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "read_context",
+                      "analyze",
+                      "propose_branch",
+                      "submit_claim",
+                      "request_review",
+                      "render_preview"
+                    ]
+                  },
+                  "uniqueItems": true,
+                  "x-synapse-order": "set"
+                },
+                "required_human_gates": {
+                  "type": "array",
+                  "items": {
+                    "enum": [
+                      "before_decision_ref",
+                      "before_release_ref",
+                      "before_external_egress",
+                      "before_policy_change",
+                      "before_erasure",
+                      "before_physical_effect"
+                    ]
+                  },
+                  "uniqueItems": true,
+                  "x-synapse-order": "set"
+                },
+                "prompt_refs": {
+                  "type": "array",
+                  "items": { "$ref": "common.schema.json#/$defs/Oid" },
+                  "uniqueItems": true,
+                  "x-synapse-order": "set"
+                },
+                "status": {
+                  "enum": ["requested", "authorized", "running", "proposal_ready", "failed", "cancelled"]
+                },
+                "reproducibility_class": {
+                  "enum": ["exact", "seeded_best_effort", "provider_versioned", "not_reproducible"]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "allOf": [
+            {
+              "if": {
+                "properties": { "activity_kind": { "const": "ai_run" } },
+                "required": ["activity_kind"]
+              },
+              "then": { "required": ["ai_run"] }
+            }
+          ],
+          "additionalProperties": false
+        }
+      }
+    }
+  ]
+}
