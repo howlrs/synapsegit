@@ -9,6 +9,12 @@
 
 単なる成果物の管理ツールではなく、**「人類とAIの知的・芸術的相互作用の歴史」を記録・継承する新たな文化的インフラ**を定義します。
 
+> **現行Core資料:** 本文書はsource visionである。現在の対象者と利用場面は
+> [想定利用者別シナリオ（PPTX・branch: main）](https://github.com/howlrs/synapsegit/blob/main/docs/presentations/synapsegit_user_scenarios_ja.pptx)、
+> 実行可能な範囲は
+> [SynapseGit Core使用ガイド（branch: main）](https://github.com/howlrs/synapsegit/blob/main/docs/usage_guide.md)
+> を参照する。
+
 ---
 
 ## 1. ビジョン：なぜ今、このプロジェクトなのか？

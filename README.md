@@ -8,6 +8,14 @@ Status: **Core v0.1 / Stage 0 draft**
 
 ## Start here
 
+### User guide
+
+- [Intended-user scenarios / 想定利用者別シナリオ（PPTX・日本語・branch: main）](https://github.com/howlrs/synapsegit/blob/main/docs/presentations/synapsegit_user_scenarios_ja.pptx)
+- [Usage guide / Stage 0の使用方法（日本語・branch: main）](https://github.com/howlrs/synapsegit/blob/main/docs/usage_guide.md)
+- [Presentation usage and regeneration / PPTX利用・再生成手順（branch: main）](https://github.com/howlrs/synapsegit/blob/main/docs/presentations/README.md)
+
+### Design and protocol
+
 - [Core concept](docs/core_concept.md)
 - [Stage 0 execution plan](docs/stage0_execution_plan.md)
 - [Runtime architecture](docs/runtime_architecture.md)
@@ -24,11 +32,21 @@ optional graph projection that must be rebuildable from Core objects.
 
 ```bash
 node scripts/verify_core_fixtures.mjs
+cargo test --workspace --locked
 ```
 
-The verifier checks 20 schemas, 17 structured golden fixtures, strict JSON and
-Unicode behavior, set and parent ordering, fixed-point/time rules, closure
-states, Tombstones, and empty-store restore.
+The JavaScript verifier checks 20 schemas, 17 structured golden fixtures, strict
+JSON and Unicode behavior, resource limits, set and parent ordering,
+fixed-point/time rules, closure states, Tombstones, and empty-store restore.
+
+The independent Rust implementation in `crates/synapse-canonical` implements
+the resource-bounded canonicalization and digest layer without sharing parser
+or canonicalization code with the JavaScript verifier. Its tests match all 17
+structured fixtures and the raw Blob fixture on canonical length, canonical
+SHA-256, and `sg-oid-v1`. Structured OID entry points remain explicitly
+unchecked until the schema and semantic validation crate supplies the validated
+ingestion path.
 
 The `sg-oid-v1` values are draft fixtures until a second independent production
-implementation completes the Stage 0 inter-language freeze gate.
+implementation also completes schema and semantic validation for the Stage 0
+inter-language freeze gate.

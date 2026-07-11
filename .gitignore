@@ -5,8 +5,11 @@
 .env
 .env.*
 !.env.example
+.venv/
 
 node_modules/
+__pycache__/
+*.py[cod]
 target/
 dist/
 coverage/

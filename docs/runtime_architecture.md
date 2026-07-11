@@ -26,6 +26,10 @@ Rust synapse-core（DB非依存）
 
 この境界では、DBを交換してもOID、Commit DAG、archiveは変わらない。SurrealDBの採否は作品履歴を賭ける不可逆な選択ではなく、検索・グラフ探索の便益で判断できる可逆な選択になる。
 
+現在実装済みの範囲と実行コマンドは
+[SynapseGit Core使用ガイド（branch: main）](https://github.com/howlrs/synapsegit/blob/main/docs/usage_guide.md)
+を参照する。
+
 ## Gitから踏襲するもの
 
 Gitらしさの中核は使用言語やRDBではない。Git自身がcontent-addressable filesystemとしてobjectを扱い、Ref更新では現在値がold OIDと一致した場合だけnew OIDへ進める。SynapseGitも次を踏襲する。

@@ -38,6 +38,10 @@ put-blob / put-record
   -> empty-store restore
 ```
 
+この経路のうち現在手元で実行できる範囲は
+[SynapseGit Core使用ガイド（branch: main）](https://github.com/howlrs/synapsegit/blob/main/docs/usage_guide.md)
+にまとめる。
+
 実装境界は[`runtime_architecture.md`](./runtime_architecture.md)に従う。
 
 - filesystem CASを正本にする。

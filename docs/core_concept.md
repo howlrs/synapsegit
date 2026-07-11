@@ -682,6 +682,12 @@ transportはHTTP API、CLI、将来のpeer syncへ割り当てられるが、Cor
 
 ## 14. ドメイン利用例
 
+利用者ごとの課題、導入前後、日常の利用フローは
+[想定利用者別シナリオ（PPTX・branch: main）](https://github.com/howlrs/synapsegit/blob/main/docs/presentations/synapsegit_user_scenarios_ja.pptx)
+で図解する。現在実行できる範囲とPilotでの使い方は
+[SynapseGit Core使用ガイド（branch: main）](https://github.com/howlrs/synapsegit/blob/main/docs/usage_guide.md)
+を参照する。
+
 ### 14.1 建築・施工
 
 1. Briefと敷地調査を登録する。
