@@ -106,17 +106,35 @@ node scripts/verify_core_fixtures.mjs
 cargo test --workspace --locked
 ```
 
-現在のRust実装はstrict JSON、resource limits、canonical bytes、Blob／structured OIDを独立実装し、17 structured fixtureとBlobをJavaScript goldenへ照合する。構造化OIDのAPIはschema／semantic validation前であることを示すため`*_unchecked`としている。
+現在のRust実装は、strict JSONとOIDだけでなく、具象schema／semantic validation、filesystem CAS、Commit／Tree／Record closure、Tombstone availability、SQLite Ref CAS／reflog、fsck、checksum付きexport／empty-store restoreまでを実行できる。production経路はschema検証後にcanonical bytesだけをCASへ渡す。低水準APIは検証前であることを示すため`*_unchecked`の名前を維持する。
+
+最小CLI経路は次のとおりである。
+
+```bash
+cargo run -p synapse-cli -- init .synapse
+cargo run -p synapse-cli -- put-blob .synapse path/to/file
+cargo run -p synapse-cli -- put-record .synapse path/to/record.json
+cargo run -p synapse-cli -- build-tree .synapse path/to/tree.json
+cargo run -p synapse-cli -- commit .synapse path/to/commit.json
+cargo run -p synapse-cli -- update-ref .synapse proposal/agent/run-1 - <commit-oid>
+cargo run -p synapse-cli -- fsck .synapse
+cargo run -p synapse-cli -- export .synapse archive.sg
+cargo run -p synapse-cli -- restore archive.sg restored.synapse
+cargo run -p synapse-cli -- refs restored.synapse
+```
+
+Ref作成時の`-`は「現在headが存在しないこと」を表す。更新時は`-`の代わりに現在のCommit OIDを指定する。staleなOIDならRefとreflogを一切変更せず`ref_conflict`を返す。`put-record`、`build-tree`、`commit`はobject familyも検査し、`put-object`は三つのstructured familyを自動dispatchする。
+
+exportはdirectory archiveを新規作成し、object bytes、Ref snapshot、完全なreflog、各object checksum、manifest checksumを含める。restoreは空repositoryだけを受け付け、ファイル名を信用せず全OIDを再計算し、closureを再検証してからRefを復元する。
 
 ## まだ実行できないこと
 
-- production用のschema／semantic validation入口
-- filesystem CAS、SQLite Ref CAS、reflog
 - 実際のcapture client、画像registration、compare UI
-- archive export／empty-store restoreの実ファイルround trip
 - AI proposalからHuman Gateまでのruntime authorization
+- `stale_base`をContextPackのlive Refと照合するAI実行service
+- SurrealDB projectionとSQLiteとのquery／性能比較
 
-これらは[Stage 0 execution plan — branch: main](https://github.com/howlrs/synapsegit/blob/main/docs/stage0_execution_plan.md)のexit gateに従って実装する。
+これらは[Stage 0 execution plan — branch: main](https://github.com/howlrs/synapsegit/blob/main/docs/stage0_execution_plan.md)の残りのexit gateに従って実装する。
 
 ## 表示・評価でしないこと
 

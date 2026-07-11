@@ -1,0 +1,37 @@
+{
+  "object_type": "record",
+  "schema_version": "0.1.0",
+  "record_type": "analysis_result",
+  "entity_id": "urn:uuid:10000000-0000-4000-8000-000000000006",
+  "recorded_at": "2026-07-11T01:05:00.000000000Z",
+  "asserted_by": "urn:uuid:00000000-0000-4000-8000-000000000001",
+  "origin": "inferred",
+  "source_refs": [],
+  "payload": {
+    "analysis_kind": "fixture_difference",
+    "comparison_kind": "temporal_observation",
+    "inputs": [
+      { "role": "before", "ref": "record:sg-oid-v1:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" }
+    ],
+    "adapter": {
+      "id": "fixture-adapter",
+      "version": "1",
+      "implementation_digest": "blob:sg-oid-v1:sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "configuration_digest": "blob:sg-oid-v1:sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "determinism": "deterministic"
+    },
+    "status": "succeeded",
+    "comparability": "comparable",
+    "reason_codes": [],
+    "derived_blob_refs": [],
+    "metrics": { "changed_pixels": { "mantissa": "12", "scale": 0, "unit": "count" } },
+    "confidence": {
+      "kind": "interval",
+      "lower": { "mantissa": "1", "scale": 0, "unit": "ratio" },
+      "upper": { "mantissa": "15", "scale": -1, "unit": "ratio" }
+    },
+    "warnings": [],
+    "limitations": []
+  },
+  "extensions": {}
+}

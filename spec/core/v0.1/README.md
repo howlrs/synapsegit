@@ -78,6 +78,7 @@ From the repository root:
 
 ```bash
 node scripts/verify_core_fixtures.mjs
+cargo test --workspace --locked
 ```
 
 The verifier checks that all schema and fixture files are valid JSON, that only
@@ -96,6 +97,11 @@ Creator + AI Actor
   -> human DecisionFeedback
   -> optional Tombstone / archive restore check
 ```
+
+The Rust validator embeds this schema registry for offline Draft 2020-12
+validation and adds valid fixtures for the eight record families not represented
+in the golden graph. Repository tests exercise filesystem publication, typed
+Record closure, Tombstone availability, Ref CAS, fsck, and archive restore.
 
 It also covers duplicate keys, invalid UTF-8, BOM, number-token restrictions,
 UTF-16 key ordering, set ordering, exact timestamps, normalized fixed-point

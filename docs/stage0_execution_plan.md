@@ -1,6 +1,6 @@
 # SynapseGit Core Stage 0 execution plan
 
-Status: ready to start
+Status: in progress — protocol and local Rust vertical slice implemented
 
 Target: four-week protocol and vertical-slice spike
 
@@ -37,6 +37,8 @@ put-blob / put-record
   -> export
   -> empty-store restore
 ```
+
+この経路は現在`crates/synapse-core`と`crates/synapse-cli`で実装済みである。具象schema検証、atomic filesystem CAS、typed closure、Tombstone、SQLite Ref CAS／reflog、fsck、checksum付きdirectory export／empty-store restoreをworkspace testとCLI process testで検証する。残るStage 0作業はfixed-point Observation pilot、Creative AI runtime boundary、ProjectionStore比較である。
 
 この経路のうち現在手元で実行できる範囲は
 [SynapseGit Core使用ガイド（branch: main）](https://github.com/howlrs/synapsegit/blob/main/docs/usage_guide.md)

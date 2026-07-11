@@ -92,7 +92,7 @@ local writeは次の順序に固定する。
 
 1. Blobまたはcanonical objectを同一filesystemのtemporary fileへstreamする。
 2. hashとschema/semantic ruleを検証する。
-3. fileと必要なdirectoryをflushし、OID pathへatomic renameする。
+3. fileと必要なdirectoryをflushし、no-replaceのatomic hard linkでOID pathを公開する。
 4. index projectionを追加する。失敗しても再構築可能とする。
 5. candidate Commitのclosureを検証する。
 6. Refとreflogを同じSQLite transactionでcompare-and-swap更新する。
@@ -123,22 +123,24 @@ Stage 1の最初に、同じCASを入力としてSQLiteとSurrealDBへprojection
 
 SurrealDBは、横断queryの実装単純性または性能がSQLiteより実測で明確に優れ、かつprojection再構築・競合試験を通る場合に既定へ昇格する。それまでは価値あるoptional adapterとして扱う。
 
-## Stage 1 repository案
+## 現在のrepository構成
 
 ```text
 crates/
   synapse-canonical   strict parser / canonical bytes / OID
   synapse-schema      JSON Schema + semantic validation
-  synapse-cas         filesystem and object-store traits
-  synapse-graph       tree / commit / closure
-  synapse-ref         RefStore trait / reflog / CAS
-  synapse-sqlite      local RefStore + ProjectionStore
+  synapse-cas         filesystem CAS / typed closure / Tombstone / fsck
+  synapse-sqlite      local RefStore / reflog / CAS
+  synapse-core        validated ingestion / repository / export / restore
+  synapse-cli         put / update-ref / fsck / export / restore
+Stage 0以降の候補:
+  synapse-graph       graph traitをCAS crateから分離する場合
+  synapse-ref         RefStore traitを複数backendへ広げる場合
   synapse-surreal     optional ProjectionStore spike
-  synapse-cli         put / commit / fsck / export / restore
 workers/
   image-analysis/     Python adapter
 apps/
   desktop/            TypeScript UI
 ```
 
-最初の実装単位は`put-object → verify OID → build tree → commit → CAS ref → fsck → export/restore`の縦切りとする。SurrealDB導入はこの縦切りを遅らせず、projection traitの背後で並行検証する。
+最初の実装単位`put-object → verify OID → build tree → commit → CAS ref → fsck → export/restore`はlocal Rust縦切りとして実装済みである。SurrealDB導入はこの正本経路から分離し、projection traitの背後で並行検証する。

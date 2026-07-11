@@ -1,0 +1,10 @@
+[package]
+name = "synapse-sqlite"
+version = "0.1.0"
+description = "Transactional SQLite RefStore and reflog for SynapseGit Core"
+edition.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+rusqlite = { version = "0.32.1", features = ["bundled"] }

@@ -1,0 +1,28 @@
+{
+  "object_type": "record",
+  "schema_version": "0.1.0",
+  "record_type": "observation",
+  "entity_id": "urn:uuid:10000000-0000-4000-8000-000000000002",
+  "recorded_at": "2026-07-11T01:01:00.000000000Z",
+  "asserted_by": "urn:uuid:00000000-0000-4000-8000-000000000001",
+  "origin": "device_recorded",
+  "source_refs": [],
+  "payload": {
+    "subject_ref": "urn:uuid:10000000-0000-4000-8000-000000000001",
+    "series_ref": "urn:uuid:10000000-0000-4000-8000-000000000010",
+    "capture_time": {
+      "kind": "instant",
+      "at": "2026-07-11T01:00:30.000000000Z",
+      "precision": { "kind": "uncertainty", "value": { "mantissa": "5", "scale": -1, "unit": "s" } }
+    },
+    "clock_uncertainty": { "mantissa": "5", "scale": -1, "unit": "s" },
+    "media_refs": [
+      { "role": "primary", "oid": "blob:sg-oid-v1:sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" }
+    ],
+    "calibration_refs": [],
+    "protocol_deviations": [],
+    "environment_refs": [],
+    "missing_regions": []
+  },
+  "extensions": {}
+}

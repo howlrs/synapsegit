@@ -1,0 +1,24 @@
+{
+  "object_type": "record",
+  "schema_version": "0.1.0",
+  "record_type": "assurance",
+  "entity_id": "urn:uuid:10000000-0000-4000-8000-000000000007",
+  "recorded_at": "2026-07-11T01:06:00.000000000Z",
+  "asserted_by": "urn:uuid:00000000-0000-4000-8000-000000000001",
+  "origin": "tool_recorded",
+  "source_refs": [],
+  "payload": {
+    "target_ref": "blob:sg-oid-v1:sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "assurance_kind": "server_receipt",
+    "result": "verified",
+    "checked_at": "2026-07-11T01:06:00.000000000Z",
+    "claimed_event_time": {
+      "time_kind": "received_at",
+      "at": "2026-07-11T01:05:59.000000000Z"
+    },
+    "method": { "id": "fixture-receipt", "version": "1" },
+    "evidence_refs": [],
+    "limitations": []
+  },
+  "extensions": {}
+}

@@ -1,0 +1,1223 @@
+use crate::store::{FileObjectStore, ObjectStore, StoreError, VerifiedObject};
+use std::collections::{BTreeMap, HashMap, HashSet};
+use std::fmt;
+use synapse_canonical::{ObjectKind, Value, parse_oid};
+
+/// Work limits for untrusted Commit/Tree graph traversal.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct GraphLimits {
+    pub max_objects: usize,
+    pub max_edges: usize,
+    /// Root depth is zero; a direct reference has depth one.
+    pub max_depth: usize,
+}
+
+impl Default for GraphLimits {
+    fn default() -> Self {
+        Self {
+            max_objects: 100_000,
+            max_edges: 1_000_000,
+            max_depth: 512,
+        }
+    }
+}
+
+/// The schema-level reason for a Commit or Tree reference.
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub enum ReferenceRole {
+    CommitParent { index: usize },
+    CommitSnapshot,
+    CommitTransition { index: usize },
+    CommitBoundDeclaration { index: usize },
+    TreeEntry { segment: String },
+    RecordReference { pointer: String },
+    RecordSupersedes,
+}
+
+impl fmt::Display for ReferenceRole {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::CommitParent { index } => write!(formatter, "parents[{index}]"),
+            Self::CommitSnapshot => formatter.write_str("snapshot"),
+            Self::CommitTransition { index } => write!(formatter, "transition_refs[{index}]"),
+            Self::CommitBoundDeclaration { index } => {
+                write!(formatter, "bound_declaration_refs[{index}]")
+            }
+            Self::TreeEntry { segment } => write!(formatter, "entries[{segment:?}]"),
+            Self::RecordReference { pointer } => write!(formatter, "record{pointer}"),
+            Self::RecordSupersedes => formatter.write_str("supersedes"),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct GraphEdge {
+    pub source: String,
+    pub target: String,
+    pub expected_kind: ObjectKind,
+    pub role: ReferenceRole,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ClosureNodeState {
+    Present {
+        kind: ObjectKind,
+        byte_len: u64,
+    },
+    Tombstoned {
+        kind: ObjectKind,
+        tombstone_oid: String,
+    },
+    Missing {
+        kind: ObjectKind,
+    },
+    Corrupt {
+        kind: ObjectKind,
+        detail: String,
+    },
+    ReadFailure {
+        kind: ObjectKind,
+        detail: String,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClosureNode {
+    pub oid: String,
+    pub depth: usize,
+    pub state: ClosureNodeState,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ClosureIssueKind {
+    Missing,
+    Corrupt {
+        detail: String,
+    },
+    ReadFailure {
+        detail: String,
+    },
+    ReferenceTypeMismatch {
+        expected: ObjectKind,
+        actual: ObjectKind,
+    },
+    ReferenceSemanticMismatch {
+        expected: String,
+        actual: String,
+    },
+    InvalidObject {
+        detail: String,
+    },
+    InvalidReference {
+        value: String,
+        detail: String,
+    },
+    Cycle {
+        path: Vec<String>,
+    },
+    ResourceLimit {
+        resource: &'static str,
+        limit: usize,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClosureIssue {
+    /// OID being diagnosed. For malformed reference text this is the source OID.
+    pub oid: String,
+    pub referenced_by: Option<String>,
+    pub role: Option<ReferenceRole>,
+    pub kind: ClosureIssueKind,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ClosureReport {
+    pub root: String,
+    pub nodes: BTreeMap<String, ClosureNode>,
+    pub edges: Vec<GraphEdge>,
+    pub issues: Vec<ClosureIssue>,
+    pub truncated: bool,
+}
+
+impl ClosureReport {
+    pub fn is_complete(&self) -> bool {
+        !self.truncated && self.issues.is_empty()
+    }
+}
+
+/// Traverse the required object closure rooted at a Commit.
+///
+/// Only normative Stage 0 structural edges are followed: Commit parents,
+/// snapshot, transition refs and bound declaration refs, plus every Tree entry.
+/// Record-internal semantic references remain the schema/semantic validator's
+/// responsibility. Traversal is iterative, so the configured depth bound is
+/// enforced without relying on the process call stack.
+pub fn verify_closure<S: ObjectStore + ?Sized>(
+    store: &S,
+    root: &str,
+    limits: GraphLimits,
+) -> Result<ClosureReport, StoreError> {
+    let root_kind = parse_oid(root)?;
+    let mut report = ClosureReport {
+        root: root.to_owned(),
+        nodes: BTreeMap::new(),
+        edges: Vec::new(),
+        issues: Vec::new(),
+        truncated: false,
+    };
+    if root_kind != ObjectKind::Commit {
+        report.issues.push(ClosureIssue {
+            oid: root.to_owned(),
+            referenced_by: None,
+            role: None,
+            kind: ClosureIssueKind::ReferenceTypeMismatch {
+                expected: ObjectKind::Commit,
+                actual: root_kind,
+            },
+        });
+        return Ok(report);
+    }
+
+    // Availability is store-wide metadata in Stage 0. A Tombstone can preserve
+    // traversal of a historical closure even after the target bytes are gone.
+    let tombstones = collect_tombstones(store)?;
+
+    let mut stack = vec![WalkItem::Enter(PendingVisit {
+        oid: root.to_owned(),
+        kind: ObjectKind::Commit,
+        depth: 0,
+        referenced_by: None,
+        role: None,
+        record_constraint: None,
+    })];
+    let mut finished = HashSet::new();
+    let mut active = HashSet::new();
+    let mut active_path = Vec::new();
+
+    'walk: while let Some(item) = stack.pop() {
+        match item {
+            WalkItem::Exit(oid) => {
+                active.remove(&oid);
+                if active_path.last() == Some(&oid) {
+                    active_path.pop();
+                }
+                finished.insert(oid);
+            }
+            WalkItem::Enter(visit) => {
+                if visit.depth > limits.max_depth {
+                    report.truncated = true;
+                    report.issues.push(issue_for_visit(
+                        &visit,
+                        ClosureIssueKind::ResourceLimit {
+                            resource: "depth",
+                            limit: limits.max_depth,
+                        },
+                    ));
+                    continue;
+                }
+                if active.contains(&visit.oid) {
+                    if matches!(
+                        visit.role.as_ref(),
+                        Some(ReferenceRole::RecordReference { .. })
+                    ) {
+                        // General Record evidence graphs may be cyclic. Only
+                        // supersedes, Commit-parent and Tree cycles are errors.
+                        continue;
+                    }
+                    let start = active_path
+                        .iter()
+                        .position(|candidate| candidate == &visit.oid)
+                        .unwrap_or(0);
+                    let mut path = active_path[start..].to_vec();
+                    path.push(visit.oid.clone());
+                    report
+                        .issues
+                        .push(issue_for_visit(&visit, ClosureIssueKind::Cycle { path }));
+                    continue;
+                }
+                if finished.contains(&visit.oid) {
+                    continue;
+                }
+                if report.nodes.len() >= limits.max_objects {
+                    report.truncated = true;
+                    report.issues.push(issue_for_visit(
+                        &visit,
+                        ClosureIssueKind::ResourceLimit {
+                            resource: "objects",
+                            limit: limits.max_objects,
+                        },
+                    ));
+                    break 'walk;
+                }
+
+                active.insert(visit.oid.clone());
+                active_path.push(visit.oid.clone());
+                stack.push(WalkItem::Exit(visit.oid.clone()));
+
+                let object = match store.get_verified(&visit.oid) {
+                    Ok(Some(object)) => object,
+                    Ok(None) => {
+                        if let Some(tombstone_oid) = tombstones.get(&visit.oid) {
+                            report.nodes.insert(
+                                visit.oid.clone(),
+                                ClosureNode {
+                                    oid: visit.oid.clone(),
+                                    depth: visit.depth,
+                                    state: ClosureNodeState::Tombstoned {
+                                        kind: visit.kind,
+                                        tombstone_oid: tombstone_oid.clone(),
+                                    },
+                                },
+                            );
+                            continue;
+                        }
+                        report.nodes.insert(
+                            visit.oid.clone(),
+                            ClosureNode {
+                                oid: visit.oid.clone(),
+                                depth: visit.depth,
+                                state: ClosureNodeState::Missing { kind: visit.kind },
+                            },
+                        );
+                        report
+                            .issues
+                            .push(issue_for_visit(&visit, ClosureIssueKind::Missing));
+                        continue;
+                    }
+                    Err(StoreError::CorruptObject { detail, .. }) => {
+                        report.nodes.insert(
+                            visit.oid.clone(),
+                            ClosureNode {
+                                oid: visit.oid.clone(),
+                                depth: visit.depth,
+                                state: ClosureNodeState::Corrupt {
+                                    kind: visit.kind,
+                                    detail: detail.clone(),
+                                },
+                            },
+                        );
+                        report.issues.push(issue_for_visit(
+                            &visit,
+                            ClosureIssueKind::Corrupt { detail },
+                        ));
+                        continue;
+                    }
+                    Err(error) => {
+                        let detail = error.to_string();
+                        report.nodes.insert(
+                            visit.oid.clone(),
+                            ClosureNode {
+                                oid: visit.oid.clone(),
+                                depth: visit.depth,
+                                state: ClosureNodeState::ReadFailure {
+                                    kind: visit.kind,
+                                    detail: detail.clone(),
+                                },
+                            },
+                        );
+                        report.issues.push(issue_for_visit(
+                            &visit,
+                            ClosureIssueKind::ReadFailure { detail },
+                        ));
+                        continue;
+                    }
+                };
+
+                if object.kind() != visit.kind {
+                    report.nodes.insert(
+                        visit.oid.clone(),
+                        ClosureNode {
+                            oid: visit.oid.clone(),
+                            depth: visit.depth,
+                            state: ClosureNodeState::Present {
+                                kind: object.kind(),
+                                byte_len: object.byte_len(),
+                            },
+                        },
+                    );
+                    report.issues.push(issue_for_visit(
+                        &visit,
+                        ClosureIssueKind::ReferenceTypeMismatch {
+                            expected: visit.kind,
+                            actual: object.kind(),
+                        },
+                    ));
+                    continue;
+                }
+
+                if let Some(constraint) = visit.record_constraint.as_ref()
+                    && let Some((expected, actual)) =
+                        record_constraint_mismatch(&object, constraint)
+                {
+                    report.issues.push(issue_for_visit(
+                        &visit,
+                        ClosureIssueKind::ReferenceSemanticMismatch { expected, actual },
+                    ));
+                }
+
+                report.nodes.insert(
+                    visit.oid.clone(),
+                    ClosureNode {
+                        oid: visit.oid.clone(),
+                        depth: visit.depth,
+                        state: ClosureNodeState::Present {
+                            kind: object.kind(),
+                            byte_len: object.byte_len(),
+                        },
+                    },
+                );
+
+                let references = extract_references(&object, &mut report.issues);
+                let mut child_visits = Vec::with_capacity(references.len());
+                for reference in references {
+                    if report.edges.len() >= limits.max_edges {
+                        report.truncated = true;
+                        report.issues.push(ClosureIssue {
+                            oid: visit.oid.clone(),
+                            referenced_by: None,
+                            role: Some(reference.role),
+                            kind: ClosureIssueKind::ResourceLimit {
+                                resource: "edges",
+                                limit: limits.max_edges,
+                            },
+                        });
+                        break 'walk;
+                    }
+                    let actual_kind = match parse_oid(&reference.target) {
+                        Ok(kind) => kind,
+                        Err(error) => {
+                            report.issues.push(ClosureIssue {
+                                oid: visit.oid.clone(),
+                                referenced_by: None,
+                                role: Some(reference.role),
+                                kind: ClosureIssueKind::InvalidReference {
+                                    value: reference.target,
+                                    detail: error.to_string(),
+                                },
+                            });
+                            continue;
+                        }
+                    };
+                    report.edges.push(GraphEdge {
+                        source: visit.oid.clone(),
+                        target: reference.target.clone(),
+                        expected_kind: reference.expected_kind,
+                        role: reference.role.clone(),
+                    });
+                    if actual_kind != reference.expected_kind {
+                        report.issues.push(ClosureIssue {
+                            oid: reference.target,
+                            referenced_by: Some(visit.oid.clone()),
+                            role: Some(reference.role),
+                            kind: ClosureIssueKind::ReferenceTypeMismatch {
+                                expected: reference.expected_kind,
+                                actual: actual_kind,
+                            },
+                        });
+                        continue;
+                    }
+                    child_visits.push(PendingVisit {
+                        oid: reference.target,
+                        kind: actual_kind,
+                        depth: visit.depth + 1,
+                        referenced_by: Some(visit.oid.clone()),
+                        role: Some(reference.role),
+                        record_constraint: reference.record_constraint,
+                    });
+                }
+                for child in child_visits.into_iter().rev() {
+                    stack.push(WalkItem::Enter(child));
+                }
+            }
+        }
+    }
+    Ok(report)
+}
+
+fn collect_tombstones<S: ObjectStore + ?Sized>(
+    store: &S,
+) -> Result<HashMap<String, String>, StoreError> {
+    let mut result = HashMap::new();
+    for oid in store.list_oids()? {
+        if parse_oid(&oid).is_ok_and(|kind| kind == ObjectKind::Record) {
+            let Some(object) = store.get_verified(&oid)? else {
+                continue;
+            };
+            let Some(value) = object.structured() else {
+                continue;
+            };
+            if value.get("record_type").and_then(Value::as_str) != Some("tombstone") {
+                continue;
+            }
+            let Some(target) = value
+                .get("payload")
+                .and_then(|payload| payload.get("target_ref"))
+                .and_then(Value::as_str)
+            else {
+                continue;
+            };
+            if target == oid || parse_oid(target).is_err() {
+                continue;
+            }
+            result
+                .entry(target.to_owned())
+                .and_modify(|existing: &mut String| {
+                    if oid < *existing {
+                        existing.clone_from(&oid);
+                    }
+                })
+                .or_insert(oid);
+        }
+    }
+    Ok(result)
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum FsckIssueKind {
+    InvalidStorePath { path: String, detail: String },
+    MissingScannedObject { oid: String },
+    CorruptObject { oid: String, detail: String },
+    ReadFailure { oid: String, detail: String },
+    Closure(ClosureIssue),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FsckIssue {
+    pub kind: FsckIssueKind,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FsckReport {
+    pub objects_seen: usize,
+    pub objects_verified: usize,
+    pub closures: Vec<ClosureReport>,
+    pub issues: Vec<FsckIssue>,
+}
+
+impl FsckReport {
+    pub fn is_clean(&self) -> bool {
+        self.issues.is_empty() && self.closures.iter().all(ClosureReport::is_complete)
+    }
+}
+
+/// Verify every stored object and the required closure of the supplied Commit
+/// roots. With an empty root list, every stored Commit is used as a graph root.
+pub fn fsck(
+    store: &FileObjectStore,
+    roots: &[String],
+    limits: GraphLimits,
+) -> Result<FsckReport, StoreError> {
+    let inventory = store.inventory()?;
+    let mut issues = inventory
+        .invalid_paths
+        .into_iter()
+        .map(|invalid| FsckIssue {
+            kind: FsckIssueKind::InvalidStorePath {
+                path: invalid.path.display().to_string(),
+                detail: invalid.detail,
+            },
+        })
+        .collect::<Vec<_>>();
+    let objects_seen = inventory.oids.len();
+    let mut objects_verified = 0;
+    let mut stored_commits = Vec::new();
+
+    for oid in &inventory.oids {
+        if parse_oid(oid).is_ok_and(|kind| kind == ObjectKind::Commit) {
+            stored_commits.push(oid.clone());
+        }
+        match store.get_verified(oid) {
+            Ok(Some(_)) => objects_verified += 1,
+            Ok(None) => issues.push(FsckIssue {
+                kind: FsckIssueKind::MissingScannedObject { oid: oid.clone() },
+            }),
+            Err(StoreError::CorruptObject { detail, .. }) => issues.push(FsckIssue {
+                kind: FsckIssueKind::CorruptObject {
+                    oid: oid.clone(),
+                    detail,
+                },
+            }),
+            Err(error) => issues.push(FsckIssue {
+                kind: FsckIssueKind::ReadFailure {
+                    oid: oid.clone(),
+                    detail: error.to_string(),
+                },
+            }),
+        }
+    }
+
+    let graph_roots = if roots.is_empty() {
+        stored_commits
+    } else {
+        roots.to_vec()
+    };
+    let mut closures = Vec::with_capacity(graph_roots.len());
+    for root in graph_roots {
+        let closure = verify_closure(store, &root, limits)?;
+        issues.extend(closure.issues.iter().cloned().map(|issue| FsckIssue {
+            kind: FsckIssueKind::Closure(issue),
+        }));
+        closures.push(closure);
+    }
+
+    Ok(FsckReport {
+        objects_seen,
+        objects_verified,
+        closures,
+        issues,
+    })
+}
+
+pub fn fsck_all(store: &FileObjectStore, limits: GraphLimits) -> Result<FsckReport, StoreError> {
+    fsck(store, &[], limits)
+}
+
+#[derive(Clone, Debug)]
+struct PendingReference {
+    target: String,
+    expected_kind: ObjectKind,
+    role: ReferenceRole,
+    record_constraint: Option<RecordConstraint>,
+}
+
+#[derive(Clone, Debug)]
+struct PendingVisit {
+    oid: String,
+    kind: ObjectKind,
+    depth: usize,
+    referenced_by: Option<String>,
+    role: Option<ReferenceRole>,
+    record_constraint: Option<RecordConstraint>,
+}
+
+#[derive(Clone, Debug)]
+enum RecordConstraint {
+    RecordType(&'static str),
+    AiActivity,
+    Supersedes {
+        record_type: String,
+        entity_id: String,
+    },
+}
+
+#[derive(Clone, Debug)]
+enum WalkItem {
+    Enter(PendingVisit),
+    Exit(String),
+}
+
+fn issue_for_visit(visit: &PendingVisit, kind: ClosureIssueKind) -> ClosureIssue {
+    ClosureIssue {
+        oid: visit.oid.clone(),
+        referenced_by: visit.referenced_by.clone(),
+        role: visit.role.clone(),
+        kind,
+    }
+}
+
+fn extract_references(
+    object: &VerifiedObject,
+    issues: &mut Vec<ClosureIssue>,
+) -> Vec<PendingReference> {
+    match object.kind() {
+        ObjectKind::Blob => Vec::new(),
+        ObjectKind::Record => extract_record_references(object, issues),
+        ObjectKind::Commit => extract_commit_references(object, issues),
+        ObjectKind::Tree => extract_tree_references(object, issues),
+    }
+}
+
+fn extract_commit_references(
+    object: &VerifiedObject,
+    issues: &mut Vec<ClosureIssue>,
+) -> Vec<PendingReference> {
+    let Some(value) = object.structured() else {
+        invalid_object(
+            object.oid(),
+            "verified Commit has no structured body",
+            issues,
+        );
+        return Vec::new();
+    };
+    let Some(fields) = value.as_object() else {
+        invalid_object(object.oid(), "Commit body is not an object", issues);
+        return Vec::new();
+    };
+    let mut references = Vec::new();
+    append_array_references(
+        object.oid(),
+        fields,
+        "parents",
+        ObjectKind::Commit,
+        |index| ReferenceRole::CommitParent { index },
+        &mut references,
+        issues,
+    );
+
+    match object_field(fields, "snapshot").and_then(Value::as_str) {
+        Some(snapshot) => references.push(PendingReference {
+            target: snapshot.to_owned(),
+            expected_kind: ObjectKind::Tree,
+            role: ReferenceRole::CommitSnapshot,
+            record_constraint: None,
+        }),
+        None => invalid_object(
+            object.oid(),
+            "Commit requires string field snapshot",
+            issues,
+        ),
+    }
+    append_array_references(
+        object.oid(),
+        fields,
+        "transition_refs",
+        ObjectKind::Record,
+        |index| ReferenceRole::CommitTransition { index },
+        &mut references,
+        issues,
+    );
+    append_array_references(
+        object.oid(),
+        fields,
+        "bound_declaration_refs",
+        ObjectKind::Record,
+        |index| ReferenceRole::CommitBoundDeclaration { index },
+        &mut references,
+        issues,
+    );
+    references
+}
+
+fn extract_record_references(
+    object: &VerifiedObject,
+    issues: &mut Vec<ClosureIssue>,
+) -> Vec<PendingReference> {
+    let Some(value) = object.structured() else {
+        invalid_object(
+            object.oid(),
+            "verified Record has no structured body",
+            issues,
+        );
+        return Vec::new();
+    };
+    let record_type = value
+        .get("record_type")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let entity_id = value
+        .get("entity_id")
+        .and_then(Value::as_str)
+        .unwrap_or_default();
+    let mut references = Vec::new();
+    collect_record_oid_strings(
+        value,
+        "",
+        object.oid(),
+        record_type,
+        entity_id,
+        &mut references,
+        issues,
+    );
+    references
+}
+
+fn collect_record_oid_strings(
+    value: &Value,
+    pointer: &str,
+    source_oid: &str,
+    source_record_type: &str,
+    source_entity_id: &str,
+    output: &mut Vec<PendingReference>,
+    issues: &mut Vec<ClosureIssue>,
+) {
+    match value {
+        Value::String(target) => {
+            let Ok(actual_kind) = parse_oid(target) else {
+                return;
+            };
+            if source_record_type == "tombstone"
+                && pointer == "/payload/target_ref"
+                && target == source_oid
+            {
+                invalid_object(source_oid, "Tombstone may not target itself", issues);
+            }
+            let (role, record_constraint) = if pointer == "/supersedes" {
+                (
+                    ReferenceRole::RecordSupersedes,
+                    Some(RecordConstraint::Supersedes {
+                        record_type: source_record_type.to_owned(),
+                        entity_id: source_entity_id.to_owned(),
+                    }),
+                )
+            } else {
+                (
+                    ReferenceRole::RecordReference {
+                        pointer: pointer.to_owned(),
+                    },
+                    record_constraint_for(source_record_type, pointer),
+                )
+            };
+            let expected_kind = if record_constraint.is_some() {
+                ObjectKind::Record
+            } else {
+                actual_kind
+            };
+            output.push(PendingReference {
+                target: target.to_owned(),
+                expected_kind,
+                role,
+                record_constraint,
+            });
+        }
+        Value::Array(values) => {
+            for (index, child) in values.iter().enumerate() {
+                collect_record_oid_strings(
+                    child,
+                    &format!("{pointer}/{index}"),
+                    source_oid,
+                    source_record_type,
+                    source_entity_id,
+                    output,
+                    issues,
+                );
+            }
+        }
+        Value::Object(entries) => {
+            for (key, child) in entries {
+                collect_record_oid_strings(
+                    child,
+                    &format!("{pointer}/{}", escape_pointer(key)),
+                    source_oid,
+                    source_record_type,
+                    source_entity_id,
+                    output,
+                    issues,
+                );
+            }
+        }
+        Value::Null | Value::Bool(_) | Value::Integer(_) => {}
+    }
+}
+
+fn record_constraint_for(record_type: &str, pointer: &str) -> Option<RecordConstraint> {
+    let expected = match (record_type, pointer) {
+        ("observation", "/payload/capture_profile_ref") => "capture_profile",
+        ("activity", "/payload/ai_run/context_pack_ref") => "context_pack",
+        ("activity", "/payload/ai_run/delegation_grant_ref") => "delegation_grant",
+        ("context_pack", "/payload/policy_snapshot_ref") => "policy",
+        ("context_pack", "/payload/delegation_grant_ref") => "delegation_grant",
+        ("claim_reaction", "/payload/claim_ref") => "claim",
+        _ => {
+            return (record_type == "claim" && pointer == "/payload/ai_run_ref")
+                .then_some(RecordConstraint::AiActivity);
+        }
+    };
+    Some(RecordConstraint::RecordType(expected))
+}
+
+fn record_constraint_mismatch(
+    object: &VerifiedObject,
+    constraint: &RecordConstraint,
+) -> Option<(String, String)> {
+    let value = object.structured()?;
+    let actual_record_type = value
+        .get("record_type")
+        .and_then(Value::as_str)
+        .unwrap_or("<missing>");
+    let actual_entity_id = value
+        .get("entity_id")
+        .and_then(Value::as_str)
+        .unwrap_or("<missing>");
+    match constraint {
+        RecordConstraint::RecordType(expected) if actual_record_type != *expected => Some((
+            format!("record_type={expected}"),
+            format!("record_type={actual_record_type}"),
+        )),
+        RecordConstraint::AiActivity => {
+            let activity_kind = value
+                .get("payload")
+                .and_then(|payload| payload.get("activity_kind"))
+                .and_then(Value::as_str)
+                .unwrap_or("<missing>");
+            (actual_record_type != "activity" || activity_kind != "ai_run").then(|| {
+                (
+                    "record_type=activity, activity_kind=ai_run".to_owned(),
+                    format!("record_type={actual_record_type}, activity_kind={activity_kind}"),
+                )
+            })
+        }
+        RecordConstraint::Supersedes {
+            record_type,
+            entity_id,
+        } => (actual_record_type != record_type || actual_entity_id != entity_id).then(|| {
+            (
+                format!("record_type={record_type}, entity_id={entity_id}"),
+                format!("record_type={actual_record_type}, entity_id={actual_entity_id}"),
+            )
+        }),
+        _ => None,
+    }
+}
+
+fn append_array_references(
+    source_oid: &str,
+    fields: &[(String, Value)],
+    field_name: &str,
+    expected_kind: ObjectKind,
+    role: impl Fn(usize) -> ReferenceRole,
+    output: &mut Vec<PendingReference>,
+    issues: &mut Vec<ClosureIssue>,
+) {
+    let Some(values) = object_field(fields, field_name).and_then(Value::as_array) else {
+        invalid_object(
+            source_oid,
+            format!("Commit requires array field {field_name}"),
+            issues,
+        );
+        return;
+    };
+    for (index, value) in values.iter().enumerate() {
+        let Some(target) = value.as_str() else {
+            invalid_object(
+                source_oid,
+                format!("Commit {field_name}[{index}] must be a string OID"),
+                issues,
+            );
+            continue;
+        };
+        output.push(PendingReference {
+            target: target.to_owned(),
+            expected_kind,
+            role: role(index),
+            record_constraint: None,
+        });
+    }
+}
+
+fn extract_tree_references(
+    object: &VerifiedObject,
+    issues: &mut Vec<ClosureIssue>,
+) -> Vec<PendingReference> {
+    let Some(value) = object.structured() else {
+        invalid_object(object.oid(), "verified Tree has no structured body", issues);
+        return Vec::new();
+    };
+    let Some(entries) = value.get("entries").and_then(Value::as_object) else {
+        invalid_object(object.oid(), "Tree requires object field entries", issues);
+        return Vec::new();
+    };
+    let mut references = Vec::with_capacity(entries.len());
+    for (segment, entry) in entries {
+        if !valid_path_segment(segment) {
+            invalid_object(
+                object.oid(),
+                format!("Tree entry segment {segment:?} is not a safe single path segment"),
+                issues,
+            );
+            continue;
+        }
+        let Some(entry_fields) = entry.as_object() else {
+            invalid_object(
+                object.oid(),
+                format!("Tree entry {segment:?} is not an object"),
+                issues,
+            );
+            continue;
+        };
+        let expected_kind = match object_field(entry_fields, "entry_kind").and_then(Value::as_str) {
+            Some("blob") => ObjectKind::Blob,
+            Some("record") => ObjectKind::Record,
+            Some("tree") => ObjectKind::Tree,
+            Some("commit") => ObjectKind::Commit,
+            Some(other) => {
+                invalid_object(
+                    object.oid(),
+                    format!("Tree entry {segment:?} has unsupported entry_kind {other:?}"),
+                    issues,
+                );
+                continue;
+            }
+            None => {
+                invalid_object(
+                    object.oid(),
+                    format!("Tree entry {segment:?} requires string entry_kind"),
+                    issues,
+                );
+                continue;
+            }
+        };
+        let Some(target) = object_field(entry_fields, "oid").and_then(Value::as_str) else {
+            invalid_object(
+                object.oid(),
+                format!("Tree entry {segment:?} requires string oid"),
+                issues,
+            );
+            continue;
+        };
+        references.push(PendingReference {
+            target: target.to_owned(),
+            expected_kind,
+            role: ReferenceRole::TreeEntry {
+                segment: segment.to_owned(),
+            },
+            record_constraint: None,
+        });
+    }
+    references
+}
+
+fn object_field<'a>(fields: &'a [(String, Value)], name: &str) -> Option<&'a Value> {
+    fields
+        .iter()
+        .find_map(|(candidate, value)| (candidate == name).then_some(value))
+}
+
+fn escape_pointer(part: &str) -> String {
+    part.replace('~', "~0").replace('/', "~1")
+}
+
+fn invalid_object(oid: &str, detail: impl Into<String>, issues: &mut Vec<ClosureIssue>) {
+    issues.push(ClosureIssue {
+        oid: oid.to_owned(),
+        referenced_by: None,
+        role: None,
+        kind: ClosureIssueKind::InvalidObject {
+            detail: detail.into(),
+        },
+    });
+}
+
+fn valid_path_segment(segment: &str) -> bool {
+    !segment.is_empty()
+        && segment != "."
+        && segment != ".."
+        && !segment.contains('/')
+        && !segment.contains('\0')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::store::VerifiedObject;
+    use std::collections::HashMap;
+
+    struct MockStore {
+        objects: HashMap<String, VerifiedObject>,
+    }
+
+    impl ObjectStore for MockStore {
+        fn get_verified(&self, oid: &str) -> Result<Option<VerifiedObject>, StoreError> {
+            Ok(self.objects.get(oid).cloned())
+        }
+
+        fn list_oids(&self) -> Result<Vec<String>, StoreError> {
+            Ok(self.objects.keys().cloned().collect())
+        }
+    }
+
+    fn commit_value(parent: &str, snapshot: &str) -> Value {
+        Value::Object(vec![
+            ("object_type".to_owned(), Value::String("commit".to_owned())),
+            (
+                "parents".to_owned(),
+                Value::Array(vec![Value::String(parent.to_owned())]),
+            ),
+            ("snapshot".to_owned(), Value::String(snapshot.to_owned())),
+            ("transition_refs".to_owned(), Value::Array(Vec::new())),
+            (
+                "bound_declaration_refs".to_owned(),
+                Value::Array(Vec::new()),
+            ),
+        ])
+    }
+
+    fn root_commit_value(snapshot: &str) -> Value {
+        Value::Object(vec![
+            ("object_type".to_owned(), Value::String("commit".to_owned())),
+            ("parents".to_owned(), Value::Array(Vec::new())),
+            ("snapshot".to_owned(), Value::String(snapshot.to_owned())),
+            ("transition_refs".to_owned(), Value::Array(Vec::new())),
+            (
+                "bound_declaration_refs".to_owned(),
+                Value::Array(Vec::new()),
+            ),
+        ])
+    }
+
+    fn one_record_tree(record: &str) -> Value {
+        Value::Object(vec![
+            ("object_type".to_owned(), Value::String("tree".to_owned())),
+            (
+                "entries".to_owned(),
+                Value::Object(vec![(
+                    "record.json".to_owned(),
+                    Value::Object(vec![
+                        ("entry_kind".to_owned(), Value::String("record".to_owned())),
+                        ("oid".to_owned(), Value::String(record.to_owned())),
+                    ]),
+                )]),
+            ),
+        ])
+    }
+
+    fn record_value(
+        record_type: &str,
+        entity_id: &str,
+        supersedes: Option<&str>,
+        payload: Value,
+    ) -> Value {
+        let mut fields = vec![
+            ("object_type".to_owned(), Value::String("record".to_owned())),
+            (
+                "record_type".to_owned(),
+                Value::String(record_type.to_owned()),
+            ),
+            ("entity_id".to_owned(), Value::String(entity_id.to_owned())),
+            ("payload".to_owned(), payload),
+        ];
+        if let Some(target) = supersedes {
+            fields.push(("supersedes".to_owned(), Value::String(target.to_owned())));
+        }
+        Value::Object(fields)
+    }
+
+    #[test]
+    fn iterative_walk_reports_a_cycle_from_an_adversarial_store() {
+        let a = format!("commit:sg-oid-v1:sha256:{}", "a".repeat(64));
+        let b = format!("commit:sg-oid-v1:sha256:{}", "b".repeat(64));
+        let missing_tree = format!("tree:sg-oid-v1:sha256:{}", "c".repeat(64));
+        let mut objects = HashMap::new();
+        objects.insert(
+            a.clone(),
+            VerifiedObject::test_structured(
+                &a,
+                ObjectKind::Commit,
+                commit_value(&b, &missing_tree),
+            ),
+        );
+        objects.insert(
+            b.clone(),
+            VerifiedObject::test_structured(
+                &b,
+                ObjectKind::Commit,
+                commit_value(&a, &missing_tree),
+            ),
+        );
+        let report = verify_closure(
+            &MockStore { objects },
+            &a,
+            GraphLimits {
+                max_objects: 10,
+                max_edges: 20,
+                max_depth: 10,
+            },
+        )
+        .unwrap();
+        assert!(report.issues.iter().any(|issue| {
+            matches!(
+                &issue.kind,
+                ClosureIssueKind::Cycle { path } if path == &vec![a.clone(), b.clone(), a.clone()]
+            )
+        }));
+    }
+
+    #[test]
+    fn record_internal_references_are_traversed_and_semantically_typed() {
+        let commit = format!("commit:sg-oid-v1:sha256:{}", "1".repeat(64));
+        let tree = format!("tree:sg-oid-v1:sha256:{}", "2".repeat(64));
+        let context = format!("record:sg-oid-v1:sha256:{}", "3".repeat(64));
+        let actor = format!("record:sg-oid-v1:sha256:{}", "4".repeat(64));
+        let mut objects = HashMap::new();
+        objects.insert(
+            commit.clone(),
+            VerifiedObject::test_structured(&commit, ObjectKind::Commit, root_commit_value(&tree)),
+        );
+        objects.insert(
+            tree.clone(),
+            VerifiedObject::test_structured(&tree, ObjectKind::Tree, one_record_tree(&context)),
+        );
+        objects.insert(
+            context.clone(),
+            VerifiedObject::test_structured(
+                &context,
+                ObjectKind::Record,
+                record_value(
+                    "context_pack",
+                    "urn:uuid:00000000-0000-4000-8000-000000000001",
+                    None,
+                    Value::Object(vec![(
+                        "policy_snapshot_ref".to_owned(),
+                        Value::String(actor.clone()),
+                    )]),
+                ),
+            ),
+        );
+        objects.insert(
+            actor.clone(),
+            VerifiedObject::test_structured(
+                &actor,
+                ObjectKind::Record,
+                record_value(
+                    "actor",
+                    "urn:uuid:00000000-0000-4000-8000-000000000002",
+                    None,
+                    Value::Object(Vec::new()),
+                ),
+            ),
+        );
+
+        let report =
+            verify_closure(&MockStore { objects }, &commit, GraphLimits::default()).unwrap();
+        assert!(report.nodes.contains_key(&actor));
+        assert!(report.issues.iter().any(|issue| {
+            matches!(
+                &issue.kind,
+                ClosureIssueKind::ReferenceSemanticMismatch { expected, actual }
+                    if expected == "record_type=policy" && actual == "record_type=actor"
+            )
+        }));
+    }
+
+    #[test]
+    fn supersedes_cycles_are_rejected_even_though_general_record_cycles_are_allowed() {
+        let commit = format!("commit:sg-oid-v1:sha256:{}", "5".repeat(64));
+        let tree = format!("tree:sg-oid-v1:sha256:{}", "6".repeat(64));
+        let first = format!("record:sg-oid-v1:sha256:{}", "7".repeat(64));
+        let second = format!("record:sg-oid-v1:sha256:{}", "8".repeat(64));
+        let entity = "urn:uuid:00000000-0000-4000-8000-000000000003";
+        let mut objects = HashMap::new();
+        objects.insert(
+            commit.clone(),
+            VerifiedObject::test_structured(&commit, ObjectKind::Commit, root_commit_value(&tree)),
+        );
+        objects.insert(
+            tree.clone(),
+            VerifiedObject::test_structured(&tree, ObjectKind::Tree, one_record_tree(&first)),
+        );
+        objects.insert(
+            first.clone(),
+            VerifiedObject::test_structured(
+                &first,
+                ObjectKind::Record,
+                record_value("claim", entity, Some(&second), Value::Object(Vec::new())),
+            ),
+        );
+        objects.insert(
+            second.clone(),
+            VerifiedObject::test_structured(
+                &second,
+                ObjectKind::Record,
+                record_value("claim", entity, Some(&first), Value::Object(Vec::new())),
+            ),
+        );
+
+        let report =
+            verify_closure(&MockStore { objects }, &commit, GraphLimits::default()).unwrap();
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|issue| matches!(issue.kind, ClosureIssueKind::Cycle { .. }))
+        );
+    }
+}

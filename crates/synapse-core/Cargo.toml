@@ -1,0 +1,17 @@
+[package]
+name = "synapse-core"
+version = "0.1.0"
+description = "Integrated local repository and archive boundary for SynapseGit Core"
+edition.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+sha2.workspace = true
+synapse-canonical = { path = "../synapse-canonical" }
+synapse-cas = { path = "../synapse-cas" }
+synapse-schema = { path = "../synapse-schema" }
+synapse-sqlite = { path = "../synapse-sqlite" }
+

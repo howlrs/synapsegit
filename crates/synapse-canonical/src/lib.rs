@@ -57,9 +57,20 @@ pub enum ErrorCode {
     UnsafeInteger,
     LoneSurrogate,
     KeyNotNfc,
+    IdentifierNotNfc,
+    SetNotSorted,
+    SetDuplicate,
+    TimestampInvalid,
+    IntervalInvalid,
+    FixedPointNotNormalized,
+    PathSegmentInvalid,
     ResourceLimit,
     SchemaInvalid,
+    ReferenceTypeMismatch,
     OidMismatch,
+    ClosureMissing,
+    StaleBase,
+    RefConflict,
 }
 
 impl ErrorCode {
@@ -72,9 +83,20 @@ impl ErrorCode {
             Self::UnsafeInteger => "unsafe_integer",
             Self::LoneSurrogate => "lone_surrogate",
             Self::KeyNotNfc => "key_not_nfc",
+            Self::IdentifierNotNfc => "identifier_not_nfc",
+            Self::SetNotSorted => "set_not_sorted",
+            Self::SetDuplicate => "set_duplicate",
+            Self::TimestampInvalid => "timestamp_invalid",
+            Self::IntervalInvalid => "interval_invalid",
+            Self::FixedPointNotNormalized => "fixed_point_not_normalized",
+            Self::PathSegmentInvalid => "path_segment_invalid",
             Self::ResourceLimit => "resource_limit",
             Self::SchemaInvalid => "schema_invalid",
+            Self::ReferenceTypeMismatch => "reference_type_mismatch",
             Self::OidMismatch => "oid_mismatch",
+            Self::ClosureMissing => "closure_missing",
+            Self::StaleBase => "stale_base",
+            Self::RefConflict => "ref_conflict",
         }
     }
 }
@@ -93,7 +115,7 @@ pub struct CoreError {
 }
 
 impl CoreError {
-    fn new(code: ErrorCode, message: impl Into<String>) -> Self {
+    pub fn new(code: ErrorCode, message: impl Into<String>) -> Self {
         Self {
             code,
             message: message.into(),
@@ -107,6 +129,62 @@ impl CoreError {
     pub fn message(&self) -> &str {
         &self.message
     }
+}
+
+/// The four content-addressed object families in the Core v0.1 OID profile.
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum ObjectKind {
+    Blob,
+    Record,
+    Tree,
+    Commit,
+}
+
+impl ObjectKind {
+    pub const fn prefix(self) -> &'static str {
+        match self {
+            Self::Blob => "blob",
+            Self::Record => "record",
+            Self::Tree => "tree",
+            Self::Commit => "commit",
+        }
+    }
+
+    pub const fn is_structured(self) -> bool {
+        !matches!(self, Self::Blob)
+    }
+}
+
+/// Validate the complete lexical form of an `sg-oid-v1` identifier.
+pub fn parse_oid(oid: &str) -> Result<ObjectKind, CoreError> {
+    let mut parts = oid.split(':');
+    let kind = match parts.next() {
+        Some("blob") => ObjectKind::Blob,
+        Some("record") => ObjectKind::Record,
+        Some("tree") => ObjectKind::Tree,
+        Some("commit") => ObjectKind::Commit,
+        _ => return Err(invalid_oid(oid)),
+    };
+    if parts.next() != Some("sg-oid-v1") || parts.next() != Some("sha256") {
+        return Err(invalid_oid(oid));
+    }
+    let digest = parts.next().ok_or_else(|| invalid_oid(oid))?;
+    if parts.next().is_some()
+        || digest.len() != 64
+        || !digest
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    {
+        return Err(invalid_oid(oid));
+    }
+    Ok(kind)
+}
+
+fn invalid_oid(oid: &str) -> CoreError {
+    CoreError::new(
+        ErrorCode::SchemaInvalid,
+        format!("invalid Core v0.1 OID {oid:?}"),
+    )
 }
 
 impl fmt::Display for CoreError {
@@ -288,6 +366,24 @@ pub fn structured_oid_unchecked_with_limits(
 /// Calculate the raw byte OID. No decoding or normalization is performed.
 pub fn blob_oid(bytes: &[u8]) -> String {
     format!("blob:sg-oid-v1:sha256:{}", sha256_hex(bytes))
+}
+
+/// Verify that transport metadata names the exact supplied raw bytes.
+pub fn verify_blob_oid(claimed_oid: &str, bytes: &[u8]) -> Result<(), CoreError> {
+    if parse_oid(claimed_oid)? != ObjectKind::Blob {
+        return Err(CoreError::new(
+            ErrorCode::OidMismatch,
+            format!("claimed OID {claimed_oid} is not a Blob OID"),
+        ));
+    }
+    let expected = blob_oid(bytes);
+    if claimed_oid != expected {
+        return Err(CoreError::new(
+            ErrorCode::OidMismatch,
+            format!("claimed {claimed_oid}, expected {expected}"),
+        ));
+    }
+    Ok(())
 }
 
 pub fn sha256_hex(bytes: &[u8]) -> String {
@@ -884,6 +980,40 @@ mod unit_tests {
     }
 
     #[test]
+    fn stable_error_codes_match_the_operations_profile() {
+        let codes = [
+            (ErrorCode::InvalidUtf8, "invalid_utf8"),
+            (ErrorCode::BomForbidden, "bom_forbidden"),
+            (ErrorCode::DuplicateKey, "duplicate_key"),
+            (ErrorCode::NumberTokenForbidden, "number_token_forbidden"),
+            (ErrorCode::UnsafeInteger, "unsafe_integer"),
+            (ErrorCode::LoneSurrogate, "lone_surrogate"),
+            (ErrorCode::KeyNotNfc, "key_not_nfc"),
+            (ErrorCode::IdentifierNotNfc, "identifier_not_nfc"),
+            (ErrorCode::SetNotSorted, "set_not_sorted"),
+            (ErrorCode::SetDuplicate, "set_duplicate"),
+            (ErrorCode::TimestampInvalid, "timestamp_invalid"),
+            (ErrorCode::IntervalInvalid, "interval_invalid"),
+            (
+                ErrorCode::FixedPointNotNormalized,
+                "fixed_point_not_normalized",
+            ),
+            (ErrorCode::PathSegmentInvalid, "path_segment_invalid"),
+            (ErrorCode::SchemaInvalid, "schema_invalid"),
+            (ErrorCode::ReferenceTypeMismatch, "reference_type_mismatch"),
+            (ErrorCode::OidMismatch, "oid_mismatch"),
+            (ErrorCode::ClosureMissing, "closure_missing"),
+            (ErrorCode::StaleBase, "stale_base"),
+            (ErrorCode::RefConflict, "ref_conflict"),
+            (ErrorCode::ResourceLimit, "resource_limit"),
+        ];
+        for (code, expected) in codes {
+            assert_eq!(code.as_str(), expected);
+            assert_eq!(code.to_string(), expected);
+        }
+    }
+
+    #[test]
     fn strict_parser_preserves_protocol_errors() {
         assert_eq!(
             error_code(&[b'"', 0xc3, 0x28, b'"']),
@@ -947,6 +1077,35 @@ mod unit_tests {
         assert_ne!(blob_oid(b"line\n"), blob_oid(b"line\r\n"));
         assert_ne!(blob_oid(b"data"), blob_oid(b"\xef\xbb\xbfdata"));
         assert_ne!(blob_oid(b"a\0b"), blob_oid(b"ab"));
+
+        let oid = blob_oid(b"data");
+        verify_blob_oid(&oid, b"data").unwrap();
+        assert_eq!(
+            verify_blob_oid(&oid, b"other").unwrap_err().code(),
+            ErrorCode::OidMismatch
+        );
+    }
+
+    #[test]
+    fn oid_parser_rejects_noncanonical_or_unsafe_spellings() {
+        let digest = "a".repeat(64);
+        assert_eq!(
+            parse_oid(&format!("commit:sg-oid-v1:sha256:{digest}")).unwrap(),
+            ObjectKind::Commit
+        );
+        for invalid in [
+            format!("other:sg-oid-v1:sha256:{digest}"),
+            format!("blob:sg-oid-v2:sha256:{digest}"),
+            format!("blob:sg-oid-v1:sha1:{digest}"),
+            format!("blob:sg-oid-v1:sha256:{}", "A".repeat(64)),
+            format!("blob:sg-oid-v1:sha256:{}", "a".repeat(63)),
+            format!("blob:sg-oid-v1:sha256:{digest}:extra"),
+        ] {
+            assert_eq!(
+                parse_oid(&invalid).unwrap_err().code(),
+                ErrorCode::SchemaInvalid
+            );
+        }
     }
 
     #[test]

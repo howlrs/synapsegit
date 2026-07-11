@@ -39,14 +39,38 @@ The JavaScript verifier checks 20 schemas, 17 structured golden fixtures, strict
 JSON and Unicode behavior, resource limits, set and parent ordering,
 fixed-point/time rules, closure states, Tombstones, and empty-store restore.
 
-The independent Rust implementation in `crates/synapse-canonical` implements
-the resource-bounded canonicalization and digest layer without sharing parser
-or canonicalization code with the JavaScript verifier. Its tests match all 17
-structured fixtures and the raw Blob fixture on canonical length, canonical
-SHA-256, and `sg-oid-v1`. Structured OID entry points remain explicitly
-unchecked until the schema and semantic validation crate supplies the validated
-ingestion path.
+The Rust workspace now implements the Stage 0 local vertical slice:
+
+- `synapse-canonical`: resource-bounded strict JSON, canonical bytes, and OIDs;
+- `synapse-schema`: offline Draft 2020-12 record dispatch plus Synapse semantic annotations;
+- `synapse-cas`: atomic filesystem CAS, typed closure, Tombstone availability, and fsck;
+- `synapse-sqlite`: transactional Ref compare-and-swap and reflog;
+- `synapse-core`: validated ingestion and checksum-bound export/empty-store restore;
+- `synapse-cli`: `put`, `update-ref`, `fsck`, `export`, and `restore` commands.
+
+The Rust tests match all 17 structured golden fixtures and the raw Blob fixture
+without sharing parser or canonicalization code with the JavaScript verifier.
+Production ingestion goes through `synapse-schema`; low-level structured CAS and
+OID APIs remain explicitly named `*_unchecked`.
 
 The `sg-oid-v1` values are draft fixtures until a second independent production
 implementation also completes schema and semantic validation for the Stage 0
 inter-language freeze gate.
+
+## Local CLI
+
+```bash
+cargo run -p synapse-cli -- init .synapse
+cargo run -p synapse-cli -- put-blob .synapse path/to/file
+cargo run -p synapse-cli -- put-record .synapse path/to/record.json
+cargo run -p synapse-cli -- build-tree .synapse path/to/tree.json
+cargo run -p synapse-cli -- commit .synapse path/to/commit.json
+cargo run -p synapse-cli -- update-ref .synapse proposal/agent/run-1 - <commit-oid>
+cargo run -p synapse-cli -- fsck .synapse
+cargo run -p synapse-cli -- export .synapse archive.sg
+cargo run -p synapse-cli -- restore archive.sg restored.synapse
+```
+
+`-` means that the Ref must not yet exist. Later updates must supply the exact
+current Commit OID as `expected_head`; stale updates fail without changing the
+Ref or reflog.

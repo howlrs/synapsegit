@@ -1,0 +1,12 @@
+[package]
+name = "synapse-cas"
+version = "0.1.0"
+description = "Filesystem content-addressed storage and graph integrity checks for SynapseGit Core"
+edition.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+sha2.workspace = true
+synapse-canonical = { path = "../synapse-canonical" }
+

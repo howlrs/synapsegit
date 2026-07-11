@@ -1,0 +1,17 @@
+[package]
+name = "synapse-cli"
+version = "0.1.0"
+description = "Stage 0 command-line interface for SynapseGit Core"
+edition.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "synapse"
+path = "src/main.rs"
+
+[dependencies]
+synapse-canonical = { path = "../synapse-canonical" }
+synapse-core = { path = "../synapse-core" }
+synapse-sqlite = { path = "../synapse-sqlite" }
+
