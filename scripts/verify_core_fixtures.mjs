@@ -13,6 +13,12 @@ const specDir = join(root, "spec/core/v0.1");
 const schemaDir = join(specDir, "schemas");
 const fixtureDir = join(specDir, "fixtures");
 const printGolden = process.argv.includes("--print-golden");
+const defaultResourceLimits = Object.freeze({
+  maxInputBytes: 16 * 1024 * 1024,
+  maxNestingDepth: 128,
+  maxNodes: 100_000,
+  maxContainerItems: 50_000
+});
 
 class CoreError extends Error {
   constructor(code, message) {
@@ -55,7 +61,14 @@ function assertUnicodeScalar(value, label) {
   }
 }
 
-function parseStrictJsonBytes(bytes, label = "JSON input") {
+function parseStrictJsonBytes(bytes, label = "JSON input", resourceLimits = defaultResourceLimits) {
+  const limits = { ...defaultResourceLimits, ...resourceLimits };
+  if (bytes.length > limits.maxInputBytes) {
+    fail("resource_limit", `${label} exceeds the structured input byte limit`);
+  }
+  if (limits.maxNestingDepth > 256) {
+    fail("resource_limit", `${label} nesting limit exceeds the hard ceiling`);
+  }
   if (bytes.length >= 3 && bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) {
     fail("bom_forbidden", `${label} starts with a UTF-8 BOM`);
   }
@@ -70,6 +83,7 @@ function parseStrictJsonBytes(bytes, label = "JSON input") {
   }
 
   let position = 0;
+  let nodeCount = 0;
   const isWhitespace = (char) => char === " " || char === "\t" || char === "\r" || char === "\n";
   const skipWhitespace = () => {
     while (position < text.length && isWhitespace(text[position])) position += 1;
@@ -134,7 +148,22 @@ function parseStrictJsonBytes(bytes, label = "JSON input") {
     return value;
   }
 
-  function parseArray() {
+  function childDepth(depth) {
+    const next = depth + 1;
+    if (next > limits.maxNestingDepth) {
+      fail("resource_limit", `${label} exceeds the structured nesting depth limit`);
+    }
+    return next;
+  }
+
+  function consumeNode() {
+    nodeCount += 1;
+    if (nodeCount > limits.maxNodes) {
+      fail("resource_limit", `${label} exceeds the structured node limit`);
+    }
+  }
+
+  function parseArray(depth) {
     position += 1;
     skipWhitespace();
     const result = [];
@@ -143,7 +172,10 @@ function parseStrictJsonBytes(bytes, label = "JSON input") {
       return result;
     }
     while (position < text.length) {
-      result.push(parseValue());
+      if (result.length >= limits.maxContainerItems) {
+        fail("resource_limit", `${label} exceeds the container item limit`);
+      }
+      result.push(parseValue(depth));
       skipWhitespace();
       if (text[position] === "]") {
         position += 1;
@@ -156,7 +188,7 @@ function parseStrictJsonBytes(bytes, label = "JSON input") {
     syntax("unterminated array");
   }
 
-  function parseObject() {
+  function parseObject(depth) {
     position += 1;
     skipWhitespace();
     const result = Object.create(null);
@@ -166,6 +198,9 @@ function parseStrictJsonBytes(bytes, label = "JSON input") {
       return result;
     }
     while (position < text.length) {
+      if (keys.size >= limits.maxContainerItems) {
+        fail("resource_limit", `${label} exceeds the container item limit`);
+      }
       if (text[position] !== "\"") syntax("object key must be a string");
       const key = parseString();
       if (keys.has(key)) fail("duplicate_key", `${label} repeats key ${JSON.stringify(key)}`);
@@ -177,7 +212,7 @@ function parseStrictJsonBytes(bytes, label = "JSON input") {
       if (text[position] !== ":") syntax("expected ':'");
       position += 1;
       skipWhitespace();
-      result[key] = parseValue();
+      result[key] = parseValue(depth);
       skipWhitespace();
       if (text[position] === "}") {
         position += 1;
@@ -198,11 +233,12 @@ function parseStrictJsonBytes(bytes, label = "JSON input") {
     return value;
   }
 
-  function parseValue() {
+  function parseValue(depth) {
     skipWhitespace();
+    consumeNode();
     const char = text[position];
-    if (char === "{") return parseObject();
-    if (char === "[") return parseArray();
+    if (char === "{") return parseObject(childDepth(depth));
+    if (char === "[") return parseArray(childDepth(depth));
     if (char === "\"") return parseString();
     if (char === "t") return parseKeyword("true", true);
     if (char === "f") return parseKeyword("false", false);
@@ -212,7 +248,7 @@ function parseStrictJsonBytes(bytes, label = "JSON input") {
   }
 
   skipWhitespace();
-  const value = parseValue();
+  const value = parseValue(0);
   skipWhitespace();
   if (position !== text.length) syntax("trailing content");
   return value;
@@ -593,6 +629,34 @@ assertError("unsafe_integer", () => parseStrictJsonBytes(Buffer.from('{"a":90071
 assertError("lone_surrogate", () => parseStrictJsonBytes(Buffer.from('{"a":"\\ud800"}')), "lone surrogate");
 assertError("key_not_nfc", () => parseStrictJsonBytes(Buffer.from('{"e\\u0301":1}')), "non-NFC key");
 
+const oneLevelLimits = { ...defaultResourceLimits, maxNestingDepth: 1 };
+parseStrictJsonBytes(Buffer.from("[0]"), "one-level JSON", oneLevelLimits);
+assertError(
+  "resource_limit",
+  () => parseStrictJsonBytes(Buffer.from("[[0]]"), "nested JSON", oneLevelLimits),
+  "nesting resource limit"
+);
+const twoNodeLimits = { ...defaultResourceLimits, maxNodes: 2 };
+assertError(
+  "resource_limit",
+  () => parseStrictJsonBytes(Buffer.from("[0,1]"), "three-node JSON", twoNodeLimits),
+  "node resource limit"
+);
+const oneItemLimits = { ...defaultResourceLimits, maxContainerItems: 1 };
+assertError(
+  "resource_limit",
+  () => parseStrictJsonBytes(Buffer.from("[0,1]"), "two-item JSON", oneItemLimits),
+  "container resource limit"
+);
+assertError(
+  "resource_limit",
+  () => parseStrictJsonBytes(Buffer.from("null"), "unsafe limit", {
+    ...defaultResourceLimits,
+    maxNestingDepth: 257
+  }),
+  "nesting hard ceiling"
+);
+
 const badIdentifier = structuredClone(byPath("fixtures/context-pack.json").value);
 badIdentifier.payload.base_ref_name = "decision/cafe\u0301";
 assertError("identifier_not_nfc", () => validateObject(badIdentifier), "non-NFC identifier");
@@ -727,7 +791,7 @@ process.stdout.write(
   [
     `ok: ${schemas.size} schemas parsed and references resolved`,
     `ok: ${objectRows.length} structured fixtures match golden OIDs`,
-    "ok: strict JSON, Unicode, number, set, time, fixed-point, and direction cases",
+    "ok: strict JSON, Unicode, number, resource-limit, set, time, fixed-point, and direction cases",
     "ok: present / tombstoned / missing closure and empty-store restore"
   ].join("\n") + "\n"
 );

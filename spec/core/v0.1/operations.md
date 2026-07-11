@@ -182,4 +182,8 @@ Stage 0 fixtures reserve these codes: `invalid_utf8`, `bom_forbidden`,
 `key_not_nfc`, `identifier_not_nfc`, `set_not_sorted`, `set_duplicate`,
 `timestamp_invalid`, `interval_invalid`, `fixed_point_not_normalized`,
 `path_segment_invalid`, `schema_invalid`, `reference_type_mismatch`,
-`oid_mismatch`, `closure_missing`, `stale_base`, and `ref_conflict`.
+`oid_mismatch`, `closure_missing`, `stale_base`, `ref_conflict`, and
+`resource_limit`. Implementations return `resource_limit` before allocation or
+recursion would exceed a configured ingestion limit; this is an operational
+rejection and does not make the object's canonical identity
+deployment-specific.

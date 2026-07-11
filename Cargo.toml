@@ -1,0 +1,12 @@
+[workspace]
+members = ["crates/synapse-canonical"]
+resolver = "2"
+
+[workspace.package]
+edition = "2024"
+repository = "https://github.com/howlrs/synapsegit"
+rust-version = "1.85"
+
+[workspace.dependencies]
+sha2 = "0.10.9"
+unicode-normalization = "0.1.24"
