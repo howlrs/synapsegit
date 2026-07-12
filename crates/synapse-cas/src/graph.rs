@@ -1,7 +1,32 @@
-use crate::store::{FileObjectStore, ObjectStore, StoreError, VerifiedObject};
-use std::collections::{BTreeMap, HashMap, HashSet};
+use crate::store::{BoundedObjectStore, FileObjectStore, ObjectStore, StoreError, VerifiedObject};
+use std::collections::{BTreeMap, HashSet};
 use std::fmt;
-use synapse_canonical::{ObjectKind, Value, parse_oid};
+use synapse_canonical::{CoreError, ErrorCode, ObjectKind, Value, parse_oid};
+
+pub const DEFAULT_MAX_TOMBSTONE_RECORD_OBJECTS: usize = 100_000;
+pub const DEFAULT_MAX_TOMBSTONE_RECORD_BYTES: u64 = 1024 * 1024 * 1024;
+
+/// Resource limits for the store-wide Record scan used to resolve Tombstones.
+/// Both limits are inclusive. Every digest-verified Record contributes to the
+/// byte limit, whether or not it is a Tombstone.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TombstoneScanLimits {
+    /// Maximum Record OIDs returned by the bounded inventory provider.
+    pub max_record_objects: usize,
+    /// Maximum cumulative canonical stored byte length of verified Records.
+    /// Detection may read one additional Record, itself bounded by
+    /// [`crate::StoreLimits`], before rejecting the cumulative overflow.
+    pub max_record_bytes: u64,
+}
+
+impl Default for TombstoneScanLimits {
+    fn default() -> Self {
+        Self {
+            max_record_objects: DEFAULT_MAX_TOMBSTONE_RECORD_OBJECTS,
+            max_record_bytes: DEFAULT_MAX_TOMBSTONE_RECORD_BYTES,
+        }
+    }
+}
 
 /// Work limits for untrusted Commit/Tree graph traversal.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -145,6 +170,47 @@ impl ClosureReport {
     }
 }
 
+/// A point-in-operation Tombstone catalog plus graph limits that can verify
+/// several roots without repeating the store-wide Record scan.
+///
+/// Callers should prepare one verifier per consistency operation while the
+/// cooperative no-GC/no-removal boundary is held. The catalog intentionally
+/// does not observe Tombstones published after preparation; those become
+/// visible to the next prepared operation.
+pub struct PreparedClosureVerifier<'store, S: BoundedObjectStore + ?Sized> {
+    store: &'store S,
+    graph_limits: GraphLimits,
+    tombstones: BTreeMap<String, String>,
+    report_cache: BTreeMap<String, ClosureReport>,
+}
+
+impl<'store, S: BoundedObjectStore + ?Sized> PreparedClosureVerifier<'store, S> {
+    pub fn new(
+        store: &'store S,
+        graph_limits: GraphLimits,
+        tombstone_limits: TombstoneScanLimits,
+    ) -> Result<Self, StoreError> {
+        validate_tombstone_scan_limits(tombstone_limits)?;
+        let tombstones = collect_tombstones_bounded(store, tombstone_limits)?;
+        Ok(Self {
+            store,
+            graph_limits,
+            tombstones,
+            report_cache: BTreeMap::new(),
+        })
+    }
+
+    pub fn verify(&mut self, root: &str) -> Result<ClosureReport, StoreError> {
+        if let Some(report) = self.report_cache.get(root) {
+            return Ok(report.clone());
+        }
+        let report =
+            verify_closure_with_tombstones(self.store, root, self.graph_limits, &self.tombstones)?;
+        self.report_cache.insert(root.to_owned(), report.clone());
+        Ok(report)
+    }
+}
+
 /// Traverse the required object closure rooted at a Commit.
 ///
 /// Only normative Stage 0 structural edges are followed: Commit parents,
@@ -152,10 +218,30 @@ impl ClosureReport {
 /// Record-internal semantic references remain the schema/semantic validator's
 /// responsibility. Traversal is iterative, so the configured depth bound is
 /// enforced without relying on the process call stack.
+///
+/// This compatibility entry point uses the complete `ObjectStore::list_oids`
+/// inventory to discover Tombstones. Service paths that need a hard inventory
+/// bound or verify several roots should use [`PreparedClosureVerifier`].
 pub fn verify_closure<S: ObjectStore + ?Sized>(
     store: &S,
     root: &str,
     limits: GraphLimits,
+) -> Result<ClosureReport, StoreError> {
+    // Retain the original generic ObjectStore API and behavior. Callers that
+    // require a hard inventory bound use PreparedClosureVerifier, whose store
+    // must implement BoundedObjectStore.
+    if parse_oid(root)? != ObjectKind::Commit {
+        return verify_closure_with_tombstones(store, root, limits, &BTreeMap::new());
+    }
+    let tombstones = collect_tombstones(store)?;
+    verify_closure_with_tombstones(store, root, limits, &tombstones)
+}
+
+fn verify_closure_with_tombstones<S: ObjectStore + ?Sized>(
+    store: &S,
+    root: &str,
+    limits: GraphLimits,
+    tombstones: &BTreeMap<String, String>,
 ) -> Result<ClosureReport, StoreError> {
     let root_kind = parse_oid(root)?;
     let mut report = ClosureReport {
@@ -177,10 +263,6 @@ pub fn verify_closure<S: ObjectStore + ?Sized>(
         });
         return Ok(report);
     }
-
-    // Availability is store-wide metadata in Stage 0. A Tombstone can preserve
-    // traversal of a historical closure even after the target bytes are gone.
-    let tombstones = collect_tombstones(store)?;
 
     let mut stack = vec![WalkItem::Enter(PendingVisit {
         oid: root.to_owned(),
@@ -436,13 +518,50 @@ pub fn verify_closure<S: ObjectStore + ?Sized>(
 
 fn collect_tombstones<S: ObjectStore + ?Sized>(
     store: &S,
-) -> Result<HashMap<String, String>, StoreError> {
-    let mut result = HashMap::new();
-    for oid in store.list_oids()? {
+) -> Result<BTreeMap<String, String>, StoreError> {
+    collect_tombstones_from_oids(store, store.list_oids()?, None)
+}
+
+fn collect_tombstones_bounded<S: BoundedObjectStore + ?Sized>(
+    store: &S,
+    limits: TombstoneScanLimits,
+) -> Result<BTreeMap<String, String>, StoreError> {
+    let oids = store.list_oids_by_kind_limited(ObjectKind::Record, limits.max_record_objects)?;
+    if oids.len() > limits.max_record_objects {
+        return Err(tombstone_scan_resource_limit(format!(
+            "exceeds max_record_objects {}",
+            limits.max_record_objects
+        )));
+    }
+    collect_tombstones_from_oids(store, oids, Some(limits.max_record_bytes))
+}
+
+fn collect_tombstones_from_oids<S: ObjectStore + ?Sized>(
+    store: &S,
+    mut oids: Vec<String>,
+    max_record_bytes: Option<u64>,
+) -> Result<BTreeMap<String, String>, StoreError> {
+    oids.sort_unstable();
+    oids.dedup();
+    let mut result = BTreeMap::new();
+    let mut verified_record_bytes = 0_u64;
+    for oid in oids {
         if parse_oid(&oid).is_ok_and(|kind| kind == ObjectKind::Record) {
             let Some(object) = store.get_verified(&oid)? else {
                 continue;
             };
+            if let Some(max_record_bytes) = max_record_bytes {
+                verified_record_bytes = verified_record_bytes
+                    .checked_add(object.byte_len())
+                    .ok_or_else(|| {
+                        tombstone_scan_resource_limit("verified Record bytes overflowed u64")
+                    })?;
+                if verified_record_bytes > max_record_bytes {
+                    return Err(tombstone_scan_resource_limit(format!(
+                        "exceeds max_record_bytes {max_record_bytes}"
+                    )));
+                }
+            }
             let Some(value) = object.structured() else {
                 continue;
             };
@@ -470,6 +589,28 @@ fn collect_tombstones<S: ObjectStore + ?Sized>(
         }
     }
     Ok(result)
+}
+
+fn validate_tombstone_scan_limits(limits: TombstoneScanLimits) -> Result<(), StoreError> {
+    if limits.max_record_objects == 0 {
+        return Err(tombstone_scan_resource_limit(
+            "max_record_objects must be greater than zero",
+        ));
+    }
+    if limits.max_record_bytes == 0 {
+        return Err(tombstone_scan_resource_limit(
+            "max_record_bytes must be greater than zero",
+        ));
+    }
+    Ok(())
+}
+
+fn tombstone_scan_resource_limit(detail: impl Into<String>) -> StoreError {
+    CoreError::new(
+        ErrorCode::ResourceLimit,
+        format!("Tombstone scan {}", detail.into()),
+    )
+    .into()
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -999,6 +1140,7 @@ fn valid_path_segment(segment: &str) -> bool {
 mod tests {
     use super::*;
     use crate::store::VerifiedObject;
+    use std::cell::Cell;
     use std::collections::HashMap;
 
     struct MockStore {
@@ -1012,6 +1154,57 @@ mod tests {
 
         fn list_oids(&self) -> Result<Vec<String>, StoreError> {
             Ok(self.objects.keys().cloned().collect())
+        }
+    }
+
+    impl BoundedObjectStore for MockStore {
+        fn list_oids_by_kind_limited(
+            &self,
+            kind: ObjectKind,
+            max_objects: usize,
+        ) -> Result<Vec<String>, StoreError> {
+            let mut oids = self
+                .objects
+                .keys()
+                .filter(|oid| parse_oid(oid).is_ok_and(|actual| actual == kind))
+                .cloned()
+                .collect::<Vec<_>>();
+            oids.sort_unstable();
+            if oids.len() > max_objects {
+                return Err(tombstone_scan_resource_limit(format!(
+                    "exceeds max_record_objects {max_objects}"
+                )));
+            }
+            Ok(oids)
+        }
+    }
+
+    struct CountingBoundedStore {
+        inner: MockStore,
+        inventory_calls: Cell<usize>,
+        get_calls: Cell<usize>,
+    }
+
+    impl ObjectStore for CountingBoundedStore {
+        fn get_verified(&self, oid: &str) -> Result<Option<VerifiedObject>, StoreError> {
+            self.get_calls.set(self.get_calls.get().saturating_add(1));
+            self.inner.get_verified(oid)
+        }
+
+        fn list_oids(&self) -> Result<Vec<String>, StoreError> {
+            self.inner.list_oids()
+        }
+    }
+
+    impl BoundedObjectStore for CountingBoundedStore {
+        fn list_oids_by_kind_limited(
+            &self,
+            kind: ObjectKind,
+            max_objects: usize,
+        ) -> Result<Vec<String>, StoreError> {
+            self.inventory_calls
+                .set(self.inventory_calls.get().saturating_add(1));
+            self.inner.list_oids_by_kind_limited(kind, max_objects)
         }
     }
 
@@ -1219,5 +1412,137 @@ mod tests {
                 .iter()
                 .any(|issue| matches!(issue.kind, ClosureIssueKind::Cycle { .. }))
         );
+    }
+
+    #[test]
+    fn prepared_verifier_bounds_record_count_and_canonical_bytes_inclusively() {
+        let first = format!("record:sg-oid-v1:sha256:{}", "1".repeat(64));
+        let second = format!("record:sg-oid-v1:sha256:{}", "2".repeat(64));
+        let mut objects = HashMap::new();
+        objects.insert(
+            first.clone(),
+            VerifiedObject::test_structured_with_len(
+                &first,
+                ObjectKind::Record,
+                record_value(
+                    "claim",
+                    "urn:uuid:00000000-0000-4000-8000-000000000010",
+                    None,
+                    Value::Object(Vec::new()),
+                ),
+                4,
+            ),
+        );
+        objects.insert(
+            second.clone(),
+            VerifiedObject::test_structured_with_len(
+                &second,
+                ObjectKind::Record,
+                record_value(
+                    "claim",
+                    "urn:uuid:00000000-0000-4000-8000-000000000011",
+                    None,
+                    Value::Object(Vec::new()),
+                ),
+                6,
+            ),
+        );
+        let store = MockStore { objects };
+
+        PreparedClosureVerifier::new(
+            &store,
+            GraphLimits::default(),
+            TombstoneScanLimits {
+                max_record_objects: 2,
+                max_record_bytes: 10,
+            },
+        )
+        .expect("inclusive object and byte limits accept the exact boundary");
+
+        let object_error = PreparedClosureVerifier::new(
+            &store,
+            GraphLimits::default(),
+            TombstoneScanLimits {
+                max_record_objects: 1,
+                max_record_bytes: 10,
+            },
+        )
+        .err()
+        .expect("one extra Record must reject the complete catalog");
+        assert_eq!(object_error.code(), Some(ErrorCode::ResourceLimit));
+        assert!(object_error.to_string().contains("max_record_objects 1"));
+
+        let byte_error = PreparedClosureVerifier::new(
+            &store,
+            GraphLimits::default(),
+            TombstoneScanLimits {
+                max_record_objects: 2,
+                max_record_bytes: 9,
+            },
+        )
+        .err()
+        .expect("one byte over the cumulative limit must fail closed");
+        assert_eq!(byte_error.code(), Some(ErrorCode::ResourceLimit));
+        assert!(byte_error.to_string().contains("max_record_bytes 9"));
+    }
+
+    #[test]
+    fn prepared_verifier_scans_once_and_selects_the_lowest_resolver_oid() {
+        let target = format!("blob:sg-oid-v1:sha256:{}", "a".repeat(64));
+        let lower = format!("record:sg-oid-v1:sha256:{}", "3".repeat(64));
+        let higher = format!("record:sg-oid-v1:sha256:{}", "4".repeat(64));
+        let tombstone = |entity: &str| {
+            record_value(
+                "tombstone",
+                entity,
+                None,
+                Value::Object(vec![(
+                    "target_ref".to_owned(),
+                    Value::String(target.clone()),
+                )]),
+            )
+        };
+        let mut objects = HashMap::new();
+        objects.insert(
+            higher.clone(),
+            VerifiedObject::test_structured_with_len(
+                &higher,
+                ObjectKind::Record,
+                tombstone("urn:uuid:00000000-0000-4000-8000-000000000012"),
+                7,
+            ),
+        );
+        objects.insert(
+            lower.clone(),
+            VerifiedObject::test_structured_with_len(
+                &lower,
+                ObjectKind::Record,
+                tombstone("urn:uuid:00000000-0000-4000-8000-000000000013"),
+                8,
+            ),
+        );
+        let store = CountingBoundedStore {
+            inner: MockStore { objects },
+            inventory_calls: Cell::new(0),
+            get_calls: Cell::new(0),
+        };
+        let mut verifier = PreparedClosureVerifier::new(
+            &store,
+            GraphLimits::default(),
+            TombstoneScanLimits {
+                max_record_objects: 2,
+                max_record_bytes: 15,
+            },
+        )
+        .unwrap();
+        assert_eq!(verifier.tombstones.get(&target), Some(&lower));
+
+        let first_root = format!("commit:sg-oid-v1:sha256:{}", "5".repeat(64));
+        let second_root = format!("commit:sg-oid-v1:sha256:{}", "6".repeat(64));
+        assert!(!verifier.verify(&first_root).unwrap().is_complete());
+        assert!(!verifier.verify(&first_root).unwrap().is_complete());
+        assert!(!verifier.verify(&second_root).unwrap().is_complete());
+        assert_eq!(store.inventory_calls.get(), 1);
+        assert_eq!(store.get_calls.get(), 4, "two catalog reads plus two roots");
     }
 }

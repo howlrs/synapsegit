@@ -10,12 +10,13 @@ mod graph;
 mod store;
 
 pub use graph::{
-    ClosureIssue, ClosureIssueKind, ClosureNode, ClosureNodeState, ClosureReport, FsckIssue,
-    FsckIssueKind, FsckReport, GraphEdge, GraphLimits, ReferenceRole, fsck, fsck_all,
-    verify_closure,
+    ClosureIssue, ClosureIssueKind, ClosureNode, ClosureNodeState, ClosureReport,
+    DEFAULT_MAX_TOMBSTONE_RECORD_BYTES, DEFAULT_MAX_TOMBSTONE_RECORD_OBJECTS, FsckIssue,
+    FsckIssueKind, FsckReport, GraphEdge, GraphLimits, PreparedClosureVerifier, ReferenceRole,
+    TombstoneScanLimits, fsck, fsck_all, verify_closure,
 };
 pub use store::{
-    FileObjectStore, ObjectInfo, ObjectState, ObjectStore, PutDisposition, PutResult, StoreError,
-    StoreLimits, VerifiedObject,
+    BoundedObjectStore, FileObjectStore, ObjectInfo, ObjectState, ObjectStore, PutDisposition,
+    PutResult, StoreError, StoreLimits, VerifiedObject,
 };
 pub use synapse_canonical::ObjectKind;

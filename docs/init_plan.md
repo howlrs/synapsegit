@@ -1,6 +1,9 @@
 # 企画提案書：Project Chrono-Synapse
 **〜過去・現在・未来を繋ぐ、共創系譜プラットフォーム「SynapseGit」の構築〜**
 
+> **Historical source vision / non-normative / superseded roadmap**<br>
+> この文書はProject着想時の企画を改変せず残す歴史資料であり、現行Core v0.1の仕様、実装状態、製品保証ではない。人物再現、創造性・貢献率評価、自動利益分配は現行Coreの明示的non-goalである。現在地は[documentation index](./README.md)、規範は[Core Protocol v0.1](../spec/core/v0.1/README.md)を参照する。
+
 ---
 
 ## Executive Summary（エグゼクティブ・サマリー）
@@ -10,9 +13,9 @@
 単なる成果物の管理ツールではなく、**「人類とAIの知的・芸術的相互作用の歴史」を記録・継承する新たな文化的インフラ**を定義します。
 
 > **現行Core資料:** 本文書はsource visionである。現在の対象者と利用場面は
-> [想定利用者別シナリオ（PPTX・branch: main）](https://github.com/howlrs/synapsegit/blob/main/docs/presentations/synapsegit_user_scenarios_ja.pptx)、
+> [想定利用者別シナリオ（PPTX）](./presentations/synapsegit_user_scenarios_ja.pptx)、
 > 実行可能な範囲は
-> [SynapseGit Core使用ガイド（branch: main）](https://github.com/howlrs/synapsegit/blob/main/docs/usage_guide.md)
+> [SynapseGit Core使用ガイド](./usage_guide.md)
 > を参照する。
 
 ---

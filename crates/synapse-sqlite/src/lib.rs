@@ -92,6 +92,18 @@ pub struct RefUpdate<'a> {
     pub metadata: ReflogMetadata<'a>,
 }
 
+/// An additional Ref state that must still hold when an update is committed.
+///
+/// Preconditions are independent of the Ref being updated. `None` requires
+/// the named Ref to be absent, while `Some(head)` requires an exact Commit OID
+/// match. All preconditions are checked inside the same immediate transaction
+/// as the requested update.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RefPrecondition<'a> {
+    pub ref_name: &'a str,
+    pub expected_head: Option<&'a str>,
+}
+
 /// A semantic/object-store validation failure returned by the integration
 /// layer. The code can preserve protocol codes such as `closure_missing`.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -143,6 +155,30 @@ where
     }
 }
 
+/// Revalidates an update while SQLite holds its immediate write transaction.
+///
+/// The guard is called exactly once, immediately after `BEGIN IMMEDIATE` and
+/// before any Ref preconditions are read. This lets an integration layer
+/// recheck short-lived authorization or capability state after waiting for the
+/// SQLite writer lock. Implementations should be fast because they run while
+/// every other writer is excluded.
+pub trait RefTransactionGuard {
+    fn validate_transaction(&self) -> std::result::Result<(), ValidationError>;
+}
+
+impl<F> RefTransactionGuard for F
+where
+    F: Fn() -> std::result::Result<(), ValidationError>,
+{
+    fn validate_transaction(&self) -> std::result::Result<(), ValidationError> {
+        self()
+    }
+}
+
+fn allow_transaction() -> std::result::Result<(), ValidationError> {
+    Ok(())
+}
+
 /// Failures at the RefStore boundary.
 #[derive(Debug)]
 pub enum RefStoreError {
@@ -157,6 +193,11 @@ pub enum RefStoreError {
     },
     Validation(ValidationError),
     RefConflict {
+        ref_name: String,
+        expected_head: Option<String>,
+        actual_head: Option<String>,
+    },
+    PreconditionFailed {
         ref_name: String,
         expected_head: Option<String>,
         actual_head: Option<String>,
@@ -179,7 +220,7 @@ impl RefStoreError {
             Self::InvalidCommitOid { .. } => "oid_mismatch",
             Self::InvalidMetadata { .. } => "schema_invalid",
             Self::Validation(error) => error.code(),
-            Self::RefConflict { .. } => "ref_conflict",
+            Self::RefConflict { .. } | Self::PreconditionFailed { .. } => "ref_conflict",
             Self::ArchiveNotEmpty | Self::ArchiveInvalid { .. } => "archive_invalid",
             Self::UnsupportedSchemaVersion { .. } | Self::Storage(_) => "storage_error",
         }
@@ -200,6 +241,14 @@ impl fmt::Display for RefStoreError {
             } => write!(
                 formatter,
                 "Ref {ref_name:?} conflict: expected {expected_head:?}, actual {actual_head:?}"
+            ),
+            Self::PreconditionFailed {
+                ref_name,
+                expected_head,
+                actual_head,
+            } => write!(
+                formatter,
+                "Ref precondition {ref_name:?} failed: expected {expected_head:?}, actual {actual_head:?}"
             ),
             Self::ArchiveNotEmpty => {
                 formatter.write_str("archive restore requires an empty RefStore")
@@ -385,12 +434,64 @@ impl SqliteRefStore {
     where
         V: RefTargetValidator + ?Sized,
     {
+        self.compare_and_swap_with_preconditions(update, &[], validator)
+    }
+
+    /// Atomically verify additional Ref states, compare the update target,
+    /// append the reflog, and advance the target Ref.
+    ///
+    /// Target validation happens before SQLite obtains a write transaction.
+    /// Once the immediate transaction starts, every precondition is compared
+    /// with the transaction's current snapshot before the update target is
+    /// compared. Any mismatch leaves both the Ref set and reflog unchanged.
+    pub fn compare_and_swap_with_preconditions<V>(
+        &mut self,
+        update: RefUpdate<'_>,
+        preconditions: &[RefPrecondition<'_>],
+        validator: &V,
+    ) -> Result<ReflogEntry>
+    where
+        V: RefTargetValidator + ?Sized,
+    {
+        self.compare_and_swap_with_preconditions_and_guard(
+            update,
+            preconditions,
+            validator,
+            &allow_transaction,
+        )
+    }
+
+    /// Atomically revalidate transaction-scoped state, verify additional Ref
+    /// states, compare the update target, append the reflog, and advance it.
+    ///
+    /// Lexical input checks and target validation happen before SQLite obtains
+    /// a write transaction. After `BEGIN IMMEDIATE`, `transaction_guard` runs
+    /// before any Ref precondition or target state is read. A guard failure is
+    /// returned as [`RefStoreError::Validation`] and leaves both the Ref set and
+    /// reflog unchanged.
+    pub fn compare_and_swap_with_preconditions_and_guard<V, G>(
+        &mut self,
+        update: RefUpdate<'_>,
+        preconditions: &[RefPrecondition<'_>],
+        validator: &V,
+        transaction_guard: &G,
+    ) -> Result<ReflogEntry>
+    where
+        V: RefTargetValidator + ?Sized,
+        G: RefTransactionGuard + ?Sized,
+    {
         validate_ref_name(update.ref_name)?;
         if let Some(expected_head) = update.expected_head {
             validate_commit_oid(expected_head)?;
         }
         validate_commit_oid(update.new_head)?;
         validate_metadata(update.metadata.actor, update.metadata.message)?;
+        for precondition in preconditions {
+            validate_ref_name(precondition.ref_name)?;
+            if let Some(expected_head) = precondition.expected_head {
+                validate_commit_oid(expected_head)?;
+            }
+        }
         validator
             .validate_new_head(update.new_head)
             .map_err(RefStoreError::Validation)?;
@@ -398,6 +499,19 @@ impl SqliteRefStore {
         let transaction = self
             .connection
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        transaction_guard
+            .validate_transaction()
+            .map_err(RefStoreError::Validation)?;
+        for precondition in preconditions {
+            let actual_head = query_head(&transaction, precondition.ref_name)?;
+            if actual_head.as_deref() != precondition.expected_head {
+                return Err(RefStoreError::PreconditionFailed {
+                    ref_name: precondition.ref_name.to_owned(),
+                    expected_head: precondition.expected_head.map(str::to_owned),
+                    actual_head,
+                });
+            }
+        }
         let current_head = query_head(&transaction, update.ref_name)?;
         if current_head.as_deref() != update.expected_head {
             return Err(RefStoreError::RefConflict {

@@ -69,6 +69,8 @@ pub enum ErrorCode {
     ReferenceTypeMismatch,
     OidMismatch,
     ClosureMissing,
+    AuthorizationDenied,
+    HumanGateRequired,
     StaleBase,
     RefConflict,
 }
@@ -95,6 +97,8 @@ impl ErrorCode {
             Self::ReferenceTypeMismatch => "reference_type_mismatch",
             Self::OidMismatch => "oid_mismatch",
             Self::ClosureMissing => "closure_missing",
+            Self::AuthorizationDenied => "authorization_denied",
+            Self::HumanGateRequired => "human_gate_required",
             Self::StaleBase => "stale_base",
             Self::RefConflict => "ref_conflict",
         }
@@ -1003,6 +1007,8 @@ mod unit_tests {
             (ErrorCode::ReferenceTypeMismatch, "reference_type_mismatch"),
             (ErrorCode::OidMismatch, "oid_mismatch"),
             (ErrorCode::ClosureMissing, "closure_missing"),
+            (ErrorCode::AuthorizationDenied, "authorization_denied"),
+            (ErrorCode::HumanGateRequired, "human_gate_required"),
             (ErrorCode::StaleBase, "stale_base"),
             (ErrorCode::RefConflict, "ref_conflict"),
             (ErrorCode::ResourceLimit, "resource_limit"),

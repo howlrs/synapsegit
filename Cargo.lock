@@ -792,6 +792,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "synapse-application"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "synapse-core",
+ "synapse-sqlite",
+]
+
+[[package]]
 name = "synapse-canonical"
 version = "0.1.0"
 dependencies = [
@@ -821,6 +830,19 @@ name = "synapse-core"
 version = "0.1.0"
 dependencies = [
  "serde",
+ "serde_json",
+ "sha2",
+ "synapse-canonical",
+ "synapse-cas",
+ "synapse-schema",
+ "synapse-sqlite",
+]
+
+[[package]]
+name = "synapse-projection"
+version = "0.1.0"
+dependencies = [
+ "rusqlite",
  "serde_json",
  "sha2",
  "synapse-canonical",

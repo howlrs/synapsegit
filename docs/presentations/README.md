@@ -2,10 +2,10 @@
 
 生成済み資料:
 
-- [synapsegit_user_scenarios_ja.pptx — branch: main](https://github.com/howlrs/synapsegit/blob/main/docs/presentations/synapsegit_user_scenarios_ja.pptx)
-- [生成スクリプト — branch: main](https://github.com/howlrs/synapsegit/blob/main/docs/presentations/generate_user_scenarios_pptx.py)
-- [SynapseGit Core 使用ガイド — branch: main](https://github.com/howlrs/synapsegit/blob/main/docs/usage_guide.md)
-- [リポジトリREADME — branch: main](https://github.com/howlrs/synapsegit/blob/main/README.md)
+- [synapsegit_user_scenarios_ja.pptx](./synapsegit_user_scenarios_ja.pptx)
+- [生成スクリプト](./generate_user_scenarios_pptx.py)
+- [SynapseGit Core 使用ガイド](../usage_guide.md)
+- [リポジトリREADME](../../README.md)
 
 ## 資料の用途
 
@@ -17,7 +17,7 @@
 - デザイナーとCreative AIを含む制作チーム
 - 後任、施主、所有者、コレクター、美術館等の二次利用者
 
-画面モックではなく、利用構想、Pilot目標、人とAIの権限境界を示す概念図で構成している。PowerPoint、Keynote、LibreOffice Impress等で開けるが、環境によりフォントと改行を最終確認する。
+画面モックではなく、利用構想、Pilot目標、人とAIの権限境界を示す概念図で構成している。最終slideはprocess-local authenticated one-shot AI route、same-instance admitted proposalに限定したnarrow Human application route、両Core admission、Analysis lineageを含むdisposable SQLite query projectionをlibrary実装済みとする。Human認証はpublish冒頭のpoint-in-time判断でpermit TTLが外部revocationとの差を限定する。一方、HTTP／JWT、durable／distributed ACL・permit、OS sandbox／egress、Projection application route、release／quorum、SurrealDB比較は未実装として区別する。PowerPoint、Keynote、LibreOffice Impress等で開けるが、環境によりフォントと改行を最終確認する。
 
 ## 再生成
 
@@ -80,10 +80,10 @@ unzip -t docs/presentations/synapsegit_user_scenarios_ja.pptx
 
 ## 根拠資料
 
-- [Core concept — branch: main](https://github.com/howlrs/synapsegit/blob/main/docs/core_concept.md)
-- [Stage 0 execution plan — branch: main](https://github.com/howlrs/synapsegit/blob/main/docs/stage0_execution_plan.md)
-- [Runtime architecture — branch: main](https://github.com/howlrs/synapsegit/blob/main/docs/runtime_architecture.md)
-- [Core Protocol v0.1 — branch: main](https://github.com/howlrs/synapsegit/blob/main/spec/core/v0.1/README.md)
+- [Core concept](../core_concept.md)
+- [Stage 0 execution plan](../stage0_execution_plan.md)
+- [Runtime architecture](../runtime_architecture.md)
+- [Core Protocol v0.1](../../spec/core/v0.1/README.md)
 
 この環境にはLibreOffice／sofficeがないため、配布前の最終レンダリング、PowerPoint Accessibility Checker、reading order、PDF変換後のlink確認はPowerPoint等で行う。
 

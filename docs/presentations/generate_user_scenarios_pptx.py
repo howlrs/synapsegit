@@ -827,20 +827,18 @@ def add_link_button(slide, x, y, w, text, url, accent):
 def slide_current_state(prs: Presentation):
     slide = prs.slides.add_slide(prs.slide_layouts[5])
     set_background(slide, PAPER)
-    add_title(slide, "CURRENT STATE", "現在地・信頼できる見方・次の実装", "前9枚は利用構想を含みます。製品UIの完成状態を示すものではありません。")
-    roadmap = [
-        ("NOW · 実装済み", "Rust strict JSON\ncanonical/OID\n17 golden＋Blob一致", SUCCESS, SUCCESS_SOFT),
-        ("NEXT · Workstream A", "schema dispatch\nsemantic validation\nvalidated OID入口", PLAN, PLAN_SOFT),
-        ("THEN · Vertical slice", "filesystem CAS\nSQLite Ref CAS\nObservation pilot", ACTIVITY, ACTIVITY_SOFT),
+    add_title(slide, "CURRENT STATE", "現在地・信頼できる境界・次の実装", "前9枚は利用構想を含みます。製品UIの完成状態を示すものではありません。")
+    implemented = [
+        ("実装済み · Core", "strict JSON／schema\ncanonical OID\nvalidated ingest", SUCCESS, SUCCESS_SOFT),
+        ("実装済み · Local", "filesystem／Ref CAS\narchive round trip\nSQLite projection／lineage", EVIDENCE, EVIDENCE_SOFT),
+        ("実装済み · App routes", "AI: preflight／Executor\nHuman: admitted handle／permit\nACL/profile FIFO fence", PROPOSAL, PROPOSAL_SOFT),
     ]
-    for index, (title, body, accent, soft) in enumerate(roadmap):
+    for index, (title, body, accent, soft) in enumerate(implemented):
         x = 0.72 + index * 4.10
         add_card(slide, x, 1.62, 3.78, 1.48, title=title, body=body, accent=accent, soft=soft, title_size=15.5, body_size=12.2)
-        if index < 2:
-            add_shape(slide, MSO_SHAPE.CHEVRON, x + 3.82, 2.05, 0.24, 0.42, fill=HAIRLINE)
 
-    add_card(slide, 0.72, 3.40, 5.82, 2.05, title="設計原則（未実装を含む）", body="記録をhashで照合\n観測条件・欠測・review範囲を表示\n原本と公開previewを分離\n人の判断からEvidenceへ到達", accent=EVIDENCE, soft=EVIDENCE_SOFT, title_size=17, body_size=13)
-    add_card(slide, 6.82, 3.40, 5.90, 2.05, title="現在は未実装", body="capture／compare／report UI\nfilesystem CAS／Refs／reflog\narchive実ファイルround trip\nAI Proposal／Human Gate authorization", accent=ACTIVITY, soft=ACTIVITY_SOFT, title_size=17, body_size=13)
+    add_card(slide, 0.72, 3.40, 5.82, 2.05, title="信頼できる見方", body="hashはbyte identityを照合\nAI／Human appはprocess-local\nHuman認証はpublish冒頭1回\nTTLが外部revocation差を限定", accent=EVIDENCE, soft=EVIDENCE_SOFT, title_size=17, body_size=13)
+    add_card(slide, 6.82, 3.40, 5.90, 2.05, title="未実装・次", body="HTTP／JWT／durable ACL・permit\nOS sandbox／release／quorum\nProjection app route\nObservation／Surreal／creator UI", accent=ACTIVITY, soft=ACTIVITY_SOFT, title_size=17, body_size=13)
 
     add_text(slide, 0.84, 5.55, 11.64, 0.34, "しない約束：作者性・現実・契約適合の自動証明／常時監視／個人生産性score／無断AI学習／「永久保存」の過大表示", size=11.5, fill=GAP, bold=True, align=PP_ALIGN.CENTER)
     add_text(slide, 0.74, 5.91, 2.10, 0.28, "branch: main resources", size=12, fill=MUTED, bold=True)
@@ -853,7 +851,7 @@ def slide_current_state(prs: Presentation):
     for index, (label, url, accent) in enumerate(buttons):
         add_link_button(slide, 0.72 + index * 3.02, 6.20, 2.76, label, url, accent)
     add_text(slide, 0.76, 6.72, 11.92, 0.24, "リンク先はGitHub mainブランチ。main反映後に有効になります。", size=10.5, fill=MUTED, align=PP_ALIGN.CENTER)
-    add_footer(slide, 10, "README · Core concept §20.7 · Stage 0 exit gate", dark=False)
+    add_footer(slide, 10, "README · Security model · Stage 0 execution plan", dark=False)
 
 
 def build_presentation() -> Presentation:

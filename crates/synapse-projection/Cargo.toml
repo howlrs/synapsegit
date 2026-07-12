@@ -1,0 +1,18 @@
+[package]
+name = "synapse-projection"
+version = "0.1.0"
+description = "Rebuildable SQLite query projection for SynapseGit Core"
+edition.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+rusqlite = { version = "0.32.1", features = ["bundled"] }
+sha2.workspace = true
+synapse-canonical = { path = "../synapse-canonical" }
+synapse-cas = { path = "../synapse-cas" }
+synapse-schema = { path = "../synapse-schema" }
+synapse-sqlite = { path = "../synapse-sqlite" }
+
+[dev-dependencies]
+serde_json = "1.0.150"

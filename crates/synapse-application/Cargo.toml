@@ -1,0 +1,15 @@
+[package]
+name = "synapse-application"
+version = "0.1.0"
+description = "Authenticated one-shot Creative AI and narrow Human Decision application boundary for SynapseGit Core"
+edition.workspace = true
+rust-version.workspace = true
+repository.workspace = true
+publish = false
+
+[dependencies]
+synapse-core = { path = "../synapse-core" }
+
+[dev-dependencies]
+serde_json = "1.0.150"
+synapse-sqlite = { path = "../synapse-sqlite" }

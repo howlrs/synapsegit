@@ -174,11 +174,21 @@ impl VerifiedObject {
 
     #[cfg(test)]
     pub(crate) fn test_structured(oid: &str, kind: ObjectKind, value: Value) -> Self {
+        Self::test_structured_with_len(oid, kind, value, 0)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test_structured_with_len(
+        oid: &str,
+        kind: ObjectKind,
+        value: Value,
+        byte_len: u64,
+    ) -> Self {
         Self {
             info: ObjectInfo {
                 oid: oid.to_owned(),
                 kind,
-                byte_len: 0,
+                byte_len,
             },
             structured: Some(value),
         }
@@ -198,6 +208,21 @@ pub enum ObjectState {
 pub trait ObjectStore {
     fn get_verified(&self, oid: &str) -> Result<Option<VerifiedObject>, StoreError>;
     fn list_oids(&self) -> Result<Vec<String>, StoreError>;
+}
+
+/// Object-store inventory boundary whose implementation bounds enumeration
+/// work before it allocates or returns more than `max_objects` matching OIDs.
+///
+/// This is deliberately additive instead of a default method on
+/// [`ObjectStore`]: adapting an already-materialized `list_oids` result would
+/// not provide a real work or memory bound. Stores opt in only when they can
+/// uphold this contract.
+pub trait BoundedObjectStore: ObjectStore {
+    fn list_oids_by_kind_limited(
+        &self,
+        kind: ObjectKind,
+        max_objects: usize,
+    ) -> Result<Vec<String>, StoreError>;
 }
 
 /// Local create-if-absent filesystem content-addressed store.
@@ -373,6 +398,18 @@ impl FileObjectStore {
 
     pub fn list_oids(&self) -> Result<Vec<String>, StoreError> {
         <Self as ObjectStore>::list_oids(self)
+    }
+
+    /// List one object kind without materializing the other CAS families.
+    /// Returned OIDs and retained filesystem leaf entries are bounded by
+    /// `max_objects`; at most one additional leaf is examined to detect
+    /// overflow, and digest-prefix directory work has a fixed 256-entry cap.
+    pub fn list_oids_by_kind_limited(
+        &self,
+        kind: ObjectKind,
+        max_objects: usize,
+    ) -> Result<Vec<String>, StoreError> {
+        <Self as BoundedObjectStore>::list_oids_by_kind_limited(self, kind, max_objects)
     }
 
     pub fn object_state(&self, oid: &str) -> Result<ObjectState, StoreError> {
@@ -629,6 +666,16 @@ impl ObjectStore for FileObjectStore {
     }
 }
 
+impl BoundedObjectStore for FileObjectStore {
+    fn list_oids_by_kind_limited(
+        &self,
+        kind: ObjectKind,
+        max_objects: usize,
+    ) -> Result<Vec<String>, StoreError> {
+        scan_kind_inventory_limited(&self.root, kind, max_objects)
+    }
+}
+
 #[derive(Debug)]
 struct StagedFile {
     path: PathBuf,
@@ -695,6 +742,141 @@ fn scan_inventory(root: &Path) -> Result<StoreInventory, StoreError> {
         oids,
         invalid_paths,
     })
+}
+
+/// Scan one object family without first materializing the complete CAS
+/// inventory. A valid SHA-256 layout has at most 256 prefix directories, so
+/// directory work is bounded by `max_objects` plus that fixed overhead.
+fn scan_kind_inventory_limited(
+    root: &Path,
+    kind: ObjectKind,
+    max_objects: usize,
+) -> Result<Vec<String>, StoreError> {
+    if max_objects == 0 {
+        return Err(resource_limit(format!(
+            "{} inventory max_objects must be greater than zero",
+            kind.prefix()
+        )));
+    }
+
+    let family_path = root.join(OBJECTS_DIRECTORY).join(kind.prefix());
+    let metadata = fs::symlink_metadata(&family_path)
+        .map_err(|error| StoreError::io("inspect object family", &family_path, error))?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(StoreError::InvalidStoreLayout {
+            path: family_path
+                .strip_prefix(root)
+                .unwrap_or(&family_path)
+                .to_path_buf(),
+            detail: "object family is not a real directory".to_owned(),
+        });
+    }
+
+    // The canonical SHA-256 layout admits exactly 256 possible two-hex prefix
+    // names. Read one extra entry, but never an attacker-sized prefix Vec.
+    let mut prefixes =
+        read_directory_at_most(&family_path, 256, "read object prefix entry", || {
+            StoreError::InvalidStoreLayout {
+                path: family_path
+                    .strip_prefix(root)
+                    .unwrap_or(&family_path)
+                    .to_path_buf(),
+                detail: "object family contains more than 256 digest prefix entries".to_owned(),
+            }
+        })?;
+    prefixes.sort_by_key(fs::DirEntry::file_name);
+
+    let mut examined_objects = 0_usize;
+    let mut oids = Vec::new();
+    for entry in prefixes {
+        let prefix_path = entry.path();
+        let prefix = entry.file_name();
+        let Some(prefix) = prefix.to_str() else {
+            return Err(StoreError::InvalidStoreLayout {
+                path: prefix_path
+                    .strip_prefix(root)
+                    .unwrap_or(&prefix_path)
+                    .to_path_buf(),
+                detail: "digest prefix is not UTF-8".to_owned(),
+            });
+        };
+        let metadata = fs::symlink_metadata(&prefix_path)
+            .map_err(|error| StoreError::io("inspect digest prefix", &prefix_path, error))?;
+        if prefix.len() != 2
+            || !prefix.bytes().all(is_lower_hex)
+            || metadata.file_type().is_symlink()
+            || !metadata.is_dir()
+        {
+            return Err(StoreError::InvalidStoreLayout {
+                path: prefix_path
+                    .strip_prefix(root)
+                    .unwrap_or(&prefix_path)
+                    .to_path_buf(),
+                detail: "digest prefix must be a two-hex-character real directory".to_owned(),
+            });
+        }
+
+        let remaining = max_objects - examined_objects;
+        let mut objects =
+            read_directory_at_most(&prefix_path, remaining, "read digest entry", || {
+                inventory_object_limit(kind, max_objects)
+            })?;
+        examined_objects = examined_objects
+            .checked_add(objects.len())
+            .ok_or_else(|| inventory_object_limit(kind, max_objects))?;
+        objects.sort_by_key(fs::DirEntry::file_name);
+        for object in objects {
+            let path = object.path();
+            let suffix = object.file_name();
+            let Some(suffix) = suffix.to_str() else {
+                return Err(StoreError::InvalidStoreLayout {
+                    path: path.strip_prefix(root).unwrap_or(&path).to_path_buf(),
+                    detail: "digest suffix is not UTF-8".to_owned(),
+                });
+            };
+            let metadata = fs::symlink_metadata(&path)
+                .map_err(|error| StoreError::io("inspect object file", &path, error))?;
+            if suffix.len() != 62
+                || !suffix.bytes().all(is_lower_hex)
+                || metadata.file_type().is_symlink()
+                || !metadata.is_file()
+            {
+                return Err(StoreError::InvalidStoreLayout {
+                    path: path.strip_prefix(root).unwrap_or(&path).to_path_buf(),
+                    detail:
+                        "object must be a regular file named by the remaining 62 digest hex characters"
+                            .to_owned(),
+                });
+            }
+            let oid = format!("{}:sg-oid-v1:sha256:{prefix}{suffix}", kind.prefix());
+            parse_oid(&oid)?;
+            oids.push(oid);
+        }
+    }
+    oids.sort_unstable();
+    oids.dedup();
+    Ok(oids)
+}
+
+fn read_directory_at_most<F>(
+    path: &Path,
+    max_entries: usize,
+    operation: &'static str,
+    exceeded: F,
+) -> Result<Vec<fs::DirEntry>, StoreError>
+where
+    F: FnOnce() -> StoreError,
+{
+    let entries = fs::read_dir(path).map_err(|error| StoreError::io(operation, path, error))?;
+    let mut result = Vec::new();
+    for entry in entries {
+        let entry = entry.map_err(|error| StoreError::io(operation, path, error))?;
+        if result.len() == max_entries {
+            return Err(exceeded());
+        }
+        result.push(entry);
+    }
+    Ok(result)
 }
 
 fn scan_family(
@@ -806,6 +988,13 @@ fn validate_limits(limits: StoreLimits) -> Result<(), StoreError> {
 
 fn resource_limit(message: impl Into<String>) -> StoreError {
     CoreError::new(ErrorCode::ResourceLimit, message).into()
+}
+
+fn inventory_object_limit(kind: ObjectKind, max_objects: usize) -> StoreError {
+    resource_limit(format!(
+        "{} inventory exceeds max_objects {max_objects}",
+        kind.prefix()
+    ))
 }
 
 fn corrupt_from_core(oid: &str, error: CoreError) -> StoreError {

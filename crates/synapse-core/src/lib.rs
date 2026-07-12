@@ -6,6 +6,19 @@
 
 #![forbid(unsafe_code)]
 
+mod authorization;
+mod human_decision;
+
+pub use authorization::{
+    AiCapability, AiExecutionAuthority, AiGeneratedProposal, AiPreflightDecision, AiProposalUpdate,
+    AiPublicationTarget, AiSideEffectClass, AuthorizationClock, AuthorizationDecision,
+    CreativeAiRuntime, SystemAuthorizationClock,
+};
+pub use human_decision::{
+    DecisionDisposition, HumanDecisionAuthority, HumanDecisionReceipt, HumanDecisionRuntime,
+    HumanDecisionUpdate,
+};
+
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;

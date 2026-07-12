@@ -1,5 +1,8 @@
 # Synapse Core OID Profile v0.1
 
+Status: Stage 0 normative draft<br>
+Protocol index: [SynapseGit Core Protocol v0.1](./README.md)
+
 ## 1. Goals
 
 The same logical Core object must produce the same OID across supported
