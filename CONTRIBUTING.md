@@ -36,6 +36,13 @@ flowchart TB
     CLI[synapse-cli] --> Core[synapse-core]
     CLI --> Canon[synapse-canonical]
     CLI --> SQLite[synapse-sqlite]
+    CLI --> Creator[synapse-creator]
+    Creator --> Application
+    Creator --> Core
+    Creator --> Projection
+    Creator --> CAS
+    Creator --> SQLite
+    Creator --> Canon
     Application[synapse-application] --> Core
     Core --> Schema[synapse-schema]
     Core --> CAS[synapse-cas]
@@ -62,12 +69,15 @@ flowchart TB
 | `synapse-sqlite` | transactional Ref compare-and-swap、reflog、logical archive snapshot |
 | `synapse-projection` | disposable SQLite query index、explicit atomic rebuild、Ref-scoped timeline／Observation dependency／Analysis lineage／closure query |
 | `synapse-application` | process-local authenticated Creative AI／narrow Human Decision route、one-shot permit、publication fence |
+| `synapse-creator` | 3つのopaque fileからsession-local provenance、AI proposal、Human Decision、snapshot-bound reportを組み立てるcreate-only local Pilot orchestration |
 | `synapse-core` | validated ingest、repository boundary、AI proposal／Human Decision admission、directory export / restore |
-| `synapse-cli` | local Stage 0 command-line interface |
+| `synapse-cli` | Coreのlocal commandと`creator-run`／`creator-report`を公開するStage 0 command-line interface |
 
 依存方向を逆転させない。canonical identity layer は database、CLI、media adapter に依存しない。
 `synapse-sqlite` は Ref と reflog の store であり、ProjectionStore ではない。
 disposable SQLite query indexは別の`synapse-projection`に置き、正本やauthorizationへ使わない。
+`synapse-creator`はApplication／Core／Projectionを組み合わせる上位orchestrationであり、これらの下位crateから
+CreatorやCLIへ依存させない。
 
 ## 最初の動作確認
 

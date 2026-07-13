@@ -13,5 +13,5 @@ path = "src/main.rs"
 [dependencies]
 synapse-canonical = { path = "../synapse-canonical" }
 synapse-core = { path = "../synapse-core" }
+synapse-creator = { path = "../synapse-creator" }
 synapse-sqlite = { path = "../synapse-sqlite" }
-

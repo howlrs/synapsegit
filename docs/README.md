@@ -2,7 +2,9 @@
 
 このディレクトリは、SynapseGit Core を「試す」「評価する」「実装する」ための入口である。
 現在の状態は **Core v0.1 / Stage 0 draft**。OID・schema・local repository の縦断経路は動作するが、
-capture clientと画像比較はまだ実装されていない。Creative AI proposal publicationと、その手前の
+capture clientと画像比較はまだ実装されていない。`synapse-creator`とCLIの`creator-run`／
+`creator-report`は、original／current／AI outputの3画像から手書きJSONなしで履歴を作る
+local single-creator Pilotを実装する。Creative AI proposal publicationと、その手前の
 process-localなauthenticated one-shot AI execution routeとadmitted-proposal-bound Human Decision route、trustedなauthenticated single humanによる
 narrow `decision/*` admissionはRust library境界まで実装されている。
 verified ObjectStoreとcaller-supplied Ref snapshotから作るdisposable SQLite query projectionも
@@ -10,12 +12,14 @@ Rust library境界まで実装されている。
 AI routeのAuthenticator／exact project map／process ACLはinjectedまたはin-memoryなlibrary境界であり、
 HTTP／JWT、durable／distributed ACL・permit、Projection application route、multi-project CAS
 membership resolver、OS sandbox／egress、Grant revocation、organization／quorum／release approvalは未実装である。
+creator PilotのidentityとAI outputはtrusted local integrationが供給し、実利用者の本人確認やmodel実行を行わない。
 
 ## 読みたい内容から選ぶ
 
 | 目的 | 最初に読む資料 | 次に読む資料 |
 |---|---|---|
 | 5分で実装を動かす | [Quickstart](./quickstart.md) | [使用ガイド](./usage_guide.md) |
+| 3画像のcreator Pilotを動かす | [使用ガイド](./usage_guide.md#現在このリポジトリで実行できること) | [CLI reference](./cli_reference.md) |
 | command と error を調べる | [CLI reference](./cli_reference.md) | [Security model](./security_model.md) |
 | 何を解決するか知る | [使用ガイド](./usage_guide.md) | [Core 構想](./core_concept.md) |
 | object と record の関係を知る | [Core データモデル](./core_model.md) | [Core Protocol](../spec/core/v0.1/README.md) |
@@ -35,11 +39,13 @@ flowchart LR
     B --> C["Local repository<br/>filesystem CAS / typed closure"]
     C --> D["Mutable heads<br/>SQLite Ref CAS / reflog"]
     D --> E["Portability<br/>fsck / export / restore"]
-    E --> J["Local authenticated AI route<br/>one-shot permit / trusted executor"]
+    E --> CR["creator-run<br/>3 opaque images / no hand-written JSON"]
+    CR --> J["Local authenticated AI route<br/>one-shot permit / trusted executor"]
     J --> G["Creative AI proposal admission<br/>preflight + full revalidation"]
     G --> HA["Local authenticated Human route<br/>admitted handle / one-shot permit"]
     HA --> I["Human Decision admission<br/>narrow Rust library boundary"]
     E --> P["SQLite query projection<br/>timeline / dependency / Analysis lineage"]
+    P --> RP["creator-report<br/>bounded timeline / process report"]
     E -. next .-> F["Observation pilot<br/>capture / registration / compare"]
     I -. remaining .-> H["Remaining integration<br/>Projection route / release / quorum"]
     J -. remaining .-> K["Production control plane<br/>HTTP/JWT / durable distributed fence / sandbox"]
@@ -48,7 +54,7 @@ flowchart LR
     classDef done fill:#d9f2e6,stroke:#18794e,color:#123;
     classDef next fill:#fff4cc,stroke:#9a6700,color:#321;
     classDef partial fill:#fff4cc,stroke:#9a6700,color:#321;
-    class A,B,C,D,E,P done;
+    class A,B,C,D,E,CR,P,RP done;
     class J,G,HA,I partial;
     class F,H,K,Q next;
 ```
@@ -60,7 +66,8 @@ flowchart LR
 | filesystem CAS、typed closure、Tombstone、fsck | 実装済み | `synapse-cas` |
 | Ref compare-and-swap と reflog | 実装済み | `synapse-sqlite` |
 | validated ingest、directory export / restore | 実装済み | `synapse-core` |
-| local Core repository round-trip CLI（structured JSONはcaller-supplied） | 実装済み | `synapse-cli`、[Quickstart](./quickstart.md) |
+| low-level local Core repository round-trip CLI（structured JSONはcaller-supplied） | 実装済み | `synapse-cli`、[Quickstart](./quickstart.md) |
+| local single-creator Pilot（3 opaque画像、object自動生成、AI／Human route、adopt／reject／defer、timeline／report） | 実装済み / production integration対象外 | `synapse-creator`、`synapse-cli creator-run`／`creator-report`、creator／CLI process tests |
 | fixed-point Observation dataset と image adapter | 未実装 | [Stage 0 Workstream C](./stage0_execution_plan.md#workstream-c-fixed-point-observation-pilot) |
 | AI proposal admission、exact capability、snapshot/output binding、transaction-time expiry／`stale_base` | library境界を実装済み / integration partial | `synapse-core::CreativeAiRuntime`、[Stage 0 Workstream D](./stage0_execution_plan.md#workstream-d-creator--creative-ai-value-slice) |
 | authenticated one-shot AI execution、exact project map／ACL、Core preflight、post-execution reauthorization | process-local library境界を実装済み / production integration partial | `synapse-application`、[Operations §7.1](../spec/core/v0.1/operations.md#71-initial-local-authenticated-application-profile) |
@@ -86,9 +93,26 @@ Human publishの認証は冒頭の一回だけで、FIFO fence／state／Reposit
 resultはpoint-in-timeなsession decisionである。同fenceが線形化するのはprocess-local ACL／profile mutationで、
 外部credential storeの即時revocationではない。permit TTLがwindowをboundedにし、production
 adapter／credential lease semanticsはdeployment責任である。
-local CLIの`update-ref`はこの経路を公開せず、trusted operator向け低水準primitiveのままである。
+CLIの`creator-run`だけが、fixed local Pilot Authenticator／profile／prepared Executorを組み立てて
+AI／Human routeを一つのcreate-only sessionとして使用する。入力されたAI outputをcaller-supplied fileとして
+agentへ帰属させて記録するだけで、model／connectorを起動せず、model生成の証明もしない。
+`--creator`は表示名でありcredentialではない。
+各sessionのEntityIdはOSの暗号学的乱数から新規生成し、Subject extensionのsession manifestへ保存する。
+同じ人のsession間identityではない。base Ref公開後かつHuman Decision前のfailureはliveなincomplete sessionを残し、
+`creator_session_incomplete`になる。Decision publication後のfailureはcomplete sessionを残し得る。
+create-only Pilotはどちらも自動resume／cleanupや上書きを行わない。
+low-level CLIの`update-ref`はこの経路を公開せず、trusted operator向け低水準primitiveのままである。
 この初期application boundaryはAIとnarrow Human Decisionだけで、Projection route、HTTP／JWT、restartを越える
 ACL／permit、multi-process fence、OS sandbox／egressは含まない。
+`creator-report`は一般的なProjection application routeではない。一つのconsistent Ref snapshotから両creator
+Refを解決し、同じsnapshotでin-memory `SqliteProjectionStore`をrebuildする。Subject manifestからsession-local
+EntityIdを復元し、current proposal／Feedback／decision lineageとbase／proposal／decision snapshotを再検証して、
+sessionのSubject timeline、3画像OID、`proposal_attributed_to_agent`、`ai_output_source=caller_supplied`、
+`reviewed_by_human`、adoptだけtrueの`selected`を表示するlocal read pathである。生成するDecisionFeedbackは
+`reason_codes=["unspecified"]`、`visibility=private`、`training_use_policy=prohibited`を既定にする。
+画像bytesのdecode、registration、difference analysisは行わず、Observation `capture_time`とActivity
+`valid_time`は外部時刻を推測せず`unknown`にする。timelineの各stageはrun内で単調増加するrecording timestampを
+`recorded_at` fallbackとして表示し、撮影時刻、AI実行時刻、外部eventの物理順序を意味しない。
 
 ## 資料の位置づけ
 

@@ -218,3 +218,108 @@ fn concurrent_cli_exports_restore_consistent_ref_update_prefixes() {
         expected_head = new_head;
     }
 }
+
+#[test]
+fn creator_cli_builds_reports_and_restores_one_human_gated_session() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("creator-repo");
+    let archive_path = temporary.join("creator-archive");
+    let restored_path = temporary.join("creator-restored");
+    let original_path = temporary.join("original.png");
+    let current_path = temporary.join("current.png");
+    let proposal_path = temporary.join("proposal.png");
+    fs::write(&original_path, b"creator original image").unwrap();
+    fs::write(&current_path, b"creator current image").unwrap();
+    fs::write(&proposal_path, b"creator AI proposal image").unwrap();
+
+    let created = run(&[
+        "creator-run",
+        repository_path.to_str().unwrap(),
+        "north-wall",
+        original_path.to_str().unwrap(),
+        current_path.to_str().unwrap(),
+        proposal_path.to_str().unwrap(),
+        "--subject",
+        "North wall mural",
+        "--creator",
+        "Aki",
+        "--decision",
+        "adopt",
+        "--rationale",
+        "The proposal fits the intended palette.",
+    ]);
+    assert_success(&created);
+    let created = String::from_utf8(created.stdout).unwrap();
+    assert!(created.contains("proposal_attributed_to_agent=urn:uuid:"));
+    assert!(created.contains("ai_output_source=caller_supplied"));
+    assert!(created.contains("reviewed_by_human=urn:uuid:"));
+    assert!(created.contains("selected=true"));
+    assert!(created.contains("disposition=adopt"));
+    assert!(created.contains("fsck=clean"));
+    assert!(created.contains("timeline=4"));
+
+    let report = run(&[
+        "creator-report",
+        repository_path.to_str().unwrap(),
+        "north-wall",
+    ]);
+    assert_success(&report);
+    let report = String::from_utf8(report.stdout).unwrap();
+
+    assert_success(&run(&[
+        "export",
+        repository_path.to_str().unwrap(),
+        archive_path.to_str().unwrap(),
+    ]));
+    assert_success(&run(&[
+        "restore",
+        archive_path.to_str().unwrap(),
+        restored_path.to_str().unwrap(),
+    ]));
+    let restored_report = run(&[
+        "creator-report",
+        restored_path.to_str().unwrap(),
+        "north-wall",
+    ]);
+    assert_success(&restored_report);
+    assert_eq!(String::from_utf8(restored_report.stdout).unwrap(), report);
+
+    let rejected_path = temporary.join("creator-rejected");
+    let rejected = run(&[
+        "creator-run",
+        rejected_path.to_str().unwrap(),
+        "rejected-wall",
+        original_path.to_str().unwrap(),
+        current_path.to_str().unwrap(),
+        proposal_path.to_str().unwrap(),
+        "--subject",
+        "Rejected wall proposal",
+        "--creator",
+        "Aki",
+        "--decision",
+        "reject",
+    ]);
+    assert_success(&rejected);
+    let rejected = String::from_utf8(rejected.stdout).unwrap();
+    assert!(rejected.contains("disposition=reject"));
+    assert!(rejected.contains("selected=false"));
+
+    let invalid = run(&[
+        "creator-run",
+        temporary.join("invalid").to_str().unwrap(),
+        "invalid-decision",
+        original_path.to_str().unwrap(),
+        current_path.to_str().unwrap(),
+        proposal_path.to_str().unwrap(),
+        "--subject",
+        "Invalid decision fixture",
+        "--creator",
+        "Aki",
+        "--decision",
+        "maybe",
+    ]);
+    assert!(!invalid.status.success());
+    let invalid = String::from_utf8(invalid.stderr).unwrap();
+    assert!(invalid.contains("usage_error: decision must be one of"));
+    assert!(invalid.contains("Usage:"));
+}

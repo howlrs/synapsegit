@@ -10,6 +10,10 @@ use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 use synapse_canonical::{DEFAULT_MAX_STRUCTURED_BYTES, ObjectKind};
 use synapse_core::{Repository, RepositoryError};
+use synapse_creator::{
+    CreatorDisposition, CreatorError, CreatorReport, CreatorRunOptions, creator_report,
+    run_creator_session,
+};
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
 
 const USAGE: &str = "\
@@ -27,13 +31,23 @@ Usage:
   synapse fsck <repo>
   synapse export <repo> <archive-dir>
   synapse restore <archive-dir> <repo>
+  synapse creator-run <repo> <session> <original> <current> <ai-output> --subject <label> --creator <name> --decision <adopt|reject|defer> [--rationale <text>]
+  synapse creator-report <repo> <session>
 ";
 
 #[derive(Debug)]
 enum CliError {
     Usage(String),
-    Io { path: String, source: io::Error },
+    Io {
+        path: String,
+        source: io::Error,
+    },
     Core(RepositoryError),
+    Creator(CreatorError),
+    CreatorReportUnavailableAfterCommit {
+        session: String,
+        source: CreatorError,
+    },
     Clock(String),
     FsckFailed,
 }
@@ -44,6 +58,10 @@ impl CliError {
             Self::Usage(_) => "usage_error",
             Self::Io { .. } | Self::Clock(_) => "storage_error",
             Self::Core(error) => error.code(),
+            Self::Creator(error) => error.code(),
+            Self::CreatorReportUnavailableAfterCommit { .. } => {
+                "creator_report_unavailable_after_commit"
+            }
             Self::FsckFailed => "fsck_failed",
         }
     }
@@ -55,6 +73,11 @@ impl fmt::Display for CliError {
             Self::Usage(message) => formatter.write_str(message),
             Self::Io { path, source } => write!(formatter, "{path}: {source}"),
             Self::Core(error) => error.fmt(formatter),
+            Self::Creator(error) => error.fmt(formatter),
+            Self::CreatorReportUnavailableAfterCommit { session, source } => write!(
+                formatter,
+                "creator session {session:?} was committed, but its report is unavailable: {source}; rerun creator-report"
+            ),
             Self::Clock(message) => formatter.write_str(message),
             Self::FsckFailed => formatter.write_str("fsck found integrity issues"),
         }
@@ -66,6 +89,8 @@ impl Error for CliError {
         match self {
             Self::Io { source, .. } => Some(source),
             Self::Core(error) => Some(error),
+            Self::Creator(error) => Some(error),
+            Self::CreatorReportUnavailableAfterCommit { source, .. } => Some(source),
             _ => None,
         }
     }
@@ -77,12 +102,19 @@ impl From<RepositoryError> for CliError {
     }
 }
 
+impl From<CreatorError> for CliError {
+    fn from(error: CreatorError) -> Self {
+        Self::Creator(error)
+    }
+}
+
 fn main() -> ExitCode {
     match run(env::args().skip(1).collect()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
+            let show_usage = error.code() == "usage_error";
             eprintln!("{}: {error}", error.code());
-            if matches!(error, CliError::Usage(_)) {
+            if show_usage {
                 eprintln!("\n{USAGE}");
             }
             ExitCode::from(1)
@@ -142,10 +174,127 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
             Repository::restore_archive(&args[1], &args[2])?;
             println!("restored {}", args[2]);
         }
+        "creator-run" => creator_run(&args)?,
+        "creator-report" => {
+            require_len(&args, 3)?;
+            print_creator_report(&creator_report(&args[1], &args[2])?);
+        }
         "help" | "--help" | "-h" => println!("{USAGE}"),
         other => return Err(CliError::Usage(format!("unknown command {other:?}"))),
     }
     Ok(())
+}
+
+fn creator_run(args: &[String]) -> Result<(), CliError> {
+    if args.len() < 12 {
+        return Err(CliError::Usage(
+            "creator-run requires <repo> <session> <original> <current> <ai-output> and --subject, --creator, --decision".into(),
+        ));
+    }
+    let mut subject = None;
+    let mut creator = None;
+    let mut decision = None;
+    let mut rationale = None;
+    let mut index = 6;
+    while index < args.len() {
+        let value = args
+            .get(index + 1)
+            .ok_or_else(|| CliError::Usage(format!("{} requires a value", args[index])))?;
+        match args[index].as_str() {
+            "--subject" if subject.is_none() => subject = Some(value.clone()),
+            "--creator" if creator.is_none() => creator = Some(value.clone()),
+            "--decision" if decision.is_none() => {
+                decision = Some(CreatorDisposition::parse(value)?)
+            }
+            "--rationale" if rationale.is_none() => rationale = Some(value.clone()),
+            other => {
+                return Err(CliError::Usage(format!(
+                    "invalid or duplicate creator-run option {other:?}"
+                )));
+            }
+        }
+        index += 2;
+    }
+    let options = CreatorRunOptions {
+        repository: args[1].as_str().into(),
+        session: args[2].clone(),
+        original_image: args[3].as_str().into(),
+        current_image: args[4].as_str().into(),
+        ai_output: args[5].as_str().into(),
+        subject_label: subject
+            .ok_or_else(|| CliError::Usage("creator-run requires --subject".into()))?,
+        creator_name: creator
+            .ok_or_else(|| CliError::Usage("creator-run requires --creator".into()))?,
+        disposition: decision
+            .ok_or_else(|| CliError::Usage("creator-run requires --decision".into()))?,
+        rationale,
+    };
+    let receipt = run_creator_session(&options)?;
+    let report = creator_report(&options.repository, &options.session).map_err(|source| {
+        CliError::CreatorReportUnavailableAfterCommit {
+            session: options.session.clone(),
+            source,
+        }
+    })?;
+    println!("session={}", receipt.session);
+    println!("subject={}", receipt.subject_id);
+    println!("original={}", receipt.original_blob_oid);
+    println!("current={}", receipt.current_blob_oid);
+    println!("ai_output={}", receipt.ai_output_blob_oid);
+    println!(
+        "proposal_ref={}\t{}",
+        receipt.proposal_ref, receipt.proposal_head
+    );
+    println!(
+        "decision_ref={}\t{}",
+        receipt.decision_ref, receipt.decision_head
+    );
+    println!("disposition={}", receipt.disposition.as_cli_str());
+    print_creator_report(&report);
+    Ok(())
+}
+
+fn print_creator_report(report: &CreatorReport) {
+    println!("report_session={}", report.session);
+    println!("project={}", report.project_id);
+    println!("subject={}", report.subject_id);
+    println!("proposal_attributed_to_agent={}", report.agent_id);
+    println!("ai_output_source=caller_supplied");
+    println!("reviewed_by_human={}", report.creator_id);
+    println!("selected={}", report.selected_ai_output);
+    println!("base_head={}", report.base_head);
+    println!("base_snapshot={}", report.base_snapshot);
+    println!("proposal_snapshot={}", report.proposal_snapshot);
+    println!("decision_snapshot={}", report.decision_snapshot);
+    println!(
+        "decision_ref={}\t{}",
+        report.decision_ref, report.decision_head
+    );
+    println!(
+        "proposal_ref={}\t{}",
+        report.proposal_ref, report.proposal_head
+    );
+    println!("disposition={}", report.disposition.as_cli_str());
+    if let Some(rationale) = &report.rationale {
+        println!("rationale={rationale:?}");
+    }
+    println!("original={}", report.original_blob_oid);
+    println!("current={}", report.current_blob_oid);
+    println!("ai_output={}", report.ai_output_blob_oid);
+    println!("fsck=clean objects={}", report.fsck_objects);
+    println!("timeline={}", report.timeline.len());
+    for entry in &report.timeline {
+        println!(
+            "{}\t{}\t{}\t{}\t{}\t{}\t{}",
+            entry.ordering_time,
+            entry.time_basis,
+            entry.stage,
+            entry.kind,
+            entry.entity_id,
+            entry.oid,
+            entry.reachable_from.join(",")
+        );
+    }
 }
 
 fn put_blob(args: &[String]) -> Result<(), CliError> {

@@ -851,6 +851,7 @@ version = "0.1.0"
 dependencies = [
  "synapse-canonical",
  "synapse-core",
+ "synapse-creator",
  "synapse-sqlite",
 ]
 
@@ -865,6 +866,21 @@ dependencies = [
  "synapse-canonical",
  "synapse-cas",
  "synapse-schema",
+ "synapse-sqlite",
+]
+
+[[package]]
+name = "synapse-creator"
+version = "0.1.0"
+dependencies = [
+ "getrandom",
+ "serde_json",
+ "sha2",
+ "synapse-application",
+ "synapse-canonical",
+ "synapse-cas",
+ "synapse-core",
+ "synapse-projection",
  "synapse-sqlite",
 ]
 

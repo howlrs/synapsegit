@@ -10,12 +10,17 @@
 
 - repository: `/home/o9oem/workspace/mine/temp/ai_git`
 - working branch: `agent/archive-export-hardening`
+- published branch head: `cb21c45823bcd1f11031ca209157a33ee72816e2`
+  (`docs: add current project handoff`)、`origin/agent/archive-export-hardening`と一致
 - implementation baseline: `7f1fa96eba919b10401c6da8faaa717ff5d51c15`
   (`feat: harden archive export boundaries`)
-- baseline remote: `origin/agent/archive-export-hardening` と一致
 - `origin/main`: `1249314`。上記branchは未mergeで、PRは未作成
 - baseline検証: workspace 203 tests、Clippy `-D warnings`、Rustdoc `-D warnings`、
   formatting、fixture、documentation、Mermaid、diff checksが成功
+- current local slice: `synapse-creator`、CLI `creator-run`／`creator-report`、creator／CLI
+  process tests、関連documentationをpublished baseline後のlocal commitとして実装済み。branchはremoteよりaheadである
+- current検証: workspace 211 tests、Clippy `-D warnings`、Rustdoc `-D warnings`、format、fixture、
+  documentation、Mermaid、diff checksが成功
 
 `7f1fa96`ではarchive inventory／bytes／Ref／reflog／Tombstone／manifest、
 distinct-head closure workをboundedにし、対応OSのarchive publicationをatomic no-replaceにした。
@@ -26,15 +31,16 @@ process-level export/update stressも追加した。詳細な契約は
 ## 2. 一文で表す現在地
 
 SynapseGitは、画像を含む制作物とAI／人の履歴を不変object graphとして保存・検証・移送できる
-**local Core／developer integration基盤**である。一方、画家が画像を取り込むだけで履歴を自動生成し、
-AI案を確認・採否できる**creator-facing application**にはまだなっていない。
+local Coreに加え、original／current／AI outputの3画像から手書きJSONなしで一sessionを記録する
+**local single-creator Pilot**を持つ。一方、capture、画像解析、実model実行、実利用者認証、GUIを備えた
+production creator applicationにはまだなっていない。
 
 | 利用目標 | 現在の状態 |
 |---|---|
 | 開発者がlocal CLIとJSONを使ってCore round tripを試す | 利用可能 |
 | embedding codeからAI proposal／Human Decision境界を使う | process-local Rust libraryとして利用可能 |
-| 画像と、別途作成したAI Activity／生成物を同じ履歴へ格納する | 利用可能 |
-| 画家が手作業JSONなしで制作履歴を残す | 未実装 |
+| 3画像から手書きJSONなしでAI proposal／Human Decision履歴を作る | local single-creator Pilotとして利用可能 |
+| session timeline／process reportを表示しarchive restore後に再現する | local CLIとして利用可能 |
 | 画像registration／差分解析を行う | 未実装 |
 | untrustedな複数利用者へnetwork serviceとして提供する | production境界が未実装 |
 
@@ -49,8 +55,12 @@ AI案を確認・採否できる**creator-facing application**にはまだなっ
 - `CreativeAiRuntime`によるproposal-only admissionと、process-local authenticated one-shot AI route
 - admitted proposalだけを対象とするnarrow Human Decision route
 - current Ref closureから再構築するdisposable SQLite ProjectionStore
+- `synapse-creator`による3 opaque画像のingestとSubject／Observation／Activity／proposal／decision自動構成
+- CLI `creator-run`によるadopt／reject／defer、AI／Human Application route、completion時`fsck`
+- CLI `creator-report`によるcurrent lineage再検証、in-memory Projection timeline、3画像OIDとreview結果の表示
+- creator archive／restore後に同じreport／OIDを再構築するprocess test
 
-CLIのcommandと制約は[CLI reference](./cli_reference.md)、実行例は[Quickstart](./quickstart.md)を参照する。
+CLIのcommandと制約は[CLI reference](./cli_reference.md)、creator実行例は[使用ガイド](./usage_guide.md#手書きjsonなしのlocal-creator-pilot)を参照する。
 
 ## 4. 画像とAI履歴の正確な境界
 
@@ -63,9 +73,34 @@ Observationの`media_refs`、Activityの`input_refs`／`output_refs`、Tree、Co
 外付けのobject graphを結び付ける方式である。OIDが証明するのはbyte identityであり、作者性、真実、
 撮影時刻、著作権、許諾を自動証明しない。
 
-現在のCLIはBlobと、利用者が用意したRecord／Tree／Commitを格納できるが、制作sessionやAI会話から
-それらを自動生成しない。また、CLIの`update-ref`はtrusted operator primitiveであり、
-`synapse-application`のAI／Human admissionを通らない。untrusted callerへ公開してはならない。
+CLIの`creator-run`はoriginal、current、caller-supplied AI outputをopaque Blobとして格納し、必要な
+Subject、Actor、Observation、Activity、ContextPack、Policy、Grant、Tree、Commit、DecisionFeedbackを自動生成する。
+画像をdecodeせず、EXIF、pixel、registration、difference analysisを扱わない。fileから外部撮影／実行時刻を
+得たとは見なさず、Observation `capture_time`とActivity `valid_time`は`unknown`にする。
+
+AI outputはcommandがmodelを実行して作るものではない。trusted local integrationが用意したfileを、fixed local
+Pilot Authenticator／profile／prepared Executorを使うApplication AI routeからproposalへ公開し、same-instance
+admitted handleをHuman routeへ渡す。`--creator`はself-declaredな表示名で、本人確認credentialではない。
+EntityIdはrunごとにOSの暗号学的乱数から生成するsession-local IDであり、Subject extensionのPilot-private
+manifestへ保存する。同じ人のsession間identityではないが、reportとarchive restoreはmanifestから同じIDを
+復元できる。`adopt`だけがproposal snapshotを選択し、`reject`／`defer`はbase snapshotを維持する。reportでは
+`proposal_attributed_to_agent`、`ai_output_source=caller_supplied`、`reviewed_by_human`を分け、
+`selected=true`はadoptだけである。DecisionFeedbackの既定はreason `unspecified`、private visibility、
+training use prohibitedである。
+
+`creator-report`は一つのconsistent Ref snapshotから両creator headを解決し、base／proposal／decision snapshotと
+current proposal／DecisionFeedback／AI Activityのlineageを再検証する。同じsnapshotからdisposable in-memory
+Projectionをrebuildしてtimelineを作り、最後に`fsck`する。timelineは各stageのrun内で単調増加するrecording
+timestampを`recorded_at` fallbackとして表示し、撮影時刻やAI execution timeを意味しない。
+一般的なauthenticated Projection routeではない。archive／restoreは別commandだが、restore後のreport equalityを
+process testで検証する。
+
+creator sessionはcreate-onlyである。base Ref公開後かつHuman Decision前のfailureは
+`creator_session_incomplete`を残す。Decision publication後のfailureはcomplete sessionを残し得る。
+Pilotはどちらも自動resume／cleanupも上書きもしないため、callerはcurrent Refsを診断する。
+
+low-level CLIの`update-ref`は引き続きtrusted operator primitiveであり、`synapse-application`のAI／Human
+admissionを通らない。`creator-run`を含め、現在のCLIをuntrusted callerへ公開してはならない。
 
 ## 5. 残作業は何のためか
 
@@ -73,12 +108,12 @@ Observationの`media_refs`、Activityの`input_refs`／`output_refs`、Tree、Co
 
 ### A. Creatorへ便益を届ける層
 
-- 画像取込み、Subject／Observation／Activity作成の自動化
-- AI実行、proposal、人の採否を一続きにするapplication CLIまたはUI
-- 履歴timeline、比較、制作process report、handoff出力
-- ペイントツール、ファイル監視、model／connectorとのintegration
+- 3 file取込み、Subject／Observation／Activity作成、proposal、人のadopt／reject／deferはlocal CLIで実装済み
+- current lineage検証、履歴timeline、text process report、`fsck`、archive restore再現はlocal Pilotで実装済み
+- 実capture、画像比較、実model／connector実行、継続session編集、GUIは未実装
+- ペイントツール、ファイル監視、実利用者Pilotとbenefit measurementは未実装
 
-Coreの能力を画家が受け取るにはこの層が必要であり、単なる装飾ではない。
+現在の実装は価値仮説を試す最小local経路であり、制作現場へ配布できるproduction applicationではない。
 
 ### B. 画像比較を提供するためのObservation層
 
@@ -112,31 +147,40 @@ localなtrusted developer Pilotでは必須ではないが、untrusted caller、
 startup cleanupは、pathnameだけを見て古いfileを削除すると別writerのdataを消すABA raceがある。
 atomicな所有権公開、fd/path identity、lifetime-wide coordinationを設計せずに再導入しない。
 
-## 6. 次回の推奨vertical slice
+## 6. 今回実装したvertical sliceと次の優先事項
 
-creator便益を最短で検証するなら、最初に次の一経路を完成させる。
+次のlocal経路を`creator-run`、`creator-report`、既存archive commandで実装した。
 
 ```text
-original / current imageを取り込む
-  -> Subject / Observationを自動作成
-  -> AI Activityとproposal outputを記録
-  -> 人がadopt / reject / deferを選ぶ
-  -> timeline / process reportを表示
-  -> fsckしてarchive / restore
+original / current / caller-supplied AI outputを取り込む
+  -> Subject / Observation / Activityを自動作成
+  -> Application AI routeでproposalを公開
+  -> Application Human routeでadopt / reject / deferを記録
+  -> current lineageを検証してProjection timeline / process reportを表示
+  -> fsck
+  -> export / restore
+  -> restored Refs + CASから同じreportを再構築
 ```
 
-最初の版では自動画像差分を必須にせず、AIとの制作履歴を手作業JSONなしで残せる価値を先に検証できる。
-その後、Workstream Cのfixed-viewpoint Observation adapterを接続する。formalなStage 0 exitを優先する場合は、
-[Stage 0 execution plan](./stage0_execution_plan.md)のprotocol freeze、Observation Pilot、benefit measurement、
-Projection比較を並行して進める。
+このsliceは次を満たす。
 
-このcreator sliceの最低完了条件は次のとおりである。
+- 一つのcommand flowから3画像を取り込み、手書きJSONなしで履歴objectを作る
+- original、current AI input、AI output、proposal、人のreviewをOIDで相互に辿る
+- caller-supplied sourceとagent attribution、human reviewを分け、`selected=true`をadoptだけに限定する
+- 一つのRef snapshotでcurrent proposal／Feedback／base・proposal・decision snapshot lineageと`fsck`を再検証する
+- archive restore後のreport／OID equalityをcreator／CLI process testで検査する
+- Observation capture timeとActivity valid timeを根拠なく捏造せず`unknown`にする
+- timelineのrecording timestampをcapture／AI execution timeとして扱わない
+- session-local EntityIdをSubject manifestから復元し、cross-session identityとは扱わない
+- incomplete sessionをcreate-only conflictとして保全し、自動resume／cleanupしない
 
-- 一つのcommand flowまたは画面から画像を取り込み、手書きJSONなしで履歴objectを作れる
-- original、AI input、AI output、人の判断がOIDで相互に辿れる
-- `generated_by AI`と`selected/rejected by human`を混同しない
-- reportとarchive restore後の履歴が同じOIDで再現される
-- CLI／application process testと利用者向け手順が追加される
+次の優先事項は、実利用者にこのCLIを試してもらい、記録負担、判断再発見、report／handoff時間を測ることである。
+並行してWorkstream Cのfixed-viewpoint Observation dataset／adapterへ進む。自動画像差分をcreator Pilotへ接続する前に、
+照明差、遮蔽、blur、露出不良、registration失敗を評価し、比較不能を「変化なし」にしない。
+実model／connector／paint tool integration、継続session UXもcreator側の次候補である。
+
+formalなStage 0 exitには、[Stage 0 execution plan](./stage0_execution_plan.md)の第二独立実装によるprotocol freeze、
+Observation Pilot、creator benefit measurement、SurrealDBを含むProjection比較が引き続き必要である。
 
 ## 7. 再開時の確認
 

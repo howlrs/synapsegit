@@ -247,6 +247,36 @@ authorizationやpublication可否の入力にしてはならない。
 `projection_analysis_not_reachable`として区別する。この差はobject存在のoracleになり得るため、serviceは
 callerのproject／Ref accessをprojection queryより先に認可し、認可済みcallerだけへerrorを返す。
 
+## Creator Pilot orchestrationとreport
+
+`synapse-creator`の`creator-run`は、fixed local Authenticator／profile／prepared ExecutorでAI routeと
+Human Decision routeを一つのcreate-only sessionへ束ねる。第三fileはcaller-supplied AI outputであり、
+`proposal_attributed_to_agent`はPilot内のattributionにすぎない。commandはmodelを起動せず、bytesの生成主体を
+証明しない。作成するDecisionFeedbackはreason `unspecified`、`visibility=private`、
+`training_use_policy=prohibited`を既定にする。
+
+run開始時にOSの暗号学的乱数から一つのseedを取得し、creator、agent、project、Subject、Observation、Activity等の
+roleごとにsession-local EntityIdを導出する。これらは同じ人やprojectを別sessionでも識別するglobal identityではない。
+base Tree内のSubject extension `org.synapsegit.creator-session`がsession名と全IDを保持する。`creator-report`は
+decision headからbase Commit／Tree／Subjectへ辿ってmanifestを読み、archive restore後にも同じIDを復元する。
+このmanifestはPilot-privateなdiscovery metadataであり、credentialやidentity registryではない。
+
+record作成にはrun内だけの`RecordingClock`を使う。OS clockの観測値と直前値+1nsの大きい方を採用し、各stageの
+`recorded_at`をstrictly monotonicにする。Observation `capture_time`とActivity `valid_time`は`unknown`なので、
+Projection timelineは`observation_recorded_at_fallback`または`activity_recorded_at_fallback`をbasisにする。
+これはrecording順序を安定化するだけで、撮影時刻、AI execution time、外部eventの物理順序を表さない。
+
+`creator-report`はoperation冒頭で一つのconsistent `RefSnapshot`を取得し、proposal／decision headをそこから
+解決する。lineage検証とin-memory `SqliteProjectionStore` rebuildは同じsnapshotに基づくため、二つのlive Ref readを
+混在させない。report modelは`base_head`、`base_snapshot`、`proposal_snapshot`、`decision_snapshot`、
+`selected_ai_output`を返す。adoptではdecision snapshotがproposal snapshotに一致してselectedがtrue、
+reject／deferではbase snapshotに一致してfalseになる。
+
+両creator Refがabsentな場合だけsessionを開始する。base Ref公開前のCAS objectはfailure時にimmutable orphanとして
+残り得る。base Ref公開後かつHuman Decision前のfailureはliveなincomplete sessionを残し、次回runは
+`creator_session_incomplete`で拒否する。Decision publication後のfailureはcomplete sessionを残し得る。
+create-only Pilotはどちらも自動resume／cleanupやRef上書きを行わないため、callerが状態を診断する。
+
 ## 永続化の書込み境界
 
 local writeは次の順序に固定する。
@@ -326,7 +356,8 @@ crates/
   synapse-projection  disposable SQLite query index / explicit atomic rebuild
   synapse-application local authenticated Creative AI + narrow Human Decision routes
   synapse-core        validated repository / AI proposal + Human Decision admission / archive
-  synapse-cli         put / trusted-operator update-ref / fsck / export / restore
+  synapse-creator     create-only local Creator Pilot orchestration / snapshot-bound report
+  synapse-cli         put / trusted-operator update-ref / fsck / export / restore / creator-run / creator-report
 ```
 
 `synapse-sqlite`が保存するのはRefsとreflogであり、query projectionではない。
@@ -344,6 +375,6 @@ apps/
   desktop/            TypeScript UI
 ```
 
-最初の実装単位`put-object → verify OID → build tree → commit → CAS ref → fsck → export/restore`、`authenticate → exact project ACL → Core preflight → one-shot execution → reauth/fence → full proposal publication → admitted handle`、`authenticate human → registered admitted proposal/candidate → one-shot permit → full supported disposition/CAS`、`consistent RefSnapshot + CAS → atomic SQLite projection rebuild`はlocal Rust縦切りとして実装済みである。ただしapplication routeはAIとnarrow Human Decisionだけのprocess-local libraryである。SurrealDB導入はこの正本経路から分離し、optional projection adapterとして並行検証する。
+最初の実装単位`put-object → verify OID → build tree → commit → CAS ref → fsck → export/restore`、`authenticate → exact project ACL → Core preflight → one-shot execution → reauth/fence → full proposal publication → admitted handle`、`authenticate human → registered admitted proposal/candidate → one-shot permit → full supported disposition/CAS`、`consistent RefSnapshot + CAS → atomic SQLite projection rebuild`、`3 opaque files → Creator provenance → AI/Human publication → snapshot-bound report`はlocal Rust縦切りとして実装済みである。ただしapplication routeはAIとnarrow Human Decisionだけのprocess-local libraryで、Creator Pilotはその上に置くtrusted local orchestrationである。SurrealDB導入はこの正本経路から分離し、optional projection adapterとして並行検証する。
 
 `build-tree`と`commit`は現在、利用者が用意したJSONをfamily指定でvalidate + putするCLIであり、directory走査やCommit bodyの自動生成は行わない。archiveは単一fileではなくchecksum付きdirectoryである。詳細は[Local directory archive profile](../spec/core/v0.1/archive-profile.md)を参照する。

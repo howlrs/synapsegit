@@ -1,6 +1,6 @@
 # SynapseGit Core Stage 0 execution plan
 
-Status: in progress — protocol、local Rust vertical slice、process-local authenticated AI + narrow Human Decision application routes、Core admissions、SQLite projection baseline implemented
+Status: in progress — protocol、local Rust vertical slice、process-local authenticated AI + narrow Human Decision application routes、Core admissions、SQLite projection baseline、local single-creator Pilot implemented
 
 Target: four-week protocol and vertical-slice spike
 
@@ -10,7 +10,7 @@ Target: four-week protocol and vertical-slice spike
 flowchart LR
     A["A. Protocol and golden fixtures<br/>implemented; freeze gate partial"] --> B["B. Local Rust vertical slice<br/>implemented"]
     B --> C["C. Fixed-viewpoint Observation pilot<br/>planned"]
-    B --> D["D. Creator / Creative AI<br/>local AI + narrow Human app routes / Core admissions implemented; integration partial"]
+    B --> D["D. Creator / Creative AI<br/>3-image local Pilot implemented; real Pilot evaluation partial"]
     B --> E["SQLite projection baseline implemented<br/>Surreal / full comparison planned"]
 
     classDef done fill:#d9f2e6,stroke:#18794e,color:#123;
@@ -26,7 +26,7 @@ flowchart LR
 | A: protocol freeze | partial | 第二の独立production実装によるfreeze gate |
 | B: Rust Core vertical slice | implemented | archive object／Ref／reflog inventory、raw／text bytes、distinct-head累積closure work、Tombstone scan、manifest bounds、process-level export/update stress／smoke、Linux／Android／Apple／Redoxのno-replace publicationは実装済み。write-boundary crash fault-injectionとarchive／ObjectStore orphanのstartup cleanupが残る |
 | C: Observation pilot | planned | dataset、image adapter、評価report |
-| D: Creator / Creative AI | partial | injected Authenticator／exact project ACL、one-shot AI Executor route、same-instance admitted proposalに限定したnarrow Human route、両Core admissionは実装済み。creator-facing orchestrationとPilot評価が残る。HTTP/JWT、durable/distributed state、Projection route、release／modified／quorum、OS sandbox／egress、revocationはproduction/shared-service側の残作業 |
+| D: Creator / Creative AI | partial | local single-creator `creator-run`／`creator-report`、injected Authenticator／exact project ACL、one-shot AI Executor route、same-instance admitted proposalに限定したnarrow Human route、両Core admissionは実装済み。実利用者Pilot、実model／tool integration、benefit評価が残る。HTTP/JWT、durable/distributed state、general Projection route、release／modified／quorum、OS sandbox／egress、revocationはproduction/shared-service側の残作業 |
 | ProjectionStore spike | partial | SQLite baselineのatomic rebuild、bounded shared Tombstone scan、closure／timeline／Observation dependency／Analysis lineageは3 unit + 19 integration testsで実装済み。SurrealDB adapter、完全な8-query parity／benchmark判断が残る |
 
 ## Outcome
@@ -63,7 +63,7 @@ put-blob / put-record
   -> empty-store restore
 ```
 
-この経路は現在`crates/synapse-core`と`crates/synapse-cli`で実装済みである。具象schema検証、atomic filesystem CAS、typed closure、Tombstone、SQLite Ref CAS／reflog、fsck、checksum付きdirectory export／empty-store restoreをworkspace testとCLI process testで検証する。`crates/synapse-application`のprocess-local authenticated AI route、same-instance admitted proposalに限定したnarrow Human route、Core Creative AI proposal／Human Decision publication boundaryもRust libraryとして実装済みである。`crates/synapse-projection`にはcurrent Ref closureだけを対象にするSQLite baselineも実装済みである。narrow Stage 0の残作業は第二の独立実装によるprotocol freeze、fixed-point Observation pilot、creator-facing orchestrationとPilot評価、SurrealDB adapterを含む全8 query／benchmark decision spikeである。HTTP/JWT、durable/distributed authorization、Projection application route、OS sandbox／egress、release／modified／quorum workflowは、公開・複数利用者を対象にするときのproduction/shared-service gateとして分離する。
+この経路は現在`crates/synapse-core`と`crates/synapse-cli`で実装済みである。具象schema検証、atomic filesystem CAS、typed closure、Tombstone、SQLite Ref CAS／reflog、fsck、checksum付きdirectory export／empty-store restoreをworkspace testとCLI process testで検証する。`crates/synapse-application`のprocess-local authenticated AI route、same-instance admitted proposalに限定したnarrow Human route、Core Creative AI proposal／Human Decision publication boundaryもRust libraryとして実装済みである。`crates/synapse-projection`にはcurrent Ref closureだけを対象にするSQLite baselineも実装済みである。さらに`crates/synapse-creator`とCLIは、3画像から手書きJSONなしで一つのcreate-only creator sessionを作り、AI／Human route、Projection timeline、`fsck`、archive／restore後のreport一致をprocess testで通す。narrow Stage 0の残作業は第二の独立実装によるprotocol freeze、fixed-point Observation pilot、実利用者によるcreator benefit評価、SurrealDB adapterを含む全8 query／benchmark decision spikeである。HTTP/JWT、durable/distributed authorization、general Projection application route、OS sandbox／egress、release／modified／quorum workflowは、公開・複数利用者を対象にするときのproduction/shared-service gateとして分離する。
 
 この経路の実行可能な手順は[Quickstart](./quickstart.md)、Pilotでの意味は
 [SynapseGit Core使用ガイド](./usage_guide.md)にまとめる。
@@ -129,7 +129,7 @@ Decision Commit
   -> trusted Executor -> AI Activity
   -> reauthenticate + project FIFO publication fence
   -> proposal/{agent}/{run}
-  -> Diff + Claim
+  -> AI Activity + proposal output
   -> admitted proposal handle + server-fixed Human candidate
   -> authenticate human + exact project ACL + one-shot permit
   -> human adopt unchanged / reject / defer
@@ -140,6 +140,34 @@ Decision Commit
 Protocol上、AIの有効能力はActor、Grant、Policy、runtime capabilityの積集合とする。AIは`decision/*`, `release/*`, policy、外部egress、erasure、物理作用を直接変更できない。base Refが進んだ出力は`stale_base`として残し、自動rebaseしない。現在はExecutor起動をone-shot permitの後へ順序付けるapplication boundaryまで実装したが、Executor自体を隔離するOS sandbox／network egress制御までを意味しない。
 
 ### 現在の実装境界
+
+`synapse-creator`とCLIの`creator-run`／`creator-report`は、このWorkstreamの最初のboundedな
+local single-creator経路を実装する。`creator-run`はoriginal／current／AI outputの3 fileをopaque Blobとして
+格納し、Subject、2 Observation、import Activity、ContextPack、Policy、DelegationGrant、AI Activity、
+proposal Commit、DecisionFeedback、Decision Commitを自動作成する。proposal publicationとHuman Decisionは
+`synapse-application`のAI／Human routeを通り、`adopt`はproposal snapshotをunchangedで選択し、`reject`／
+`defer`はbase snapshotを維持する。AI proposal Refとoutput provenanceはどのdecisionでも残る。
+
+このPilotは外部modelを呼ばず、3番目のfileをtrusted local integrationが用意したAI outputとして記録する。
+画像bytesをdecodeせず、EXIF検証、capture、registration、difference analysisを行わない。外部時刻を
+推測せず、Observation `capture_time`とActivity `valid_time`は`unknown`にする。fixed local
+Authenticator／profile／prepared Executorをprocess内で構築するため、`--creator`表示名の本人確認、OS user認証、
+HTTP／JWT、durable ACLを提供しない。EntityIdは各runでOSの暗号学的乱数から生成するsession-local IDであり、
+同じcreatorのsession間identityではない。Subject extensionのPilot-private manifestがこれらを保持するため、
+reportとarchive restoreは同じIDを再発見できる。sessionはcreate-onlyである。base Ref公開前の書込みはimmutable
+orphanになり得るが、base Ref公開後かつHuman Decision前のfailureはliveなincomplete sessionを残す。この場合は
+`creator_session_incomplete`となる。Decision publication後のfailureはcomplete sessionを残し得る。
+どちらも自動resume／cleanupや上書きを行わない。
+
+`creator-report`は一つのconsistent Ref snapshotからproposal／decision Refを解決し、同じsnapshotでin-memory
+SQLite Projectionをrebuildする。current proposal／Feedback／decision lineageを再検証し、base／proposal／decision
+snapshotとAI outputの選択状態を返す。text reportはSubject timeline、3画像OID、
+`proposal_attributed_to_agent`、`ai_output_source=caller_supplied`、`reviewed_by_human`、adoptだけtrueになる
+`selected`、dispositionを表示して`fsck`がcleanでなければ拒否する。attributionは第三fileの生成証明ではない。
+DecisionFeedbackの既定はreason `unspecified`、private visibility、training use prohibitedである。timelineの各stageは
+run内で単調増加するrecording timestampと`recorded_at` fallback basisを持ち、撮影時刻やAI execution timeを示さない。
+一般的なProjection routeではない。
+CLIの別commandでexport／restoreした後も同じreportを再構築できることをcreator／CLI process testで検証する。
 
 `synapse-application`はAI requestをcredential、project selector、opaque execution handle／permitだけへ限定する。
 Authenticatorをproject lookup前に呼び、server-owned exact project map／process ACLを使う。reusable
@@ -173,7 +201,7 @@ registrationとpermitはone-shotであり、canonical一決定はCore lineage／
 
 `HumanDecisionRuntime`は、上位層が認証済みとするsingle human、project、Human Actor／Policy、canonical `decision/*` Refとexact current head、exact proposal Ref/headをtrusted `HumanDecisionAuthority`へ固定してから、new Decision Commit／Feedback／messageだけの`HumanDecisionUpdate`を検査する。authenticated reviewerをAI responsible principal／ContextPack・Grant asserter／Grant direct principalへ一致させ、Human Actor／ContextPack Policyのbase snapshot binding、proposalのexactly one AI Activity transition、Decision Commitのexactly one self-declared Feedback transitionとempty `bound_declaration_refs`、project、Policy `publish`、supported snapshot contract、canonical lineageのduplicateを検証する。Context baseをtrusted decision Ref/headへ一致させ、proposal preconditionとdecision/base target CAS／reflogをatomicに処理する。`adopted_unchanged`はproposal snapshot、`rejected`／`deferred`／`experiment_only`はbase snapshotだけを許し、`adopted_modified`／`partially_adopted`はprovenance未定義として拒否する。
 
-application libraryはAIとnarrow Human requestの両方でinjected Authenticatorとprocess ACLを実行するが、concrete HTTP／JWT、credential database、persistent human membership、restartを越えるACL／permit、multi-process fenceは実装しない。Projection application route、organization／quorum、release approval、modified／partial adoption、multi-project CAS membership／classification resolver、model process sandbox／connector／egress制御、Grant revocationも未実装である。local CLIはadmission routeを公開せず、`Repository::update_ref`とCLI `update-ref`はlocal trusted operator向け低水準primitiveとして残る。
+application libraryはAIとnarrow Human requestの両方でinjected Authenticatorとprocess ACLを実行するが、concrete HTTP／JWT、credential database、persistent human membership、restartを越えるACL／permit、multi-process fenceは実装しない。general Projection application route、organization／quorum、release approval、modified／partial adoption、multi-project CAS membership／classification resolver、model process sandbox／connector／egress制御、Grant revocationも未実装である。CLI `creator-run`はこのrouteをfixed local Pilotとして内部利用するが、一般的なadmission commandではない。`Repository::update_ref`とCLI `update-ref`はlocal trusted operator向け低水準primitiveとして残る。
 
 ### Creative AI acceptance
 
@@ -188,7 +216,8 @@ application libraryはAIとnarrow Human requestの両方でinjected Authenticato
 | authenticate→exact project ACL→candidate-independent preflight→one-shot execution→reauth/fence→full publication | implemented process-local library boundary | `synapse-application` tests。opaque non-Clone permit、exclusive TTL、burn-on-all-failures、live profile rebuild、project FIFO ACL/publication ordering |
 | admitted proposal→server-fixed Human candidate→authenticate／ACL→one-shot permit→full decision publication | implemented process-local library boundary | `synapse-application` tests。same-instance handle、one-time registration、application-only TTL、live profile generation／ACL fence、Core error passthrough／CAS |
 | direct human／Policy／proposal chainを束縛しsupported dispositionを記録 | implemented library boundary | `HumanDecisionRuntime` integration tests。duplicate lineage、atomic proposal precondition + decision/base CAS raceを検査 |
-| production authenticated serviceとexecution enforcement | not implemented | HTTP/JWT、durable/distributed ACL・permit、Projection route、organization／quorum／release、OS sandbox／egress、revocationが未実装 |
+| 3 opaque画像から手書きJSONなしでproposal／Human Decision／timelineを作りarchive restore後もreportを再現 | implemented local Pilot boundary | `synapse-creator` workflow testsとCLI process test。adopt／reject／defer、人とAIのprovenance分離、`fsck`、restored report equalityを検査。実model・pixel analysis・real-user authenticationは対象外 |
+| production authenticated serviceとexecution enforcement | not implemented | HTTP/JWT、durable/distributed ACL・permit、general Projection route、organization／quorum／release、OS sandbox／egress、revocationが未実装 |
 
 ### Creator benefit hypotheses
 
@@ -270,7 +299,7 @@ SurrealDBを既定へ昇格する条件:
 | present / tombstoned / missing closureを表現・round tripできる | implemented。既知validator制限は[Security model](./security_model.md#現在の既知制限)参照 |
 | 第二の独立production実装がOID / schema / semanticsで一致 | planned |
 | Painting control datasetで観測条件差と既知変更を区別して報告 | planned |
-| Creative AI flowがruntimeでproposal-onlyとHuman Gateを強制 | partial。process-local authenticated AI route、same-instance admitted proposalに限定したnarrow Human application route、両Core admissionはlibrary実装済み。HTTP/JWT、durable/distributed state、Projection route、release／modified／quorum、OS sandbox／egressは未実装 |
+| Creative AI flowがruntimeでproposal-onlyとHuman Gateを強制 | partial。3-image local creator process test、process-local authenticated AI route、same-instance admitted proposalに限定したnarrow Human application route、両Core admissionは実装済み。HTTP/JWT、durable/distributed state、general Projection route、release／modified／quorum、OS sandbox／egressは未実装 |
 | Creator benefit metricを採取し、記録負担を評価 | planned |
 | SurrealDBを測定結果からdefault / optional / deferへ決定 | planned |
 

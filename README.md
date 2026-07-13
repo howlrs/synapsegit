@@ -5,18 +5,22 @@ observations, interpretations, and decisions without treating a digital record
 as physical truth.
 
 **Core v0.1 / Stage 0 draft** — the local Rust repository path, Creative AI
-proposal admission, an initial process-local authenticated AI execution route,
-narrow Human Decision admission, and disposable SQLite query projection library
-boundaries are implemented; capture and image analysis are not.
+proposal admission, process-local AI and narrow Human Decision routes, a
+disposable SQLite query projection, and a bounded single-creator Pilot CLI are
+implemented. The Pilot accepts three local image files without hand-authored
+JSON; capture, pixel interpretation, image registration, and difference
+analysis are not implemented.
 
 > **Important:** `synapse-application` provides initial local Creative AI and
 > narrow Human Decision routes: injected authentication, an exact project map/process ACL,
 > candidate-independent Core preflight, one trusted executor, and a one-shot
-> permit followed by full Core revalidation. It is not HTTP/JWT, a durable or
-> distributed authorization service, an OS sandbox, organization/quorum/release
-> workflow, modified/partial adoption, or a Projection route. The current CLI exposes none of these routes.
-> `synapse update-ref` and `Repository::update_ref` remain low-level local
-> trusted-operator primitives.
+> permit followed by full Core revalidation. `synapse-creator` uses those routes
+> inside `creator-run` with fixed, process-local Pilot identities and a
+> caller-supplied AI output. This is not OS-user authentication, HTTP/JWT, a
+> durable or distributed authorization service, an OS sandbox,
+> organization/quorum/release workflow, modified/partial adoption, or a general
+> Projection route. `synapse update-ref` and `Repository::update_ref` remain
+> low-level local trusted-operator primitives.
 
 ## Why it exists
 
@@ -58,7 +62,8 @@ conformance.
 | Filesystem ObjectStore, typed closure, Tombstone availability, `fsck` | Implemented |
 | SQLite Ref compare-and-swap and reflog | Implemented |
 | Validated ingest and checksum-bound directory export / restore | Implemented |
-| Local Core repository round-trip CLI; structured JSON is caller-supplied | Implemented |
+| Low-level local Core repository round-trip CLI; structured JSON is caller-supplied | Implemented |
+| Local single-creator Pilot: three opaque images, generated provenance objects, AI/Human admission, decision, timeline/report, and restore verification without hand-authored JSON | Implemented bounded CLI/library flow |
 | Fixed-viewpoint Observation dataset and image adapter | Planned |
 | Creative AI proposal admission: exact capability set, snapshot/output binding, proposal-only, transaction-time expiry / `stale_base` | Implemented library boundary |
 | Local authenticated Creative AI execution: exact project route/ACL, Core preflight, one-shot permit, trusted executor, post-execution reauthorization | Implemented process-local library boundary |
@@ -68,8 +73,8 @@ conformance.
 | SurrealDB adapter and complete 8-query / benchmark comparison | Planned |
 
 “Implemented” means covered by this repository's tests. It does not mean that
-authentication, network transport, deployment operations, or a creator-facing
-application are production-ready.
+real-user authentication, network transport, deployment operations, image
+analysis, or a creator-facing application are production-ready.
 
 The initial application route authenticates before any project or repository
 lookup, resolves an exact server-owned project map, and gives malformed,
@@ -120,8 +125,10 @@ Blobs, and masks. Replay readiness means only that input, adapter/configuration,
 and transform prerequisites are present; outputs and masks do not block an
 attempt, and `Ready` never promises exact replay. It is not an
 authorization source, ObjectStore, RefStore, archive input, or recovery
-prerequisite. There is no projection CLI, automatic refresh, or SurrealDB
-adapter yet, and the full eight-query and benchmark decision remains open.
+prerequisite. `creator-report` uses a fresh in-memory rebuild for one bounded
+creator-session timeline, but there is no general projection CLI, automatic
+refresh, or SurrealDB adapter yet, and the full eight-query and benchmark
+decision remains open.
 Like export, rebuild assumes a cooperative append-only ObjectStore with no
 concurrent GC/removal. An object that disappears after being observed present
 fails the rebuild and leaves the prior projection intact; it is not downgraded
@@ -153,6 +160,48 @@ put Blob / Record / Tree / Commit
 For command syntax, output, limits, and errors, see the
 [CLI reference](docs/cli_reference.md).
 
+The local single-creator Pilot takes original, current, and caller-supplied AI
+output files and creates the Subject, Observations, Activities, ContextPack,
+proposal, and Human Decision without JSON authoring:
+
+```bash
+target/debug/synapse creator-run .synapse-creator mural-1 \
+  original.png current.png ai-output.png \
+  --subject "North wall mural" --creator "Aki" \
+  --decision adopt --rationale "The proposal fits the intended palette."
+target/debug/synapse creator-report .synapse-creator mural-1
+target/debug/synapse export .synapse-creator creator-archive
+target/debug/synapse restore creator-archive restored.synapse
+target/debug/synapse creator-report restored.synapse mural-1
+```
+
+`creator-run` does not call an AI model or inspect pixels: all three files are
+stored as opaque Blobs, and the third file is trusted local input labelled as
+the AI proposal output. `adopt` selects that proposal unchanged; `reject` and
+`defer` retain the base decision snapshot while preserving the proposal and its
+AI provenance. `proposal_attributed_to_agent` is therefore attribution recorded
+by the Pilot, while `ai_output_source=caller_supplied` states where the bytes
+came from; neither proves that this command or a model generated them.
+
+Each run creates fresh, session-local EntityIds from the operating system's
+cryptographic random source. The Subject extension manifest preserves those IDs
+for reporting and archive restore, but they are not stable identity for the same
+person across sessions. The Pilot does not invent event time from local files:
+Observation `capture_time` and Activity `valid_time` are `unknown`. Timeline rows
+use strictly increasing recording timestamps with a `recorded_at` fallback and
+must not be read as capture or AI-execution time. A report resolves both creator
+Refs from one consistent Ref snapshot, revalidates the proposal and decision
+lineage, and returns the base, proposal, and decision snapshots plus whether the
+AI output was selected. Its text output separates
+`proposal_attributed_to_agent`, `reviewed_by_human`, and `selected`; only
+`adopt` selects the proposal. Generated DecisionFeedback defaults to reason
+`unspecified`, private visibility, and prohibited training use. The command runs
+`fsck`; archive export and restore remain separate. Sessions are create-only: a
+failure after base Ref publication but before the Human Decision can leave
+`creator_session_incomplete`, while a failure after Decision publication can
+leave a complete session whose report must be retried. Neither state is resumed
+or cleaned up automatically.
+
 ## Documentation
 
 Start with the [documentation index](docs/README.md).
@@ -182,8 +231,12 @@ vision, not the current Core specification.
 ```mermaid
 flowchart LR
     CLI["synapse-cli<br/>trusted local primitive"] --> Core[synapse-core]
+    Files["original / current / AI output<br/>opaque local files"] --> Creator["synapse-creator<br/>single-creator Pilot"]
+    CLI --> Creator
     Request["AI / Human request<br/>credential + project + opaque handle/permit"] --> App["synapse-application<br/>local AI + narrow Human routes"]
     Control["Trusted control plane<br/>profiles + candidate + executor + clock"] --> App
+    Creator --> App
+    Creator --> Core
     App --> AIRuntime["CreativeAiRuntime<br/>preflight + proposal admission"]
     App --> HRuntime["HumanDecisionRuntime<br/>admitted-proposal narrow decision"]
     AIRuntime --> Core
@@ -198,6 +251,7 @@ flowchart LR
     DB --> Archive
     CAS --> Projection["SQLite ProjectionStore<br/>query index + Analysis lineage"]
     DB -. consistent RefSnapshot .-> Projection
+    Creator --> Projection
     Projection -. optional adapter planned .-> SurrealDB[(SurrealDB)]
 ```
 
@@ -208,7 +262,9 @@ for UI / SDK work; Python is intended for media and AI adapters. Adapters submit
 data to Core and do not define authoritative OIDs themselves. The embedding
 application control plane, rather than AI-controlled input or CLI reflog
 metadata, supplies the trusted authority profile, target, executor, and clock.
-Projection access still requires a separate embedding route.
+The creator Pilot supplies a fixed local control plane and rebuilds a bounded
+timeline report; general Projection access still requires a separate embedding
+route.
 
 ## Verify the workspace
 
@@ -229,6 +285,7 @@ preservation and atomic base preconditions, Core preflight and the process-local
 one-shot AI and narrow Human application routes, narrow Human Decision authorization,
 duplicate-decision/race handling, candidate/output hardening and transaction-time expiry guards,
 atomic projection rebuild/query behavior (3 unit + 19 integration tests), CLI round trip, resumable failed restore,
+the single-creator three-image AI/Human workflow and restored report equality,
 bounded archive inventory/distinct-head validation, and process-level export/update stress/smoke coverage.
 The latter does not deterministically prove SQLite transaction overlap. Per-write-boundary crash injection and
 startup cleanup of orphan archive staging and ObjectStore temporary files remain open.
