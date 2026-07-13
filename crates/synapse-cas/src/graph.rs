@@ -214,8 +214,9 @@ impl<'store, S: BoundedObjectStore + ?Sized> PreparedClosureVerifier<'store, S> 
 /// Traverse the required object closure rooted at a Commit.
 ///
 /// Only normative Stage 0 structural edges are followed: Commit parents,
-/// snapshot, transition refs and bound declaration refs, plus every Tree entry.
-/// Record-internal semantic references remain the schema/semantic validator's
+/// snapshot, transition refs and bound declaration refs, plus every Tree entry
+/// and the typed Record references defined in Operations section 4. Other
+/// Record-internal semantic validation remains the schema/semantic validator's
 /// responsibility. Traversal is iterative, so the configured depth bound is
 /// enforced without relying on the process call stack.
 ///
@@ -275,6 +276,7 @@ fn verify_closure_with_tombstones<S: ObjectStore + ?Sized>(
     let mut finished = HashSet::new();
     let mut active = HashSet::new();
     let mut active_path = Vec::new();
+    let mut record_semantics = BTreeMap::new();
 
     'walk: while let Some(item) = stack.pop() {
         match item {
@@ -304,6 +306,7 @@ fn verify_closure_with_tombstones<S: ObjectStore + ?Sized>(
                     ) {
                         // General Record evidence graphs may be cyclic. Only
                         // supersedes, Commit-parent and Tree cycles are errors.
+                        record_constraint_issue(&visit, &record_semantics, &mut report.issues);
                         continue;
                     }
                     let start = active_path
@@ -318,6 +321,7 @@ fn verify_closure_with_tombstones<S: ObjectStore + ?Sized>(
                     continue;
                 }
                 if finished.contains(&visit.oid) {
+                    record_constraint_issue(&visit, &record_semantics, &mut report.issues);
                     continue;
                 }
                 if report.nodes.len() >= limits.max_objects {
@@ -427,14 +431,11 @@ fn verify_closure_with_tombstones<S: ObjectStore + ?Sized>(
                     continue;
                 }
 
-                if let Some(constraint) = visit.record_constraint.as_ref()
-                    && let Some((expected, actual)) =
-                        record_constraint_mismatch(&object, constraint)
+                if object.kind() == ObjectKind::Record
+                    && let Some(semantics) = record_semantics_for(&object)
                 {
-                    report.issues.push(issue_for_visit(
-                        &visit,
-                        ClosureIssueKind::ReferenceSemanticMismatch { expected, actual },
-                    ));
+                    record_semantics.insert(visit.oid.clone(), semantics);
+                    record_constraint_issue(&visit, &record_semantics, &mut report.issues);
                 }
 
                 report.nodes.insert(
@@ -742,6 +743,13 @@ enum RecordConstraint {
 }
 
 #[derive(Clone, Debug)]
+struct RecordSemantics {
+    record_type: Option<String>,
+    entity_id: Option<String>,
+    activity_kind: Option<String>,
+}
+
+#[derive(Clone, Debug)]
 enum WalkItem {
     Enter(PendingVisit),
     Exit(String),
@@ -956,30 +964,38 @@ fn record_constraint_for(record_type: &str, pointer: &str) -> Option<RecordConst
     Some(RecordConstraint::RecordType(expected))
 }
 
+fn record_semantics_for(object: &VerifiedObject) -> Option<RecordSemantics> {
+    let value = object.structured()?;
+    Some(RecordSemantics {
+        record_type: value
+            .get("record_type")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        entity_id: value
+            .get("entity_id")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+        activity_kind: value
+            .get("payload")
+            .and_then(|payload| payload.get("activity_kind"))
+            .and_then(Value::as_str)
+            .map(str::to_owned),
+    })
+}
+
 fn record_constraint_mismatch(
-    object: &VerifiedObject,
+    semantics: &RecordSemantics,
     constraint: &RecordConstraint,
 ) -> Option<(String, String)> {
-    let value = object.structured()?;
-    let actual_record_type = value
-        .get("record_type")
-        .and_then(Value::as_str)
-        .unwrap_or("<missing>");
-    let actual_entity_id = value
-        .get("entity_id")
-        .and_then(Value::as_str)
-        .unwrap_or("<missing>");
+    let actual_record_type = semantics.record_type.as_deref().unwrap_or("<missing>");
+    let actual_entity_id = semantics.entity_id.as_deref().unwrap_or("<missing>");
     match constraint {
         RecordConstraint::RecordType(expected) if actual_record_type != *expected => Some((
             format!("record_type={expected}"),
             format!("record_type={actual_record_type}"),
         )),
         RecordConstraint::AiActivity => {
-            let activity_kind = value
-                .get("payload")
-                .and_then(|payload| payload.get("activity_kind"))
-                .and_then(Value::as_str)
-                .unwrap_or("<missing>");
+            let activity_kind = semantics.activity_kind.as_deref().unwrap_or("<missing>");
             (actual_record_type != "activity" || activity_kind != "ai_run").then(|| {
                 (
                     "record_type=activity, activity_kind=ai_run".to_owned(),
@@ -998,6 +1014,26 @@ fn record_constraint_mismatch(
         }),
         _ => None,
     }
+}
+
+fn record_constraint_issue(
+    visit: &PendingVisit,
+    record_semantics: &BTreeMap<String, RecordSemantics>,
+    issues: &mut Vec<ClosureIssue>,
+) {
+    let Some(constraint) = visit.record_constraint.as_ref() else {
+        return;
+    };
+    let Some(semantics) = record_semantics.get(&visit.oid) else {
+        return;
+    };
+    let Some((expected, actual)) = record_constraint_mismatch(semantics, constraint) else {
+        return;
+    };
+    issues.push(issue_for_visit(
+        visit,
+        ClosureIssueKind::ReferenceSemanticMismatch { expected, actual },
+    ));
 }
 
 fn append_array_references(
@@ -1369,6 +1405,158 @@ mod tests {
                     if expected == "record_type=policy" && actual == "record_type=actor"
             )
         }));
+    }
+
+    #[test]
+    fn shared_record_target_is_checked_against_every_incoming_constraint() {
+        let commit = format!("commit:sg-oid-v1:sha256:{}", "9".repeat(64));
+        let tree = format!("tree:sg-oid-v1:sha256:{}", "a".repeat(64));
+        let context = format!("record:sg-oid-v1:sha256:{}", "b".repeat(64));
+        let delegation_grant = format!("record:sg-oid-v1:sha256:{}", "c".repeat(64));
+        let mut objects = HashMap::new();
+        objects.insert(
+            commit.clone(),
+            VerifiedObject::test_structured(&commit, ObjectKind::Commit, root_commit_value(&tree)),
+        );
+        objects.insert(
+            tree.clone(),
+            VerifiedObject::test_structured(&tree, ObjectKind::Tree, one_record_tree(&context)),
+        );
+        objects.insert(
+            context.clone(),
+            VerifiedObject::test_structured(
+                &context,
+                ObjectKind::Record,
+                record_value(
+                    "context_pack",
+                    "urn:uuid:00000000-0000-4000-8000-000000000020",
+                    None,
+                    Value::Object(vec![
+                        (
+                            "delegation_grant_ref".to_owned(),
+                            Value::String(delegation_grant.clone()),
+                        ),
+                        (
+                            "policy_snapshot_ref".to_owned(),
+                            Value::String(delegation_grant.clone()),
+                        ),
+                    ]),
+                ),
+            ),
+        );
+        objects.insert(
+            delegation_grant.clone(),
+            VerifiedObject::test_structured(
+                &delegation_grant,
+                ObjectKind::Record,
+                record_value(
+                    "delegation_grant",
+                    "urn:uuid:00000000-0000-4000-8000-000000000021",
+                    None,
+                    Value::Object(Vec::new()),
+                ),
+            ),
+        );
+
+        let report =
+            verify_closure(&MockStore { objects }, &commit, GraphLimits::default()).unwrap();
+        let mismatches = report
+            .issues
+            .iter()
+            .filter(|issue| {
+                issue.oid == delegation_grant
+                    && issue.referenced_by.as_deref() == Some(context.as_str())
+                    && matches!(
+                        issue.role.as_ref(),
+                        Some(ReferenceRole::RecordReference { pointer })
+                            if pointer == "/payload/policy_snapshot_ref"
+                    )
+                    && matches!(
+                        &issue.kind,
+                        ClosureIssueKind::ReferenceSemanticMismatch { expected, actual }
+                            if expected == "record_type=policy"
+                                && actual == "record_type=delegation_grant"
+                    )
+            })
+            .count();
+        assert_eq!(mismatches, 1);
+    }
+
+    #[test]
+    fn allowed_record_cycle_still_checks_constraint_on_the_active_target() {
+        let commit = format!("commit:sg-oid-v1:sha256:{}", "d".repeat(64));
+        let tree = format!("tree:sg-oid-v1:sha256:{}", "e".repeat(64));
+        let delegation_grant = format!("record:sg-oid-v1:sha256:{}", "f".repeat(64));
+        let context = format!("record:sg-oid-v1:sha256:{}", "0".repeat(64));
+        let mut objects = HashMap::new();
+        objects.insert(
+            commit.clone(),
+            VerifiedObject::test_structured(&commit, ObjectKind::Commit, root_commit_value(&tree)),
+        );
+        objects.insert(
+            tree.clone(),
+            VerifiedObject::test_structured(
+                &tree,
+                ObjectKind::Tree,
+                one_record_tree(&delegation_grant),
+            ),
+        );
+        objects.insert(
+            delegation_grant.clone(),
+            VerifiedObject::test_structured(
+                &delegation_grant,
+                ObjectKind::Record,
+                record_value(
+                    "delegation_grant",
+                    "urn:uuid:00000000-0000-4000-8000-000000000022",
+                    None,
+                    Value::Object(vec![(
+                        "next_ref".to_owned(),
+                        Value::String(context.clone()),
+                    )]),
+                ),
+            ),
+        );
+        objects.insert(
+            context.clone(),
+            VerifiedObject::test_structured(
+                &context,
+                ObjectKind::Record,
+                record_value(
+                    "context_pack",
+                    "urn:uuid:00000000-0000-4000-8000-000000000023",
+                    None,
+                    Value::Object(vec![(
+                        "policy_snapshot_ref".to_owned(),
+                        Value::String(delegation_grant.clone()),
+                    )]),
+                ),
+            ),
+        );
+
+        let report =
+            verify_closure(&MockStore { objects }, &commit, GraphLimits::default()).unwrap();
+        assert!(report.issues.iter().any(|issue| {
+            issue.oid == delegation_grant
+                && issue.referenced_by.as_deref() == Some(context.as_str())
+                && matches!(
+                    issue.role.as_ref(),
+                    Some(ReferenceRole::RecordReference { pointer })
+                        if pointer == "/payload/policy_snapshot_ref"
+                )
+                && matches!(
+                    &issue.kind,
+                    ClosureIssueKind::ReferenceSemanticMismatch { expected, actual }
+                        if expected == "record_type=policy"
+                            && actual == "record_type=delegation_grant"
+                )
+        }));
+        assert!(
+            !report
+                .issues
+                .iter()
+                .any(|issue| matches!(issue.kind, ClosureIssueKind::Cycle { .. }))
+        );
     }
 
     #[test]
