@@ -25,6 +25,13 @@ analysis.
 > Projection route. `synapse update-ref` and `Repository::update_ref` remain
 > low-level local trusted-operator primitives.
 
+Google Cloudを主系、AWSをportability profileとするpublic multi-tenant
+architectureは[Cloud service architecture](docs/cloud_service_architecture.md)で
+仕様化した。Cloud Run／Cloud SQL／Cloud Storageと、ECS Fargate／RDS PostgreSQL／S3の
+対応、tenant isolation、async operation、SLO／DR、migration gateを定義しているが、
+いずれも未実装である。特に現行のprocess-local `AdmittedProposalHandle`は
+multi-instance Human Decisionへ流用できず、durable admission transactionがproduction blockerである。
+
 ## Why it exists
 
 Creative work crosses files, tools, people, AI systems, and sometimes physical
@@ -68,6 +75,7 @@ conformance.
 | Low-level local Core repository round-trip CLI; structured JSON is caller-supplied | Implemented |
 | Local single-creator Pilot: three opaque images, imported CaptureProfile, generated provenance objects, AI/Human admission, decision, comparison-aware timeline/report, and restore verification without hand-authored JSON | Implemented bounded CLI/library flow |
 | Single-user loopback image application: server-rendered UI, safe facade, and versioned HTTP contract | Architecture/API contract complete; implementation planned |
+| Public multi-tenant cloud service on GCP, with an AWS portability profile | Production target architecture complete; implementation not started |
 | Deterministic ordered Observation adapter: verified primary Blob OID byte identity, immutable AnalysisResult, dedicated `software_tool` Actor in the creator flow | Implemented conservative library boundary |
 | Fixed-viewpoint capture dataset, pixel registration, and visual difference analysis | Planned (Workstream C) |
 | Creative AI proposal admission: exact capability set, snapshot/output binding, proposal-only, transaction-time expiry / `stale_base` | Implemented library boundary |
@@ -243,6 +251,7 @@ Start with the [documentation index](docs/README.md).
 | Look up terminology and common questions | [Glossary](docs/glossary.md) / [FAQ](docs/faq.md) |
 | Understand storage and process boundaries | [Runtime architecture](docs/runtime_architecture.md) |
 | Implement the localhost image application | [Localhost application architecture](docs/localhost_application_architecture.md) |
+| Plan the GCP production service or AWS equivalent | [Cloud service architecture](docs/cloud_service_architecture.md) |
 | Review trust and security limits | [Security model](docs/security_model.md) |
 | Contribute code or docs | [Contributing](CONTRIBUTING.md) |
 | Resume the current work | [作業引き継ぎ](docs/handoff.md) |
@@ -303,6 +312,11 @@ metadata, supplies the trusted authority profile, target, executor, and clock.
 The creator Pilot supplies a fixed local control plane and rebuilds a bounded
 timeline report; general Projection access still requires a separate embedding
 route.
+
+The production target keeps Rust Core as the OID authority while replacing the
+local persistence and control plane with tenant-scoped immutable object storage,
+PostgreSQL Ref/reflog transactions, durable operation/idempotency state, and
+OIDC-backed authorization. The localhost API is not the cloud API contract.
 
 ## Verify the workspace
 

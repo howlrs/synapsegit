@@ -6,7 +6,7 @@ Decision date: 2026-07-11
 
 ## 結論
 
-Core実装言語は**Rust**とする。local repository pathに加え、ordered Observationのdeterministic byte-identity baselineを`synapse-observation`、process-localなauthenticated one-shot AI executionとnarrow Human Decision routeを`synapse-application`、Creative AIのpreflight／proposal publication admissionを`synapse-core::CreativeAiRuntime`、narrow Human Decision admissionを`HumanDecisionRuntime`としてRustに置く。ただし正本をSurrealDBへ閉じ込めず、Gitライクな不変objectをfilesystem/object storage上のCASに置く。ローカルのRef・reflogはSQLite、共有serviceのRefStoreはPostgreSQLを候補とする。query用には`synapse-projection::SqliteProjectionStore` baselineを実装済みである。これはverified ObjectStoreとcaller-suppliedな一貫したRef snapshotから破棄・再構築する派生indexで、SurrealDB adapterと全8 query／benchmark比較は未実装である。
+Core実装言語は**Rust**とする。local repository pathに加え、ordered Observationのdeterministic byte-identity baselineを`synapse-observation`、process-localなauthenticated one-shot AI executionとnarrow Human Decision routeを`synapse-application`、Creative AIのpreflight／proposal publication admissionを`synapse-core::CreativeAiRuntime`、narrow Human Decision admissionを`HumanDecisionRuntime`としてRustに置く。ただし正本をSurrealDBへ閉じ込めず、Gitライクな不変objectをfilesystem/object storage上のCASに置く。ローカルのRef・reflogはSQLite、public共有serviceのRef／reflog authorityはPostgreSQLを採用するproduction targetとした。query用には`synapse-projection::SqliteProjectionStore` baselineを実装済みである。これはverified ObjectStoreとcaller-suppliedな一貫したRef snapshotから破棄・再構築する派生indexで、SurrealDB adapterと全8 query／benchmark比較は未実装である。
 
 ```mermaid
 flowchart LR
@@ -40,6 +40,10 @@ flowchart LR
 [CLI reference](./cli_reference.md)を参照する。次のsingle-user／loopback-only画像UIの
 application facade、HTTP、browser境界は[Localhost application architecture](./localhost_application_architecture.md)で
 決定した。これは実装前のapplication sliceであり、formal Core Stage 1への移行ではない。
+public／multi-user deploymentは、Google Cloudを主系、AWSをportability profileとする
+[Cloud service architecture](./cloud_service_architecture.md)で別trust profileとして決定した。
+localhost APIをcloud APIへ流用せず、tenant-scoped object storage、PostgreSQL transaction、durable operation／admission、
+OIDC、single-writer regional DRを実装する。architectureは決定済みだが実装は未着手である。
 
 ## Gitから踏襲するもの
 
@@ -60,7 +64,7 @@ Gitらしさの中核は使用言語やRDBではない。Git自身がcontent-add
 |---|---:|---:|---:|---:|---|
 | Rust + filesystem CAS + SQLite | ◎ | ○。baseline実装済み | ◎。transaction | ◎。index再構築可 | **Stage 1既定** |
 | Rust + filesystem CAS + SurrealDB | ◎。embedded可 | ◎。型付きedge・arrow traversal | ○。競合試験が必要 | ○。projection限定なら◎ | **並行spike** |
-| Rust + object CAS + PostgreSQL | △。server前提 | ○。recursive CTE | ◎ | ◎ | 共有service候補 |
+| Rust + object CAS + PostgreSQL | △。server前提 | ○。recursive CTE | ◎ | ◎ | **public共有serviceのproduction target** |
 | TypeScriptだけでCore | ○ | DB次第 | DB次第 | △ | UI/SDKには採用、OID正本には不採用 |
 | PythonだけでCore | ○ | DB次第 | DB次第 | △ | adapter/AI workerには採用、OID正本には不採用 |
 
@@ -421,14 +425,26 @@ crates/
 crates/
   synapse-local-service  transport-neutral localhost facade / versioned DTO
   synapse-local-http     Axum + Askama loopback server / embedded assets
+  synapse-service     provider-neutral cloud use case / versioned DTO
+  synapse-object      streaming verified cloud ObjectStore port
   synapse-graph       graph traitをCAS crateから分離する場合
-  synapse-ref         RefStore traitを複数backendへ広げる場合
+  synapse-ref         Ref authority port / shared protocol type
+  synapse-postgres    production Ref/reflog / operation / outbox adapter
+  synapse-gcp         Cloud Storage / Tasks deployment adapter
+  synapse-aws         S3 / SQS deployment adapter
+  synapse-cloud-http  public BFF / API; localhost assumptionを持たない
   synapse-surreal     optional ProjectionStore spike
 workers/
   image-analysis/     Python adapter
 apps/
   desktop/            future TypeScript／native wrapper if richer client state is justified
 ```
+
+cloud package境界、GCP／AWS mapping、durable admitted-proposal blocker、phase／acceptance gateは
+[Cloud service architecture](./cloud_service_architecture.md)を正とする。現在の`Repository`は
+`PathBuf + FileObjectStore + SqliteRefStore`へ固定され、`AdmittedProposalHandle`はprocess instanceへ束縛される。
+従ってprovider adapter追加だけではproduction化できず、streaming object port、PostgreSQL unit of work、
+durable operation／admission contractへ分離する必要がある。
 
 最初の実装単位`put-object → verify OID → build tree → commit → CAS ref → fsck → export/restore`、`ordered Observation → deterministic primary Blob OID comparison → AnalysisResult`、`authenticate → exact project ACL → Core preflight → one-shot execution → reauth/fence → full proposal publication → admitted handle`、`authenticate human → registered admitted proposal/candidate → one-shot permit → full supported disposition/CAS`、`consistent RefSnapshot + CAS → atomic SQLite projection rebuild`、`3 opaque files → CaptureProfile／byte Analysis／Creator provenance → AI/Human publication → snapshot-bound report`はlocal Rust縦切りとして実装済みである。ただしbyte comparisonはphysical／visual change analysisではなく、application routeはAIとnarrow Human Decisionだけのprocess-local libraryで、Creator Pilotはその上に置くtrusted local orchestrationである。SurrealDB導入はこの正本経路から分離し、optional projection adapterとして並行検証する。
 
