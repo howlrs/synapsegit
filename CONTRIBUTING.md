@@ -39,11 +39,15 @@ flowchart TB
     CLI --> Creator[synapse-creator]
     Creator --> Application
     Creator --> Core
+    Creator --> Observation
     Creator --> Projection
     Creator --> CAS
     Creator --> SQLite
     Creator --> Canon
     Application[synapse-application] --> Core
+    Observation[synapse-observation] --> Core
+    Observation --> Schema
+    Observation --> Canon
     Core --> Schema[synapse-schema]
     Core --> CAS[synapse-cas]
     Core --> SQLite
@@ -69,20 +73,24 @@ flowchart TB
 | `synapse-sqlite` | transactional Ref compare-and-swap、reflog、logical archive snapshot |
 | `synapse-projection` | disposable SQLite query index、explicit atomic rebuild、Ref-scoped timeline／Observation dependency／Analysis lineage／closure query |
 | `synapse-application` | process-local authenticated Creative AI／narrow Human Decision route、one-shot permit、publication fence |
-| `synapse-creator` | 3つのopaque fileからsession-local provenance、AI proposal、Human Decision、snapshot-bound reportを組み立てるcreate-only local Pilot orchestration |
+| `synapse-observation` | ordered Observationと全media Blobを検証し、primary Blob OIDのbyte identityだけを`partial`なAnalysisResultとして記録する保守的adapter |
+| `synapse-creator` | 3つのopaque fileからimported CaptureProfile、session-local provenance、byte-identity analysis、AI proposal、Human Decision、Projection lineageを検証するsnapshot-bound reportを組み立てるcreate-only local Pilot orchestration |
 | `synapse-core` | validated ingest、repository boundary、AI proposal／Human Decision admission、directory export / restore |
 | `synapse-cli` | Coreのlocal commandと`creator-run`／`creator-report`を公開するStage 0 command-line interface |
 
 依存方向を逆転させない。canonical identity layer は database、CLI、media adapter に依存しない。
 `synapse-sqlite` は Ref と reflog の store であり、ProjectionStore ではない。
 disposable SQLite query indexは別の`synapse-projection`に置き、正本やauthorizationへ使わない。
-`synapse-creator`はApplication／Core／Projectionを組み合わせる上位orchestrationであり、これらの下位crateから
-CreatorやCLIへ依存させない。
+`synapse-observation`はCore／Schema／Canonicalの上位adapterであり、Refを更新しない。
+`synapse-creator`はApplication／Core／Observation／Projectionを組み合わせる上位orchestrationであり、
+これらの下位crateからCreatorやCLIへ依存させない。
 
 ## 最初の動作確認
 
-[Quickstart](docs/quickstart.md) は実 fixture を CLI で通し、put → Ref update → fsck → export → restore を確認する。
-command の引数と出力は [CLI reference](docs/cli_reference.md) を参照する。
+[Quickstart](docs/quickstart.md) は実 fixture の put → Ref update → fsck → export → restoreに加え、
+3-file creator Pilotとbyte-identity reportを確認する。archive／restore後のcreator reportを含む利用手順は
+[使用ガイド](docs/usage_guide.md)を参照する。command の引数と出力は
+[CLI reference](docs/cli_reference.md)を参照する。
 
 ## 変更別 checklist
 
@@ -119,6 +127,17 @@ object 単体で判定できる rule は ingest、参照先の存在・型を必
 `build-tree` と `commit` は JSON builder ではない。利用者が用意した body を、
 それぞれ Tree / Commit family として validate + put する command である。
 新 command または output を変える場合は process-level test、Quickstart、CLI reference を同時に更新する。
+
+### Observation adapter
+
+1. ordered input、adapter implementation／configuration digest、status、comparability、reason codeを固定する。
+2. 参照するObservation、CaptureProfile、全media Blobをadapter-owned writeより前に検証する。
+3. byte identityをpixel、EXIF、appearance、physical change、registrationの判定へ拡張解釈しない。
+4. adapter自身はRefを更新せず、publishするcaller側でtyped closureと到達性を検証する。
+5. `synapse-creator`へ組み込む場合は専用software-tool Actor、Projection lineage、archive／restore後のreportをtestする。
+
+現在の`byte_identity`はprimary Blob OIDだけを比較し、成功時も`partial`／`byte_identity_only`である。
+Workstream Cのpixel registration／difference analysisを実装する場合は、別adapter契約と検証datasetを追加する。
 
 ### Documentation
 

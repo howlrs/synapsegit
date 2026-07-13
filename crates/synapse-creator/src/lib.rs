@@ -217,7 +217,9 @@ pub struct CreatorReport {
     pub original_blob_oid: String,
     pub current_blob_oid: String,
     pub ai_output_blob_oid: String,
-    /// `None` for sessions created before byte-identity evidence was added.
+    /// `None` when the reachable base Tree has no byte-identity evidence
+    /// entries. This preserves legacy-shaped sessions without inferring an
+    /// outcome or proving when they were created.
     pub comparison: Option<CreatorComparisonReport>,
     pub timeline: Vec<CreatorTimelineEntry>,
     pub fsck_objects: usize,

@@ -1,6 +1,6 @@
 # SynapseGit Core Stage 0 execution plan
 
-Status: in progress — protocol、local Rust vertical slice、process-local authenticated AI + narrow Human Decision application routes、Core admissions、SQLite projection baseline、local single-creator Pilot implemented
+Status: in progress — protocol、local Rust vertical slice、process-local authenticated AI + narrow Human Decision application routes、Core admissions、SQLite projection baseline、local single-creator Pilot、Observation byte-identity baseline implemented
 
 Target: four-week protocol and vertical-slice spike
 
@@ -9,7 +9,7 @@ Target: four-week protocol and vertical-slice spike
 ```mermaid
 flowchart LR
     A["A. Protocol and golden fixtures<br/>implemented; freeze gate partial"] --> B["B. Local Rust vertical slice<br/>implemented"]
-    B --> C["C. Fixed-viewpoint Observation pilot<br/>planned"]
+    B --> C["C. Fixed-viewpoint Observation pilot<br/>byte identity baseline implemented; dataset / pixel diff planned"]
     B --> D["D. Creator / Creative AI<br/>3-image local Pilot implemented; real Pilot evaluation partial"]
     B --> E["SQLite projection baseline implemented<br/>Surreal / full comparison planned"]
 
@@ -17,15 +17,14 @@ flowchart LR
     classDef partial fill:#fff4cc,stroke:#9a6700,color:#321;
     classDef planned fill:#f2f2f2,stroke:#666,color:#222;
     class B done;
-    class A,D,E partial;
-    class C planned;
+    class A,C,D,E partial;
 ```
 
 | Workstream | 状態 | 未完了の中心 |
 |---|---|---|
 | A: protocol freeze | partial | 第二の独立production実装によるfreeze gate |
 | B: Rust Core vertical slice | implemented | archive object／Ref／reflog inventory、raw／text bytes、distinct-head累積closure work、Tombstone scan、manifest bounds、process-level export/update stress／smoke、Linux／Android／Apple／Redoxのno-replace publicationは実装済み。write-boundary crash fault-injectionとarchive／ObjectStore orphanのstartup cleanupが残る |
-| C: Observation pilot | planned | dataset、image adapter、評価report |
+| C: Observation pilot | partial | deterministic byte-identity adapterとCreatorへのAnalysis lineage接続は実装済み。dataset、repeatable／calibrated capture、pixel-level registration／diff adapter、評価reportが残る |
 | D: Creator / Creative AI | partial | local single-creator `creator-run`／`creator-report`、injected Authenticator／exact project ACL、one-shot AI Executor route、same-instance admitted proposalに限定したnarrow Human route、両Core admissionは実装済み。実利用者Pilot、実model／tool integration、benefit評価が残る。HTTP/JWT、durable/distributed state、general Projection route、release／modified／quorum、OS sandbox／egress、revocationはproduction/shared-service側の残作業 |
 | ProjectionStore spike | partial | SQLite baselineのatomic rebuild、bounded shared Tombstone scan、closure／timeline／Observation dependency／Analysis lineageは3 unit + 19 integration testsで実装済み。SurrealDB adapter、完全な8-query parity／benchmark判断が残る |
 
@@ -63,7 +62,7 @@ put-blob / put-record
   -> empty-store restore
 ```
 
-この経路は現在`crates/synapse-core`と`crates/synapse-cli`で実装済みである。具象schema検証、atomic filesystem CAS、typed closure、Tombstone、SQLite Ref CAS／reflog、fsck、checksum付きdirectory export／empty-store restoreをworkspace testとCLI process testで検証する。`crates/synapse-application`のprocess-local authenticated AI route、same-instance admitted proposalに限定したnarrow Human route、Core Creative AI proposal／Human Decision publication boundaryもRust libraryとして実装済みである。`crates/synapse-projection`にはcurrent Ref closureだけを対象にするSQLite baselineも実装済みである。さらに`crates/synapse-creator`とCLIは、3画像から手書きJSONなしで一つのcreate-only creator sessionを作り、AI／Human route、Projection timeline、`fsck`、archive／restore後のreport一致をprocess testで通す。narrow Stage 0の残作業は第二の独立実装によるprotocol freeze、fixed-point Observation pilot、実利用者によるcreator benefit評価、SurrealDB adapterを含む全8 query／benchmark decision spikeである。HTTP/JWT、durable/distributed authorization、general Projection application route、OS sandbox／egress、release／modified／quorum workflowは、公開・複数利用者を対象にするときのproduction/shared-service gateとして分離する。
+この経路は現在`crates/synapse-core`と`crates/synapse-cli`で実装済みである。具象schema検証、atomic filesystem CAS、typed closure、Tombstone、SQLite Ref CAS／reflog、fsck、checksum付きdirectory export／empty-store restoreをworkspace testとCLI process testで検証する。`crates/synapse-application`のprocess-local authenticated AI route、same-instance admitted proposalに限定したnarrow Human route、Core Creative AI proposal／Human Decision publication boundaryもRust libraryとして実装済みである。`crates/synapse-projection`にはcurrent Ref closureだけを対象にするSQLite baselineも実装済みである。`crates/synapse-observation`にはordered Observationのprimary Blob OIDを比較するdeterministic baselineを追加した。さらに`crates/synapse-creator`とCLIは、3画像から手書きJSONなしで一つのcreate-only creator sessionを作り、imported CaptureProfile、byte-identity Analysis、AI／Human route、Projection timeline、`fsck`、archive／restore後のreport一致をprocess testで通す。narrow Stage 0の残作業は第二の独立実装によるprotocol freeze、fixed-point Observation datasetとpixel-level registration／diff、実利用者によるcreator benefit評価、SurrealDB adapterを含む全8 query／benchmark decision spikeである。HTTP/JWT、durable/distributed authorization、general Projection application route、OS sandbox／egress、release／modified／quorum workflowは、公開・複数利用者を対象にするときのproduction/shared-service gateとして分離する。
 
 この経路の実行可能な手順は[Quickstart](./quickstart.md)、Pilotでの意味は
 [SynapseGit Core使用ガイド](./usage_guide.md)にまとめる。
@@ -91,7 +90,23 @@ put-blob / put-record
 
 ### Week 2–3
 
-二つの小さなdatasetだけを作る。
+最初の保守的なbaselineとして、`synapse-observation`のdeterministic `byte_identity` adapterを実装済みである。
+これはbase→targetのordered Observation、参照CaptureProfile、全media BlobをCASから検証し、各Observationで一意な
+`role=primary` BlobのOIDが同じかだけをAnalysisResultへ記録する。implementationはsemantic Rust sourceとcrate
+manifestのdeterministic bundle、configurationは固定JSONとして別Blob OIDへ束縛する。adapter自身はRefを更新せず、
+callerがresultをreachable snapshotへ結び付ける。比較成功でも`comparability=partial`、reason
+`byte_identity_only`であり、byte equality／differenceからvisualまたはphysical changeを推論しない。
+subject／series mismatchや`role=primary` entryが0件／複数件の場合は`not_run`／`incomparable`として記録し、missing／corruptな
+Observation、CaptureProfile、mediaはadapter-owned write前にhard errorとする。
+
+Creator Pilotは同じimported／reference-only CaptureProfileをoriginal／current Observationへ付け、AI Actorとは別の
+`software_tool` Actor、AnalysisResult、implementation／configuration Blobをbase snapshotへ含める。このAnalysisは
+proposal／decision両Refから到達し、`creator-report`が同じRef snapshotのProjection `analysis_lineage`でordered input、
+adapter、replay prerequisite、両Ref reachabilityを検証する。archive restore後も同じreportを再構築する。
+Analysis一式がないlegacy-shaped creator snapshotだけ、互換読取りとして`comparison=unavailable`を返す。
+このshapeは作成時期を証明しない。
+
+このbaselineの次に、二つの小さなdatasetを作る。
 
 1. **Painting control**: 平面キャンバスまたは壁画を固定stationから反復撮影する。
 2. **Building validation**: 小規模な一壁面・一区画を近似固定視点で撮影する。
@@ -105,7 +120,7 @@ put-blob / put-record
 - CaptureProfileの`imported`, `repeatable`, `calibrated`比較
 - Plan、Previous Observation、Current Observationの三者比較
 
-Python adapterはOIDを決めず、入力OID、adapter/version/configuration digest、結果BlobをRust Coreへ返す。出力は`comparable/partial/incomparable`とreason code、`changed/unchanged/ambiguous/unobservable` maskを必須にする。
+未実装のpixel-level Python adapterはOIDを決めず、入力OID、adapter/version/configuration digest、結果BlobをRust Coreへ返す。出力は`comparable/partial/incomparable`とreason code、`changed/unchanged/ambiguous/unobservable` maskを必須にする。
 
 ### Observation acceptance
 
@@ -143,13 +158,17 @@ Protocol上、AIの有効能力はActor、Grant、Policy、runtime capabilityの
 
 `synapse-creator`とCLIの`creator-run`／`creator-report`は、このWorkstreamの最初のboundedな
 local single-creator経路を実装する。`creator-run`はoriginal／current／AI outputの3 fileをopaque Blobとして
-格納し、Subject、imported／reference-only CaptureProfile、2 Observation、import Activity、ContextPack、Policy、DelegationGrant、AI Activity、
-proposal Commit、DecisionFeedback、Decision Commitを自動作成する。proposal publicationとHuman Decisionは
+格納し、Subject、imported／reference-only CaptureProfile、2 Observation、import Activity、専用`software_tool`
+Actor、byte-identity AnalysisResultとimplementation／configuration Blob、ContextPack、Policy、DelegationGrant、AI Activity、
+proposal Commit、DecisionFeedback、Decision Commitを自動作成する。比較一式はbase snapshotへ入り、proposal／decision
+両Refから到達する。proposal publicationとHuman Decisionは
 `synapse-application`のAI／Human routeを通り、`adopt`はproposal snapshotをunchangedで選択し、`reject`／
 `defer`はbase snapshotを維持する。AI proposal Refとoutput provenanceはどのdecisionでも残る。
 
 このPilotは外部modelを呼ばず、3番目のfileをtrusted local integrationが用意したAI outputとして記録する。
-画像bytesをdecodeせず、EXIF検証、capture、registration、difference analysisを行わない。外部時刻を
+画像bytesをdecodeせず、EXIF検証、capture、registration、pixel difference analysisを行わない。実装済み比較が
+示すのはordered primary Blob OIDの同一性だけで、比較成功結果も`partial`／`byte_identity_only`、visual／physical
+changeの判定ではない。外部時刻を
 推測せず、Observation `capture_time`とActivity `valid_time`は`unknown`にする。fixed local
 Authenticator／profile／prepared Executorをprocess内で構築するため、`--creator`表示名の本人確認、OS user認証、
 HTTP／JWT、durable ACLを提供しない。EntityIdは各runでOSの暗号学的乱数から生成するsession-local IDであり、
@@ -160,13 +179,15 @@ orphanになり得るが、base Ref公開後かつHuman Decision前のfailureは
 どちらも自動resume／cleanupや上書きを行わない。
 
 `creator-report`は一つのconsistent Ref snapshotからproposal／decision Refを解決し、同じsnapshotでin-memory
-SQLite Projectionをrebuildする。current proposal／Feedback／decision lineageを再検証し、base／proposal／decision
+SQLite Projectionをrebuildする。current proposal／Feedback／decision lineageと、両Refから到達するbyte-identity
+Analysis lineageを再検証し、base／proposal／decision
 snapshotとAI outputの選択状態を返す。text reportはSubject timeline、3画像OID、
 `proposal_attributed_to_agent`、`ai_output_source=caller_supplied`、`reviewed_by_human`、adoptだけtrueになる
 `selected`、dispositionを表示して`fsck`がcleanでなければ拒否する。attributionは第三fileの生成証明ではない。
 DecisionFeedbackの既定はreason `unspecified`、private visibility、training use prohibitedである。timelineの各stageは
 run内で単調増加するrecording timestampと`recorded_at` fallback basisを持ち、撮影時刻やAI execution timeを示さない。
-一般的なProjection routeではない。
+一般的なProjection routeではない。comparison一式がないlegacy-shaped snapshotは`comparison=unavailable`を返すが、
+そのshapeは作成時期を証明しない。一部だけ存在するsnapshotは不整合として拒否する。
 CLIの別commandでexport／restoreした後も同じreportを再構築できることをcreator／CLI process testで検証する。
 
 `synapse-application`はAI requestをcredential、project selector、opaque execution handle／permitだけへ限定する。
@@ -216,7 +237,7 @@ application libraryはAIとnarrow Human requestの両方でinjected Authenticato
 | authenticate→exact project ACL→candidate-independent preflight→one-shot execution→reauth/fence→full publication | implemented process-local library boundary | `synapse-application` tests。opaque non-Clone permit、exclusive TTL、burn-on-all-failures、live profile rebuild、project FIFO ACL/publication ordering |
 | admitted proposal→server-fixed Human candidate→authenticate／ACL→one-shot permit→full decision publication | implemented process-local library boundary | `synapse-application` tests。same-instance handle、one-time registration、application-only TTL、live profile generation／ACL fence、Core error passthrough／CAS |
 | direct human／Policy／proposal chainを束縛しsupported dispositionを記録 | implemented library boundary | `HumanDecisionRuntime` integration tests。duplicate lineage、atomic proposal precondition + decision/base CAS raceを検査 |
-| 3 opaque画像から手書きJSONなしでproposal／Human Decision／timelineを作りarchive restore後もreportを再現 | implemented local Pilot boundary | `synapse-creator` workflow testsとCLI process test。adopt／reject／defer、人とAIのprovenance分離、`fsck`、restored report equalityを検査。実model・pixel analysis・real-user authenticationは対象外 |
+| 3 opaque画像から手書きJSONなしでbyte identity／proposal／Human Decision／timelineを作りarchive restore後もreportを再現 | implemented local Pilot boundary | `synapse-observation`、`synapse-creator` workflow testsとCLI process test。imported CaptureProfile、専用software tool、ordered Analysis lineage、両Ref reachability、adopt／reject／defer、人とAIのprovenance分離、`fsck`、restored report equalityを検査。実model・pixel analysis・real-user authenticationは対象外 |
 | production authenticated serviceとexecution enforcement | not implemented | HTTP/JWT、durable/distributed ACL・permit、general Projection route、organization／quorum／release、OS sandbox／egress、revocationが未実装 |
 
 ### Creator benefit hypotheses

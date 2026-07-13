@@ -73,8 +73,10 @@ flowchart LR
 ```
 
 画像差分は`Analysis`であり、物理変化の確定事実ではない。registration失敗、遮蔽、blur、露出不良、欠測を「変化なし」へ置き換えない。
-現在のcreator Pilotはこの比較を実行しない。original／currentというroleはcallerが与え、両fileをopaque Blobとして
-関連付けるだけである。
+現在のcreator Pilotが行うのは、callerがoriginal／current roleを与えた二つのObservationについて、verified primary
+Blob OIDが同じか異なるかを記録する保守的なbyte-identity比較だけである。pixel／EXIFをdecodeせず、画像registration、
+visual change、physical changeを判定しない。`identical`でも物理対象の不変を、`different`でも外観または物理変化を
+確定しないため、結果のcomparabilityは`partial`である。
 
 ### 6. 人が意味を確定する
 
@@ -90,7 +92,7 @@ flowchart LR
 
 ### 7. 報告・引き継ぎ・archiveへ返す
 
-選択した履歴から、進捗、制作process、処置記録、As-recorded、引き継ぎ資料を構成する。現在のlocal Coreはchecksum付きdirectory archiveをexportし、空repository、または同じarchiveの失敗restoreが残したexact object subsetへrestoreできる。capture／画像比較／report GUIを統合したPilot体験は未実装である。
+選択した履歴から、進捗、制作process、処置記録、As-recorded、引き継ぎ資料を構成する。現在のlocal Coreはchecksum付きdirectory archiveをexportし、空repository、または同じarchiveの失敗restoreが残したexact object subsetへrestoreできる。capture／画像registration・visual比較／report GUIを統合したPilot体験は未実装である。
 
 `creator-report`はUIではないが、一つのconsistent Ref snapshotからcurrent proposal／decisionを解決し、
 同じsnapshotで一時SQLite Projectionをrebuildする。Subject extensionのsession manifestからEntityIdを復元し、
@@ -99,6 +101,13 @@ timeline、3画像OID、decision、reviewerをtext表示する。`selected=true`
 `reject`／`defer`は`selected=false`である。timelineは`original_observation`、`current_observation`、
 `image_import`、`ai_proposal`の各stageについて、run内で単調増加するrecording timestampと
 `*_recorded_at_fallback` basisを表示する。撮影時刻、AI execution time、外部eventの物理順序ではない。
+新しいsessionでは、byte-identity AnalysisResultも検証し、
+`comparison_analysis`、`comparison_adapter`、`comparison_status`、`comparison_comparability`、
+`byte_identity`、`comparison_reason_codes`、`comparison_replay_ready`、`comparison_warning`を表示する。
+`comparison_replay_ready=true`はordered inputとadapter implementation／configuration等のprerequisite objectが
+利用可能というsummaryであり、runtime互換性やexact replayを保証しない。base Treeにcomparison evidenceを持たない
+legacy-shaped sessionは`comparison=unavailable`と表示する。このshapeは作成時期を証明せず、byte同一性や
+「変化なし」を推測しない。
 reportは`fsck`がcleanでなければ拒否する。別commandの`export`／`restore`後にも同じOIDとreportを
 再構築できることをprocess testで検証している。
 
@@ -205,13 +214,17 @@ cargo run -p synapse-cli -- restore creator-archive restored.synapse
 cargo run -p synapse-cli -- creator-report restored.synapse mural-1
 ```
 
-`creator-run`はrepositoryを開くか新規作成し、Subject、imported CaptureProfile、original／current Observation、import／AI Activity、
-Actor、Policy、DelegationGrant、ContextPack、proposal、DecisionFeedback、Human Decisionを自動構成する。
+`creator-run`はrepositoryを開くか新規作成し、Subject、imported CaptureProfile、original／current Observation、
+byte-identity AnalysisResult、import／AI Activity、human／AI／comparison software-tool Actor、Policy、DelegationGrant、
+ContextPack、proposal、DecisionFeedback、Human Decisionを自動構成する。
 proposalとdecisionのpublicationは`Application`のAI／Human routeを通る。commandは完了時に`fsck`を実行し、
 receiptに続けてreportも表示する。EntityIdはOSの暗号学的乱数からrunごとに新規生成され、Subject extensionの
-session manifestへ保存される。archive restore後の再発見には使うが、同じ人をsession横断で識別するIDではない。
+session manifestへcore IDを保存する。comparison tool／analysis IDは保存されたseries IDから決定的に再導出する。
+archive restore後の再発見には使うが、同じ人をsession横断で識別するIDではない。
 `--creator`はself-declaredな表示名でありcredential確認ではない。両Observationが参照するCaptureProfileは
 `imported`／`reference_only`で、station、viewpoint、calibration、lighting、capture timeを検証したとは扱わない。
+comparisonはprimary Blob OIDだけを比較し、pixel／EXIFのdecode、画像registration、visual／physical changeの推論を
+行わない。CLIは結果とともに`partial` comparability、reason codes、conservative warningを表示する。
 
 sessionはcreate-onlyである。両Refを持つcomplete sessionの再実行は`creator_session_exists`になる。base Ref公開後かつ
 Human Decision前にfailureしたpartial sessionは`creator_session_incomplete`になる。Decision publication後のfailureは

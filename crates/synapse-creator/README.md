@@ -8,16 +8,29 @@ policy/grant/context, Trees, and Commits without caller-authored JSON. Both
 Observations reference the same `imported` profile, whose only allowed claim is
 `reference_only`; it does not imply repeatable or calibrated capture.
 
+The creator base snapshot also records a deterministic `byte_identity`
+AnalysisResult for the ordered original/current Observations. A dedicated
+`software_tool` Actor, distinct from the AI Actor, asserts the result. The
+adapter verifies every referenced media Blob and compares only the two primary
+Blob OIDs. A successful comparison remains `partial` with reason
+`byte_identity_only`; it does not decode pixels or EXIF, register viewpoints,
+or infer visual or physical change.
+
 AI publication passes through `synapse-application`'s authenticated one-shot
 AI route. The resulting same-instance admitted proposal handle is then passed
 through its narrow Human Decision route. `creator-report` rebuilds a disposable
 ProjectionStore timeline from one captured Ref snapshot and independently
 checks the current DecisionFeedback, proposal transition, decision snapshot,
-and actor bindings. The report distinguishes the local agent identity to which
-the proposal is attributed, the caller-supplied bytes, and the human reviewer;
-it is an audit view, not an authorization source.
+and actor bindings. It also validates the AnalysisResult's ordered inputs,
+implementation/configuration evidence, dedicated tool Actor, replay
+prerequisites, and reachability from both creator Refs. The report distinguishes
+the local agent identity to which the proposal is attributed, the
+caller-supplied bytes, and the human reviewer; it is an audit view, not an
+authorization source. A legacy-shaped session whose base Tree has no comparison
+evidence entries remains reportable with `comparison=unavailable`; this shape
+does not prove when the session was created.
 
-This crate is not a model runner, image decoder, registration/diff adapter,
+This crate is not a model runner, image decoder, pixel registration/diff adapter,
 HTTP service, durable authorization service, or production credential store.
 All three image files remain opaque immutable Blobs. Imported images do not
 claim a capture instant: generated Observations use an explicit unknown
@@ -32,6 +45,12 @@ Each run creates OS-CSPRNG-backed, session-local EntityIds and stores their
 manifest in the reachable Subject extension. They do not prove creator or
 Subject continuity across sessions. Human feedback defaults to reason code
 `unspecified`, private visibility, and prohibited training use.
+
+Core directory export/restore preserves the reachable comparison evidence, and
+the restored creator report is checked against the same snapshot-bound lineage.
+Projection replay readiness only means the recorded prerequisites are present;
+it does not promise exact replay. Workstream C pixel registration and visual
+difference analysis remain unimplemented.
 
 Creator sessions are create-only; only their `decision/creator/*` and
 `proposal/creator-agent/*` Ref names are derived from the session name. A

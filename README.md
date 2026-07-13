@@ -6,10 +6,13 @@ as physical truth.
 
 **Core v0.1 / Stage 0 draft** — the local Rust repository path, Creative AI
 proposal admission, process-local AI and narrow Human Decision routes, a
-disposable SQLite query projection, and a bounded single-creator Pilot CLI are
-implemented. The Pilot accepts three local image files without hand-authored
-JSON; capture, pixel interpretation, image registration, and difference
-analysis are not implemented.
+disposable SQLite query projection, a conservative Observation byte-identity
+adapter, and a bounded single-creator Pilot CLI are implemented. The Pilot
+accepts three local image files without hand-authored JSON, attaches an
+`imported` reference-only CaptureProfile, and records whether the original and
+current primary Blob OIDs are identical. It does not perform image capture,
+pixel interpretation, image registration, or visual/physical difference
+analysis.
 
 > **Important:** `synapse-application` provides initial local Creative AI and
 > narrow Human Decision routes: injected authentication, an exact project map/process ACL,
@@ -63,8 +66,9 @@ conformance.
 | SQLite Ref compare-and-swap and reflog | Implemented |
 | Validated ingest and checksum-bound directory export / restore | Implemented |
 | Low-level local Core repository round-trip CLI; structured JSON is caller-supplied | Implemented |
-| Local single-creator Pilot: three opaque images, generated provenance objects, AI/Human admission, decision, timeline/report, and restore verification without hand-authored JSON | Implemented bounded CLI/library flow |
-| Fixed-viewpoint Observation dataset and image adapter | Planned |
+| Local single-creator Pilot: three opaque images, imported CaptureProfile, generated provenance objects, AI/Human admission, decision, comparison-aware timeline/report, and restore verification without hand-authored JSON | Implemented bounded CLI/library flow |
+| Deterministic ordered Observation adapter: verified primary Blob OID byte identity, immutable AnalysisResult, dedicated `software_tool` Actor in the creator flow | Implemented conservative library boundary |
+| Fixed-viewpoint capture dataset, pixel registration, and visual difference analysis | Planned (Workstream C) |
 | Creative AI proposal admission: exact capability set, snapshot/output binding, proposal-only, transaction-time expiry / `stale_base` | Implemented library boundary |
 | Local authenticated Creative AI execution: exact project route/ACL, Core preflight, one-shot permit, trusted executor, post-execution reauthorization | Implemented process-local library boundary |
 | Local authenticated narrow Human Decision: admitted-proposal handle, server-fixed candidate, one-shot permit, live ACL/profile fence, full Human Core validation | Implemented process-local library boundary |
@@ -73,8 +77,8 @@ conformance.
 | SurrealDB adapter and complete 8-query / benchmark comparison | Planned |
 
 “Implemented” means covered by this repository's tests. It does not mean that
-real-user authentication, network transport, deployment operations, image
-analysis, or a creator-facing application are production-ready.
+real-user authentication, network transport, deployment operations, visual
+image analysis, or a creator-facing application are production-ready.
 
 The initial application route authenticates before any project or repository
 lookup, resolves an exact server-owned project map, and gives malformed,
@@ -126,9 +130,12 @@ and transform prerequisites are present; outputs and masks do not block an
 attempt, and `Ready` never promises exact replay. It is not an
 authorization source, ObjectStore, RefStore, archive input, or recovery
 prerequisite. `creator-report` uses a fresh in-memory rebuild for one bounded
-creator-session timeline, but there is no general projection CLI, automatic
-refresh, or SurrealDB adapter yet, and the full eight-query and benchmark
-decision remains open.
+creator-session timeline and validates the byte-identity AnalysisResult's
+ordered inputs, adapter evidence, software-tool Actor, replay prerequisites,
+and reachability from both creator Refs. This is lineage validation, not a
+visual or physical-change judgment. There is no general projection CLI,
+automatic refresh, or SurrealDB adapter yet, and the full eight-query and
+benchmark decision remains open.
 Like export, rebuild assumes a cooperative append-only ObjectStore with no
 concurrent GC/removal. An object that disappears after being observed present
 fails the rebuild and leaves the prior projection intact; it is not downgraded
@@ -145,7 +152,8 @@ cargo build -p synapse-cli --locked
 node scripts/verify_core_fixtures.mjs
 ```
 
-The runnable [Quickstart](docs/quickstart.md) uses the included fixtures to:
+The runnable [Quickstart](docs/quickstart.md) first uses the included fixtures
+to exercise the low-level Core path:
 
 ```text
 put Blob / Record / Tree / Commit
@@ -157,12 +165,16 @@ put Blob / Record / Tree / Commit
   -> restore Refs last
 ```
 
+It then runs the three-file creator Pilot and inspects the conservative
+byte-identity report without requiring real image files or hand-authored JSON.
+
 For command syntax, output, limits, and errors, see the
 [CLI reference](docs/cli_reference.md).
 
 The local single-creator Pilot takes original, current, and caller-supplied AI
-output files and creates the Subject, Observations, Activities, ContextPack,
-proposal, and Human Decision without JSON authoring:
+output files and creates the Subject, imported CaptureProfile, Observations,
+byte-identity AnalysisResult, Activities, ContextPack, proposal, and Human
+Decision without JSON authoring:
 
 ```bash
 target/debug/synapse creator-run .synapse-creator mural-1 \
@@ -183,10 +195,20 @@ AI provenance. `proposal_attributed_to_agent` is therefore attribution recorded
 by the Pilot, while `ai_output_source=caller_supplied` states where the bytes
 came from; neither proves that this command or a model generated them.
 
+The original/current comparison is asserted by a dedicated `software_tool`
+Actor that is distinct from the AI Actor. It compares only the verified primary
+Blob OIDs in base/target order. A successful result is deliberately
+`comparability=partial` with reason `byte_identity_only`: identical bytes do not
+establish an unchanged physical subject, and different bytes do not establish
+visual or physical change. The adapter does not decode pixels or EXIF and does
+not register viewpoints. Pixel registration and visual difference analysis in
+Workstream C remain unimplemented.
+
 Each run creates fresh, session-local EntityIds from the operating system's
-cryptographic random source. The Subject extension manifest preserves those IDs
-for reporting and archive restore, but they are not stable identity for the same
-person across sessions. The Pilot does not invent event time from local files:
+cryptographic random source. The Subject extension manifest preserves the core
+session IDs for reporting and archive restore; comparison tool/analysis IDs are
+deterministically re-derived from the stored series ID. None are stable identity
+for the same person across sessions. The Pilot does not invent event time from local files:
 Observation `capture_time` and Activity `valid_time` are `unknown`. Timeline rows
 use strictly increasing recording timestamps with a `recorded_at` fallback and
 must not be read as capture or AI-execution time. A report resolves both creator
@@ -194,9 +216,15 @@ Refs from one consistent Ref snapshot, revalidates the proposal and decision
 lineage, and returns the base, proposal, and decision snapshots plus whether the
 AI output was selected. Its text output separates
 `proposal_attributed_to_agent`, `reviewed_by_human`, and `selected`; only
-`adopt` selects the proposal. Generated DecisionFeedback defaults to reason
-`unspecified`, private visibility, and prohibited training use. The command runs
-`fsck`; archive export and restore remain separate. Sessions are create-only: a
+`adopt` selects the proposal. For current sessions it also reports the
+comparison AnalysisResult, adapter/status/comparability, byte-identity outcome,
+reason codes, and Projection replay readiness. A legacy-shaped creator session
+whose base Tree has no comparison entries remains reportable as
+`comparison=unavailable`; that shape does not prove its creation time.
+Generated DecisionFeedback defaults to reason `unspecified`, private
+visibility, and prohibited training use. The command runs `fsck`; archive
+export and restore remain separate, and restored reports preserve the recorded
+comparison lineage. Sessions are create-only: a
 failure after base Ref publication but before the Human Decision can leave
 `creator_session_incomplete`, while a failure after Decision publication can
 leave a complete session whose report must be retried. Neither state is resumed
@@ -237,6 +265,8 @@ flowchart LR
     Control["Trusted control plane<br/>profiles + candidate + executor + clock"] --> App
     Creator --> App
     Creator --> Core
+    Creator --> Observation["synapse-observation<br/>primary-Blob byte identity"]
+    Observation --> Core
     App --> AIRuntime["CreativeAiRuntime<br/>preflight + proposal admission"]
     App --> HRuntime["HumanDecisionRuntime<br/>admitted-proposal narrow decision"]
     AIRuntime --> Core
@@ -257,9 +287,10 @@ flowchart LR
 
 Rust owns canonicalization, OIDs, schema validation, storage integrity, Ref
 updates, the initial local AI and narrow Human application routes, AI proposal and Human Decision
-admission, projection rebuilding, and archive verification. TypeScript is intended
-for UI / SDK work; Python is intended for media and AI adapters. Adapters submit
-data to Core and do not define authoritative OIDs themselves. The embedding
+admission, the conservative byte-identity adapter, projection rebuilding, and
+archive verification. TypeScript is intended for UI / SDK work; Python is
+intended for future pixel/media and AI adapters. Adapters submit data to Core
+and do not define authoritative OIDs themselves. The embedding
 application control plane, rather than AI-controlled input or CLI reflog
 metadata, supplies the trusted authority profile, target, executor, and clock.
 The creator Pilot supplies a fixed local control plane and rebuilds a bounded
@@ -285,7 +316,8 @@ preservation and atomic base preconditions, Core preflight and the process-local
 one-shot AI and narrow Human application routes, narrow Human Decision authorization,
 duplicate-decision/race handling, candidate/output hardening and transaction-time expiry guards,
 atomic projection rebuild/query behavior (3 unit + 19 integration tests), CLI round trip, resumable failed restore,
-the single-creator three-image AI/Human workflow and restored report equality,
+the single-creator three-image AI/Human workflow, imported CaptureProfile,
+ordered byte-identity AnalysisResult and Projection lineage, and restored report equality,
 bounded archive inventory/distinct-head validation, and process-level export/update stress/smoke coverage.
 The latter does not deterministically prove SQLite transaction overlap. Per-write-boundary crash injection and
 startup cleanup of orphan archive staging and ObjectStore temporary files remain open.
@@ -300,6 +332,7 @@ Core v0.1 does not claim to provide:
 - authorship, truth, copyright, or contract proof;
 - a creativity, influence, contribution, or worker-productivity score;
 - immutable truth, guaranteed permanence, or remote erasure;
+- pixel registration or automatic inference of visual or physical change;
 - unauthorized model training or data resale;
 - automatic AI control of decision / release history;
 - Chrono-Engine historical-person reconstruction or automatic profit sharing.
