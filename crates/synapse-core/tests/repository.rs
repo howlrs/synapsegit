@@ -158,6 +158,35 @@ fn ref_update_rejects_a_missing_commit_closure_without_mutation() {
 }
 
 #[test]
+fn ref_update_rejects_a_tombstoned_missing_commit_root_without_mutation() {
+    let temporary = TempDirectory::new("missing-tombstoned-root");
+    let mut repository = Repository::open(temporary.join("repo")).unwrap();
+    let missing =
+        "commit:sg-oid-v1:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let tombstone = String::from_utf8(fixture("tombstone.json"))
+        .unwrap()
+        .replace(
+            "blob:sg-oid-v1:sha256:0601e763908d07ad94396b6eea24f1b4f3da3b3250c643a90beef19bb12f798b",
+            missing,
+        );
+    repository.put_object(tombstone.as_bytes()).unwrap();
+    let snapshot = repository.refs().snapshot().unwrap();
+    let reflog = repository.refs().reflog().unwrap();
+
+    let error = repository
+        .update_ref(RefUpdate {
+            ref_name: "proposal/agent/run-1",
+            expected_head: None,
+            new_head: missing,
+            metadata: ReflogMetadata::at(1),
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), "closure_missing");
+    assert_eq!(repository.refs().snapshot().unwrap(), snapshot);
+    assert_eq!(repository.refs().reflog().unwrap(), reflog);
+}
+
+#[test]
 fn failed_restore_publishes_no_refs_and_can_resume_after_archive_repair() {
     let temporary = TempDirectory::new("tamper");
     let mut source = Repository::open(temporary.join("source")).unwrap();

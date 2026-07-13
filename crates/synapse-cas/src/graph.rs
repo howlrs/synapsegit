@@ -355,6 +355,15 @@ fn verify_closure_with_tombstones<S: ObjectStore + ?Sized>(
                                     },
                                 },
                             );
+                            // A Tombstone preserves the availability history
+                            // of an object inside a readable Commit closure,
+                            // but it cannot stand in for the root Commit
+                            // bytes required to resolve a Ref head.
+                            if visit.depth == 0 && visit.kind == ObjectKind::Commit {
+                                report
+                                    .issues
+                                    .push(issue_for_visit(&visit, ClosureIssueKind::Missing));
+                            }
                             continue;
                         }
                         report.nodes.insert(
