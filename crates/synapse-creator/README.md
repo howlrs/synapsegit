@@ -3,8 +3,10 @@
 `synapse-creator` is the local, single-creator Stage 0 Pilot orchestration
 layer. It accepts an original image, a current image, a caller-supplied AI
 output, and one human `adopt` / `reject` / `defer` outcome. It creates the
-Subject, Observations, Activities, policy/grant/context, Trees, and Commits
-without caller-authored JSON.
+Subject, imported CaptureProfile, Observations, Activities,
+policy/grant/context, Trees, and Commits without caller-authored JSON. Both
+Observations reference the same `imported` profile, whose only allowed claim is
+`reference_only`; it does not imply repeatable or calibrated capture.
 
 AI publication passes through `synapse-application`'s authenticated one-shot
 AI route. The resulting same-instance admitted proposal handle is then passed

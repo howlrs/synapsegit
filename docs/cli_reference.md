@@ -159,13 +159,15 @@ synapse creator-run .synapse-creator mural-1 \
 - 各runのcreator、agent、project、Subject等のEntityIdはOSの暗号学的乱数から新規生成するsession-local IDである。
   Subject extension `org.synapsegit.creator-session`のmanifestへ保存し、report／archive restoreで復元するが、
   同じ`--creator`をsession横断で識別するglobal ID、credential、identity registryではない。
+- 両Observationは同じCaptureProfileを参照する。初版は`profile_level=imported`、
+  `allowed_claims=[reference_only]`、verified required conditionなしであり、repeatable／calibrated captureを主張しない。
 - `--rationale`は任意で最大5,000 UTF-8 bytes。省略時はdecision別の既定rationaleを記録する。
   DecisionFeedbackの既定は`reason_codes=["unspecified"]`、`visibility=private`、
   `training_use_policy=prohibited`である。
 - fileに外部検証済み時刻がないため、生成するObservationの`capture_time`とActivityの`valid_time`は
   `unknown`である。各stageのRecordにはrun内でstrictly monotonicになるrecording timestampを保存するが、
   `recorded_at`を撮影・生成・実行時刻や外部eventの物理順序の証拠として扱わない。
-- Subject、human／AI Actor、Policy、DelegationGrant、original／current Observation、import Activity、
+- Subject、human／AI Actor、Policy、DelegationGrant、imported CaptureProfile、original／current Observation、import Activity、
   ContextPack、AI Activity、base／proposal／decision Commit、DecisionFeedback、ManifestTreeを自動生成する。
 - base session bootstrapはtrusted local orchestrationである。proposalは`Application`のAI preflight／one-shot
   permit／full Core admissionを、decisionは同じinstanceのadmitted proposal handleとHuman one-shot routeを通る。

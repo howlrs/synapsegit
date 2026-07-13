@@ -131,6 +131,7 @@ pub struct CreatorRunReceipt {
     pub original_blob_oid: String,
     pub current_blob_oid: String,
     pub ai_output_blob_oid: String,
+    pub capture_profile_oid: String,
     pub original_observation_oid: String,
     pub current_observation_oid: String,
     pub ai_activity_oid: String,
@@ -330,6 +331,7 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
     let original_recorded_at = recording_clock.tick()?;
     let current_recorded_at = recording_clock.tick()?;
     let import_recorded_at = recording_clock.tick()?;
+    let capture_profile_id = related_entity_id(&ids.series, "capture-profile");
 
     let creator_actor_oid = put_json(
         &repository,
@@ -374,8 +376,17 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
         subject_record(
             &options.session,
             &ids,
+            &capture_profile_id,
             &base_recorded_at.timestamp,
             &options.subject_label,
+        ),
+    )?;
+    let capture_profile_oid = put_json(
+        &repository,
+        imported_capture_profile_record(
+            &capture_profile_id,
+            &ids.creator,
+            &base_recorded_at.timestamp,
         ),
     )?;
     let original_observation_oid = put_json(
@@ -387,6 +398,7 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
             &ids.series,
             &original_recorded_at.timestamp,
             &original_blob_oid,
+            &capture_profile_oid,
         ),
     )?;
     let current_observation_oid = put_json(
@@ -398,6 +410,7 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
             &ids.series,
             &current_recorded_at.timestamp,
             &current_blob_oid,
+            &capture_profile_oid,
         ),
     )?;
     let import_activity_oid = put_json(
@@ -428,6 +441,12 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
     insert_entry(&mut base_entries, "policy.json", "record", &policy_oid);
     insert_entry(&mut base_entries, "grant.json", "record", &grant_oid);
     insert_entry(&mut base_entries, "subject.json", "record", &subject_oid);
+    insert_entry(
+        &mut base_entries,
+        "capture-profile.json",
+        "record",
+        &capture_profile_oid,
+    );
     insert_entry(
         &mut base_entries,
         "original.observation.json",
@@ -662,6 +681,7 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
         original_blob_oid,
         current_blob_oid,
         ai_output_blob_oid,
+        capture_profile_oid,
         original_observation_oid,
         current_observation_oid,
         ai_activity_oid,
@@ -927,7 +947,19 @@ fn entity_id(seed: &[u8; 32], role: &str) -> String {
     hash.update(seed);
     hash.update(b"\0");
     hash.update(role.as_bytes());
-    let mut bytes: [u8; 32] = hash.finalize().into();
+    uuid_entity_id(hash.finalize().into())
+}
+
+fn related_entity_id(scope: &str, role: &str) -> String {
+    let mut hash = Sha256::new();
+    hash.update(b"synapsegit-creator-related-entity-v1\0");
+    hash.update(scope.as_bytes());
+    hash.update(b"\0");
+    hash.update(role.as_bytes());
+    uuid_entity_id(hash.finalize().into())
+}
+
+fn uuid_entity_id(mut bytes: [u8; 32]) -> String {
     bytes[6] = (bytes[6] & 0x0f) | 0x40;
     bytes[8] = (bytes[8] & 0x3f) | 0x80;
     format!(
@@ -1647,7 +1679,13 @@ fn grant_record(
     record
 }
 
-fn subject_record(session: &str, ids: &SessionIds, recorded_at: &str, label: &str) -> JsonValue {
+fn subject_record(
+    session: &str,
+    ids: &SessionIds,
+    capture_profile_id: &str,
+    recorded_at: &str,
+    label: &str,
+) -> JsonValue {
     let mut record = envelope(
         "subject",
         &ids.subject,
@@ -1679,6 +1717,7 @@ fn subject_record(session: &str, ids: &SessionIds, recorded_at: &str, label: &st
                 "original_observation_id": ids.original_observation,
                 "current_observation_id": ids.current_observation,
                 "import_activity_id": ids.import_activity,
+                "capture_profile_id": capture_profile_id,
                 "policy_id": ids.policy,
                 "grant_id": ids.grant,
                 "context_id": ids.context,
@@ -1689,6 +1728,26 @@ fn subject_record(session: &str, ids: &SessionIds, recorded_at: &str, label: &st
     record
 }
 
+fn imported_capture_profile_record(
+    entity_id: &str,
+    creator_id: &str,
+    recorded_at: &str,
+) -> JsonValue {
+    envelope(
+        "capture_profile",
+        entity_id,
+        recorded_at,
+        creator_id,
+        "tool_recorded",
+        json!({
+            "profile_level": "imported",
+            "required_conditions": [],
+            "allowed_claims": ["reference_only"],
+            "description": "Imported files with no verified station, calibration, viewpoint, lighting, or capture-time assurances."
+        }),
+    )
+}
+
 fn observation_record(
     entity_id: &str,
     creator_id: &str,
@@ -1696,6 +1755,7 @@ fn observation_record(
     series_id: &str,
     timestamp: &str,
     image_oid: &str,
+    capture_profile_oid: &str,
 ) -> JsonValue {
     envelope(
         "observation",
@@ -1710,6 +1770,7 @@ fn observation_record(
                 "kind": "unknown",
                 "reason": "Imported file; capture time was not supplied or independently verified."
             },
+            "capture_profile_ref": capture_profile_oid,
             "media_refs": canonical_set(vec![json!({ "role": "primary", "oid": image_oid })]),
             "calibration_refs": [],
             "protocol_deviations": ["Capture time and capture metadata were not supplied or independently verified."],

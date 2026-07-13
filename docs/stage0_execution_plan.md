@@ -143,7 +143,7 @@ Protocol上、AIの有効能力はActor、Grant、Policy、runtime capabilityの
 
 `synapse-creator`とCLIの`creator-run`／`creator-report`は、このWorkstreamの最初のboundedな
 local single-creator経路を実装する。`creator-run`はoriginal／current／AI outputの3 fileをopaque Blobとして
-格納し、Subject、2 Observation、import Activity、ContextPack、Policy、DelegationGrant、AI Activity、
+格納し、Subject、imported／reference-only CaptureProfile、2 Observation、import Activity、ContextPack、Policy、DelegationGrant、AI Activity、
 proposal Commit、DecisionFeedback、Decision Commitを自動作成する。proposal publicationとHuman Decisionは
 `synapse-application`のAI／Human routeを通り、`adopt`はproposal snapshotをunchangedで選択し、`reject`／
 `defer`はbase snapshotを維持する。AI proposal Refとoutput provenanceはどのdecisionでも残る。

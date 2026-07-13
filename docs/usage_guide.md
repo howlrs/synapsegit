@@ -205,12 +205,13 @@ cargo run -p synapse-cli -- restore creator-archive restored.synapse
 cargo run -p synapse-cli -- creator-report restored.synapse mural-1
 ```
 
-`creator-run`はrepositoryを開くか新規作成し、Subject、original／current Observation、import／AI Activity、
+`creator-run`はrepositoryを開くか新規作成し、Subject、imported CaptureProfile、original／current Observation、import／AI Activity、
 Actor、Policy、DelegationGrant、ContextPack、proposal、DecisionFeedback、Human Decisionを自動構成する。
 proposalとdecisionのpublicationは`Application`のAI／Human routeを通る。commandは完了時に`fsck`を実行し、
 receiptに続けてreportも表示する。EntityIdはOSの暗号学的乱数からrunごとに新規生成され、Subject extensionの
 session manifestへ保存される。archive restore後の再発見には使うが、同じ人をsession横断で識別するIDではない。
-`--creator`はself-declaredな表示名でありcredential確認ではない。
+`--creator`はself-declaredな表示名でありcredential確認ではない。両Observationが参照するCaptureProfileは
+`imported`／`reference_only`で、station、viewpoint、calibration、lighting、capture timeを検証したとは扱わない。
 
 sessionはcreate-onlyである。両Refを持つcomplete sessionの再実行は`creator_session_exists`になる。base Ref公開後かつ
 Human Decision前にfailureしたpartial sessionは`creator_session_incomplete`になる。Decision publication後のfailureは

@@ -128,7 +128,29 @@ fn creator_workflow_uses_ai_and_human_routes_and_survives_restore() {
             .unwrap();
         let observation: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
         assert_eq!(observation["payload"]["capture_time"]["kind"], "unknown");
+        assert_eq!(
+            observation["payload"]["capture_profile_ref"],
+            receipt.capture_profile_oid
+        );
     }
+    let capture_profile: serde_json::Value = serde_json::from_slice(
+        &repository
+            .objects()
+            .read_raw(&receipt.capture_profile_oid)
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(capture_profile["record_type"], "capture_profile");
+    assert_eq!(capture_profile["payload"]["profile_level"], "imported");
+    assert_eq!(
+        capture_profile["payload"]["allowed_claims"],
+        serde_json::json!(["reference_only"])
+    );
+    assert_eq!(
+        capture_profile["payload"]["required_conditions"],
+        serde_json::json!([])
+    );
     let feedback: serde_json::Value = serde_json::from_slice(
         &repository
             .objects()
