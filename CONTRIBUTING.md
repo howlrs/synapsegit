@@ -17,6 +17,7 @@ cargo test --workspace --locked
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo doc --workspace --no-deps --locked
 node scripts/verify_core_fixtures.mjs
+node scripts/verify_local_api.mjs
 node scripts/verify_docs.mjs
 git diff --check
 ```

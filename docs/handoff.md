@@ -1,6 +1,6 @@
 # SynapseGit 作業引き継ぎ
 
-更新日: 2026-07-13
+更新日: 2026-07-14
 
 この文書は、次の作業者が現在地を誤認せずに再開するための実装引き継ぎである。
 規範仕様ではない。資料が食い違う場合は、[documentation index](./README.md#資料の位置づけ)に
@@ -10,10 +10,10 @@
 
 - repository: `/home/o9oem/workspace/mine/temp/ai_git`
 - working branch: `agent/archive-export-hardening`
-- latest implementation head before this documentation sync: `5f8b62a`
-  (`feat: report creator byte identity evidence`)
+- latest local head before the localhost application design slice: `23bfe94`
+  (`docs: sync observation comparison workflow`)
 - remote branch head: `cb21c45823bcd1f11031ca209157a33ee72816e2`
-  (`docs: add current project handoff`)、`5f8b62a`時点でlocal branchは4 commits ahead
+  (`docs: add current project handoff`)、`23bfe94`時点でlocal branchは5 commits ahead
 - implementation baseline: `7f1fa96eba919b10401c6da8faaa717ff5d51c15`
   (`feat: harden archive export boundaries`)
 - `origin/main`: `1249314`。上記branchは未mergeで、PRは未作成
@@ -24,9 +24,12 @@
   - `7579b58 feat: attach imported capture profiles`
   - `32b393d feat: add deterministic observation byte comparison`
   - `5f8b62a feat: report creator byte identity evidence`
-- documentation sync: 本handoffを含む次のlocal commit。commit後はremote baselineより5 commits aheadになる
+  - `23bfe94 docs: sync observation comparison workflow`
+- localhost application slice 1: architecture、versioned OpenAPI contract、contract verifier、docs syncを
+  本handoffを含む次のlocal commitにする。commit後はremote baselineより6 commits aheadになる
 - current検証: `cargo test --workspace --all-targets --locked` 218 tests、workspace Clippy `-D warnings`、
-  Rustdoc `-D warnings`、format、Core fixture、documentation link、Mermaid、diff checksが成功
+  Rustdoc `-D warnings`、format、Core fixture、localhost API contract（16 operations／39 schemas／137 refs）、
+  official OpenAPI 3.1 schema、documentation link、Mermaid、diff checksが成功
 
 `7f1fa96`ではarchive inventory／bytes／Ref／reflog／Tombstone／manifest、
 distinct-head closure workをboundedにし、対応OSのarchive publicationをatomic no-replaceにした。
@@ -39,8 +42,9 @@ process-level export/update stressも追加した。詳細な契約は
 SynapseGitは、画像を含む制作物とAI／人の履歴を不変object graphとして保存・検証・移送できる
 local Coreに加え、original／current／AI outputの3画像から手書きJSONなしで一sessionを記録する
 **local single-creator Pilot**と、ordered primary Blob OIDを比較するdeterministic byte-identity baselineを持つ。
-一方、capture、pixel-level registration／差分解析、実model実行、実利用者認証、GUIを備えた
-production creator applicationにはまだなっていない。
+single-user／loopback-only画像applicationはarchitectureとHTTP contractまで決定した。一方、server／route／GUI、
+capture、pixel-level registration／差分解析、実model実行、実利用者認証を備えたproduction creator applicationには
+まだなっていない。
 
 | 利用目標 | 現在の状態 |
 |---|---|
@@ -134,7 +138,9 @@ admissionを通らない。`creator-run`を含め、現在のCLIをuntrusted cal
 
 - 3 file取込み、Subject／Observation／Activity作成、proposal、人のadopt／reject／deferはlocal CLIで実装済み
 - current lineage検証、履歴timeline、text process report、`fsck`、archive restore再現はlocal Pilotで実装済み
-- byte-identity reportは実装済み。実capture、pixel-level画像比較、実model／connector実行、継続session編集、GUIは未実装
+- localhost image applicationのsafe facade、Axum／Askama、OpenAPI、browser security、8 implementation slicesは
+  [architecture](./localhost_application_architecture.md)で決定済み。実server／route／GUIは未実装
+- byte-identity reportは実装済み。実capture、pixel-level画像比較、実model／connector実行、継続session編集は未実装
 - ペイントツール、ファイル監視、実利用者Pilotとbenefit measurementは未実装
 
 現在の実装は価値仮説を試す最小local経路であり、制作現場へ配布できるproduction applicationではない。
@@ -162,6 +168,8 @@ admissionを通らない。`creator-run`を含め、現在のCLIをuntrusted cal
 - organization／quorum、release、modified／partial adoption workflow
 
 localなtrusted developer Pilotでは必須ではないが、untrusted caller、複数利用者、公開serviceでは必須である。
+最初のlocalhost applicationはこのproduction service層を完成させるものではなく、IPv4 loopback固定、single-user、
+same-process handle、OS user／directory permissionを信頼する境界に限定する。
 
 ### D. Protocol／運用hardening
 
@@ -210,11 +218,16 @@ original / current / caller-supplied AI outputを取り込む
   どちらもcross-session identityとは扱わない
 - incomplete sessionをcreate-only conflictとして保全し、自動resume／cleanupしない
 
-次の優先事項は、実利用者にこのCLIを試してもらい、記録負担、判断再発見、report／handoff時間を測ることである。
-並行してWorkstream Cのfixed-viewpoint Observation dataset、repeatable／calibrated capture、pixel-level adapterへ進む。
-visual／physical画像差分をcreator Pilotへ接続する前に、照明差、遮蔽、blur、露出不良、registration失敗を評価し、
-比較不能を「変化なし」にしない。現在のbyte identityをその代用にしない。
-実model／connector／paint tool integration、継続session UXもcreator側の次候補である。
+次の優先事項は[localhost application architecture](./localhost_application_architecture.md)のslice 2である。
+`synapse-local-service`のversioned read DTO／exact project catalogと、`synapse-local-http`のloopback／Host／Origin／token
+boundaryを追加し、project status、Refs、reflog、creator session list／report／imageのread-only APIを実装する。
+transport crateはCore／SQLiteへ直接依存させず、`update-ref`、raw object、authority／permit routeが存在しないことをtestする。
+先に、Ref snapshotと`LIMIT + 1` reflog pageを同じSQLite read transactionで返すread API、caller-supplied snapshotから
+reportとProjection fingerprintを同時に返すcreator API、64 MiBでfail-closedするverified Blob readerを追加する。
+
+その後server-rendered dashboard、3-file proposal-only begin、byte evidence view、same-process Human review、maintenance job、
+incomplete diagnostics／packaging／E2Eを別commitで進める。Workstream Cと実model／connectorは並行候補だが、現在の
+byte identityをvisual／physical画像差分の代用にしない。
 
 formalなStage 0 exitには、[Stage 0 execution plan](./stage0_execution_plan.md)の第二独立実装によるprotocol freeze、
 Observation Pilot、creator benefit measurement、SurrealDBを含むProjection比較が引き続き必要である。
@@ -232,10 +245,12 @@ cargo test --workspace --locked
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 RUSTDOCFLAGS='-D warnings' cargo doc --workspace --no-deps --locked
 node scripts/verify_core_fixtures.mjs
+node scripts/verify_local_api.mjs
 node scripts/verify_docs.mjs
 node scripts/verify_mermaid.mjs
 git diff --check
 ```
 
 実装状態を変えた場合は、root `README.md`、[documentation index](./README.md)、
-[Stage 0 execution plan](./stage0_execution_plan.md)、[使用ガイド](./usage_guide.md)の状態表記を同期する。
+[localhost application architecture](./localhost_application_architecture.md)、[Stage 0 execution plan](./stage0_execution_plan.md)、
+[使用ガイド](./usage_guide.md)の状態表記を同期する。

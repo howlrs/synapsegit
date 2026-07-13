@@ -67,6 +67,7 @@ conformance.
 | Validated ingest and checksum-bound directory export / restore | Implemented |
 | Low-level local Core repository round-trip CLI; structured JSON is caller-supplied | Implemented |
 | Local single-creator Pilot: three opaque images, imported CaptureProfile, generated provenance objects, AI/Human admission, decision, comparison-aware timeline/report, and restore verification without hand-authored JSON | Implemented bounded CLI/library flow |
+| Single-user loopback image application: server-rendered UI, safe facade, and versioned HTTP contract | Architecture/API contract complete; implementation planned |
 | Deterministic ordered Observation adapter: verified primary Blob OID byte identity, immutable AnalysisResult, dedicated `software_tool` Actor in the creator flow | Implemented conservative library boundary |
 | Fixed-viewpoint capture dataset, pixel registration, and visual difference analysis | Planned (Workstream C) |
 | Creative AI proposal admission: exact capability set, snapshot/output binding, proposal-only, transaction-time expiry / `stale_base` | Implemented library boundary |
@@ -241,6 +242,7 @@ Start with the [documentation index](docs/README.md).
 | Understand objects and Records | [Core data model](docs/core_model.md) |
 | Look up terminology and common questions | [Glossary](docs/glossary.md) / [FAQ](docs/faq.md) |
 | Understand storage and process boundaries | [Runtime architecture](docs/runtime_architecture.md) |
+| Implement the localhost image application | [Localhost application architecture](docs/localhost_application_architecture.md) |
 | Review trust and security limits | [Security model](docs/security_model.md) |
 | Contribute code or docs | [Contributing](CONTRIBUTING.md) |
 | Resume the current work | [作業引き継ぎ](docs/handoff.md) |
@@ -282,14 +284,19 @@ flowchart LR
     CAS --> Projection["SQLite ProjectionStore<br/>query index + Analysis lineage"]
     DB -. consistent RefSnapshot .-> Projection
     Creator --> Projection
+    Browser["Creator browser<br/>planned localhost UI"] -.-> LocalHTTP["synapse-local-http<br/>planned loopback server"]
+    LocalHTTP -.-> LocalService["synapse-local-service<br/>planned safe facade"]
+    LocalService -.-> Creator
+    LocalService -.-> Projection
     Projection -. optional adapter planned .-> SurrealDB[(SurrealDB)]
 ```
 
 Rust owns canonicalization, OIDs, schema validation, storage integrity, Ref
 updates, the initial local AI and narrow Human application routes, AI proposal and Human Decision
 admission, the conservative byte-identity adapter, projection rebuilding, and
-archive verification. TypeScript is intended for UI / SDK work; Python is
-intended for future pixel/media and AI adapters. Adapters submit data to Core
+archive verification. The first localhost UI is designed as Rust-rendered HTML
+with small browser-native modules; TypeScript remains a future rich-client / SDK
+option. Python is intended for future pixel/media and AI adapters. Adapters submit data to Core
 and do not define authoritative OIDs themselves. The embedding
 application control plane, rather than AI-controlled input or CLI reflog
 metadata, supplies the trusted authority profile, target, executor, and clock.
@@ -305,6 +312,7 @@ cargo test --workspace --locked
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo doc --workspace --no-deps --locked
 node scripts/verify_core_fixtures.mjs
+node scripts/verify_local_api.mjs
 node scripts/verify_docs.mjs
 git diff --check
 ```
