@@ -22,6 +22,7 @@ membership resolver、OS sandbox／egress、Grant revocation、organization／qu
 | 用語・よくある疑問を調べる | [Glossary](./glossary.md) | [FAQ](./faq.md) |
 | 保存・書込み境界を知る | [Runtime architecture](./runtime_architecture.md) | [Security model](./security_model.md) |
 | 実装へ参加する | [Contributing](../CONTRIBUTING.md) | [Stage 0 execution plan](./stage0_execution_plan.md) |
+| 作業を引き継ぐ・再開する | [作業引き継ぎ](./handoff.md) | [Stage 0 execution plan](./stage0_execution_plan.md) |
 | 仕様準拠実装を作る | [OID profile](../spec/core/v0.1/oid-profile.md) | [Operations](../spec/core/v0.1/operations.md) |
 | archive 互換実装を作る | [Local archive profile](../spec/core/v0.1/archive-profile.md) | [Security model](./security_model.md) |
 | 利用者別の説明資料を見る | [想定利用者別シナリオ](./presentations/README.md) | [使用ガイド](./usage_guide.md) |
@@ -59,7 +60,7 @@ flowchart LR
 | filesystem CAS、typed closure、Tombstone、fsck | 実装済み | `synapse-cas` |
 | Ref compare-and-swap と reflog | 実装済み | `synapse-sqlite` |
 | validated ingest、directory export / restore | 実装済み | `synapse-core` |
-| end-to-end local CLI | 実装済み | `synapse-cli`、[Quickstart](./quickstart.md) |
+| local Core repository round-trip CLI（structured JSONはcaller-supplied） | 実装済み | `synapse-cli`、[Quickstart](./quickstart.md) |
 | fixed-point Observation dataset と image adapter | 未実装 | [Stage 0 Workstream C](./stage0_execution_plan.md#workstream-c-fixed-point-observation-pilot) |
 | AI proposal admission、exact capability、snapshot/output binding、transaction-time expiry／`stale_base` | library境界を実装済み / integration partial | `synapse-core::CreativeAiRuntime`、[Stage 0 Workstream D](./stage0_execution_plan.md#workstream-d-creator--creative-ai-value-slice) |
 | authenticated one-shot AI execution、exact project map／ACL、Core preflight、post-execution reauthorization | process-local library境界を実装済み / production integration partial | `synapse-application`、[Operations §7.1](../spec/core/v0.1/operations.md#71-initial-local-authenticated-application-profile) |

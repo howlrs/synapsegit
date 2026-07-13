@@ -26,7 +26,7 @@ flowchart LR
 | A: protocol freeze | partial | 第二の独立production実装によるfreeze gate |
 | B: Rust Core vertical slice | implemented | archive object／Ref／reflog inventory、raw／text bytes、distinct-head累積closure work、Tombstone scan、manifest bounds、process-level export/update stress／smoke、Linux／Android／Apple／Redoxのno-replace publicationは実装済み。write-boundary crash fault-injectionとarchive／ObjectStore orphanのstartup cleanupが残る |
 | C: Observation pilot | planned | dataset、image adapter、評価report |
-| D: Creator / Creative AI | partial | injected Authenticator／exact project ACL、one-shot AI Executor route、same-instance admitted proposalに限定したnarrow Human route、両Core admissionは実装済み。HTTP/JWT、durable/distributed state、Projection route、release／modified／quorum、OS sandbox／egress、revocation、Pilot評価が残る |
+| D: Creator / Creative AI | partial | injected Authenticator／exact project ACL、one-shot AI Executor route、same-instance admitted proposalに限定したnarrow Human route、両Core admissionは実装済み。creator-facing orchestrationとPilot評価が残る。HTTP/JWT、durable/distributed state、Projection route、release／modified／quorum、OS sandbox／egress、revocationはproduction/shared-service側の残作業 |
 | ProjectionStore spike | partial | SQLite baselineのatomic rebuild、bounded shared Tombstone scan、closure／timeline／Observation dependency／Analysis lineageは3 unit + 19 integration testsで実装済み。SurrealDB adapter、完全な8-query parity／benchmark判断が残る |
 
 ## Outcome
@@ -63,7 +63,7 @@ put-blob / put-record
   -> empty-store restore
 ```
 
-この経路は現在`crates/synapse-core`と`crates/synapse-cli`で実装済みである。具象schema検証、atomic filesystem CAS、typed closure、Tombstone、SQLite Ref CAS／reflog、fsck、checksum付きdirectory export／empty-store restoreをworkspace testとCLI process testで検証する。`crates/synapse-application`のprocess-local authenticated AI route、same-instance admitted proposalに限定したnarrow Human route、Core Creative AI proposal／Human Decision publication boundaryもRust libraryとして実装済みである。`crates/synapse-projection`にはcurrent Ref closureだけを対象にするSQLite baselineも実装済みである。残るStage 0作業はfixed-point Observation pilot、HTTP/JWTとdurable/distributed authorization、Projection application route、OS sandbox／egress、release／modified／quorum workflow、Pilot評価、SurrealDB adapterと全8 query／benchmark比較である。
+この経路は現在`crates/synapse-core`と`crates/synapse-cli`で実装済みである。具象schema検証、atomic filesystem CAS、typed closure、Tombstone、SQLite Ref CAS／reflog、fsck、checksum付きdirectory export／empty-store restoreをworkspace testとCLI process testで検証する。`crates/synapse-application`のprocess-local authenticated AI route、same-instance admitted proposalに限定したnarrow Human route、Core Creative AI proposal／Human Decision publication boundaryもRust libraryとして実装済みである。`crates/synapse-projection`にはcurrent Ref closureだけを対象にするSQLite baselineも実装済みである。narrow Stage 0の残作業は第二の独立実装によるprotocol freeze、fixed-point Observation pilot、creator-facing orchestrationとPilot評価、SurrealDB adapterを含む全8 query／benchmark decision spikeである。HTTP/JWT、durable/distributed authorization、Projection application route、OS sandbox／egress、release／modified／quorum workflowは、公開・複数利用者を対象にするときのproduction/shared-service gateとして分離する。
 
 この経路の実行可能な手順は[Quickstart](./quickstart.md)、Pilotでの意味は
 [SynapseGit Core使用ガイド](./usage_guide.md)にまとめる。

@@ -192,15 +192,26 @@ exportはdirectory archiveを新規作成し、object bytes、Ref snapshot、完
 
 ## まだ実行できないこと
 
+Stage 0のcreator／Observation Pilotとして残るもの:
+
 - 実際のcapture client、画像registration、compare UI
+- AI／Human library routeを手作業JSONなしで使うcreator-facing orchestration
+- 実データによる便益・画像比較評価
+
+公開・複数利用者向けserviceに必要だが、local trusted Pilotとは分離するもの:
+
 - concrete HTTP／JWT／MFA、credential database、durable／distributed ACL・permit、multi-process fence
 - Projection authenticated application route
 - multi-project CAS membership／classification resolver
 - organization／quorum／MFA、release approval、modified／partial adoption workflow
 - AI ExecutorのOS sandbox／connector／egress制御、Grant revocation
+
+追加integration／technology decisionとして残るもの:
+
 - ProjectionStore CLI／自動refresh、SurrealDB adapter、SQLiteとの全8-query／性能比較
 
-これらは[Stage 0 execution plan](./stage0_execution_plan.md)の残りのexit gateに従って実装する。
+優先順位と利用目標ごとの必須範囲は[作業引き継ぎ](./handoff.md)と
+[Stage 0 execution plan](./stage0_execution_plan.md)を参照する。
 
 ## 表示・評価でしないこと
 

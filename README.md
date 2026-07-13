@@ -58,7 +58,7 @@ conformance.
 | Filesystem ObjectStore, typed closure, Tombstone availability, `fsck` | Implemented |
 | SQLite Ref compare-and-swap and reflog | Implemented |
 | Validated ingest and checksum-bound directory export / restore | Implemented |
-| Local end-to-end CLI | Implemented |
+| Local Core repository round-trip CLI; structured JSON is caller-supplied | Implemented |
 | Fixed-viewpoint Observation dataset and image adapter | Planned |
 | Creative AI proposal admission: exact capability set, snapshot/output binding, proposal-only, transaction-time expiry / `stale_base` | Implemented library boundary |
 | Local authenticated Creative AI execution: exact project route/ACL, Core preflight, one-shot permit, trusted executor, post-execution reauthorization | Implemented process-local library boundary |
@@ -166,6 +166,7 @@ Start with the [documentation index](docs/README.md).
 | Understand storage and process boundaries | [Runtime architecture](docs/runtime_architecture.md) |
 | Review trust and security limits | [Security model](docs/security_model.md) |
 | Contribute code or docs | [Contributing](CONTRIBUTING.md) |
+| Resume the current work | [作業引き継ぎ](docs/handoff.md) |
 | Implement the protocol | [Core Protocol v0.1](spec/core/v0.1/README.md) |
 | Implement compatible OIDs | [OID profile](spec/core/v0.1/oid-profile.md) |
 | Implement Ref / graph semantics | [Operations](spec/core/v0.1/operations.md) |
