@@ -301,17 +301,31 @@ impl Repository {
                 destination.to_path_buf(),
             ));
         }
-        // Refs are snapshotted first. Objects are immutable and never removed,
-        // so concurrent writers can only add data after this point; they cannot
-        // make this archived Ref snapshot depend on an omitted newer object.
+        // Refs and their complete reflog are snapshotted first. Objects are
+        // immutable and never removed, so concurrent writers can only add data
+        // after this point; they cannot make this archived Ref history depend
+        // on an omitted newer object.
         let refs = self.refs.export_archive()?;
+        let mut validated_heads = HashSet::new();
         for record in &refs.snapshot.refs {
-            self.validate_head(&record.head).map_err(|error| {
-                RepositoryError::ArchiveInvalid(format!(
-                    "Ref {:?} is not exportable: {error}",
-                    record.name
-                ))
-            })?;
+            if validated_heads.insert(record.head.as_str()) {
+                self.validate_head(&record.head).map_err(|error| {
+                    RepositoryError::ArchiveInvalid(format!(
+                        "Ref {:?} is not exportable: {error}",
+                        record.name
+                    ))
+                })?;
+            }
+        }
+        for event in &refs.reflog {
+            if validated_heads.insert(event.new_head.as_str()) {
+                self.validate_head(&event.new_head).map_err(|error| {
+                    RepositoryError::ArchiveInvalid(format!(
+                        "reflog event {} for Ref {:?} is not exportable: {error}",
+                        event.id, event.ref_name
+                    ))
+                })?;
+            }
         }
         let parent = destination.parent().unwrap_or_else(|| Path::new("."));
         fs::create_dir_all(parent)

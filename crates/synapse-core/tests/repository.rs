@@ -5,7 +5,10 @@ use synapse_canonical::blob_oid;
 use synapse_cas::ClosureNodeState;
 use synapse_core::{Repository, RepositoryError};
 use synapse_schema::ingest;
-use synapse_sqlite::{RefStoreError, RefUpdate, ReflogMetadata};
+use synapse_sqlite::{
+    RefArchive, RefRecord, RefSnapshot, RefStoreError, RefUpdate, ReflogEntry, ReflogMetadata,
+    SqliteRefStore,
+};
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
@@ -223,6 +226,58 @@ fn failed_restore_publishes_no_refs_and_can_resume_after_archive_repair() {
     fs::write(&damaged_object, original).unwrap();
     restored.restore_from(&archive).unwrap();
     assert!(!restored.refs().snapshot().unwrap().is_empty());
+}
+
+#[test]
+fn export_rejects_missing_historical_reflog_head_without_publishing_destination() {
+    let temporary = TempDirectory::new("missing-historical-archive-head");
+    let repository_path = temporary.join("source");
+    let destination = temporary.join("archive");
+    let mut repository = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&repository);
+    let current_head = oid("proposal-commit.json");
+    let missing_head =
+        "commit:sg-oid-v1:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    // Construct an otherwise valid Ref archive through the public SQLite API:
+    // the current Ref target is present, but an earlier reflog target is not.
+    // This state can occur when an archive has been repaired incompletely.
+    let archive = RefArchive {
+        snapshot: RefSnapshot {
+            refs: vec![RefRecord {
+                name: "proposal/agent/run-1".to_owned(),
+                head: current_head.clone(),
+                updated_event_id: 2,
+            }],
+        },
+        reflog: vec![
+            ReflogEntry {
+                id: 1,
+                ref_name: "proposal/agent/run-1".to_owned(),
+                old_head: None,
+                new_head: missing_head.to_owned(),
+                occurred_at_unix_nanos: 1,
+                actor: None,
+                message: None,
+            },
+            ReflogEntry {
+                id: 2,
+                ref_name: "proposal/agent/run-1".to_owned(),
+                old_head: Some(missing_head.to_owned()),
+                new_head: current_head,
+                occurred_at_unix_nanos: 2,
+                actor: None,
+                message: None,
+            },
+        ],
+    };
+    let mut refs = SqliteRefStore::open(repository_path.join("refs.sqlite3")).unwrap();
+    refs.restore_archive(&archive, &|_: &str| Ok(())).unwrap();
+    drop(refs);
+
+    let error = repository.export_archive(&destination).unwrap_err();
+    assert_eq!(error.code(), "archive_invalid");
+    assert!(!destination.exists());
 }
 
 #[test]

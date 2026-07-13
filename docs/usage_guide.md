@@ -188,7 +188,7 @@ append-onlyとして扱い、GC／removalを並行させない。serviceはfaile
 `RefScope`はACLではなくquery filterである。serviceはauthoritative access checkをqueryより先に行い、
 Analysisのnot-indexed／not-reachable error差を認可済みcallerだけへ返す。
 
-exportはdirectory archiveを新規作成し、object bytes、Ref snapshot、完全なreflog、各object checksum、manifest checksumを含める。restoreはRef／reflogが空で、CASが空または同じarchive OID集合のexact subsetであるrepositoryを受け付ける。pathnameを信用せず全OIDを再計算し、closureを再検証してからRefを復元する。formatは[Local directory archive profile](../spec/core/v0.1/archive-profile.md)を参照する。
+exportはdirectory archiveを新規作成し、object bytes、Ref snapshot、完全なreflog、各object checksum、manifest checksumを含める。公開前にcurrent Refとreflogの全 distinct `new_head` のclosureを検証する。restoreはRef／reflogが空で、CASが空または同じarchive OID集合のexact subsetであるrepositoryを受け付ける。pathnameを信用せず全OIDを再計算し、closureを再検証してからRefを復元する。formatは[Local directory archive profile](../spec/core/v0.1/archive-profile.md)を参照する。
 
 ## まだ実行できないこと
 
