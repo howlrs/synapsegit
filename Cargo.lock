@@ -885,6 +885,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "synapse-observation"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "synapse-canonical",
+ "synapse-core",
+ "synapse-schema",
+ "synapse-sqlite",
+]
+
+[[package]]
 name = "synapse-projection"
 version = "0.1.0"
 dependencies = [

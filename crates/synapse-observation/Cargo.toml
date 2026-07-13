@@ -1,0 +1,17 @@
+[package]
+name = "synapse-observation"
+version = "0.1.0"
+description = "Conservative Observation analysis adapters for SynapseGit Stage 0"
+edition.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+serde_json = "1.0.150"
+synapse-canonical = { path = "../synapse-canonical" }
+synapse-core = { path = "../synapse-core" }
+synapse-schema = { path = "../synapse-schema" }
+
+[dev-dependencies]
+synapse-sqlite = { path = "../synapse-sqlite" }
