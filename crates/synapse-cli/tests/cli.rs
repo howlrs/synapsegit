@@ -2,11 +2,15 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Barrier};
+use std::thread;
 use synapse_core::Repository;
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 const PROPOSAL_HEAD: &str =
     "commit:sg-oid-v1:sha256:21f1e5825721dafad3847c6b0f7d2143f46288fe72082da4dedae62c0db82b00";
+const BASE_HEAD: &str =
+    "commit:sg-oid-v1:sha256:0b1370e0f6eb296f698c650740cb9fd9e0fbaa4cb86707c4967d034d7a27ca13";
 
 struct TempDirectory(PathBuf);
 
@@ -39,6 +43,13 @@ fn run(arguments: &[&str]) -> Output {
         .unwrap()
 }
 
+fn run_owned(arguments: Vec<String>) -> Output {
+    Command::new(env!("CARGO_BIN_EXE_synapse"))
+        .args(arguments)
+        .output()
+        .unwrap()
+}
+
 fn assert_success(output: &Output) {
     assert!(
         output.status.success(),
@@ -48,16 +59,12 @@ fn assert_success(output: &Output) {
     );
 }
 
-#[test]
-fn command_line_drives_ref_fsck_export_and_restore() {
-    let temporary = TempDirectory::new();
-    let repository_path = temporary.join("repo");
-    let archive_path = temporary.join("archive");
-    let restored_path = temporary.join("restored");
-    let fixture_directory =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../spec/core/v0.1/fixtures");
+fn fixture_directory() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../spec/core/v0.1/fixtures")
+}
 
-    let repository = Repository::open(&repository_path).unwrap();
+fn load_fixture_store(repository: &Repository) {
+    let fixture_directory = fixture_directory();
     for entry in fs::read_dir(&fixture_directory)
         .unwrap()
         .filter_map(Result::ok)
@@ -74,6 +81,16 @@ fn command_line_drives_ref_fsck_export_and_restore() {
     repository
         .put_blob(fs::File::open(fixture_directory.join("proposal.txt")).unwrap())
         .unwrap();
+}
+
+#[test]
+fn command_line_drives_ref_fsck_export_and_restore() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repo");
+    let archive_path = temporary.join("archive");
+    let restored_path = temporary.join("restored");
+    let repository = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&repository);
     drop(repository);
 
     let repository_text = repository_path.to_str().unwrap();
@@ -105,4 +122,99 @@ fn command_line_drives_ref_fsck_export_and_restore() {
     let refs = String::from_utf8(refs.stdout).unwrap();
     assert!(refs.contains("proposal/agent/cli"));
     assert!(refs.contains(PROPOSAL_HEAD));
+}
+
+#[test]
+fn concurrent_cli_exports_restore_consistent_ref_update_prefixes() {
+    const ROUNDS: usize = 16;
+    const REF_NAME: &str = "proposal/agent/export-race";
+
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repo");
+    let repository = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&repository);
+    drop(repository);
+    let repository_text = repository_path.to_str().unwrap().to_owned();
+
+    let initial = run(&[
+        "update-ref",
+        &repository_text,
+        REF_NAME,
+        "-",
+        BASE_HEAD,
+        "--message",
+        "initial",
+    ]);
+    assert_success(&initial);
+
+    let mut expected_head = BASE_HEAD;
+    for round in 0..ROUNDS {
+        let new_head = if expected_head == BASE_HEAD {
+            PROPOSAL_HEAD
+        } else {
+            BASE_HEAD
+        };
+        let archive_path = temporary.join(format!("archive-{round}"));
+        let restored_path = temporary.join(format!("restored-{round}"));
+        let before_reflog_len = round + 1;
+        let barrier = Arc::new(Barrier::new(2));
+
+        let export_barrier = Arc::clone(&barrier);
+        let export_arguments = vec![
+            "export".to_owned(),
+            repository_text.clone(),
+            archive_path.to_str().unwrap().to_owned(),
+        ];
+        let export = thread::spawn(move || {
+            export_barrier.wait();
+            run_owned(export_arguments)
+        });
+
+        let update_barrier = Arc::clone(&barrier);
+        let update_arguments = vec![
+            "update-ref".to_owned(),
+            repository_text.clone(),
+            REF_NAME.to_owned(),
+            expected_head.to_owned(),
+            new_head.to_owned(),
+            "--message".to_owned(),
+            format!("round-{round}"),
+        ];
+        let update = thread::spawn(move || {
+            update_barrier.wait();
+            run_owned(update_arguments)
+        });
+
+        let export = export.join().expect("export thread panicked");
+        let update = update.join().expect("update thread panicked");
+        assert_success(&export);
+        assert_success(&update);
+
+        let restored = Repository::restore_archive(&archive_path, &restored_path).unwrap();
+        assert!(restored.fsck().unwrap().is_clean());
+        let restored_ref = restored.refs().get(REF_NAME).unwrap().unwrap();
+        assert!(
+            restored_ref.head == expected_head || restored_ref.head == new_head,
+            "archive observed unexpected head {}",
+            restored_ref.head
+        );
+        let restored_reflog = restored.refs().reflog().unwrap();
+        assert!(
+            restored_reflog.len() == before_reflog_len
+                || restored_reflog.len() == before_reflog_len + 1
+        );
+        let restored_last = restored_reflog.last().unwrap();
+        assert_eq!(restored_last.new_head, restored_ref.head);
+        assert_eq!(restored_last.id, restored_ref.updated_event_id);
+
+        let source = Repository::open(&repository_path).unwrap();
+        assert_eq!(source.refs().get(REF_NAME).unwrap().unwrap().head, new_head);
+        let source_reflog = source.refs().reflog().unwrap();
+        assert_eq!(
+            restored_reflog.as_slice(),
+            &source_reflog[..restored_reflog.len()],
+            "archive reflog must be one consistent prefix"
+        );
+        expected_head = new_head;
+    }
 }

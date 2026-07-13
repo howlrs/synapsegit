@@ -348,7 +348,7 @@ impl FileObjectStore {
         };
         let bytes = read_file_limited(&path, metadata.len(), limit)?;
         self.verify_raw_bytes(oid, kind, &bytes)
-            .map_err(|error| corrupt_from_core(oid, error))?;
+            .map_err(|error| stored_object_error(oid, error))?;
         Ok(Some(bytes))
     }
 
@@ -380,7 +380,7 @@ impl FileObjectStore {
                 self.limits.structured.max_input_bytes as u64,
             )?;
             self.verify_raw_bytes(oid, kind, &bytes)
-                .map_err(|error| corrupt_from_core(oid, error))?;
+                .map_err(|error| stored_object_error(oid, error))?;
             writer
                 .write_all(&bytes)
                 .map_err(|error| StoreError::io("write exported object", &path, error))?;
@@ -398,6 +398,16 @@ impl FileObjectStore {
 
     pub fn list_oids(&self) -> Result<Vec<String>, StoreError> {
         <Self as ObjectStore>::list_oids(self)
+    }
+
+    /// List the complete CAS inventory without retaining or returning more
+    /// than `max_objects` OIDs.
+    ///
+    /// Unlike composing the per-kind bounded scans, this also bounds and
+    /// validates the object-family directory itself. At most one object beyond
+    /// the configured limit is examined to detect overflow.
+    pub fn list_oids_limited(&self, max_objects: usize) -> Result<Vec<String>, StoreError> {
+        scan_inventory_limited(&self.root, max_objects)
     }
 
     /// List one object kind without materializing the other CAS families.
@@ -642,7 +652,7 @@ impl ObjectStore for FileObjectStore {
                 self.limits.structured.max_input_bytes as u64,
             )?;
             self.verify_raw_bytes(oid, kind, &bytes)
-                .map_err(|error| corrupt_from_core(oid, error))?
+                .map_err(|error| stored_object_error(oid, error))?
         };
         Ok(Some(VerifiedObject {
             info: ObjectInfo {
@@ -744,6 +754,77 @@ fn scan_inventory(root: &Path) -> Result<StoreInventory, StoreError> {
     })
 }
 
+/// Scan every object family while retaining at most `max_objects` OIDs across
+/// the complete CAS. The private layout has exactly four family directories,
+/// so an extra family is rejected before attacker-controlled directory work can
+/// grow without a bound.
+fn scan_inventory_limited(root: &Path, max_objects: usize) -> Result<Vec<String>, StoreError> {
+    if max_objects == 0 {
+        return Err(resource_limit(
+            "object inventory max_objects must be greater than zero",
+        ));
+    }
+
+    let objects = root.join(OBJECTS_DIRECTORY);
+    let families = read_directory_at_most(&objects, 4, "read object family entry", || {
+        StoreError::InvalidStoreLayout {
+            path: PathBuf::from(OBJECTS_DIRECTORY),
+            detail: "object directory contains more than four family entries".to_owned(),
+        }
+    })?;
+    let mut family_names = families
+        .into_iter()
+        .map(|entry| {
+            entry.file_name().into_string().map_err(|_| {
+                let path = entry.path();
+                StoreError::InvalidStoreLayout {
+                    path: path.strip_prefix(root).unwrap_or(&path).to_path_buf(),
+                    detail: "object family is not UTF-8".to_owned(),
+                }
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    family_names.sort_unstable();
+    let expected_families = ["blob", "commit", "record", "tree"];
+    if family_names
+        .iter()
+        .map(String::as_str)
+        .ne(expected_families)
+    {
+        return Err(StoreError::InvalidStoreLayout {
+            path: PathBuf::from(OBJECTS_DIRECTORY),
+            detail: "object directory must contain exactly blob, commit, record, and tree families"
+                .to_owned(),
+        });
+    }
+
+    let mut oids = Vec::new();
+    for kind in [
+        ObjectKind::Blob,
+        ObjectKind::Record,
+        ObjectKind::Tree,
+        ObjectKind::Commit,
+    ] {
+        let remaining = max_objects - oids.len();
+        // The internal scan accepts zero so later empty families can still be
+        // validated after an earlier family exactly exhausts the global limit.
+        // A non-empty later family examines one extra leaf and rejects.
+        let mut family_oids =
+            scan_kind_inventory_at_most(root, kind, remaining).map_err(|error| {
+                if error.code() == Some(ErrorCode::ResourceLimit) {
+                    resource_limit(format!(
+                        "object inventory exceeds max_objects {max_objects}"
+                    ))
+                } else {
+                    error
+                }
+            })?;
+        oids.append(&mut family_oids);
+    }
+    oids.sort_unstable();
+    Ok(oids)
+}
+
 /// Scan one object family without first materializing the complete CAS
 /// inventory. A valid SHA-256 layout has at most 256 prefix directories, so
 /// directory work is bounded by `max_objects` plus that fixed overhead.
@@ -759,6 +840,14 @@ fn scan_kind_inventory_limited(
         )));
     }
 
+    scan_kind_inventory_at_most(root, kind, max_objects)
+}
+
+fn scan_kind_inventory_at_most(
+    root: &Path,
+    kind: ObjectKind,
+    max_objects: usize,
+) -> Result<Vec<String>, StoreError> {
     let family_path = root.join(OBJECTS_DIRECTORY).join(kind.prefix());
     let metadata = fs::symlink_metadata(&family_path)
         .map_err(|error| StoreError::io("inspect object family", &family_path, error))?;
@@ -997,10 +1086,14 @@ fn inventory_object_limit(kind: ObjectKind, max_objects: usize) -> StoreError {
     ))
 }
 
-fn corrupt_from_core(oid: &str, error: CoreError) -> StoreError {
-    StoreError::CorruptObject {
-        oid: oid.to_owned(),
-        detail: error.to_string(),
+fn stored_object_error(oid: &str, error: CoreError) -> StoreError {
+    if error.code() == ErrorCode::ResourceLimit {
+        StoreError::Core(error)
+    } else {
+        StoreError::CorruptObject {
+            oid: oid.to_owned(),
+            detail: error.to_string(),
+        }
     }
 }
 

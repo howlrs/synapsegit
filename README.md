@@ -227,8 +227,10 @@ closure and Tombstone states, Creative AI proposal authorization, base-object
 preservation and atomic base preconditions, Core preflight and the process-local
 one-shot AI and narrow Human application routes, narrow Human Decision authorization,
 duplicate-decision/race handling, candidate/output hardening and transaction-time expiry guards,
-atomic projection rebuild/query behavior (3 unit + 19 integration tests), CLI round trip, and resumable failed restore. Per-write-boundary
-crash injection and export/update stress tests remain open.
+atomic projection rebuild/query behavior (3 unit + 19 integration tests), CLI round trip, resumable failed restore,
+bounded archive inventory/distinct-head validation, and process-level export/update stress/smoke coverage.
+The latter does not deterministically prove SQLite transaction overlap. Per-write-boundary crash injection and
+startup cleanup of orphan archive staging and ObjectStore temporary files remain open.
 
 The `sg-oid-v1` values remain draft fixtures until a second independent
 production implementation passes the Stage 0 inter-language freeze gate.

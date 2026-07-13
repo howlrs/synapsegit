@@ -152,7 +152,7 @@ test has at least two independent implementations.
 | Concrete schema and local semantics | Rust offline registry; Node fixture verifier | implemented for current 20 schemas / 17 structured golden fixtures |
 | Filesystem ObjectStore and typed closure | Rust repository tests | implemented local profile |
 | SQLite Ref CAS, generic preconditions, and reflog | transaction and concurrent race tests | implemented local profile |
-| Directory archive | Rust round trip and failed-restore resume tests | implemented; only one production implementation |
+| Directory archive | Rust round trip, failed-restore resume, and process-level export/update stress/smoke (transaction overlap is not forced) | implemented; only one production implementation |
 | Creative AI proposal admission / exact capability and snapshot-output binding / proposal-only | `CreativeAiRuntime` integration tests | implemented library boundary; checkpoint/single-base-parent, base non-Tree preservation, and restricted new outputs enforced |
 | Candidate-independent AI preflight / consuming publication | `CreativeAiRuntime` preflight and drift/race tests | implemented; sealed non-Clone decision, read-only base/target checks, fresh authority/time and full candidate revalidation at publication |
 | Initial authenticated AI application route | `synapse-application` integration tests | process-local library boundary: injected Authenticator/Clock/single Executor, exact project map/ACL, one-shot permit, post-execution reauthorization, FIFO publication/ACL fence |

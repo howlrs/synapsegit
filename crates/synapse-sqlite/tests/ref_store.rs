@@ -6,9 +6,11 @@ use std::sync::{Arc, Barrier, Mutex};
 use std::thread;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
+use rusqlite::Connection;
 use synapse_sqlite::{
-    RefArchive, RefPrecondition, RefSnapshot, RefStoreError, RefUpdate, ReflogEntry,
-    ReflogMetadata, SqliteRefStore, ValidationError, validate_commit_oid, validate_ref_name,
+    RefArchive, RefArchiveExportLimits, RefPrecondition, RefSnapshot, RefStoreError, RefUpdate,
+    ReflogEntry, ReflogMetadata, SqliteRefStore, ValidationError, validate_commit_oid,
+    validate_ref_name,
 };
 
 static NEXT_TEMP_DIRECTORY: AtomicU64 = AtomicU64::new(0);
@@ -942,6 +944,145 @@ fn snapshot_and_reflog_orders_are_deterministic() {
     let archive = store.export_archive().unwrap();
     assert_eq!(archive.snapshot, snapshot);
     assert_eq!(archive.reflog, reflog);
+}
+
+#[test]
+fn ref_archive_export_limits_are_global_inclusive_and_read_only() {
+    let head_a = commit_oid('a');
+    let head_b = commit_oid('b');
+    let head_c = commit_oid('c');
+    let mut store = SqliteRefStore::open_in_memory().unwrap();
+    store
+        .compare_and_swap(
+            RefUpdate {
+                ref_name: "proposal/archive",
+                expected_head: None,
+                new_head: &head_a,
+                metadata: ReflogMetadata {
+                    occurred_at_unix_nanos: 1,
+                    actor: Some("archiver"),
+                    message: Some("create proposal"),
+                },
+            },
+            &allow_all,
+        )
+        .unwrap();
+    store
+        .compare_and_swap(update("release/stable", None, &head_b, 2), &allow_all)
+        .unwrap();
+    store
+        .compare_and_swap(
+            RefUpdate {
+                ref_name: "proposal/archive",
+                expected_head: Some(&head_a),
+                new_head: &head_c,
+                metadata: ReflogMetadata {
+                    occurred_at_unix_nanos: 3,
+                    actor: None,
+                    message: Some("advance"),
+                },
+            },
+            &allow_all,
+        )
+        .unwrap();
+
+    let expected = store.export_archive().unwrap();
+    let text_bytes = expected
+        .snapshot
+        .refs
+        .iter()
+        .map(|record| record.name.len())
+        .chain(expected.reflog.iter().map(|entry| {
+            entry.ref_name.len()
+                + entry.actor.as_ref().map_or(0, String::len)
+                + entry.message.as_ref().map_or(0, String::len)
+        }))
+        .sum::<usize>() as u64;
+    let exact = RefArchiveExportLimits {
+        max_refs: expected.snapshot.refs.len(),
+        max_reflog_entries: expected.reflog.len(),
+        max_text_bytes: text_bytes,
+    };
+    assert_eq!(store.export_archive_with_limits(exact).unwrap(), expected);
+
+    for limits in [
+        RefArchiveExportLimits {
+            max_refs: exact.max_refs - 1,
+            ..exact
+        },
+        RefArchiveExportLimits {
+            max_reflog_entries: exact.max_reflog_entries - 1,
+            ..exact
+        },
+        RefArchiveExportLimits {
+            max_text_bytes: exact.max_text_bytes - 1,
+            ..exact
+        },
+        RefArchiveExportLimits {
+            max_refs: 0,
+            ..exact
+        },
+        RefArchiveExportLimits {
+            max_reflog_entries: 0,
+            ..exact
+        },
+        RefArchiveExportLimits {
+            max_text_bytes: 0,
+            ..exact
+        },
+    ] {
+        let error = store.export_archive_with_limits(limits).unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+        assert!(matches!(error, RefStoreError::Validation(_)));
+        assert_eq!(store.export_archive().unwrap(), expected);
+    }
+}
+
+#[test]
+fn bounded_ref_archive_export_rejects_sql_level_semantic_corruption() {
+    for corrupt_head in [false, true] {
+        let label = if corrupt_head {
+            "bounded-export-invalid-head"
+        } else {
+            "bounded-export-invalid-name"
+        };
+        let directory = TestDirectory::new(label);
+        let database = directory.database_path();
+        {
+            let mut store = SqliteRefStore::open(&database).unwrap();
+            store
+                .compare_and_swap(
+                    update("proposal/archive", None, &commit_oid('a'), 1),
+                    &allow_all,
+                )
+                .unwrap();
+        }
+        let connection = Connection::open(&database).unwrap();
+        if corrupt_head {
+            let invalid_head = format!("commit:sg-oid-v1:sha256:{}", "z".repeat(64));
+            connection
+                .execute("UPDATE refs SET head = ?1", [&invalid_head])
+                .unwrap();
+            connection
+                .execute("UPDATE ref_events SET new_head = ?1", [&invalid_head])
+                .unwrap();
+        } else {
+            connection
+                .execute("UPDATE refs SET name = 'x'", [])
+                .unwrap();
+            connection
+                .execute("UPDATE ref_events SET ref_name = 'x'", [])
+                .unwrap();
+        }
+        drop(connection);
+
+        let mut store = SqliteRefStore::open(&database).unwrap();
+        let error = store
+            .export_archive_with_limits(RefArchiveExportLimits::default())
+            .unwrap_err();
+        assert_eq!(error.code(), "archive_invalid");
+        assert!(matches!(error, RefStoreError::ArchiveInvalid { .. }));
+    }
 }
 
 #[test]

@@ -322,6 +322,39 @@ fn configured_blob_and_structured_size_limits_are_enforced() {
 }
 
 #[test]
+fn verification_preserves_structured_resource_limit_errors() {
+    let temporary = TempDirectory::new("structured-verification-limit");
+    let oid = {
+        let store = FileObjectStore::open(temporary.path()).unwrap();
+        store
+            .put_structured_unchecked(br#"{"object_type":"record","payload":{"key":"value"}}"#)
+            .unwrap()
+            .oid
+    };
+    let store = FileObjectStore::open_with_limits(
+        temporary.path(),
+        StoreLimits {
+            structured: ResourceLimits {
+                max_nodes: 1,
+                ..ResourceLimits::default()
+            },
+            ..StoreLimits::default()
+        },
+    )
+    .unwrap();
+
+    assert_error_code(
+        &store.get_verified(&oid).unwrap_err(),
+        ErrorCode::ResourceLimit,
+    );
+    assert_error_code(&store.read_raw(&oid).unwrap_err(), ErrorCode::ResourceLimit);
+    assert_error_code(
+        &store.copy_verified_to(&oid, &mut Vec::new()).unwrap_err(),
+        ErrorCode::ResourceLimit,
+    );
+}
+
+#[test]
 fn list_read_get_and_object_state_cover_present_missing_and_invalid_oids() {
     let (_temporary, store) = open_store("read-apis");
     let blob = store.put_blob(b"read me".as_slice()).unwrap();
@@ -367,6 +400,33 @@ fn list_read_get_and_object_state_cover_present_missing_and_invalid_oids() {
 
     let invalid_error = store.read_raw("not-an-oid").unwrap_err();
     assert_error_code(&invalid_error, ErrorCode::SchemaInvalid);
+}
+
+#[test]
+fn bounded_complete_inventory_is_global_inclusive_and_validates_families() {
+    let (temporary, store) = open_store("bounded-complete-inventory");
+    let blob = store.put_blob(b"bounded blob".as_slice()).unwrap().oid;
+    let record = store
+        .put_structured_unchecked(br#"{"object_type":"record","value":1}"#)
+        .unwrap()
+        .oid;
+    let mut expected = vec![blob, record];
+    expected.sort_unstable();
+
+    assert_eq!(store.list_oids_limited(2).unwrap(), expected);
+
+    let overflow = store.list_oids_limited(1).unwrap_err();
+    assert_error_code(&overflow, ErrorCode::ResourceLimit);
+    let zero = store.list_oids_limited(0).unwrap_err();
+    assert_error_code(&zero, ErrorCode::ResourceLimit);
+
+    fs::write(
+        temporary.path().join("objects").join("unknown-family"),
+        b"not a family directory",
+    )
+    .unwrap();
+    let invalid = store.list_oids_limited(10).unwrap_err();
+    assert!(matches!(invalid, StoreError::InvalidStoreLayout { .. }));
 }
 
 #[test]

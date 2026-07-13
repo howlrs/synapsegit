@@ -176,7 +176,7 @@ cargo run -p synapse-cli -- --help
 | `oid_mismatch` | `--claimed` と再計算 OID が不一致 | body と object family を確認する |
 | `closure_missing` | Commit から必要 object へ到達できない | Ref 更新前に依存 Blob / Record / Tree / parent を投入する |
 | `ref_conflict` | expected head が current head と異なる | `refs` で current head を読み、branch または明示 merge を選ぶ |
-| `resource_limit` | input または graph が実装上限を超えた | input を分割し、既定上限を [Security model](./security_model.md) で確認する |
+| `resource_limit` | input、graph、archive object件数／bytes／manifest等が実装上限を超えた | input またはrepositoryを分割し、既定上限を [Security model](./security_model.md) で確認する |
 | `archive_invalid` | checksum、manifest、OID、closure の不一致 | archive を変更せず export 元から作り直す |
 | `archive_not_empty` | restore 先に object または Ref が存在する | 新しい空 repository path を使う |
 | `fsck_failed` | integrity issue が見つかった | 元 data を保全し、手編集せず原因を調査する |

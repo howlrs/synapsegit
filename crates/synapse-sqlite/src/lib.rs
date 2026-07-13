@@ -15,6 +15,9 @@ use std::time::Duration;
 
 /// On-disk schema version owned by this crate.
 pub const REF_STORE_SCHEMA_VERSION: i64 = 1;
+pub const DEFAULT_MAX_REF_ARCHIVE_REFS: usize = 100_000;
+pub const DEFAULT_MAX_REF_ARCHIVE_REFLOG_ENTRIES: usize = 100_000;
+pub const DEFAULT_MAX_REF_ARCHIVE_TEXT_BYTES: u64 = 64 * 1024 * 1024;
 
 const MAX_ACTOR_BYTES: usize = 1_024;
 const MAX_MESSAGE_BYTES: usize = 16 * 1_024;
@@ -62,6 +65,28 @@ pub struct RefArchive {
     pub snapshot: RefSnapshot,
     /// The complete reflog, ordered by ascending event ID.
     pub reflog: Vec<ReflogEntry>,
+}
+
+/// Resource limits for one consistent Ref/reflog archive snapshot.
+///
+/// Entry limits are inclusive. `max_text_bytes` counts the UTF-8 bytes retained
+/// for Ref names, reflog actors, and reflog messages across the returned value.
+/// Commit OIDs have a fixed lexical length and are bounded by the entry counts.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RefArchiveExportLimits {
+    pub max_refs: usize,
+    pub max_reflog_entries: usize,
+    pub max_text_bytes: u64,
+}
+
+impl Default for RefArchiveExportLimits {
+    fn default() -> Self {
+        Self {
+            max_refs: DEFAULT_MAX_REF_ARCHIVE_REFS,
+            max_reflog_entries: DEFAULT_MAX_REF_ARCHIVE_REFLOG_ENTRIES,
+            max_text_bytes: DEFAULT_MAX_REF_ARCHIVE_TEXT_BYTES,
+        }
+    }
 }
 
 /// Caller-supplied metadata recorded with a successful update.
@@ -420,6 +445,39 @@ impl SqliteRefStore {
         Ok(archive)
     }
 
+    /// Read a bounded snapshot and complete reflog from one consistent
+    /// transaction.
+    pub fn export_archive_with_limits(
+        &mut self,
+        limits: RefArchiveExportLimits,
+    ) -> Result<RefArchive> {
+        validate_ref_archive_export_limits(limits)?;
+        let transaction = self.connection.transaction()?;
+        let mut text_bytes = 0_u64;
+        let archive = RefArchive {
+            snapshot: load_snapshot_limited(
+                &transaction,
+                limits.max_refs,
+                limits.max_text_bytes,
+                &mut text_bytes,
+            )?,
+            reflog: load_reflog_limited(
+                &transaction,
+                limits.max_reflog_entries,
+                limits.max_text_bytes,
+                &mut text_bytes,
+            )?,
+        };
+        // A database can be modified outside this API while still satisfying
+        // SQLite's coarse CHECK constraints. Reject any snapshot that this
+        // crate's own restore path could not consume before returning it to an
+        // archive writer. The cloned validation work remains bounded by the
+        // entry and retained-text limits above.
+        prepare_archive(&archive)?;
+        transaction.commit()?;
+        Ok(archive)
+    }
+
     /// Atomically compare, append the reflog, and advance a Ref.
     ///
     /// Target validation happens first. Once the immediate transaction starts,
@@ -665,6 +723,32 @@ fn load_snapshot(connection: &Connection) -> Result<RefSnapshot> {
     Ok(RefSnapshot { refs })
 }
 
+fn load_snapshot_limited(
+    connection: &Connection,
+    max_refs: usize,
+    max_text_bytes: u64,
+    text_bytes: &mut u64,
+) -> Result<RefSnapshot> {
+    let mut statement = connection.prepare(
+        "SELECT name, head, updated_event_id
+         FROM refs
+         ORDER BY name ASC",
+    )?;
+    let rows = statement.query_map([], ref_record_from_row)?;
+    let mut refs = Vec::new();
+    for row in rows {
+        let record = row?;
+        if refs.len() == max_refs {
+            return Err(ref_archive_resource_limit(format!(
+                "Ref snapshot exceeds max_refs {max_refs}"
+            )));
+        }
+        add_ref_archive_text_bytes(text_bytes, record.name.len(), max_text_bytes)?;
+        refs.push(record);
+    }
+    Ok(RefSnapshot { refs })
+}
+
 fn load_reflog(connection: &Connection, ref_name: Option<&str>) -> Result<Vec<ReflogEntry>> {
     let mut entries = Vec::new();
     if let Some(ref_name) = ref_name {
@@ -692,6 +776,73 @@ fn load_reflog(connection: &Connection, ref_name: Option<&str>) -> Result<Vec<Re
         }
     }
     Ok(entries)
+}
+
+fn load_reflog_limited(
+    connection: &Connection,
+    max_entries: usize,
+    max_text_bytes: u64,
+    text_bytes: &mut u64,
+) -> Result<Vec<ReflogEntry>> {
+    let mut statement = connection.prepare(
+        "SELECT id, ref_name, old_head, new_head,
+                occurred_at_unix_nanos, actor, message
+         FROM ref_events
+         ORDER BY id ASC",
+    )?;
+    let rows = statement.query_map([], reflog_entry_from_row)?;
+    let mut entries = Vec::new();
+    for row in rows {
+        let entry = row?;
+        if entries.len() == max_entries {
+            return Err(ref_archive_resource_limit(format!(
+                "reflog exceeds max_reflog_entries {max_entries}"
+            )));
+        }
+        let entry_text_bytes = entry
+            .ref_name
+            .len()
+            .checked_add(entry.actor.as_ref().map_or(0, String::len))
+            .and_then(|bytes| bytes.checked_add(entry.message.as_ref().map_or(0, String::len)))
+            .ok_or_else(|| ref_archive_resource_limit("reflog text byte total overflowed usize"))?;
+        add_ref_archive_text_bytes(text_bytes, entry_text_bytes, max_text_bytes)?;
+        entries.push(entry);
+    }
+    Ok(entries)
+}
+
+fn validate_ref_archive_export_limits(limits: RefArchiveExportLimits) -> Result<()> {
+    if limits.max_refs == 0 {
+        return Err(ref_archive_resource_limit(
+            "max_refs must be greater than zero",
+        ));
+    }
+    if limits.max_reflog_entries == 0 {
+        return Err(ref_archive_resource_limit(
+            "max_reflog_entries must be greater than zero",
+        ));
+    }
+    if limits.max_text_bytes == 0 {
+        return Err(ref_archive_resource_limit(
+            "max_text_bytes must be greater than zero",
+        ));
+    }
+    Ok(())
+}
+
+fn add_ref_archive_text_bytes(total: &mut u64, additional: usize, limit: u64) -> Result<()> {
+    let additional = u64::try_from(additional)
+        .map_err(|_| ref_archive_resource_limit("Ref archive text length does not fit u64"))?;
+    let next = total
+        .checked_add(additional)
+        .ok_or_else(|| ref_archive_resource_limit("Ref archive text byte total overflowed u64"))?;
+    if next > limit {
+        return Err(ref_archive_resource_limit(format!(
+            "Ref archive text bytes exceed max_text_bytes {limit}"
+        )));
+    }
+    *total = next;
+    Ok(())
 }
 
 fn query_head(connection: &Connection, ref_name: &str) -> Result<Option<String>> {
@@ -822,6 +973,10 @@ fn archive_invalid(message: impl Into<String>) -> RefStoreError {
     RefStoreError::ArchiveInvalid {
         message: message.into(),
     }
+}
+
+fn ref_archive_resource_limit(message: impl Into<String>) -> RefStoreError {
+    RefStoreError::Validation(ValidationError::new("resource_limit", message))
 }
 
 /// Validate the exact Core v0.1 `RefName` lexical profile.

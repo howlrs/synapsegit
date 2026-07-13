@@ -24,7 +24,7 @@ flowchart LR
 | Workstream | 状態 | 未完了の中心 |
 |---|---|---|
 | A: protocol freeze | partial | 第二の独立production実装によるfreeze gate |
-| B: Rust Core vertical slice | implemented | crash fault-injectionとexport/update stress hardening |
+| B: Rust Core vertical slice | implemented | archive object／Ref／reflog inventory、raw／text bytes、distinct-head累積closure work、Tombstone scan、manifest bounds、process-level export/update stress／smoke、Linux／Android／Apple／Redoxのno-replace publicationは実装済み。write-boundary crash fault-injectionとarchive／ObjectStore orphanのstartup cleanupが残る |
 | C: Observation pilot | planned | dataset、image adapter、評価report |
 | D: Creator / Creative AI | partial | injected Authenticator／exact project ACL、one-shot AI Executor route、same-instance admitted proposalに限定したnarrow Human route、両Core admissionは実装済み。HTTP/JWT、durable/distributed state、Projection route、release／modified／quorum、OS sandbox／egress、revocation、Pilot評価が残る |
 | ProjectionStore spike | partial | SQLite baselineのatomic rebuild、bounded shared Tombstone scan、closure／timeline／Observation dependency／Analysis lineageは3 unit + 19 integration testsで実装済み。SurrealDB adapter、完全な8-query parity／benchmark判断が残る |

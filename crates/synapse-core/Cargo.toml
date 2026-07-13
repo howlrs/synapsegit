@@ -15,3 +15,5 @@ synapse-cas = { path = "../synapse-cas" }
 synapse-schema = { path = "../synapse-schema" }
 synapse-sqlite = { path = "../synapse-sqlite" }
 
+[target.'cfg(any(target_os = "linux", target_os = "android", target_vendor = "apple", target_os = "redox"))'.dependencies]
+rustix = { version = "1.1.4", features = ["fs"] }

@@ -5,6 +5,10 @@ use synapse_canonical::{CoreError, ErrorCode, ObjectKind, Value, parse_oid};
 
 pub const DEFAULT_MAX_TOMBSTONE_RECORD_OBJECTS: usize = 100_000;
 pub const DEFAULT_MAX_TOMBSTONE_RECORD_BYTES: u64 = 1024 * 1024 * 1024;
+/// Hard ceiling for cumulative dynamically sized reference-role metadata
+/// retained by one closure report. The extractor charges for every copy that
+/// may coexist in its pending visit, edge, and issue representations.
+pub const MAX_GRAPH_REFERENCE_BYTES: usize = 64 * 1024 * 1024;
 
 /// Resource limits for the store-wide Record scan used to resolve Tombstones.
 /// Both limits are inclusive. Every digest-verified Record contributes to the
@@ -204,10 +208,35 @@ impl<'store, S: BoundedObjectStore + ?Sized> PreparedClosureVerifier<'store, S> 
         if let Some(report) = self.report_cache.get(root) {
             return Ok(report.clone());
         }
-        let report =
-            verify_closure_with_tombstones(self.store, root, self.graph_limits, &self.tombstones)?;
+        let report = self.verify_uncached(root)?;
         self.report_cache.insert(root.to_owned(), report.clone());
         Ok(report)
+    }
+
+    /// Verify one root without retaining its potentially large report.
+    ///
+    /// This is intended for callers that already deduplicate roots and need to
+    /// keep one shared Tombstone catalog without accumulating every report.
+    pub fn verify_uncached(&self, root: &str) -> Result<ClosureReport, StoreError> {
+        verify_closure_with_tombstones(self.store, root, self.graph_limits, &self.tombstones)
+    }
+
+    /// Verify one root with stricter per-call object and edge budgets while
+    /// retaining this verifier's configured depth limit and shared Tombstone
+    /// catalog. The supplied budgets can narrow, but never raise, the limits
+    /// established when the verifier was created.
+    pub fn verify_uncached_with_work_limits(
+        &self,
+        root: &str,
+        max_objects: usize,
+        max_edges: usize,
+    ) -> Result<ClosureReport, StoreError> {
+        let limits = GraphLimits {
+            max_objects: self.graph_limits.max_objects.min(max_objects),
+            max_edges: self.graph_limits.max_edges.min(max_edges),
+            max_depth: self.graph_limits.max_depth,
+        };
+        verify_closure_with_tombstones(self.store, root, limits, &self.tombstones)
     }
 }
 
@@ -218,7 +247,9 @@ impl<'store, S: BoundedObjectStore + ?Sized> PreparedClosureVerifier<'store, S> 
 /// and the typed Record references defined in Operations section 4. Other
 /// Record-internal semantic validation remains the schema/semantic validator's
 /// responsibility. Traversal is iterative, so the configured depth bound is
-/// enforced without relying on the process call stack.
+/// enforced without relying on the process call stack. Missing and corrupt
+/// objects are reported as closure issues; operational store and configured
+/// read-limit failures abort traversal as [`StoreError`].
 ///
 /// This compatibility entry point uses the complete `ObjectStore::list_oids`
 /// inventory to discover Tombstones. Service paths that need a hard inventory
@@ -277,6 +308,7 @@ fn verify_closure_with_tombstones<S: ObjectStore + ?Sized>(
     let mut active = HashSet::new();
     let mut active_path = Vec::new();
     let mut record_semantics = BTreeMap::new();
+    let mut reference_bytes = 0_usize;
 
     'walk: while let Some(item) = stack.pop() {
         match item {
@@ -397,25 +429,11 @@ fn verify_closure_with_tombstones<S: ObjectStore + ?Sized>(
                         ));
                         continue;
                     }
-                    Err(error) => {
-                        let detail = error.to_string();
-                        report.nodes.insert(
-                            visit.oid.clone(),
-                            ClosureNode {
-                                oid: visit.oid.clone(),
-                                depth: visit.depth,
-                                state: ClosureNodeState::ReadFailure {
-                                    kind: visit.kind,
-                                    detail: detail.clone(),
-                                },
-                            },
-                        );
-                        report.issues.push(issue_for_visit(
-                            &visit,
-                            ClosureIssueKind::ReadFailure { detail },
-                        ));
-                        continue;
-                    }
+                    // Operational failures are not evidence that the object
+                    // graph is invalid. Preserve their StoreError so callers
+                    // can distinguish configured resource limits and storage
+                    // failures from corrupt or missing repository data.
+                    Err(error) => return Err(error),
                 };
 
                 if object.kind() != visit.kind {
@@ -459,22 +477,25 @@ fn verify_closure_with_tombstones<S: ObjectStore + ?Sized>(
                     },
                 );
 
-                let references = extract_references(&object, &mut report.issues);
-                let mut child_visits = Vec::with_capacity(references.len());
-                for reference in references {
-                    if report.edges.len() >= limits.max_edges {
-                        report.truncated = true;
-                        report.issues.push(ClosureIssue {
-                            oid: visit.oid.clone(),
-                            referenced_by: None,
-                            role: Some(reference.role),
-                            kind: ClosureIssueKind::ResourceLimit {
-                                resource: "edges",
-                                limit: limits.max_edges,
-                            },
-                        });
-                        break 'walk;
-                    }
+                let remaining_edges = limits
+                    .max_edges
+                    .checked_sub(report.edges.len())
+                    .expect("closure edge count never exceeds its configured limit");
+                let remaining_reference_bytes = MAX_GRAPH_REFERENCE_BYTES
+                    .checked_sub(reference_bytes)
+                    .expect("reference metadata stays within its hard ceiling");
+                let extraction = extract_references(
+                    &object,
+                    &mut report.issues,
+                    remaining_edges,
+                    remaining_reference_bytes,
+                    MAX_GRAPH_REFERENCE_BYTES,
+                );
+                reference_bytes = reference_bytes
+                    .checked_add(extraction.charged_bytes)
+                    .expect("bounded reference metadata total cannot overflow");
+                let mut child_visits = Vec::with_capacity(extraction.references.len());
+                for reference in extraction.references {
                     let actual_kind = match parse_oid(&reference.target) {
                         Ok(kind) => kind,
                         Err(error) => {
@@ -516,6 +537,22 @@ fn verify_closure_with_tombstones<S: ObjectStore + ?Sized>(
                         role: Some(reference.role),
                         record_constraint: reference.record_constraint,
                     });
+                }
+                if let Some(exceeded) = extraction.exceeded {
+                    let (resource, limit) = match exceeded {
+                        ReferenceExtractionLimit::Edges => ("edges", limits.max_edges),
+                        ReferenceExtractionLimit::ReferenceBytes => {
+                            ("reference_bytes", MAX_GRAPH_REFERENCE_BYTES)
+                        }
+                    };
+                    report.truncated = true;
+                    report.issues.push(ClosureIssue {
+                        oid: visit.oid.clone(),
+                        referenced_by: None,
+                        role: None,
+                        kind: ClosureIssueKind::ResourceLimit { resource, limit },
+                    });
+                    break 'walk;
                 }
                 for child in child_visits.into_iter().rev() {
                     stack.push(WalkItem::Enter(child));
@@ -731,6 +768,94 @@ struct PendingReference {
     record_constraint: Option<RecordConstraint>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ReferenceExtractionLimit {
+    Edges,
+    ReferenceBytes,
+}
+
+struct ReferenceExtraction {
+    references: Vec<PendingReference>,
+    charged_bytes: usize,
+    exceeded: Option<ReferenceExtractionLimit>,
+}
+
+struct ReferenceCollector {
+    references: Vec<PendingReference>,
+    max_edges: usize,
+    max_reference_bytes: usize,
+    max_pointer_bytes: usize,
+    charged_bytes: usize,
+    exceeded: Option<ReferenceExtractionLimit>,
+}
+
+impl ReferenceCollector {
+    fn new(max_edges: usize, max_reference_bytes: usize, max_pointer_bytes: usize) -> Self {
+        Self {
+            references: Vec::new(),
+            max_edges,
+            max_reference_bytes,
+            max_pointer_bytes,
+            charged_bytes: 0,
+            exceeded: None,
+        }
+    }
+
+    fn is_exceeded(&self) -> bool {
+        self.exceeded.is_some()
+    }
+
+    fn exceed_reference_bytes(&mut self) {
+        self.exceeded = Some(ReferenceExtractionLimit::ReferenceBytes);
+    }
+
+    fn try_push(
+        &mut self,
+        dynamic_role_bytes: usize,
+        constraint_bytes: usize,
+        build: impl FnOnce() -> PendingReference,
+    ) -> bool {
+        if self.is_exceeded() {
+            return false;
+        }
+        if self.references.len() >= self.max_edges {
+            self.exceeded = Some(ReferenceExtractionLimit::Edges);
+            return false;
+        }
+
+        // A dynamic role may coexist in the extracted PendingReference, the
+        // retained GraphEdge, and a ClosureIssue created while its visit is
+        // still live. Charge all three copies before allocating the first one.
+        let Some(reference_bytes) = dynamic_role_bytes
+            .checked_mul(3)
+            .and_then(|bytes| bytes.checked_add(constraint_bytes))
+        else {
+            self.exceed_reference_bytes();
+            return false;
+        };
+        let Some(next) = self.charged_bytes.checked_add(reference_bytes) else {
+            self.exceed_reference_bytes();
+            return false;
+        };
+        if next > self.max_reference_bytes {
+            self.exceed_reference_bytes();
+            return false;
+        }
+
+        self.references.push(build());
+        self.charged_bytes = next;
+        true
+    }
+
+    fn finish(self) -> ReferenceExtraction {
+        ReferenceExtraction {
+            references: self.references,
+            charged_bytes: self.charged_bytes,
+            exceeded: self.exceeded,
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 struct PendingVisit {
     oid: String,
@@ -776,49 +901,56 @@ fn issue_for_visit(visit: &PendingVisit, kind: ClosureIssueKind) -> ClosureIssue
 fn extract_references(
     object: &VerifiedObject,
     issues: &mut Vec<ClosureIssue>,
-) -> Vec<PendingReference> {
+    max_edges: usize,
+    max_reference_bytes: usize,
+    max_pointer_bytes: usize,
+) -> ReferenceExtraction {
+    let mut collector = ReferenceCollector::new(max_edges, max_reference_bytes, max_pointer_bytes);
     match object.kind() {
-        ObjectKind::Blob => Vec::new(),
-        ObjectKind::Record => extract_record_references(object, issues),
-        ObjectKind::Commit => extract_commit_references(object, issues),
-        ObjectKind::Tree => extract_tree_references(object, issues),
+        ObjectKind::Blob => {}
+        ObjectKind::Record => extract_record_references(object, &mut collector, issues),
+        ObjectKind::Commit => extract_commit_references(object, &mut collector, issues),
+        ObjectKind::Tree => extract_tree_references(object, &mut collector, issues),
     }
+    collector.finish()
 }
 
 fn extract_commit_references(
     object: &VerifiedObject,
+    output: &mut ReferenceCollector,
     issues: &mut Vec<ClosureIssue>,
-) -> Vec<PendingReference> {
+) {
     let Some(value) = object.structured() else {
         invalid_object(
             object.oid(),
             "verified Commit has no structured body",
             issues,
         );
-        return Vec::new();
+        return;
     };
     let Some(fields) = value.as_object() else {
         invalid_object(object.oid(), "Commit body is not an object", issues);
-        return Vec::new();
+        return;
     };
-    let mut references = Vec::new();
     append_array_references(
         object.oid(),
         fields,
         "parents",
         ObjectKind::Commit,
         |index| ReferenceRole::CommitParent { index },
-        &mut references,
+        output,
         issues,
     );
 
     match object_field(fields, "snapshot").and_then(Value::as_str) {
-        Some(snapshot) => references.push(PendingReference {
-            target: snapshot.to_owned(),
-            expected_kind: ObjectKind::Tree,
-            role: ReferenceRole::CommitSnapshot,
-            record_constraint: None,
-        }),
+        Some(snapshot) => {
+            output.try_push(0, 0, || PendingReference {
+                target: snapshot.to_owned(),
+                expected_kind: ObjectKind::Tree,
+                role: ReferenceRole::CommitSnapshot,
+                record_constraint: None,
+            });
+        }
         None => invalid_object(
             object.oid(),
             "Commit requires string field snapshot",
@@ -831,7 +963,7 @@ fn extract_commit_references(
         "transition_refs",
         ObjectKind::Record,
         |index| ReferenceRole::CommitTransition { index },
-        &mut references,
+        output,
         issues,
     );
     append_array_references(
@@ -840,23 +972,23 @@ fn extract_commit_references(
         "bound_declaration_refs",
         ObjectKind::Record,
         |index| ReferenceRole::CommitBoundDeclaration { index },
-        &mut references,
+        output,
         issues,
     );
-    references
 }
 
 fn extract_record_references(
     object: &VerifiedObject,
+    output: &mut ReferenceCollector,
     issues: &mut Vec<ClosureIssue>,
-) -> Vec<PendingReference> {
+) {
     let Some(value) = object.structured() else {
         invalid_object(
             object.oid(),
             "verified Record has no structured body",
             issues,
         );
-        return Vec::new();
+        return;
     };
     let record_type = value
         .get("record_type")
@@ -866,28 +998,30 @@ fn extract_record_references(
         .get("entity_id")
         .and_then(Value::as_str)
         .unwrap_or_default();
-    let mut references = Vec::new();
+    let mut pointer = String::new();
     collect_record_oid_strings(
         value,
-        "",
+        &mut pointer,
         object.oid(),
         record_type,
         entity_id,
-        &mut references,
+        output,
         issues,
     );
-    references
 }
 
 fn collect_record_oid_strings(
     value: &Value,
-    pointer: &str,
+    pointer: &mut String,
     source_oid: &str,
     source_record_type: &str,
     source_entity_id: &str,
-    output: &mut Vec<PendingReference>,
+    output: &mut ReferenceCollector,
     issues: &mut Vec<ClosureIssue>,
 ) {
+    if output.is_exceeded() {
+        return;
+    }
     match value {
         Value::String(target) => {
             let Ok(actual_kind) = parse_oid(target) else {
@@ -899,58 +1033,83 @@ fn collect_record_oid_strings(
             {
                 invalid_object(source_oid, "Tombstone may not target itself", issues);
             }
-            let (role, record_constraint) = if pointer == "/supersedes" {
-                (
-                    ReferenceRole::RecordSupersedes,
-                    Some(RecordConstraint::Supersedes {
-                        record_type: source_record_type.to_owned(),
-                        entity_id: source_entity_id.to_owned(),
-                    }),
-                )
+            let supersedes = pointer == "/supersedes";
+            let record_constraint = if supersedes {
+                Some(RecordConstraint::Supersedes {
+                    record_type: source_record_type.to_owned(),
+                    entity_id: source_entity_id.to_owned(),
+                })
             } else {
-                (
-                    ReferenceRole::RecordReference {
-                        pointer: pointer.to_owned(),
-                    },
-                    record_constraint_for(source_record_type, pointer),
-                )
+                record_constraint_for(source_record_type, pointer)
             };
             let expected_kind = if record_constraint.is_some() {
                 ObjectKind::Record
             } else {
                 actual_kind
             };
-            output.push(PendingReference {
+            let dynamic_role_bytes = if supersedes { 0 } else { pointer.len() };
+            let constraint_bytes = match &record_constraint {
+                Some(RecordConstraint::Supersedes {
+                    record_type,
+                    entity_id,
+                }) => record_type.len().saturating_add(entity_id.len()),
+                Some(RecordConstraint::RecordType(_) | RecordConstraint::AiActivity) | None => 0,
+            };
+            output.try_push(dynamic_role_bytes, constraint_bytes, || PendingReference {
                 target: target.to_owned(),
                 expected_kind,
-                role,
+                role: if supersedes {
+                    ReferenceRole::RecordSupersedes
+                } else {
+                    ReferenceRole::RecordReference {
+                        pointer: pointer.clone(),
+                    }
+                },
                 record_constraint,
             });
         }
         Value::Array(values) => {
             for (index, child) in values.iter().enumerate() {
+                let previous_length = pointer.len();
+                if !append_pointer_index(pointer, index, output.max_pointer_bytes) {
+                    output.exceed_reference_bytes();
+                    return;
+                }
                 collect_record_oid_strings(
                     child,
-                    &format!("{pointer}/{index}"),
+                    pointer,
                     source_oid,
                     source_record_type,
                     source_entity_id,
                     output,
                     issues,
                 );
+                pointer.truncate(previous_length);
+                if output.is_exceeded() {
+                    return;
+                }
             }
         }
         Value::Object(entries) => {
             for (key, child) in entries {
+                let previous_length = pointer.len();
+                if !append_pointer_key(pointer, key, output.max_pointer_bytes) {
+                    output.exceed_reference_bytes();
+                    return;
+                }
                 collect_record_oid_strings(
                     child,
-                    &format!("{pointer}/{}", escape_pointer(key)),
+                    pointer,
                     source_oid,
                     source_record_type,
                     source_entity_id,
                     output,
                     issues,
                 );
+                pointer.truncate(previous_length);
+                if output.is_exceeded() {
+                    return;
+                }
             }
         }
         Value::Null | Value::Bool(_) | Value::Integer(_) => {}
@@ -1051,7 +1210,7 @@ fn append_array_references(
     field_name: &str,
     expected_kind: ObjectKind,
     role: impl Fn(usize) -> ReferenceRole,
-    output: &mut Vec<PendingReference>,
+    output: &mut ReferenceCollector,
     issues: &mut Vec<ClosureIssue>,
 ) {
     let Some(values) = object_field(fields, field_name).and_then(Value::as_array) else {
@@ -1063,6 +1222,9 @@ fn append_array_references(
         return;
     };
     for (index, value) in values.iter().enumerate() {
+        if output.is_exceeded() {
+            return;
+        }
         let Some(target) = value.as_str() else {
             invalid_object(
                 source_oid,
@@ -1071,7 +1233,7 @@ fn append_array_references(
             );
             continue;
         };
-        output.push(PendingReference {
+        output.try_push(0, 0, || PendingReference {
             target: target.to_owned(),
             expected_kind,
             role: role(index),
@@ -1082,18 +1244,21 @@ fn append_array_references(
 
 fn extract_tree_references(
     object: &VerifiedObject,
+    output: &mut ReferenceCollector,
     issues: &mut Vec<ClosureIssue>,
-) -> Vec<PendingReference> {
+) {
     let Some(value) = object.structured() else {
         invalid_object(object.oid(), "verified Tree has no structured body", issues);
-        return Vec::new();
+        return;
     };
     let Some(entries) = value.get("entries").and_then(Value::as_object) else {
         invalid_object(object.oid(), "Tree requires object field entries", issues);
-        return Vec::new();
+        return;
     };
-    let mut references = Vec::with_capacity(entries.len());
     for (segment, entry) in entries {
+        if output.is_exceeded() {
+            return;
+        }
         if !valid_path_segment(segment) {
             invalid_object(
                 object.oid(),
@@ -1140,7 +1305,7 @@ fn extract_tree_references(
             );
             continue;
         };
-        references.push(PendingReference {
+        output.try_push(segment.len(), 0, || PendingReference {
             target: target.to_owned(),
             expected_kind,
             role: ReferenceRole::TreeEntry {
@@ -1149,7 +1314,6 @@ fn extract_tree_references(
             record_constraint: None,
         });
     }
-    references
 }
 
 fn object_field<'a>(fields: &'a [(String, Value)], name: &str) -> Option<&'a Value> {
@@ -1158,8 +1322,53 @@ fn object_field<'a>(fields: &'a [(String, Value)], name: &str) -> Option<&'a Val
         .find_map(|(candidate, value)| (candidate == name).then_some(value))
 }
 
-fn escape_pointer(part: &str) -> String {
-    part.replace('~', "~0").replace('/', "~1")
+fn append_pointer_index(pointer: &mut String, index: usize, limit: usize) -> bool {
+    let index = index.to_string();
+    let Some(next_length) = pointer
+        .len()
+        .checked_add(1)
+        .and_then(|length| length.checked_add(index.len()))
+    else {
+        return false;
+    };
+    if next_length > limit {
+        return false;
+    }
+    pointer.push('/');
+    pointer.push_str(&index);
+    true
+}
+
+fn append_pointer_key(pointer: &mut String, key: &str, limit: usize) -> bool {
+    if pointer
+        .len()
+        .checked_add(1)
+        .is_none_or(|length| length > limit)
+    {
+        return false;
+    }
+    pointer.push('/');
+    for character in key.chars() {
+        let encoded = match character {
+            '~' => Some("~0"),
+            '/' => Some("~1"),
+            _ => None,
+        };
+        let encoded_length = encoded.map_or_else(|| character.len_utf8(), str::len);
+        if pointer
+            .len()
+            .checked_add(encoded_length)
+            .is_none_or(|length| length > limit)
+        {
+            return false;
+        }
+        if let Some(encoded) = encoded {
+            pointer.push_str(encoded);
+        } else {
+            pointer.push(character);
+        }
+    }
+    true
 }
 
 fn invalid_object(oid: &str, detail: impl Into<String>, issues: &mut Vec<ClosureIssue>) {
@@ -1741,5 +1950,104 @@ mod tests {
         assert!(!verifier.verify(&second_root).unwrap().is_complete());
         assert_eq!(store.inventory_calls.get(), 1);
         assert_eq!(store.get_calls.get(), 4, "two catalog reads plus two roots");
+
+        let uncached_root = format!("commit:sg-oid-v1:sha256:{}", "7".repeat(64));
+        assert!(
+            !verifier
+                .verify_uncached(&uncached_root)
+                .unwrap()
+                .is_complete()
+        );
+        assert!(!verifier.report_cache.contains_key(&uncached_root));
+        assert_eq!(store.inventory_calls.get(), 1);
+        assert_eq!(
+            store.get_calls.get(),
+            5,
+            "uncached verification reuses the catalog but retains no report"
+        );
+    }
+
+    #[test]
+    fn closure_traversal_preserves_operational_store_errors() {
+        struct ResourceLimitedStore;
+
+        impl ObjectStore for ResourceLimitedStore {
+            fn get_verified(&self, _oid: &str) -> Result<Option<VerifiedObject>, StoreError> {
+                Err(CoreError::new(ErrorCode::ResourceLimit, "configured read limit").into())
+            }
+
+            fn list_oids(&self) -> Result<Vec<String>, StoreError> {
+                Ok(Vec::new())
+            }
+        }
+
+        let root = format!("commit:sg-oid-v1:sha256:{}", "8".repeat(64));
+        let error = verify_closure(&ResourceLimitedStore, &root, GraphLimits::default())
+            .expect_err("resource failure must abort traversal");
+        assert_eq!(error.code(), Some(ErrorCode::ResourceLimit));
+    }
+
+    #[test]
+    fn record_reference_extraction_stops_before_repeating_long_pointers() {
+        let source = format!("record:sg-oid-v1:sha256:{}", "8".repeat(64));
+        let target = format!("record:sg-oid-v1:sha256:{}", "9".repeat(64));
+        let long_key = format!("example.{}", "a".repeat(4_096));
+        let record = VerifiedObject::test_structured(
+            &source,
+            ObjectKind::Record,
+            Value::Object(vec![
+                ("record_type".to_owned(), Value::String("claim".to_owned())),
+                (
+                    "entity_id".to_owned(),
+                    Value::String("urn:uuid:00000000-0000-4000-8000-000000000001".to_owned()),
+                ),
+                (
+                    "extensions".to_owned(),
+                    Value::Object(vec![(
+                        long_key.clone(),
+                        Value::Array(vec![
+                            Value::String(target.clone()),
+                            Value::String(target.clone()),
+                            Value::String(target),
+                        ]),
+                    )]),
+                ),
+            ]),
+        );
+        let first_pointer_bytes = "/extensions/".len() + long_key.len() + "/0".len();
+        let one_reference_charge = first_pointer_bytes * 3;
+
+        let mut issues = Vec::new();
+        let byte_limited = extract_references(
+            &record,
+            &mut issues,
+            10,
+            one_reference_charge,
+            MAX_GRAPH_REFERENCE_BYTES,
+        );
+        assert_eq!(byte_limited.references.len(), 1);
+        assert_eq!(byte_limited.charged_bytes, one_reference_charge);
+        assert_eq!(
+            byte_limited.exceeded,
+            Some(ReferenceExtractionLimit::ReferenceBytes)
+        );
+        assert!(issues.is_empty());
+
+        let edge_limited = extract_references(
+            &record,
+            &mut Vec::new(),
+            1,
+            MAX_GRAPH_REFERENCE_BYTES,
+            MAX_GRAPH_REFERENCE_BYTES,
+        );
+        assert_eq!(edge_limited.references.len(), 1);
+        assert_eq!(edge_limited.exceeded, Some(ReferenceExtractionLimit::Edges));
+
+        let pointer_limited = extract_references(&record, &mut Vec::new(), 10, usize::MAX, 128);
+        assert!(pointer_limited.references.is_empty());
+        assert_eq!(
+            pointer_limited.exceeded,
+            Some(ReferenceExtractionLimit::ReferenceBytes)
+        );
     }
 }

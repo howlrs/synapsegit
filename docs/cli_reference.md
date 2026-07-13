@@ -160,7 +160,22 @@ Refs / reflog を snapshot し、ObjectStore 全体を checksum 付き directory
 
 - destination は存在してはならない。
 - reachable object だけでなく、stored orphan object も含む。
-- current Ref heads の closure が不完全なら拒否する。
+- current Ref heads または historical reflog `new_head` の closure が不完全なら拒否する。
+- 全headで一つのbounded Tombstone catalogを共有する。既定はRecord 100,000件／累積1 GiB。
+- distinct headのclosure validationは`max_head_validation_nodes=1,000,000`／
+  `max_head_validation_edges=10,000,000`が既定。異なるheadが共有closureを再走査したworkも再課金し、
+  各headには残量とRepository `GraphLimits`の小さい方を使う。
+- complete CAS inventoryは既定100,000 object、copied raw object bytesは累積1 TiBまで。
+- Ref snapshot／complete reflogは各100,000 entries、保持するRef名／actor／messageは累積64 MiBまで。
+- 生成manifestがrestore側と同じ64 MiB上限を超える場合も`resource_limit`で拒否する。
+- current CLIはlibraryのarchive export既定値を使い、override optionは提供しない。library callerは
+  `ArchiveExportLimits`でobject／byte／head validation work／scan／Ref snapshotのdefaultを小さくも
+  大きくも置き換えられる。0または超過は`resource_limit`になる。
+- resource limit失敗ではfinal destinationを公開せず、通常のerror returnではstagingを除去する。
+- destinationと同じparentにprocess IDと時刻nonceを含むper-export stagingを使う。process crashでは
+  orphan stagingが残り得て、startup cleanupはまだない。
+- final publicationはLinux、Android、Apple、Redoxでatomic no-replaceを使う。その他target
+  （Windowsを含む）は`storage_error`でfail closedする。
 - archive は暗号化・署名されない。
 - 成功時は `exported <archive-dir>` を出力する。
 
@@ -195,6 +210,8 @@ directory archive を検証し、object、reflog、Refs を復元する。
 | JSON nodes | 100,000 |
 | container members / items | 50,000 |
 | closure objects / edges / depth | 100,000 / 1,000,000 / 512 |
+| closure dynamic reference-role metadata | 64 MiB（hard ceiling） |
+| archive distinct-head validation nodes / edges | 1,000,000 / 10,000,000 |
 
 完全な limit と security boundary は [Security model](./security_model.md) を参照する。
 
@@ -219,8 +236,8 @@ directory archive を検証し、object、reflog、Refs を復元する。
 | `human_gate_required` | AIのdecision/release直接更新、または現在のtrusted routeが満たさないPolicy gate |
 | `stale_base` | Creative AI publicationでContextPack expected baseとlive base Refが不一致。Human Decisionのdecision/base競合は`ref_conflict` |
 | `ref_conflict` | current target Ref、またはHuman Decisionのtrusted proposal Ref/headとexpectationが不一致 |
-| `resource_limit` | Core parser / graph / Blob limit |
-| `archive_invalid` | destination exists、manifest、checksum、archive graph error |
+| `resource_limit` | Core parser / graph / Blob、graph dynamic reference metadata、archive inventory / bytes / head-validation work / manifest limit |
+| `archive_invalid` | export destination exists、export元head closure invalid、またはrestore manifest／checksum／archive graph invalid |
 | `archive_not_empty` | restore target に unrelated data または existing Ref がある |
 | `fsck_failed` | `fsck` が一件以上の issue を発見 |
 | `authentication_required` | application routeのcredentialをAuthenticatorが受理しない。現CLIは返さない |

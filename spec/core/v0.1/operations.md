@@ -104,6 +104,15 @@ Ref update. A newly produced Analysis or Activity may not present a tombstoned
 or missing object as an execution input. It may cite the Tombstone using an
 explicit redaction/missing-evidence role.
 
+The Stage 0 local implementation MUST cap the cumulative dynamically sized
+reference-role metadata retained by one closure report at 64 MiB. This fixed
+hard ceiling includes coexisting copies of dynamic Tree paths, Record JSON
+Pointers, and Record constraints. It MUST stop before an allocation would
+exceed the ceiling, independently of caller-configured node, edge, and depth
+limits. A diagnostic closure report represents this as a
+truncated `ResourceLimit { resource: "reference_bytes" }` issue; an operation
+that requires a complete closure maps it to the stable `resource_limit` code.
+
 A Tombstone never makes the erased bytes reconstructable and never proves that
 every copy was deleted. Derivative purge is an operation over the dependency
 graph; `affected_derivative_refs` records what the actor reports having handled.
@@ -822,6 +831,26 @@ publication authority.
 A Stage 0 export contains canonical object bytes, original Blob bytes, a Ref
 snapshot, complete reflog, format version, and checksums. The exact current
 directory layout is defined in [`archive-profile.md`](./archive-profile.md).
+The local profile writer MUST bound complete object inventory work, cumulative
+raw object bytes, cumulative closure nodes and edges visited across all distinct
+current/reflog heads, the store-wide Tombstone Record scan, the Ref/reflog
+snapshot, and generated manifest bytes. The default operation-wide head limits
+are 1,000,000 nodes and 10,000,000 edges. An identical head OID is validated
+once; when different heads re-traverse a shared closure, that work is charged
+again. Before each head, the writer MUST use the lesser of the remaining
+operation-wide budget and the repository graph limit so the configured totals
+are inclusive strict work bounds. Zero values MUST return `resource_limit`.
+Object, byte, head-validation, scan, and Ref/reflog values in the local profile
+are caller-changeable defaults rather than protocol hard ceilings;
+the generated manifest retains a fixed 64 MiB writer/reader ceiling. The writer
+MUST return `resource_limit` without publishing the final destination when a
+configured bound would be exceeded. Distinct current and reflog heads SHOULD
+share one point-in-export Tombstone catalog. Final publication MUST use an
+atomic no-replace operation or fail closed with `storage_error`; it MUST NOT
+replace a destination created by a concurrent process. The local writer stages
+each export in a unique sibling directory on the destination filesystem and
+removes it on an ordinary error return. This profile does not yet claim
+process-crash fault injection or startup recovery of orphan staging directories.
 A conforming restore into a repository with no Refs or reflog, and with either
 an empty ObjectStore or an exact subset left by the same failed restore, must:
 

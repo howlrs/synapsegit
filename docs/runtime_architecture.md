@@ -267,6 +267,23 @@ projection rebuildはこのpublication transactionの一部ではない。caller
 一貫したRef snapshotを取得し、必要な時点で別operationとして実行する。rebuild失敗は正本の
 object、Ref、reflogをrollbackまたは変更しない。
 
+archive exportはRefs／complete reflogを一transactionでsnapshotした後、全distinct current／historical
+headを一つのbounded Tombstone catalogで検証する。complete CAS inventory 100,000 objects、raw bytes
+累積1 TiB、全distinct head validation累積1,000,000 nodes／10,000,000 edges、Record scan
+100,000件／1 GiB、Refs／reflog各100,000 entries、Ref名／actor／message累積64 MiBをcallerが変更できる
+既定上限とし、manifestは固定64 MiBまでとする。同じhead OIDは一度だけ検証し、異なるheadによる共有
+closureの再走査は再課金する。各headの実効limitは残りoperation budgetとRepository `GraphLimits`の
+小さい方なので、設定値はinclusiveなstrict work boundである。0または超過ではfinal destinationを
+公開しない。closure reportが保持するdynamic Tree path／Record JSON Pointer等には別の固定64 MiB
+hard ceilingがある。CLI process同士のexport/update競合testは、復元可能な一貫した
+Ref／reflog prefixを検査するstress／smokeであり、SQLite transaction overlapのdeterministic proofではない。
+
+archive exportはdestinationと同じparentにprocess IDと時刻nonceを含むper-export staging directoryを作り、
+通常のerror returnでは`Drop` cleanupする。final publicationはLinux、Android、Apple、Redoxでatomic
+`RENAME_NOREPLACE`を使い、それ以外のtarget（Windowsを含む）は`storage_error`でfail closedする。
+process crashはarchive stagingやObjectStore temporary fileをorphanとして残し得る。write boundaryごとの
+process-kill／fault-injection testとstartup orphan cleanupは未実装である。
+
 途中停止時は未到達objectが残り得る。現在の実装は通常のmissing / corrupt closureをRef更新前に拒否するが、Tombstone解決を含む既知のvalidator制限があるため、保証範囲は[Security model](./security_model.md#現在の既知制限)も参照する。garbage collectionは未実装であり、将来はgrace period後の別operationとする。
 
 ## SurrealDB採用spike
