@@ -15,5 +15,6 @@ synapse-application = { path = "../synapse-application" }
 synapse-canonical = { path = "../synapse-canonical" }
 synapse-cas = { path = "../synapse-cas" }
 synapse-core = { path = "../synapse-core" }
+synapse-observation = { path = "../synapse-observation" }
 synapse-projection = { path = "../synapse-projection" }
 synapse-sqlite = { path = "../synapse-sqlite" }

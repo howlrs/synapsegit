@@ -880,6 +880,7 @@ dependencies = [
  "synapse-canonical",
  "synapse-cas",
  "synapse-core",
+ "synapse-observation",
  "synapse-projection",
  "synapse-sqlite",
 ]

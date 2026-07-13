@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_core::Repository;
 use synapse_creator::{
-    CreatorDisposition, CreatorError, CreatorRunOptions, creator_report, run_creator_session,
+    AnalysisComparability, AnalysisStatus, ByteIdentityOutcome, CreatorDisposition, CreatorError,
+    CreatorRunOptions, creator_report, run_creator_session,
 };
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
 
@@ -80,6 +81,58 @@ fn creator_workflow_uses_ai_and_human_routes_and_survives_restore() {
     assert_eq!(report.original_blob_oid, receipt.original_blob_oid);
     assert_eq!(report.current_blob_oid, receipt.current_blob_oid);
     assert_eq!(report.ai_output_blob_oid, receipt.ai_output_blob_oid);
+    assert_eq!(
+        receipt.byte_identity_outcome,
+        ByteIdentityOutcome::Different
+    );
+    assert_eq!(receipt.comparison_status, AnalysisStatus::Succeeded);
+    assert_eq!(
+        receipt.comparison_comparability,
+        AnalysisComparability::Partial
+    );
+    assert_eq!(
+        receipt.comparison_reason_codes,
+        [
+            "byte_identity_only",
+            "capture_profile_imported",
+            "capture_time_unknown"
+        ]
+    );
+    let comparison = report.comparison.as_ref().unwrap();
+    assert_eq!(comparison.analysis_oid, receipt.comparison_analysis_oid);
+    assert_eq!(comparison.tool_id, receipt.comparison_tool_id);
+    assert_eq!(comparison.tool_actor_oid, receipt.comparison_tool_actor_oid);
+    assert_eq!(
+        comparison.implementation_oid,
+        receipt.comparison_implementation_oid
+    );
+    assert_eq!(
+        comparison.configuration_oid,
+        receipt.comparison_configuration_oid
+    );
+    assert_ne!(comparison.tool_id, report.agent_id);
+    assert_eq!(comparison.status, "succeeded");
+    assert_eq!(comparison.comparability, "partial");
+    assert_eq!(comparison.outcome, "different");
+    assert_eq!(
+        comparison.base_observation_oid,
+        receipt.original_observation_oid
+    );
+    assert_eq!(
+        comparison.target_observation_oid,
+        receipt.current_observation_oid
+    );
+    assert_eq!(comparison.base_media_oid, receipt.original_blob_oid);
+    assert_eq!(comparison.target_media_oid, receipt.current_blob_oid);
+    assert!(comparison.replay_ready);
+    let mut expected_comparison_refs =
+        vec![receipt.decision_ref.clone(), receipt.proposal_ref.clone()];
+    expected_comparison_refs.sort();
+    assert_eq!(comparison.reachable_from, expected_comparison_refs);
+    assert_eq!(
+        comparison.warnings,
+        ["Different Blob bytes do not establish visual or physical change."]
+    );
     assert_eq!(report.timeline.len(), 4);
     assert!(
         report
@@ -151,6 +204,18 @@ fn creator_workflow_uses_ai_and_human_routes_and_survives_restore() {
         capture_profile["payload"]["required_conditions"],
         serde_json::json!([])
     );
+    let comparison_tool: serde_json::Value = serde_json::from_slice(
+        &repository
+            .objects()
+            .read_raw(&receipt.comparison_tool_actor_oid)
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(comparison_tool["record_type"], "actor");
+    assert_eq!(comparison_tool["payload"]["actor_kind"], "software_tool");
+    assert_eq!(comparison_tool["entity_id"], receipt.comparison_tool_id);
+    assert_eq!(comparison_tool["asserted_by"], receipt.creator_id);
     let feedback: serde_json::Value = serde_json::from_slice(
         &repository
             .objects()
@@ -210,6 +275,35 @@ fn creator_workflow_uses_ai_and_human_routes_and_survives_restore() {
 }
 
 #[test]
+fn identical_imports_are_reported_only_as_byte_identity() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repo");
+    let session_options = options(
+        &temporary,
+        &repository_path,
+        "identical-files",
+        CreatorDisposition::Adopt,
+    );
+    let original = fs::read(&session_options.original_image).unwrap();
+    fs::write(&session_options.current_image, original).unwrap();
+
+    let receipt = run_creator_session(&session_options).unwrap();
+    assert_eq!(receipt.original_blob_oid, receipt.current_blob_oid);
+    assert_eq!(
+        receipt.byte_identity_outcome,
+        ByteIdentityOutcome::Identical
+    );
+    let report = creator_report(&repository_path, "identical-files").unwrap();
+    let comparison = report.comparison.unwrap();
+    assert_eq!(comparison.outcome, "identical");
+    assert_eq!(comparison.comparability, "partial");
+    assert_eq!(
+        comparison.warnings,
+        ["Identical Blob bytes do not establish that the observed physical subject was unchanged."]
+    );
+}
+
+#[test]
 fn reject_and_defer_keep_ai_provenance_separate_from_human_selection() {
     let temporary = TempDirectory::new();
     let repository_path = temporary.join("repo");
@@ -228,6 +322,12 @@ fn reject_and_defer_keep_ai_provenance_separate_from_human_selection() {
         assert_eq!(report.timeline.len(), 4);
         assert!(!report.selected_ai_output);
         assert_eq!(report.decision_snapshot, report.base_snapshot);
+        let comparison = report.comparison.unwrap();
+        assert_eq!(comparison.analysis_oid, receipt.comparison_analysis_oid);
+        assert_eq!(comparison.outcome, "different");
+        let mut expected_refs = vec![receipt.decision_ref, receipt.proposal_ref];
+        expected_refs.sort();
+        assert_eq!(comparison.reachable_from, expected_refs);
     }
 }
 

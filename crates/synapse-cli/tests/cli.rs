@@ -255,6 +255,16 @@ fn creator_cli_builds_reports_and_restores_one_human_gated_session() {
     assert!(created.contains("reviewed_by_human=urn:uuid:"));
     assert!(created.contains("selected=true"));
     assert!(created.contains("disposition=adopt"));
+    assert!(created.contains("comparison_analysis=record:sg-oid-v1:sha256:"));
+    assert!(created.contains("comparison_adapter=synapsegit.observation.byte-identity@1"));
+    assert!(created.contains("comparison_status=succeeded"));
+    assert!(created.contains("comparison_comparability=partial"));
+    assert!(created.contains("byte_identity=different"));
+    assert!(created.contains(
+        "comparison_reason_codes=byte_identity_only,capture_profile_imported,capture_time_unknown"
+    ));
+    assert!(created.contains("comparison_replay_ready=true"));
+    assert!(!created.contains("changed=false"));
     assert!(created.contains("fsck=clean"));
     assert!(created.contains("timeline=4"));
 

@@ -22,14 +22,20 @@ use synapse_application::{
     ExecutionFailure, HumanAuthorityProfileConfig, HumanDecisionCandidate, ProjectSelector,
     RegisteredProject,
 };
-use synapse_canonical::{canonical_bytes, parse_strict};
+use synapse_canonical::{ObjectKind, canonical_bytes, parse_strict};
 use synapse_cas::{GraphLimits, fsck};
 use synapse_core::{
     AiCapability, AiSideEffectClass, Repository, RepositoryError, SystemAuthorizationClock,
 };
+pub use synapse_observation::{AnalysisComparability, AnalysisStatus, ByteIdentityOutcome};
+use synapse_observation::{
+    BYTE_IDENTITY_ADAPTER_ID, BYTE_IDENTITY_ADAPTER_VERSION, ByteIdentityComparisonRequest,
+    ObservationAnalysisError, byte_identity_configuration_oid, byte_identity_implementation_oid,
+    record_byte_identity_comparison,
+};
 use synapse_projection::{
-    ProjectionError, ProjectionLimits, RefScope, SqliteProjectionStore, TimelineRecordKind,
-    TimelineTimeBasis,
+    AdapterDeterminism, AnalysisReplayReadiness, ObjectAvailability, ProjectionError,
+    ProjectionLimits, RefScope, SqliteProjectionStore, TimelineRecordKind, TimelineTimeBasis,
 };
 use synapse_sqlite::{RefStoreError, RefUpdate, ReflogMetadata};
 
@@ -40,6 +46,10 @@ const PILOT_PERMIT_TTL_NANOS: i128 = 60_000_000_000;
 const PILOT_MAX_OUTPUT_BYTES: i64 = 1_073_741_824;
 const AGENT_CREDENTIAL: &str = "local-creator-agent";
 const HUMAN_CREDENTIAL: &str = "local-creator-human";
+const COMPARISON_TOOL_ENTRY: &str = "byte-identity.tool.actor.json";
+const COMPARISON_ANALYSIS_ENTRY: &str = "original-current.byte-identity.analysis.json";
+const COMPARISON_IMPLEMENTATION_ENTRY: &str = "byte-identity.implementation";
+const COMPARISON_CONFIGURATION_ENTRY: &str = "byte-identity.configuration";
 
 /// Human outcomes supported by the narrow Stage 0 decision route.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -134,9 +144,42 @@ pub struct CreatorRunReceipt {
     pub capture_profile_oid: String,
     pub original_observation_oid: String,
     pub current_observation_oid: String,
+    pub comparison_tool_id: String,
+    pub comparison_tool_actor_oid: String,
+    pub comparison_analysis_oid: String,
+    pub comparison_implementation_oid: String,
+    pub comparison_configuration_oid: String,
+    pub byte_identity_outcome: ByteIdentityOutcome,
+    pub comparison_status: AnalysisStatus,
+    pub comparison_comparability: AnalysisComparability,
+    pub comparison_reason_codes: Vec<String>,
     pub ai_activity_oid: String,
     pub decision_feedback_oid: String,
     pub disposition: CreatorDisposition,
+}
+
+/// Conservative byte-identity evidence rebuilt from the current creator Refs.
+/// This is not a visual or physical-change judgment.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreatorComparisonReport {
+    pub analysis_oid: String,
+    pub tool_id: String,
+    pub tool_actor_oid: String,
+    pub adapter_id: String,
+    pub adapter_version: String,
+    pub implementation_oid: String,
+    pub configuration_oid: String,
+    pub status: String,
+    pub comparability: String,
+    pub outcome: String,
+    pub reason_codes: Vec<String>,
+    pub warnings: Vec<String>,
+    pub base_observation_oid: String,
+    pub target_observation_oid: String,
+    pub base_media_oid: String,
+    pub target_media_oid: String,
+    pub replay_ready: bool,
+    pub reachable_from: Vec<String>,
 }
 
 /// One report timeline row rebuilt from current authoritative Refs and CAS.
@@ -174,6 +217,8 @@ pub struct CreatorReport {
     pub original_blob_oid: String,
     pub current_blob_oid: String,
     pub ai_output_blob_oid: String,
+    /// `None` for sessions created before byte-identity evidence was added.
+    pub comparison: Option<CreatorComparisonReport>,
     pub timeline: Vec<CreatorTimelineEntry>,
     pub fsck_objects: usize,
 }
@@ -190,6 +235,7 @@ pub enum CreatorError {
     Random(String),
     Repository(RepositoryError),
     Application(ApplicationError),
+    Observation(ObservationAnalysisError),
     Projection(ProjectionError),
     Json(serde_json::Error),
     Integrity(String),
@@ -206,6 +252,7 @@ impl CreatorError {
             Self::Io { .. } | Self::Clock(_) | Self::Random(_) => "storage_error",
             Self::Repository(error) => error.code(),
             Self::Application(error) => error.code(),
+            Self::Observation(error) => error.code(),
             Self::Projection(error) => error.code(),
             Self::Json(_) | Self::ReportInvalid(_) => "creator_report_invalid",
             Self::Integrity(_) => "fsck_failed",
@@ -232,6 +279,7 @@ impl fmt::Display for CreatorError {
             Self::Random(message) => formatter.write_str(message),
             Self::Repository(error) => error.fmt(formatter),
             Self::Application(error) => error.fmt(formatter),
+            Self::Observation(error) => error.fmt(formatter),
             Self::Projection(error) => error.fmt(formatter),
             Self::Json(error) => write!(formatter, "invalid stored creator JSON: {error}"),
             Self::Integrity(message) | Self::ReportInvalid(message) => formatter.write_str(message),
@@ -245,6 +293,7 @@ impl Error for CreatorError {
             Self::Io { source, .. } => Some(source),
             Self::Repository(error) => Some(error),
             Self::Application(error) => Some(error),
+            Self::Observation(error) => Some(error),
             Self::Projection(error) => Some(error),
             Self::Json(error) => Some(error),
             _ => None,
@@ -267,6 +316,12 @@ impl From<RefStoreError> for CreatorError {
 impl From<ApplicationError> for CreatorError {
     fn from(error: ApplicationError) -> Self {
         Self::Application(error)
+    }
+}
+
+impl From<ObservationAnalysisError> for CreatorError {
+    fn from(error: ObservationAnalysisError) -> Self {
+        Self::Observation(error)
     }
 }
 
@@ -330,8 +385,11 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
     let ids = SessionIds::fresh()?;
     let original_recorded_at = recording_clock.tick()?;
     let current_recorded_at = recording_clock.tick()?;
+    let comparison_recorded_at = recording_clock.tick()?;
     let import_recorded_at = recording_clock.tick()?;
     let capture_profile_id = related_entity_id(&ids.series, "capture-profile");
+    let comparison_tool_id = related_entity_id(&ids.series, "observation-tool");
+    let comparison_analysis_id = related_entity_id(&ids.series, "byte-identity-analysis");
 
     let creator_actor_oid = put_json(
         &repository,
@@ -413,6 +471,24 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
             &capture_profile_oid,
         ),
     )?;
+    let comparison_tool_actor_oid = put_json(
+        &repository,
+        observation_tool_actor_record(
+            &comparison_tool_id,
+            &ids.creator,
+            &base_recorded_at.timestamp,
+        ),
+    )?;
+    let comparison = record_byte_identity_comparison(
+        &repository,
+        &ByteIdentityComparisonRequest {
+            base_observation_oid: original_observation_oid.clone(),
+            target_observation_oid: current_observation_oid.clone(),
+            analysis_entity_id: comparison_analysis_id,
+            asserted_by: comparison_tool_id.clone(),
+            recorded_at: comparison_recorded_at.timestamp.clone(),
+        },
+    )?;
     let import_activity_oid = put_json(
         &repository,
         import_activity_record(
@@ -437,6 +513,12 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
         "agent.actor.json",
         "record",
         &ai_actor_oid,
+    );
+    insert_entry(
+        &mut base_entries,
+        COMPARISON_TOOL_ENTRY,
+        "record",
+        &comparison_tool_actor_oid,
     );
     insert_entry(&mut base_entries, "policy.json", "record", &policy_oid);
     insert_entry(&mut base_entries, "grant.json", "record", &grant_oid);
@@ -467,6 +549,24 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
     );
     insert_entry(
         &mut base_entries,
+        COMPARISON_ANALYSIS_ENTRY,
+        "record",
+        &comparison.analysis_oid,
+    );
+    insert_entry(
+        &mut base_entries,
+        COMPARISON_IMPLEMENTATION_ENTRY,
+        "blob",
+        &comparison.implementation_oid,
+    );
+    insert_entry(
+        &mut base_entries,
+        COMPARISON_CONFIGURATION_ENTRY,
+        "blob",
+        &comparison.configuration_oid,
+    );
+    insert_entry(
+        &mut base_entries,
         "original.image",
         "blob",
         &original_blob_oid,
@@ -478,13 +578,14 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
         &current_blob_oid,
     );
     let base_tree_oid = put_json(&repository, manifest_tree(base_entries.clone()))?;
+    let base_transitions = vec![import_activity_oid.clone(), comparison.analysis_oid.clone()];
     let base_head = put_json(
         &repository,
         commit(
             "checkpoint",
             &[],
             &base_tree_oid,
-            slice(&import_activity_oid),
+            &base_transitions,
             &ids.creator,
             &import_recorded_at.timestamp,
             "Creator images imported and observed",
@@ -684,6 +785,15 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
         capture_profile_oid,
         original_observation_oid,
         current_observation_oid,
+        comparison_tool_id,
+        comparison_tool_actor_oid,
+        comparison_analysis_oid: comparison.analysis_oid,
+        comparison_implementation_oid: comparison.implementation_oid,
+        comparison_configuration_oid: comparison.configuration_oid,
+        byte_identity_outcome: comparison.outcome,
+        comparison_status: comparison.status,
+        comparison_comparability: comparison.comparability,
+        comparison_reason_codes: comparison.reason_codes,
         ai_activity_oid,
         decision_feedback_oid,
         disposition: options.disposition,
@@ -727,11 +837,8 @@ pub fn creator_report(repository_path: impl AsRef<Path>, session: &str) -> Resul
 
     let mut projection = SqliteProjectionStore::open_in_memory()?;
     projection.rebuild_with_limits(repository.objects(), &snapshot, ProjectionLimits::default())?;
-    let timeline = projection.subject_timeline(
-        &ids.subject,
-        None,
-        &RefScope::names([decision_ref.clone(), proposal_ref.clone()]),
-    )?;
+    let report_scope = RefScope::names([decision_ref.clone(), proposal_ref.clone()]);
+    let timeline = projection.subject_timeline(&ids.subject, None, &report_scope)?;
     let original_observation = timeline
         .iter()
         .find(|entry| entry.entity_id == ids.original_observation)
@@ -780,6 +887,24 @@ pub fn creator_report(repository_path: impl AsRef<Path>, session: &str) -> Resul
         "output_refs",
         "proposal",
     )?;
+    let comparison = lineage
+        .comparison
+        .as_ref()
+        .map(|pointers| {
+            validate_comparison_report(
+                &repository,
+                &projection,
+                &report_scope,
+                &ids,
+                pointers,
+                &original_observation.oid,
+                &current_observation.oid,
+                &original_blob_oid,
+                &current_blob_oid,
+                &[decision_ref.as_str(), proposal_ref.as_str()],
+            )
+        })
+        .transpose()?;
 
     let heads = snapshot
         .refs
@@ -830,6 +955,7 @@ pub fn creator_report(repository_path: impl AsRef<Path>, session: &str) -> Resul
         original_blob_oid,
         current_blob_oid,
         ai_output_blob_oid,
+        comparison,
         timeline,
         fsck_objects: fsck.objects_verified,
     })
@@ -1152,6 +1278,20 @@ struct ReportLineage {
     base_snapshot: String,
     proposal_snapshot: String,
     decision_snapshot: String,
+    comparison: Option<ComparisonPointers>,
+}
+
+#[derive(Clone, Debug)]
+struct ComparisonPointers {
+    analysis_oid: String,
+    tool_actor_oid: String,
+    implementation_oid: String,
+    configuration_oid: String,
+}
+
+struct BaseSnapshotPointers {
+    import_activity_oid: String,
+    comparison: Option<ComparisonPointers>,
 }
 
 fn load_session_ids(
@@ -1280,7 +1420,19 @@ fn validate_report_lineage(
     let base = read_json(repository, base_head)?;
     require_stored_value(&base, "object_type", "commit", "creator base object_type")?;
     require_stored_value(&base, "commit_kind", "checkpoint", "creator base kind")?;
+    require_stored_value(&base, "author_ref", &ids.creator, "creator base author")?;
     let base_snapshot = string_field(&base, "snapshot", "creator base snapshot")?;
+    let base_pointers = load_base_snapshot_pointers(repository, base_snapshot)?;
+    let mut expected_base_transitions = vec![base_pointers.import_activity_oid.as_str()];
+    if let Some(comparison) = &base_pointers.comparison {
+        expected_base_transitions.push(comparison.analysis_oid.as_str());
+    }
+    require_string_set(
+        &base,
+        "transition_refs",
+        &expected_base_transitions,
+        "creator base transition_refs",
+    )?;
 
     let proposal = read_json(repository, proposal_head)?;
     require_stored_value(
@@ -1423,7 +1575,498 @@ fn validate_report_lineage(
         base_snapshot: base_snapshot.to_owned(),
         proposal_snapshot: proposal_snapshot.to_owned(),
         decision_snapshot: decision_snapshot.to_owned(),
+        comparison: base_pointers.comparison,
     })
+}
+
+fn load_base_snapshot_pointers(
+    repository: &Repository,
+    base_snapshot: &str,
+) -> Result<BaseSnapshotPointers> {
+    let tree = read_json(repository, base_snapshot)?;
+    require_stored_value(
+        &tree,
+        "object_type",
+        "tree",
+        "creator base Tree object_type",
+    )?;
+    let entries = tree
+        .get("entries")
+        .and_then(JsonValue::as_object)
+        .ok_or_else(|| CreatorError::ReportInvalid("creator base Tree has no entries".into()))?;
+    let import_activity_oid = required_tree_entry_oid(
+        entries,
+        "image-import.activity.json",
+        "record",
+        "creator image import Activity",
+    )?;
+    let comparison_parts = [
+        optional_tree_entry_oid(entries, COMPARISON_ANALYSIS_ENTRY, "record")?,
+        optional_tree_entry_oid(entries, COMPARISON_TOOL_ENTRY, "record")?,
+        optional_tree_entry_oid(entries, COMPARISON_IMPLEMENTATION_ENTRY, "blob")?,
+        optional_tree_entry_oid(entries, COMPARISON_CONFIGURATION_ENTRY, "blob")?,
+    ];
+    let comparison = if comparison_parts.iter().all(Option::is_none) {
+        None
+    } else if comparison_parts.iter().all(Option::is_some) {
+        let [
+            analysis_oid,
+            tool_actor_oid,
+            implementation_oid,
+            configuration_oid,
+        ] = comparison_parts.map(Option::unwrap);
+        Some(ComparisonPointers {
+            analysis_oid,
+            tool_actor_oid,
+            implementation_oid,
+            configuration_oid,
+        })
+    } else {
+        return Err(CreatorError::ReportInvalid(
+            "creator base Tree has incomplete byte-identity evidence entries".into(),
+        ));
+    };
+    Ok(BaseSnapshotPointers {
+        import_activity_oid,
+        comparison,
+    })
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_comparison_report(
+    repository: &Repository,
+    projection: &SqliteProjectionStore,
+    scope: &RefScope,
+    ids: &SessionIds,
+    pointers: &ComparisonPointers,
+    base_observation_oid: &str,
+    target_observation_oid: &str,
+    base_media_oid: &str,
+    target_media_oid: &str,
+    expected_refs: &[&str],
+) -> Result<CreatorComparisonReport> {
+    let tool_id = related_entity_id(&ids.series, "observation-tool");
+    let analysis_id = related_entity_id(&ids.series, "byte-identity-analysis");
+    if tool_id == ids.agent {
+        return Err(CreatorError::ReportInvalid(
+            "comparison software tool must be distinct from the AI agent".into(),
+        ));
+    }
+    let tool = read_json(repository, &pointers.tool_actor_oid)?;
+    require_stored_value(
+        &tool,
+        "object_type",
+        "record",
+        "comparison tool object_type",
+    )?;
+    require_stored_value(&tool, "record_type", "actor", "comparison tool record_type")?;
+    require_stored_value(&tool, "entity_id", &tool_id, "comparison tool entity_id")?;
+    require_stored_value(
+        &tool,
+        "asserted_by",
+        &ids.creator,
+        "comparison tool asserted_by",
+    )?;
+    require_stored_value(&tool, "origin", "tool_recorded", "comparison tool origin")?;
+    let tool_payload = object_field(&tool, "payload", "comparison tool payload")?;
+    require_stored_value(
+        tool_payload,
+        "actor_kind",
+        "software_tool",
+        "comparison tool actor_kind",
+    )?;
+
+    let lineage = projection.analysis_lineage(&pointers.analysis_oid, scope)?;
+    if lineage.entity_id != analysis_id
+        || lineage.asserted_by != tool_id
+        || lineage.analysis_kind != "byte_identity"
+        || lineage.comparison_kind != "temporal_observation"
+        || lineage.status != "succeeded"
+        || lineage.comparability != "partial"
+    {
+        return Err(CreatorError::ReportInvalid(
+            "byte-identity AnalysisResult identity or conservative status is invalid".into(),
+        ));
+    }
+    if lineage.adapter.id != BYTE_IDENTITY_ADAPTER_ID
+        || lineage.adapter.version != BYTE_IDENTITY_ADAPTER_VERSION
+        || lineage.adapter.determinism != AdapterDeterminism::Deterministic
+        || lineage.adapter.seed.is_some()
+    {
+        return Err(CreatorError::ReportInvalid(
+            "byte-identity AnalysisResult adapter declaration is invalid".into(),
+        ));
+    }
+    let expected_implementation_oid = byte_identity_implementation_oid();
+    let expected_configuration_oid = byte_identity_configuration_oid();
+    if pointers.implementation_oid != expected_implementation_oid
+        || pointers.configuration_oid != expected_configuration_oid
+        || lineage.adapter.implementation.oid != expected_implementation_oid
+        || lineage.adapter.configuration.oid != expected_configuration_oid
+        || lineage.adapter.implementation.kind != ObjectKind::Blob
+        || lineage.adapter.configuration.kind != ObjectKind::Blob
+        || lineage.adapter.implementation.availability != ObjectAvailability::Present
+        || lineage.adapter.configuration.availability != ObjectAvailability::Present
+    {
+        return Err(CreatorError::ReportInvalid(
+            "byte-identity implementation or configuration evidence is invalid".into(),
+        ));
+    }
+    let expected_inputs = [
+        (0, "base_observation", base_observation_oid),
+        (1, "target_observation", target_observation_oid),
+    ];
+    if lineage.inputs.len() != expected_inputs.len()
+        || !lineage
+            .inputs
+            .iter()
+            .zip(expected_inputs)
+            .all(|(actual, (ordinal, role, oid))| {
+                actual.ordinal == ordinal
+                    && actual.role == role
+                    && actual.object.oid == oid
+                    && actual.object.kind == ObjectKind::Record
+                    && actual.object.availability == ObjectAvailability::Present
+            })
+        || !lineage.transforms.is_empty()
+        || !lineage.derived_blobs.is_empty()
+        || !lineage.masks.is_empty()
+        || lineage.replay_readiness != AnalysisReplayReadiness::Ready
+    {
+        return Err(CreatorError::ReportInvalid(
+            "byte-identity AnalysisResult ordered lineage is invalid".into(),
+        ));
+    }
+    let mut expected_reachable_from = expected_refs
+        .iter()
+        .map(|value| (*value).to_owned())
+        .collect::<Vec<_>>();
+    expected_reachable_from.sort();
+    if lineage.reachable_from != expected_reachable_from {
+        return Err(CreatorError::ReportInvalid(
+            "byte-identity AnalysisResult is not reachable from both creator Refs".into(),
+        ));
+    }
+
+    let analysis = read_json(repository, &pointers.analysis_oid)?;
+    require_object_keys(
+        &analysis,
+        &[
+            "object_type",
+            "schema_version",
+            "record_type",
+            "entity_id",
+            "recorded_at",
+            "asserted_by",
+            "origin",
+            "source_refs",
+            "payload",
+            "extensions",
+        ],
+        "byte-identity AnalysisResult envelope",
+    )?;
+    require_stored_value(
+        &analysis,
+        "object_type",
+        "record",
+        "byte-identity object_type",
+    )?;
+    require_stored_value(
+        &analysis,
+        "schema_version",
+        SCHEMA_VERSION,
+        "byte-identity schema_version",
+    )?;
+    require_stored_value(
+        &analysis,
+        "record_type",
+        "analysis_result",
+        "byte-identity record_type",
+    )?;
+    require_stored_value(&analysis, "origin", "tool_recorded", "byte-identity origin")?;
+    let source_refs = analysis.get("source_refs").ok_or_else(|| {
+        CreatorError::ReportInvalid("byte-identity source_refs are absent".into())
+    })?;
+    require_role_ref(
+        source_refs,
+        "base_observation",
+        base_observation_oid,
+        "byte-identity source_refs",
+    )?;
+    require_role_ref(
+        source_refs,
+        "target_observation",
+        target_observation_oid,
+        "byte-identity source_refs",
+    )?;
+    if source_refs.as_array().map(Vec::len) != Some(2) {
+        return Err(CreatorError::ReportInvalid(
+            "byte-identity source_refs must contain exactly two entries".into(),
+        ));
+    }
+    let payload = object_field(&analysis, "payload", "byte-identity payload")?;
+    require_object_keys(
+        payload,
+        &[
+            "analysis_kind",
+            "comparison_kind",
+            "inputs",
+            "adapter",
+            "status",
+            "comparability",
+            "reason_codes",
+            "derived_blob_refs",
+            "metrics",
+            "warnings",
+            "limitations",
+        ],
+        "byte-identity payload",
+    )?;
+    let adapter = object_field(payload, "adapter", "byte-identity adapter")?;
+    require_object_keys(
+        adapter,
+        &[
+            "id",
+            "version",
+            "implementation_digest",
+            "configuration_digest",
+            "determinism",
+        ],
+        "byte-identity adapter",
+    )?;
+    require_string_set(
+        payload,
+        "reason_codes",
+        &[
+            "byte_identity_only",
+            "capture_profile_imported",
+            "capture_time_unknown",
+        ],
+        "byte-identity reason_codes",
+    )?;
+    let reason_codes = string_array_field(payload, "reason_codes", "byte-identity reason_codes")?;
+    let warnings = string_array_field(payload, "warnings", "byte-identity warnings")?;
+    let limitations = string_array_field(payload, "limitations", "byte-identity limitations")?;
+    let extensions = object_field(&analysis, "extensions", "byte-identity extensions")?;
+    require_object_keys(
+        extensions,
+        &["org.synapsegit.observation-byte-identity"],
+        "byte-identity extensions",
+    )?;
+    let evidence = extensions
+        .get("org.synapsegit.observation-byte-identity")
+        .filter(|value| value.is_object())
+        .ok_or_else(|| {
+            CreatorError::ReportInvalid("byte-identity evidence extension is absent".into())
+        })?;
+    require_object_keys(
+        evidence,
+        &["format", "outcome", "base_media_ref", "target_media_ref"],
+        "byte-identity evidence",
+    )?;
+    require_stored_value(
+        evidence,
+        "format",
+        "synapsegit-observation-byte-identity-v1",
+        "byte-identity evidence format",
+    )?;
+    require_stored_value(
+        evidence,
+        "base_media_ref",
+        base_media_oid,
+        "byte-identity base media",
+    )?;
+    require_stored_value(
+        evidence,
+        "target_media_ref",
+        target_media_oid,
+        "byte-identity target media",
+    )?;
+    let outcome = string_field(evidence, "outcome", "byte-identity outcome")?;
+    let expected_outcome = if base_media_oid == target_media_oid {
+        "identical"
+    } else {
+        "different"
+    };
+    if outcome != expected_outcome {
+        return Err(CreatorError::ReportInvalid(format!(
+            "byte-identity outcome is {outcome:?}, expected {expected_outcome:?}"
+        )));
+    }
+    let expected_warning = if outcome == "identical" {
+        "Identical Blob bytes do not establish that the observed physical subject was unchanged."
+    } else {
+        "Different Blob bytes do not establish visual or physical change."
+    };
+    if warnings != [expected_warning] {
+        return Err(CreatorError::ReportInvalid(
+            "byte-identity warning does not preserve the conservative interpretation".into(),
+        ));
+    }
+    if limitations
+        != [
+            "This adapter compares verified Blob OIDs only and does not decode media, inspect pixels, register viewpoints, or infer appearance or physical change.",
+            "The implementation digest covers the semantic Rust source files and crate manifest, not Cargo.lock, transitive dependency sources, compiler, target, operating system, or full runtime environment.",
+        ]
+    {
+        return Err(CreatorError::ReportInvalid(
+            "byte-identity limitations do not match the known adapter contract".into(),
+        ));
+    }
+    validate_byte_identity_metric(payload, outcome == "identical")?;
+
+    Ok(CreatorComparisonReport {
+        analysis_oid: pointers.analysis_oid.clone(),
+        tool_id,
+        tool_actor_oid: pointers.tool_actor_oid.clone(),
+        adapter_id: lineage.adapter.id,
+        adapter_version: lineage.adapter.version,
+        implementation_oid: pointers.implementation_oid.clone(),
+        configuration_oid: pointers.configuration_oid.clone(),
+        status: lineage.status,
+        comparability: lineage.comparability,
+        outcome: outcome.to_owned(),
+        reason_codes,
+        warnings,
+        base_observation_oid: base_observation_oid.to_owned(),
+        target_observation_oid: target_observation_oid.to_owned(),
+        base_media_oid: base_media_oid.to_owned(),
+        target_media_oid: target_media_oid.to_owned(),
+        replay_ready: true,
+        reachable_from: lineage.reachable_from,
+    })
+}
+
+fn require_role_ref(value: &JsonValue, role: &str, expected: &str, label: &str) -> Result<()> {
+    let entries = value
+        .as_array()
+        .ok_or_else(|| CreatorError::ReportInvalid(format!("{label} is invalid")))?;
+    let mut matches = entries
+        .iter()
+        .filter(|entry| entry.get("role").and_then(JsonValue::as_str) == Some(role));
+    let actual = matches
+        .next()
+        .and_then(|entry| entry.get("oid"))
+        .and_then(JsonValue::as_str)
+        .ok_or_else(|| CreatorError::ReportInvalid(format!("{label} has no {role:?} OID")))?;
+    if matches.next().is_some() || actual != expected {
+        return Err(CreatorError::ReportInvalid(format!(
+            "{label} {role:?} OID does not match the creator session"
+        )));
+    }
+    Ok(())
+}
+
+fn string_array_field(value: &JsonValue, field: &str, label: &str) -> Result<Vec<String>> {
+    value
+        .get(field)
+        .and_then(JsonValue::as_array)
+        .ok_or_else(|| CreatorError::ReportInvalid(format!("{label} is missing or invalid")))?
+        .iter()
+        .map(|value| {
+            value
+                .as_str()
+                .map(str::to_owned)
+                .ok_or_else(|| CreatorError::ReportInvalid(format!("{label} is not a string set")))
+        })
+        .collect()
+}
+
+fn validate_byte_identity_metric(payload: &JsonValue, identical: bool) -> Result<()> {
+    let metrics = payload
+        .get("metrics")
+        .and_then(JsonValue::as_object)
+        .ok_or_else(|| CreatorError::ReportInvalid("byte-identity metrics are invalid".into()))?;
+    require_object_keys(
+        &JsonValue::Object(metrics.clone()),
+        &["byte_identical"],
+        "byte-identity metrics",
+    )?;
+    let metric = metrics
+        .get("byte_identical")
+        .filter(|metric| metric.is_object())
+        .ok_or_else(|| {
+            CreatorError::ReportInvalid("byte-identity metric is missing or invalid".into())
+        })?;
+    require_object_keys(
+        metric,
+        &["mantissa", "scale", "unit"],
+        "byte-identity metric",
+    )?;
+    let expected_mantissa = if identical { "1" } else { "0" };
+    require_stored_value(
+        metric,
+        "mantissa",
+        expected_mantissa,
+        "byte-identity metric mantissa",
+    )?;
+    require_stored_value(metric, "unit", "unitless", "byte-identity metric unit")?;
+    if metric.get("scale").and_then(JsonValue::as_i64) != Some(0) {
+        return Err(CreatorError::ReportInvalid(
+            "byte-identity metric scale is invalid".into(),
+        ));
+    }
+    Ok(())
+}
+
+fn require_object_keys(value: &JsonValue, expected: &[&str], label: &str) -> Result<()> {
+    let object = value
+        .as_object()
+        .ok_or_else(|| CreatorError::ReportInvalid(format!("{label} is not an object")))?;
+    let mut actual = object.keys().map(String::as_str).collect::<Vec<_>>();
+    let mut expected = expected.to_vec();
+    actual.sort_unstable();
+    expected.sort_unstable();
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(CreatorError::ReportInvalid(format!(
+            "{label} fields do not match the known adapter contract"
+        )))
+    }
+}
+
+fn optional_tree_entry_oid(
+    entries: &JsonMap<String, JsonValue>,
+    name: &str,
+    expected_kind: &str,
+) -> Result<Option<String>> {
+    let Some(entry) = entries.get(name) else {
+        return Ok(None);
+    };
+    let entry = entry.as_object().ok_or_else(|| {
+        CreatorError::ReportInvalid(format!("creator base Tree entry {name:?} is invalid"))
+    })?;
+    let kind = entry
+        .get("entry_kind")
+        .and_then(JsonValue::as_str)
+        .ok_or_else(|| {
+            CreatorError::ReportInvalid(format!(
+                "creator base Tree entry {name:?} has no entry_kind"
+            ))
+        })?;
+    if kind != expected_kind {
+        return Err(CreatorError::ReportInvalid(format!(
+            "creator base Tree entry {name:?} is {kind:?}, expected {expected_kind:?}"
+        )));
+    }
+    let oid = entry
+        .get("oid")
+        .and_then(JsonValue::as_str)
+        .ok_or_else(|| {
+            CreatorError::ReportInvalid(format!("creator base Tree entry {name:?} has no OID"))
+        })?;
+    Ok(Some(oid.to_owned()))
+}
+
+fn required_tree_entry_oid(
+    entries: &JsonMap<String, JsonValue>,
+    name: &str,
+    expected_kind: &str,
+    label: &str,
+) -> Result<String> {
+    optional_tree_entry_oid(entries, name, expected_kind)?
+        .ok_or_else(|| CreatorError::ReportInvalid(format!("{label} entry is absent")))
 }
 
 fn require_stored_value(value: &JsonValue, field: &str, expected: &str, label: &str) -> Result<()> {
@@ -1462,6 +2105,39 @@ fn require_empty_array(value: &JsonValue, field: &str, label: &str) -> Result<()
     } else {
         Err(CreatorError::ReportInvalid(format!(
             "{label} must be empty"
+        )))
+    }
+}
+
+fn require_string_set(
+    value: &JsonValue,
+    field: &str,
+    expected: &[&str],
+    label: &str,
+) -> Result<()> {
+    let values = value
+        .get(field)
+        .and_then(JsonValue::as_array)
+        .ok_or_else(|| CreatorError::ReportInvalid(format!("{label} is missing or invalid")))?;
+    let mut actual = values
+        .iter()
+        .map(|value| {
+            value.as_str().map(str::to_owned).ok_or_else(|| {
+                CreatorError::ReportInvalid(format!("{label} contains a non-string value"))
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let mut expected = expected
+        .iter()
+        .map(|value| (*value).to_owned())
+        .collect::<Vec<_>>();
+    actual.sort();
+    expected.sort();
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(CreatorError::ReportInvalid(format!(
+            "{label} does not match the creator session contract"
         )))
     }
 }
@@ -1588,6 +2264,25 @@ fn ai_actor_record(entity_id: &str, asserted_by: &str, recorded_at: &str) -> Jso
                 "capabilities": canonical_set(vec![json!("propose_branch"), json!("read_context")])
             },
             "description": "Records a caller-supplied AI output through the authenticated Pilot boundary."
+        }),
+    )
+}
+
+fn observation_tool_actor_record(
+    entity_id: &str,
+    asserted_by: &str,
+    recorded_at: &str,
+) -> JsonValue {
+    envelope(
+        "actor",
+        entity_id,
+        recorded_at,
+        asserted_by,
+        "tool_recorded",
+        json!({
+            "actor_kind": "software_tool",
+            "display_name": "SynapseGit byte-identity adapter",
+            "description": "Compares verified primary-media Blob OIDs without decoding media or inferring visual or physical change."
         }),
     )
 }
@@ -1980,7 +2675,14 @@ fn commit(
 
 #[cfg(test)]
 mod tests {
-    use super::{SessionIds, civil_from_days, entity_id, format_timestamp};
+    use super::{
+        COMPARISON_ANALYSIS_ENTRY, COMPARISON_CONFIGURATION_ENTRY, COMPARISON_IMPLEMENTATION_ENTRY,
+        COMPARISON_TOOL_ENTRY, JsonMap, Repository, SessionIds, actor_record, civil_from_days,
+        entity_id, format_timestamp, insert_entry, load_base_snapshot_pointers, manifest_tree,
+        put_json, validate_byte_identity_metric,
+    };
+    use serde_json::json;
+    use std::io::Cursor;
 
     #[test]
     fn timestamp_conversion_matches_epoch_and_leap_day() {
@@ -2009,5 +2711,105 @@ mod tests {
             SessionIds::fresh().unwrap().subject,
             SessionIds::fresh().unwrap().subject
         );
+    }
+
+    #[test]
+    fn comparison_tree_entries_are_optional_only_as_a_complete_legacy_set() {
+        let path = std::env::temp_dir().join(format!(
+            "synapse-creator-comparison-tree-test-{}",
+            std::process::id()
+        ));
+        let _ = std::fs::remove_dir_all(&path);
+        let repository = Repository::open(&path).unwrap();
+        let ids = SessionIds::from_seed(&[9; 32]);
+        let record_oid = put_json(
+            &repository,
+            actor_record(
+                &ids.creator,
+                &ids.creator,
+                "2026-07-13T00:00:00.000000000Z",
+                "human",
+                "Test creator",
+            ),
+        )
+        .unwrap();
+        let implementation_oid = repository
+            .put_blob(Cursor::new(b"implementation"))
+            .unwrap()
+            .oid;
+        let configuration_oid = repository
+            .put_blob(Cursor::new(b"configuration"))
+            .unwrap()
+            .oid;
+        let mut entries = JsonMap::new();
+        insert_entry(
+            &mut entries,
+            "image-import.activity.json",
+            "record",
+            &record_oid,
+        );
+        let legacy_tree = put_json(&repository, manifest_tree(entries.clone())).unwrap();
+        assert!(
+            load_base_snapshot_pointers(&repository, &legacy_tree)
+                .unwrap()
+                .comparison
+                .is_none()
+        );
+
+        insert_entry(
+            &mut entries,
+            COMPARISON_ANALYSIS_ENTRY,
+            "record",
+            &record_oid,
+        );
+        let partial_tree = put_json(&repository, manifest_tree(entries.clone())).unwrap();
+        assert!(load_base_snapshot_pointers(&repository, &partial_tree).is_err());
+
+        insert_entry(&mut entries, COMPARISON_TOOL_ENTRY, "record", &record_oid);
+        insert_entry(
+            &mut entries,
+            COMPARISON_IMPLEMENTATION_ENTRY,
+            "blob",
+            &implementation_oid,
+        );
+        insert_entry(
+            &mut entries,
+            COMPARISON_CONFIGURATION_ENTRY,
+            "blob",
+            &configuration_oid,
+        );
+        let complete_tree = put_json(&repository, manifest_tree(entries)).unwrap();
+        let pointers = load_base_snapshot_pointers(&repository, &complete_tree)
+            .unwrap()
+            .comparison
+            .unwrap();
+        assert_eq!(pointers.analysis_oid, record_oid);
+        assert_eq!(pointers.implementation_oid, implementation_oid);
+        assert_eq!(pointers.configuration_oid, configuration_oid);
+        drop(repository);
+        std::fs::remove_dir_all(path).unwrap();
+    }
+
+    #[test]
+    fn byte_identity_metric_rejects_extra_semantic_claims() {
+        let mut payload = json!({
+            "metrics": {
+                "byte_identical": {
+                    "mantissa": "1",
+                    "scale": 0,
+                    "unit": "unitless"
+                }
+            }
+        });
+        validate_byte_identity_metric(&payload, true).unwrap();
+        payload
+            .get_mut("metrics")
+            .and_then(|metrics| metrics.as_object_mut())
+            .unwrap()
+            .insert(
+                "physical_change".into(),
+                json!({ "mantissa": "1", "scale": 0, "unit": "unitless" }),
+            );
+        assert!(validate_byte_identity_metric(&payload, true).is_err());
     }
 }

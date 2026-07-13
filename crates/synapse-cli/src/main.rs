@@ -281,6 +281,26 @@ fn print_creator_report(report: &CreatorReport) {
     println!("original={}", report.original_blob_oid);
     println!("current={}", report.current_blob_oid);
     println!("ai_output={}", report.ai_output_blob_oid);
+    if let Some(comparison) = &report.comparison {
+        println!("comparison_analysis={}", comparison.analysis_oid);
+        println!(
+            "comparison_adapter={}@{}",
+            comparison.adapter_id, comparison.adapter_version
+        );
+        println!("comparison_status={}", comparison.status);
+        println!("comparison_comparability={}", comparison.comparability);
+        println!("byte_identity={}", comparison.outcome);
+        println!(
+            "comparison_reason_codes={}",
+            comparison.reason_codes.join(",")
+        );
+        println!("comparison_replay_ready={}", comparison.replay_ready);
+        for warning in &comparison.warnings {
+            println!("comparison_warning={warning:?}");
+        }
+    } else {
+        println!("comparison=unavailable");
+    }
     println!("fsck=clean objects={}", report.fsck_objects);
     println!("timeline={}", report.timeline.len());
     for entry in &report.timeline {
