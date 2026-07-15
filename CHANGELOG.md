@@ -49,6 +49,10 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   archive restore no longer scans an unused Tombstone inventory.
 - Repository-owner merge and security settings now have a versioned,
   idempotent GitHub CLI manager and read-only drift check.
+- Pinned GitHub Actions and direct Rust dependencies were refreshed together;
+  schema validation and SHA-256 formatting were migrated without changing
+  protocol OIDs, and bundled SQLite advanced to the newest release compatible
+  with the workspace's Rust 1.88 policy.
 
 ## [0.1.0] - 2026-07-15
 

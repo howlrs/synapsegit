@@ -400,7 +400,7 @@ impl SchemaRegistry {
                 ErrorCode::SchemaInvalid,
                 format!(
                     "{schema_name} rejected instance at {}: {error}",
-                    display_pointer(error.instance_path.as_str())
+                    display_pointer(error.instance_path().as_str())
                 ),
             ));
         }

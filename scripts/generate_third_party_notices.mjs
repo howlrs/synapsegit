@@ -35,6 +35,12 @@ const packages = metadata.packages
   );
 
 const fallbackLicenseFiles = new Map([
+  // These crate archives omit their workspace-root license. The fixed copies
+  // come from the exact VCS revisions recorded in each crate's package:
+  // github.com/Stranger6667/jsonschema/tree/91dac5ee04f241b543f72e83c45b407f372dac6d
+  // github.com/Spxg/sqlite-wasm-rs/tree/1bb309784f25c401ddf95131dcde4c4cdad7aee7
+  ["jsonschema-regex@0.47.0", "third_party/Stranger6667-jsonschema-LICENSE"],
+  ["rsqlite-vfs@0.1.1", "third_party/Spxg-sqlite-wasm-rs-LICENSE"],
   ["uuid-simd@0.8.0", "third_party/Nugine-simd-LICENSE"],
   ["vsimd@0.8.0", "third_party/Nugine-simd-LICENSE"],
 ]);

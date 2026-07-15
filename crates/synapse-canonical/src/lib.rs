@@ -364,7 +364,10 @@ pub fn structured_oid_unchecked_with_limits(
     let mut digest = Sha256::new();
     digest.update(domain.as_bytes());
     digest.update(&body);
-    Ok(format!("{prefix}:sg-oid-v1:sha256:{:x}", digest.finalize()))
+    Ok(format!(
+        "{prefix}:sg-oid-v1:sha256:{}",
+        lower_hex(digest.finalize())
+    ))
 }
 
 /// Calculate the raw byte OID. No decoding or normalization is performed.
@@ -391,7 +394,18 @@ pub fn verify_blob_oid(claimed_oid: &str, bytes: &[u8]) -> Result<(), CoreError>
 }
 
 pub fn sha256_hex(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    lower_hex(Sha256::digest(bytes))
+}
+
+fn lower_hex(bytes: impl IntoIterator<Item = u8>) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let bytes = bytes.into_iter();
+    let mut output = String::with_capacity(bytes.size_hint().0.saturating_mul(2));
+    for byte in bytes {
+        output.push(DIGITS[usize::from(byte >> 4)] as char);
+        output.push(DIGITS[usize::from(byte & 0x0f)] as char);
+    }
+    output
 }
 
 /// Verify only the digest of a transport-supplied OID.
