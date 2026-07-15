@@ -54,4 +54,5 @@ jobs:
           node scripts/verify_license.mjs
           node scripts/generate_third_party_notices.mjs --check
           node scripts/verify_mermaid.mjs
+          node scripts/manage_github_security.mjs --validate
           git diff --check
