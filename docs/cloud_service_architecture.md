@@ -16,6 +16,12 @@ Core v0.1 protocolを変更する文書ではない。OID、object、Ref、reflo
 cloud product名は2026-07時点の推奨baselineであり、deploy時には末尾のprovider公式資料で
 availability、quota、security behaviorを再確認する。
 
+> **Non-production packaging validation (2026-07-14):** 現行local CLIをprivate／one-shot
+> Cloud Run Jobとしてisolated development projectへ展開し、OCI build、Artifact Registry、専用identity、
+> Terraform deployment、digest-pinned実行を検証した。この[smoke deployment](../deploy/gcp/README.md)に
+> public ingress、永続authority、GCS／PostgreSQL adapter、OIDC、tenant isolationは含まれず、
+> Phase 1完了やproduction service実装を意味しない。
+
 ## Executive decision
 
 最初のproduction deploymentは次のGCP profileをSHOULDとする。

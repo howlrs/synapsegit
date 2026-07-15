@@ -1,0 +1,20 @@
+# Upload only the files required by the allowlisted Docker build context.
+# This prevents local targets, Terraform state, credentials, and unrelated
+# repository content from entering the Cloud Build source archive.
+**
+!.gcloudignore
+!Dockerfile
+!cloudbuild.yaml
+!Cargo.toml
+!Cargo.lock
+!crates/
+!crates/**
+!spec/
+!spec/core/
+!spec/core/v0.1/
+!spec/core/v0.1/schemas/
+!spec/core/v0.1/schemas/*.json
+!deploy/
+!deploy/gcp/
+!deploy/gcp/smoke/
+!deploy/gcp/smoke/**

@@ -1,0 +1,18 @@
+[package]
+name = "synapse-local-service"
+version = "0.1.0"
+description = "Transport-neutral trusted facade for the SynapseGit localhost application"
+edition.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+publish = false
+
+[dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+sha2.workspace = true
+synapse-core = { path = "../synapse-core" }
+synapse-creator = { path = "../synapse-creator" }
+synapse-sqlite = { path = "../synapse-sqlite" }
+
+[dev-dependencies]
+serde_json = "1.0.150"

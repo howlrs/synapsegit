@@ -8,9 +8,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
 use synapse_sqlite::{
-    RefArchive, RefArchiveExportLimits, RefPrecondition, RefSnapshot, RefStoreError, RefUpdate,
-    ReflogEntry, ReflogMetadata, SqliteRefStore, ValidationError, validate_commit_oid,
-    validate_ref_name,
+    MAX_REFLOG_PAGE_ENTRIES, RefArchive, RefArchiveExportLimits, RefPrecondition, RefSnapshot,
+    RefStoreError, RefUpdate, ReflogEntry, ReflogMetadata, SqliteRefStore, ValidationError,
+    validate_commit_oid, validate_ref_name,
 };
 
 static NEXT_TEMP_DIRECTORY: AtomicU64 = AtomicU64::new(0);
@@ -108,6 +108,101 @@ fn create_sample_archive() -> RefArchive {
         .unwrap();
 
     store.export_archive().unwrap()
+}
+
+#[test]
+fn reflog_page_is_bounded_filtered_and_carries_the_same_snapshot() {
+    let head_a = commit_oid('a');
+    let head_b = commit_oid('b');
+    let head_c = commit_oid('c');
+    let mut store = SqliteRefStore::open_in_memory().unwrap();
+    store
+        .compare_and_swap(update("proposal/a", None, &head_a, 10), &allow_all)
+        .unwrap();
+    store
+        .compare_and_swap(update("decision/b", None, &head_b, 20), &allow_all)
+        .unwrap();
+    store
+        .compare_and_swap(update("proposal/a", Some(&head_a), &head_c, 30), &allow_all)
+        .unwrap();
+
+    let first = store.read_reflog_page(None, None, 2).unwrap();
+    assert_eq!(first.snapshot, store.snapshot().unwrap());
+    assert_eq!(
+        first
+            .entries
+            .iter()
+            .map(|entry| entry.id)
+            .collect::<Vec<_>>(),
+        [1, 2]
+    );
+    assert_eq!(first.next_after_event_id, Some(2));
+
+    let second = store
+        .read_reflog_page(None, first.next_after_event_id, 2)
+        .unwrap();
+    assert_eq!(
+        second
+            .entries
+            .iter()
+            .map(|entry| entry.id)
+            .collect::<Vec<_>>(),
+        [3]
+    );
+    assert_eq!(second.next_after_event_id, None);
+
+    let filtered = store
+        .read_reflog_page(Some("proposal/a"), Some(1), 10)
+        .unwrap();
+    assert_eq!(filtered.entries.len(), 1);
+    assert_eq!(filtered.entries[0].id, 3);
+    assert_eq!(filtered.entries[0].ref_name, "proposal/a");
+}
+
+#[test]
+fn reflog_page_rejects_unbounded_or_invalid_inputs_before_querying() {
+    let store = SqliteRefStore::open_in_memory().unwrap();
+    for limit in [0, MAX_REFLOG_PAGE_ENTRIES + 1] {
+        let error = store
+            .read_reflog_page(None, None, limit)
+            .expect_err("invalid page limit must fail");
+        assert_eq!(error.code(), "resource_limit");
+    }
+    let cursor_error = store
+        .read_reflog_page(None, Some(-1), 1)
+        .expect_err("negative cursor must fail");
+    assert!(matches!(
+        cursor_error,
+        RefStoreError::InvalidMetadata { .. }
+    ));
+
+    let ref_error = store
+        .read_reflog_page(Some("not-a-ref"), None, 1)
+        .expect_err("invalid Ref filter must fail");
+    assert!(matches!(ref_error, RefStoreError::InvalidRefName { .. }));
+}
+
+#[test]
+fn bounded_snapshot_rejects_one_row_beyond_the_limit() {
+    let head_a = commit_oid('a');
+    let head_b = commit_oid('b');
+    let mut store = SqliteRefStore::open_in_memory().unwrap();
+    store
+        .compare_and_swap(update("proposal/a", None, &head_a, 10), &allow_all)
+        .unwrap();
+    store
+        .compare_and_swap(update("decision/b", None, &head_b, 20), &allow_all)
+        .unwrap();
+
+    assert_eq!(store.snapshot_limited(2).unwrap().len(), 2);
+    let overflow = store
+        .snapshot_limited(1)
+        .expect_err("one row beyond the limit must fail");
+    assert_eq!(overflow.code(), "resource_limit");
+    let zero = store
+        .snapshot_limited(0)
+        .expect_err("zero snapshot limit must fail");
+    assert_eq!(zero.code(), "resource_limit");
 }
 
 fn assert_archive_invalid(archive: &RefArchive) {

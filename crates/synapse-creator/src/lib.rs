@@ -10,6 +10,7 @@
 
 use serde_json::{Map as JsonMap, Value as JsonValue, json};
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 use std::fs::File;
@@ -37,7 +38,7 @@ use synapse_projection::{
     AdapterDeterminism, AnalysisReplayReadiness, ObjectAvailability, ProjectionError,
     ProjectionLimits, RefScope, SqliteProjectionStore, TimelineRecordKind, TimelineTimeBasis,
 };
-use synapse_sqlite::{RefStoreError, RefUpdate, ReflogMetadata};
+use synapse_sqlite::{RefSnapshot, RefStoreError, RefUpdate, ReflogMetadata};
 
 const SCHEMA_VERSION: &str = "0.1.0";
 const DECISION_PREFIX: &str = "decision/creator";
@@ -225,10 +226,38 @@ pub struct CreatorReport {
     pub fsck_objects: usize,
 }
 
+/// A creator report and the exact Projection fingerprint built from one
+/// caller-supplied Ref snapshot.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreatorSnapshotReport {
+    pub report: CreatorReport,
+    pub projection_source_fingerprint: String,
+}
+
+/// Lightweight creator-session state derived from exact creator Ref
+/// namespaces. A Complete summary is still fully revalidated when its detail
+/// report is requested.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CreatorSessionState {
+    Complete,
+    Incomplete,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreatorSessionSummary {
+    pub session: String,
+    pub state: CreatorSessionState,
+    pub proposal_ref: Option<String>,
+    pub proposal_head: Option<String>,
+    pub decision_ref: Option<String>,
+    pub decision_head: Option<String>,
+}
+
 /// Errors from the Pilot orchestration boundary.
 #[derive(Debug)]
 pub enum CreatorError {
     InvalidArgument(String),
+    ResourceLimit(String),
     SessionExists(String),
     SessionIncomplete(String),
     SessionNotFound(String),
@@ -248,6 +277,7 @@ impl CreatorError {
     pub fn code(&self) -> &str {
         match self {
             Self::InvalidArgument(_) => "usage_error",
+            Self::ResourceLimit(_) => "resource_limit",
             Self::SessionExists(_) => "creator_session_exists",
             Self::SessionIncomplete(_) => "creator_session_incomplete",
             Self::SessionNotFound(_) => "creator_session_not_found",
@@ -266,6 +296,7 @@ impl fmt::Display for CreatorError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::InvalidArgument(message) => formatter.write_str(message),
+            Self::ResourceLimit(message) => formatter.write_str(message),
             Self::SessionExists(session) => {
                 write!(formatter, "creator session {session:?} already exists")
             }
@@ -806,9 +837,24 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
 pub fn creator_report(repository_path: impl AsRef<Path>, session: &str) -> Result<CreatorReport> {
     validate_session(session)?;
     let repository = Repository::open(repository_path)?;
+    let snapshot = repository.refs().snapshot()?;
+    Ok(creator_report_from_snapshot(&repository, &snapshot, session)?.report)
+}
+
+/// Rebuild a creator report from exactly the supplied Ref snapshot.
+///
+/// This is the read boundary used by transports that must return one coherent
+/// snapshot watermark and Projection fingerprint. It never captures a second
+/// Ref snapshot internally. CAS remains append-only under the local trust
+/// model, and the final integrity check is scoped to the supplied heads.
+pub fn creator_report_from_snapshot(
+    repository: &Repository,
+    snapshot: &RefSnapshot,
+    session: &str,
+) -> Result<CreatorSnapshotReport> {
+    validate_session(session)?;
     let decision_ref = decision_ref(session);
     let proposal_ref = proposal_ref(session);
-    let snapshot = repository.refs().snapshot()?;
     let decision_head = snapshot
         .refs
         .iter()
@@ -824,21 +870,25 @@ pub fn creator_report(repository_path: impl AsRef<Path>, session: &str) -> Resul
         (None, None) => return Err(CreatorError::SessionNotFound(session.to_owned())),
         _ => return Err(CreatorError::SessionIncomplete(session.to_owned())),
     };
-    if read_json(&repository, &decision_head)?
+    if read_json(repository, &decision_head)?
         .get("commit_kind")
         .and_then(JsonValue::as_str)
         != Some("decision")
     {
         return Err(CreatorError::SessionIncomplete(session.to_owned()));
     }
-    let ids = load_session_ids(&repository, session, &decision_head)?;
+    let ids = load_session_ids(repository, session, &decision_head)?;
 
-    let lineage = validate_report_lineage(&repository, &ids, &decision_head, &proposal_head)?;
+    let lineage = validate_report_lineage(repository, &ids, &decision_head, &proposal_head)?;
     let disposition = lineage.disposition;
     let rationale = lineage.rationale;
 
     let mut projection = SqliteProjectionStore::open_in_memory()?;
-    projection.rebuild_with_limits(repository.objects(), &snapshot, ProjectionLimits::default())?;
+    let rebuild = projection.rebuild_with_limits(
+        repository.objects(),
+        snapshot,
+        ProjectionLimits::default(),
+    )?;
     let report_scope = RefScope::names([decision_ref.clone(), proposal_ref.clone()]);
     let timeline = projection.subject_timeline(&ids.subject, None, &report_scope)?;
     let original_observation = timeline
@@ -864,7 +914,7 @@ pub fn creator_report(repository_path: impl AsRef<Path>, session: &str) -> Resul
     }
     let original_blob_oid = role_oid(
         object_field(
-            &read_json(&repository, &original_observation.oid)?,
+            &read_json(repository, &original_observation.oid)?,
             "payload",
             "original Observation payload",
         )?,
@@ -873,7 +923,7 @@ pub fn creator_report(repository_path: impl AsRef<Path>, session: &str) -> Resul
     )?;
     let current_blob_oid = role_oid(
         object_field(
-            &read_json(&repository, &current_observation.oid)?,
+            &read_json(repository, &current_observation.oid)?,
             "payload",
             "current Observation payload",
         )?,
@@ -882,7 +932,7 @@ pub fn creator_report(repository_path: impl AsRef<Path>, session: &str) -> Resul
     )?;
     let ai_output_blob_oid = role_oid(
         object_field(
-            &read_json(&repository, &ai_activity.oid)?,
+            &read_json(repository, &ai_activity.oid)?,
             "payload",
             "AI Activity payload",
         )?,
@@ -894,7 +944,7 @@ pub fn creator_report(repository_path: impl AsRef<Path>, session: &str) -> Resul
         .as_ref()
         .map(|pointers| {
             validate_comparison_report(
-                &repository,
+                repository,
                 &projection,
                 &report_scope,
                 &ids,
@@ -937,30 +987,116 @@ pub fn creator_report(repository_path: impl AsRef<Path>, session: &str) -> Resul
         })
         .collect();
 
-    Ok(CreatorReport {
-        session: session.to_owned(),
-        project_id: ids.project,
-        subject_id: ids.subject,
-        creator_id: ids.creator,
-        agent_id: ids.agent,
-        decision_ref,
-        proposal_ref,
-        decision_head,
-        proposal_head,
-        base_head: lineage.base_head,
-        base_snapshot: lineage.base_snapshot,
-        proposal_snapshot: lineage.proposal_snapshot,
-        decision_snapshot: lineage.decision_snapshot,
-        disposition,
-        selected_ai_output: disposition == CreatorDisposition::Adopt,
-        rationale,
-        original_blob_oid,
-        current_blob_oid,
-        ai_output_blob_oid,
-        comparison,
-        timeline,
-        fsck_objects: fsck.objects_verified,
+    Ok(CreatorSnapshotReport {
+        report: CreatorReport {
+            session: session.to_owned(),
+            project_id: ids.project,
+            subject_id: ids.subject,
+            creator_id: ids.creator,
+            agent_id: ids.agent,
+            decision_ref,
+            proposal_ref,
+            decision_head,
+            proposal_head,
+            base_head: lineage.base_head,
+            base_snapshot: lineage.base_snapshot,
+            proposal_snapshot: lineage.proposal_snapshot,
+            decision_snapshot: lineage.decision_snapshot,
+            disposition,
+            selected_ai_output: disposition == CreatorDisposition::Adopt,
+            rationale,
+            original_blob_oid,
+            current_blob_oid,
+            ai_output_blob_oid,
+            comparison,
+            timeline,
+            fsck_objects: fsck.objects_verified,
+        },
+        projection_source_fingerprint: rebuild.metadata.source_fingerprint,
     })
+}
+
+/// Discover creator-owned Ref pairs without rebuilding one Projection per
+/// session. Both Refs and a digest-verified decision Commit are required for a
+/// Complete summary; all other retained shapes are explicitly incomplete.
+pub fn discover_creator_sessions(
+    repository: &Repository,
+    snapshot: &RefSnapshot,
+    max_sessions: usize,
+) -> Result<Vec<CreatorSessionSummary>> {
+    if max_sessions == 0 {
+        return Err(CreatorError::InvalidArgument(
+            "max_sessions must be greater than zero".into(),
+        ));
+    }
+
+    #[derive(Default)]
+    struct Heads {
+        proposal_ref: Option<String>,
+        proposal_head: Option<String>,
+        decision_ref: Option<String>,
+        decision_head: Option<String>,
+    }
+
+    let mut sessions = BTreeMap::<String, Heads>::new();
+    for reference in &snapshot.refs {
+        let (prefix, is_proposal) = if reference.name.starts_with(&format!("{PROPOSAL_PREFIX}/")) {
+            (PROPOSAL_PREFIX, true)
+        } else if reference.name.starts_with(&format!("{DECISION_PREFIX}/")) {
+            (DECISION_PREFIX, false)
+        } else {
+            continue;
+        };
+        let session = reference
+            .name
+            .strip_prefix(prefix)
+            .and_then(|suffix| suffix.strip_prefix('/'))
+            .expect("the exact prefix check established a slash suffix");
+        validate_session(session).map_err(|_| {
+            CreatorError::ReportInvalid(format!(
+                "creator Ref {:?} has an invalid session segment",
+                reference.name
+            ))
+        })?;
+        if !sessions.contains_key(session) && sessions.len() == max_sessions {
+            return Err(CreatorError::ResourceLimit(format!(
+                "creator session count exceeds max_sessions {max_sessions}"
+            )));
+        }
+        let heads = sessions.entry(session.to_owned()).or_default();
+        if is_proposal {
+            heads.proposal_ref = Some(reference.name.clone());
+            heads.proposal_head = Some(reference.head.clone());
+        } else {
+            heads.decision_ref = Some(reference.name.clone());
+            heads.decision_head = Some(reference.head.clone());
+        }
+    }
+
+    sessions
+        .into_iter()
+        .map(|(session, heads)| {
+            let state = match (&heads.proposal_head, &heads.decision_head) {
+                (Some(_), Some(decision_head))
+                    if read_json(repository, decision_head)?
+                        .get("commit_kind")
+                        .and_then(JsonValue::as_str)
+                        == Some("decision") =>
+                {
+                    CreatorSessionState::Complete
+                }
+                _ => CreatorSessionState::Incomplete,
+            };
+            Ok(CreatorSessionSummary {
+                session,
+                state,
+                proposal_ref: heads.proposal_ref,
+                proposal_head: heads.proposal_head,
+                decision_ref: heads.decision_ref,
+                decision_head: heads.decision_head,
+            })
+        })
+        .collect()
 }
 
 fn validate_metadata(options: &CreatorRunOptions) -> Result<()> {

@@ -1,6 +1,6 @@
 # SynapseGit 作業引き継ぎ
 
-更新日: 2026-07-14
+更新日: 2026-07-15
 
 この文書は、次の作業者が現在地を誤認せずに再開するための実装引き継ぎである。
 規範仕様ではない。資料が食い違う場合は、[documentation index](./README.md#資料の位置づけ)に
@@ -10,8 +10,8 @@
 
 - repository: `/home/o9oem/workspace/mine/temp/ai_git`
 - working branch: `agent/archive-export-hardening`
-- latest committed local head before the cloud architecture slice: `363f72a`
-  (`docs: define localhost application architecture`)
+- latest committed local head: `7850e74`
+  (`docs: define cloud service architecture`)
 - remote branch head: `cb21c45823bcd1f11031ca209157a33ee72816e2`
   (`docs: add current project handoff`)、`363f72a`時点でlocal branchは6 commits ahead
 - implementation baseline: `7f1fa96eba919b10401c6da8faaa717ff5d51c15`
@@ -26,12 +26,38 @@
   - `5f8b62a feat: report creator byte identity evidence`
   - `23bfe94 docs: sync observation comparison workflow`
   - `363f72a docs: define localhost application architecture`
-- localhost application slice 1はarchitecture、versioned OpenAPI contract、contract verifier、docs syncまで完了した
+- localhost application slice 1はarchitecture、versioned OpenAPI contract、contract verifier、docs syncまで完了した。
+  現在のworking treeではread-only slice 2/3として`synapse-local-service`、`synapse-local-http`、
+  native `synapse-local` binary、server-rendered UIまで追加されている
 - cloud architecture sliceはGCP主系／AWS portability profile、tenant／security、operation、SLO／DR、
-  migration／release gateまで完了し、本handoffと同じdocs commitに含める。commit後はremote baselineより7 commits aheadになる
-- current検証: `cargo test --workspace --all-targets --locked` 218 tests、workspace Clippy `-D warnings`、
+  migration／release gateまで完了し、`7850e74`に含まれる。remote baselineより7 commits aheadである
+- committed head検証: `cargo test --workspace --all-targets --locked` 218 tests、workspace Clippy `-D warnings`、
   Rustdoc `-D warnings`、format、Core fixture、localhost API contract（16 operations／39 schemas／137 refs）、
   official OpenAPI 3.1 schema、documentation link（23 files／215 local links）、Mermaid 30 blocks、diff checksが成功
+- current working tree検証: `cargo test --workspace --all-targets --locked` 247 tests、workspace
+  Clippy `-D warnings`、Rustdoc `-D warnings`、format、Core fixture、localhost API contract
+  （16 operations／39 schemas／137 refs）、documentation link（23 files／230 local links）、Mermaid 30 blocks、
+  JavaScript syntax、release build、native processのloopback E2E smokeが成功
+- private non-production GCP CLI smoke deployment assetsは未commitで、`Dockerfile`、`cloudbuild.yaml`、
+  `.dockerignore`、`.gcloudignore`、`deploy/gcp/`としてworking treeにある
+- localhost applicationも未commitで、`crates/synapse-local-service/`、`crates/synapse-local-http/`、
+  [`deploy/local/`](../deploy/local/README.md)とCore read foundationの変更としてworking treeにある
+
+### 1.1 Non-production GCP packaging smoke
+
+- isolated development project: `synapsegit-dev-20260714-a1a3`（project number `865936550009`）
+- temporary development region: `asia-northeast1`。production data residency／DR decisionではない
+- successful Cloud Build: `5e15e491-a054-438c-90c4-67e0dead8c75`
+- deployed image:
+  `asia-northeast1-docker.pkg.dev/synapsegit-dev-20260714-a1a3/synapsegit/synapsegit-cli-smoke@sha256:a7b0c273ba8f324b5735a9eaee91c365b2f3cd4bc9d2741d984cf978115fae85`
+- Cloud Run Job／successful execution: `synapsegit-cli-smoke`／`synapsegit-cli-smoke-hmlkx`
+- execution result: 1/1 task succeeded、retry 0、`objects=24 verified=24 closures=2 issues=0`、
+  `SynapseGit Cloud Run smoke test passed.`
+- Terraform管理範囲はprivate Artifact Registry、7日でsource objectを削除するprivate bucket、専用build／runtime
+  service account、required APIs、digest-pinned Jobだけである。stateは現状local ignored fileであり、shared運用前に
+  restricted remote backendへ移す
+- runtime service accountにproject roleはなく、public endpoint／ingress、永続filesystem、GCS／PostgreSQL authority、
+  OIDC、tenant isolationはない。この実行はpackaging／deployment smokeであり、production Phase 1完了ではない
 
 `7f1fa96`ではarchive inventory／bytes／Ref／reflog／Tombstone／manifest、
 distinct-head closure workをboundedにし、対応OSのarchive publicationをatomic no-replaceにした。
@@ -44,10 +70,12 @@ process-level export/update stressも追加した。詳細な契約は
 SynapseGitは、画像を含む制作物とAI／人の履歴を不変object graphとして保存・検証・移送できる
 local Coreに加え、original／current／AI outputの3画像から手書きJSONなしで一sessionを記録する
 **local single-creator Pilot**と、ordered primary Blob OIDを比較するdeterministic byte-identity baselineを持つ。
-single-user／loopback-only画像applicationはarchitectureとHTTP contractまで決定した。一方、server／route／GUI、
-capture、pixel-level registration／差分解析、実model実行、実利用者認証を備えたproduction creator applicationには
-まだなっていない。public serviceのproduction targetはGCP主系／AWS portability profileとして仕様化したが、
-cloud adapter、PostgreSQL authority、OIDC、tenant isolation、durable operation／admission、deploymentは未実装である。
+single-user／loopback-only画像applicationはread-only slice 2/3まで実装され、project status、Refs／reflog、
+creator sessionのreport／timeline／evidence／画像をnative localhost UIで閲覧できる。一方、upload、Human review、
+maintenance UI、capture、pixel-level registration／差分解析、実model実行、実利用者認証を備えたproduction creator
+applicationにはまだなっていない。public serviceのproduction targetはGCP主系／AWS portability profileとして仕様化したが、
+cloud adapter、PostgreSQL authority、OIDC、tenant isolation、durable operation／admission、public production deploymentは
+未実装である。private／one-shotなCLI packaging smokeだけはisolated GCP projectで検証済みである。
 
 | 利用目標 | 現在の状態 |
 |---|---|
@@ -55,9 +83,11 @@ cloud adapter、PostgreSQL authority、OIDC、tenant isolation、durable operati
 | embedding codeからAI proposal／Human Decision境界を使う | process-local Rust libraryとして利用可能 |
 | 3画像から手書きJSONなしでAI proposal／Human Decision履歴を作る | local single-creator Pilotとして利用可能 |
 | session timeline／process reportを表示しarchive restore後に再現する | local CLIとして利用可能 |
+| existing sessionをbrowserで閲覧する | read-only native localhost UIとして利用可能 |
 | original／currentのprimary Blob byte identityを記録する | `partial`なObservation baselineとして利用可能 |
 | 画像registration／pixel差分／physical change解析を行う | 未実装 |
 | GCP主系／AWS移植可能なpublic serviceを設計する | production architecture完了、実装未着手 |
+| 現行CLIをprivate one-shot GCP Jobとしてpackaging／実行する | non-production smokeとして検証済み |
 | untrustedな複数利用者へnetwork serviceとして提供する | production境界が未実装 |
 
 ## 3. 実装済みの中心
@@ -79,6 +109,12 @@ cloud adapter、PostgreSQL authority、OIDC、tenant isolation、durable operati
   3画像OID／byte identity／review結果の表示。比較一式がないlegacy-shaped snapshotは
   `comparison=unavailable`として読取り可能だが、そのshapeは作成時期を証明しない
 - creator archive／restore後に同じreport／Analysis OIDを再構築するprocess test
+- 同一SQLite read transactionから返すbounded Ref snapshot／`LIMIT + 1` reflog page、caller-supplied
+  snapshotからのcreator report／Projection fingerprint、上限付きverified Blob read
+- `synapse-local-service`のexact startup project catalog、versioned read DTO、project／Ref／reflog／creator-session
+  report／image facade
+- `synapse-local-http`と`synapse-local` binaryのIPv4 loopback固定listener、Host／Origin／process token boundary、
+  Askama dashboard／session UI、compiled-in CSS／browser-native JavaScript
 
 CLIのcommandと制約は[CLI reference](./cli_reference.md)、creator実行例は[使用ガイド](./usage_guide.md#手書きjsonなしのlocal-creator-pilot)を参照する。
 
@@ -142,8 +178,9 @@ admissionを通らない。`creator-run`を含め、現在のCLIをuntrusted cal
 
 - 3 file取込み、Subject／Observation／Activity作成、proposal、人のadopt／reject／deferはlocal CLIで実装済み
 - current lineage検証、履歴timeline、text process report、`fsck`、archive restore再現はlocal Pilotで実装済み
-- localhost image applicationのsafe facade、Axum／Askama、OpenAPI、browser security、8 implementation slicesは
-  [architecture](./localhost_application_architecture.md)で決定済み。実server／route／GUIは未実装
+- localhost image applicationのsafe read facade、Axum／Askama server、browser security、dashboard／session UIは
+  read-only slice 2/3まで実装済み。native起動手順は[local runbook](../deploy/local/README.md)を参照する
+- 三file upload、Human review、`fsck`、export／restore、dedicated incomplete-session diagnosticsのUI／routeは未実装
 - byte-identity reportは実装済み。実capture、pixel-level画像比較、実model／connector実行、継続session編集は未実装
 - ペイントツール、ファイル監視、実利用者Pilotとbenefit measurementは未実装
 
@@ -167,7 +204,8 @@ admissionを通らない。`creator-run`を含め、現在のCLIをuntrusted cal
 
 - [Cloud service architecture](./cloud_service_architecture.md)で、GCPのCloud Run／Cloud SQL／Cloud Storageと
   AWSのECS Fargate／RDS PostgreSQL／S3、OIDC、tenant isolation、durable command、SLO／DRをproduction targetにした
-- architectureだけが完了し、cloud adapter、public API、Terraform、deployment、運用は未実装
+- production architectureだけが完了し、cloud adapter、public API、production Terraform／deployment、運用は未実装。
+  今回のTerraformはisolated development projectで現行CLIをone-shot実行するpackaging smokeだけを管理する
 - proposal CAS／reflogと同じPostgreSQL authority transactionにdurable admission receiptを参加させる設計がP0 blocker
 - AI ExecutorのOS sandbox、connector／egress／SSRF制御、Grant revocationは未実装
 - organization／quorum、release、modified／partial adoption workflowも引き続き未実装
@@ -223,16 +261,16 @@ original / current / caller-supplied AI outputを取り込む
   どちらもcross-session identityとは扱わない
 - incomplete sessionをcreate-only conflictとして保全し、自動resume／cleanupしない
 
-次の実装優先事項は[Cloud service architecture](./cloud_service_architecture.md#phase-0-decisions-and-provider-neutral-contracts)の
-Phase 0と、localhost slice 2が共有するread foundationである。まずRef snapshotと`LIMIT + 1` reflog pageを
-同じSQLite read transactionで返すAPI、caller-supplied snapshotからreportとProjection fingerprintを同時に返すAPI、
-64 MiBでfail-closedするverified Blob readerを追加する。続いてfilesystem／SQLiteのbehaviorを変えずに、
-streaming object portとRef authority protocol typeを抽出し、proposal Ref CAS／reflog／durable admission／outboxを
-一つのPostgreSQL unit of workへ参加させるCore／application contractを先に設計する。
+localhost slice 2が必要としたtransaction-scoped Ref／reflog read、caller-supplied snapshot report、bounded verified
+Blob readerと、その上のsafe facade／loopback dashboardはworking treeで実装済みである。次のlocalhost優先事項は、
+bounded三file uploadをproposal publicationと分離するslice 4、同一Application instanceのpending receiptを使うHuman review
+slice 6、確認付き`fsck`／export／restoreとdiagnosticsである。現在のread-only UIをwrite対応済みと誤認しない。
 
-localhost側はそのread foundation後に`synapse-local-service`のversioned read DTO／exact project catalog、
-`synapse-local-http`のloopback／Host／Origin／token boundary、dashboardを進められる。ただしplanned same-process Human reviewは
-cloud foundationではなく、public routeへ移植しない。cloud Human Decisionはdurable admission gate完了までdisableする。
+並行するcloud優先事項は[Cloud service architecture](./cloud_service_architecture.md#phase-0-decisions-and-provider-neutral-contracts)の
+Phase 0である。filesystem／SQLiteのbehaviorを変えずにstreaming object portとRef authority protocol typeを抽出し、
+proposal Ref CAS／reflog／durable admission／outboxを一つのPostgreSQL unit of workへ参加させるCore／application contractを
+先に設計する。planned same-process Human reviewはcloud foundationではなく、public routeへ移植しない。
+cloud Human Decisionはdurable admission gate完了までdisableする。
 Workstream Cと実model／connectorは並行候補だが、現在のbyte identityをvisual／physical画像差分の代用にしない。
 
 formalなStage 0 exitには、[Stage 0 execution plan](./stage0_execution_plan.md)の第二独立実装によるprotocol freeze、

@@ -1,0 +1,1 @@
+Current harmless input for the SynapseGit Cloud Run smoke test.

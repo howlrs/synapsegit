@@ -208,6 +208,54 @@ fn blob_and_structured_puts_are_idempotent_and_store_canonical_bytes() {
 }
 
 #[test]
+fn verified_blob_reader_applies_the_caller_limit_before_returning_bytes() {
+    let (temporary, store) = open_store("bounded-blob-read");
+    let blob = store.put_blob(b"12345678".as_slice()).unwrap();
+
+    assert_eq!(
+        store
+            .read_verified_blob_limited(&blob.oid, 8)
+            .unwrap()
+            .unwrap(),
+        b"12345678"
+    );
+    let limit_error = store
+        .read_verified_blob_limited(&blob.oid, 7)
+        .expect_err("oversized Blob must fail before returning bytes");
+    assert_error_code(&limit_error, ErrorCode::ResourceLimit);
+    let zero_error = store
+        .read_verified_blob_limited(&blob.oid, 0)
+        .expect_err("zero limit must fail");
+    assert_error_code(&zero_error, ErrorCode::ResourceLimit);
+
+    let record = put_record(&store, "not-a-blob");
+    let family_error = store
+        .read_verified_blob_limited(&record, 1024)
+        .expect_err("structured OID must not pass a Blob reader");
+    assert_error_code(&family_error, ErrorCode::ReferenceTypeMismatch);
+
+    assert!(
+        store
+            .read_verified_blob_limited(&fake_oid("blob", "0"), 1024)
+            .unwrap()
+            .is_none()
+    );
+
+    let constrained = FileObjectStore::open_with_limits(
+        temporary.path(),
+        StoreLimits {
+            max_blob_bytes: 4,
+            ..StoreLimits::default()
+        },
+    )
+    .unwrap();
+    let store_limit_error = constrained
+        .read_verified_blob_limited(&blob.oid, 8)
+        .expect_err("caller limit must not bypass the configured store limit");
+    assert_error_code(&store_limit_error, ErrorCode::ResourceLimit);
+}
+
+#[test]
 fn claimed_oid_mismatches_are_rejected_without_publication() {
     let (temporary, store) = open_store("claimed-mismatch");
 

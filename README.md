@@ -4,6 +4,10 @@ SynapseGit is a Git-like Core for preserving creative intent, evidence,
 observations, interpretations, and decisions without treating a digital record
 as physical truth.
 
+![SynapseGit Localのhome画面。local projectのstatus、Refs数、完了session数をcardで表示](docs/assets/synapse-local/overview-hero.png)
+
+*実画面 — sample repositoryを単一のlocal processから`127.0.0.1`へ配信して撮影したread-only viewerです。GCP CLI smokeやpublic／multi-user cloud serviceの画面ではありません。*
+
 **Core v0.1 / Stage 0 draft** — the local Rust repository path, Creative AI
 proposal admission, process-local AI and narrow Human Decision routes, a
 disposable SQLite query projection, a conservative Observation byte-identity
@@ -29,8 +33,36 @@ Google Cloudを主系、AWSをportability profileとするpublic multi-tenant
 architectureは[Cloud service architecture](docs/cloud_service_architecture.md)で
 仕様化した。Cloud Run／Cloud SQL／Cloud Storageと、ECS Fargate／RDS PostgreSQL／S3の
 対応、tenant isolation、async operation、SLO／DR、migration gateを定義しているが、
-いずれも未実装である。特に現行のprocess-local `AdmittedProposalHandle`は
+public production実装はいずれも未着手である。特に現行のprocess-local `AdmittedProposalHandle`は
 multi-instance Human Decisionへ流用できず、durable admission transactionがproduction blockerである。
+
+2026-07-14に、現行CLIをprivate／one-shot Cloud Run Jobへpackagingする
+[non-production GCP smoke deployment](deploy/gcp/README.md)をisolated development projectで検証した。
+これはOCI build、least-privilege identity、Terraform、digest-pinned deployment、CLI実行のsmoke testに限られ、
+public endpoint、永続authority、cloud storage adapter、OIDC、tenant isolationを実装するものではない。
+
+single-user向けには、nativeな[`synapse-local`](deploy/local/README.md)が`127.0.0.1`固定で動作する。
+現在はproject status、Refs／reflog、creator sessionのreport／timeline／evidence／画像を読むslice 2/3までで、
+upload、Human review、`fsck`、export、restoreのUIは未実装である。このlocalhost applicationは上記GCP CLI
+smokeともpublic cloud serviceとも別の実行形態である。
+
+## ローカルUIの利用イメージ
+
+CLIのraw outputだけを追わずに、projectからcreator session、画像とevidence、timelineへ段階的に辿れます。Human DecisionのdispositionとAI outputの選択状態を分け、履歴の根拠となるRefやOIDも確認できるread-only viewerです。
+
+掲載画面は、sample repositoryを単一のlocal processから`127.0.0.1`へ配信して撮影したものです。GCP CLI smokeやpublic／multi-user serviceの画面ではありません。
+
+![SynapseGit Localのproject dashboard。creator sessions、Refs、最近のreflogを表示](docs/assets/synapse-local/project-dashboard.png)
+
+*Project dashboard — session、現在のRefs、最近のreflogを一つの画面から確認できます。*
+
+![SynapseGit Localのcreator session詳細。Human Decision、AI output selected、三つの画像roleを表示](docs/assets/synapse-local/creator-session.png)
+
+*Session detail — Human Decision、AI outputの選択状態、original／current／AI output、byte-identity evidenceを同じsession内で確認できます。*
+
+![SynapseGit Localを狭いbrowser viewportで表示し、project dashboardの主要情報を幅に合わせて再配置した画面](docs/assets/synapse-local/narrow-viewport.png)
+
+*Responsive layout — 狭いbrowser幅ではsummaryとsectionを幅に合わせて再配置します。mobile applicationやnetwork公開を意味するものではありません。*
 
 ## Why it exists
 
@@ -74,8 +106,9 @@ conformance.
 | Validated ingest and checksum-bound directory export / restore | Implemented |
 | Low-level local Core repository round-trip CLI; structured JSON is caller-supplied | Implemented |
 | Local single-creator Pilot: three opaque images, imported CaptureProfile, generated provenance objects, AI/Human admission, decision, comparison-aware timeline/report, and restore verification without hand-authored JSON | Implemented bounded CLI/library flow |
-| Single-user loopback image application: server-rendered UI, safe facade, and versioned HTTP contract | Architecture/API contract complete; implementation planned |
+| Single-user loopback image application: server-rendered UI, safe facade, and versioned HTTP contract | Read-only slices 2/3 implemented; upload, review, and maintenance UI planned |
 | Public multi-tenant cloud service on GCP, with an AWS portability profile | Production target architecture complete; implementation not started |
+| Private non-production GCP CLI packaging smoke | Container build, Terraform, digest-pinned Cloud Run Job, and one-shot execution verified; no public endpoint or persistence |
 | Deterministic ordered Observation adapter: verified primary Blob OID byte identity, immutable AnalysisResult, dedicated `software_tool` Actor in the creator flow | Implemented conservative library boundary |
 | Fixed-viewpoint capture dataset, pixel registration, and visual difference analysis | Planned (Workstream C) |
 | Creative AI proposal admission: exact capability set, snapshot/output binding, proposal-only, transaction-time expiry / `stale_base` | Implemented library boundary |
@@ -86,7 +119,7 @@ conformance.
 | SurrealDB adapter and complete 8-query / benchmark comparison | Planned |
 
 “Implemented” means covered by this repository's tests. It does not mean that
-real-user authentication, network transport, deployment operations, visual
+real-user authentication, network transport, production deployment operations, visual
 image analysis, or a creator-facing application are production-ready.
 
 The initial application route authenticates before any project or repository
@@ -246,12 +279,14 @@ Start with the [documentation index](docs/README.md).
 | Audience / goal | Document |
 |---|---|
 | Try the implementation | [Quickstart](docs/quickstart.md) |
+| Run the native read-only localhost UI | [Localhost application runbook](deploy/local/README.md) |
 | Understand the user and Pilot flow | [使用ガイド](docs/usage_guide.md) |
 | Understand objects and Records | [Core data model](docs/core_model.md) |
 | Look up terminology and common questions | [Glossary](docs/glossary.md) / [FAQ](docs/faq.md) |
 | Understand storage and process boundaries | [Runtime architecture](docs/runtime_architecture.md) |
 | Implement the localhost image application | [Localhost application architecture](docs/localhost_application_architecture.md) |
 | Plan the GCP production service or AWS equivalent | [Cloud service architecture](docs/cloud_service_architecture.md) |
+| Repeat the private non-production GCP CLI smoke deployment | [GCP CLI smoke deployment](deploy/gcp/README.md) |
 | Review trust and security limits | [Security model](docs/security_model.md) |
 | Contribute code or docs | [Contributing](CONTRIBUTING.md) |
 | Resume the current work | [作業引き継ぎ](docs/handoff.md) |
@@ -293,19 +328,20 @@ flowchart LR
     CAS --> Projection["SQLite ProjectionStore<br/>query index + Analysis lineage"]
     DB -. consistent RefSnapshot .-> Projection
     Creator --> Projection
-    Browser["Creator browser<br/>planned localhost UI"] -.-> LocalHTTP["synapse-local-http<br/>planned loopback server"]
-    LocalHTTP -.-> LocalService["synapse-local-service<br/>planned safe facade"]
-    LocalService -.-> Creator
-    LocalService -.-> Projection
+    Browser["Creator browser<br/>read-only localhost UI"] --> LocalHTTP["synapse-local-http<br/>loopback-only server"]
+    LocalHTTP --> LocalService["synapse-local-service<br/>bounded read facade"]
+    LocalService --> Creator
+    LocalService --> Projection
     Projection -. optional adapter planned .-> SurrealDB[(SurrealDB)]
 ```
 
 Rust owns canonicalization, OIDs, schema validation, storage integrity, Ref
 updates, the initial local AI and narrow Human application routes, AI proposal and Human Decision
 admission, the conservative byte-identity adapter, projection rebuilding, and
-archive verification. The first localhost UI is designed as Rust-rendered HTML
-with small browser-native modules; TypeScript remains a future rich-client / SDK
-option. Python is intended for future pixel/media and AI adapters. Adapters submit data to Core
+archive verification. The first localhost UI is implemented for read-only slices
+2/3 as Rust-rendered HTML with small browser-native modules; upload, Human review,
+and maintenance operations remain planned. TypeScript remains a future rich-client /
+SDK option. Python is intended for future pixel/media and AI adapters. Adapters submit data to Core
 and do not define authoritative OIDs themselves. The embedding
 application control plane, rather than AI-controlled input or CLI reflog
 metadata, supplies the trusted authority profile, target, executor, and clock.

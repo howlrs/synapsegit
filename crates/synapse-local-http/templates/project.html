@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<nav class="breadcrumbs" aria-label="パンくずリスト">
+  <ol><li><a href="/">プロジェクト</a></li><li aria-current="page">{{ project_label }}</li></ol>
+</nav>
+<header class="page-header">
+  <div class="page-header__intro">
+    <p class="eyebrow">{{ project_key }}</p>
+    <h1>{{ project_label }}</h1>
+    <p class="muted">Ref snapshot <code>{{ watermark }}</code></p>
+  </div>
+  <span class="status-badge" data-tone="success">ローカル・読取可能</span>
+</header>
+
+<section class="metric-grid" aria-label="プロジェクト概要">
+  <article class="metric"><span class="metric__label">Refs</span><strong>{{ refs.len() }}</strong></article>
+  <article class="metric"><span class="metric__label">完了</span><strong>{{ complete_sessions }}</strong></article>
+  <article class="metric"><span class="metric__label">未完了</span><strong>{{ incomplete_sessions }}</strong></article>
+</section>
+
+<section aria-labelledby="sessions-heading">
+  <div class="section-heading"><h2 id="sessions-heading">Creator sessions</h2><span class="badge">{{ sessions.len() }} 件</span></div>
+  {% if sessions.is_empty() %}
+  <div class="empty-state"><h3>セッションはまだありません</h3><p>現在は既存履歴の読み取り画面を提供しています。</p></div>
+  {% else %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>セッション</th><th>状態</th><th>Proposal head</th><th>Decision head</th></tr></thead>
+    <tbody>
+      {% for session in sessions %}
+      <tr>
+        <th scope="row"><a href="/projects/{{ project_key }}/creator-sessions/{{ session.session }}">{{ session.session }}</a></th>
+        <td><span class="status-badge" data-tone="{{ session.tone }}">{{ session.state_label }}</span></td>
+        <td><code>{{ session.proposal_head }}</code></td>
+        <td><code>{{ session.decision_head }}</code></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+</section>
+
+<div class="split-grid">
+  <section aria-labelledby="refs-heading">
+    <div class="section-heading"><h2 id="refs-heading">Refs</h2><span class="badge">{{ refs.len() }}</span></div>
+    <div class="stack">
+      {% for reference in refs %}
+      <article class="card card--compact"><h3><code>{{ reference.name }}</code></h3><p><code>{{ reference.head }}</code></p><p class="muted">event {{ reference.event_id }}</p></article>
+      {% endfor %}
+    </div>
+  </section>
+  <section aria-labelledby="reflog-heading">
+    <div class="section-heading"><h2 id="reflog-heading">最近の Reflog</h2><span class="badge">{{ reflog.len() }}</span></div>
+    <ol class="timeline">
+      {% for entry in reflog %}
+      <li class="timeline__item"><div class="timeline__marker" aria-hidden="true"></div><div><p><strong>{{ entry.ref_name }}</strong></p><p><code>{{ entry.new_head }}</code></p><p class="muted">event {{ entry.event_id }} · {{ entry.message }}</p></div></li>
+      {% endfor %}
+    </ol>
+  </section>
+</div>
+{% endblock %}

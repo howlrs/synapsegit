@@ -1,12 +1,16 @@
 # SynapseGit localhost application architecture
 
-Status: approved implementation design; localhost application slice 1
+Status: approved implementation design; localhost application read-only slices 1-3 implemented
 
 Decision date: 2026-07-14
 
-Implementation status: architecture and API contract only. The packages,
-routes, and UI described here are not implemented yet. Core v0.1 remains a
-Stage 0 draft; this application slice is not the formal Core roadmap's Stage 1.
+Implementation status: slices 1-3 are implemented. `synapse-local-service` and
+`synapse-local-http` provide the exact project catalog, bounded read facade,
+loopback HTTP boundary, and server-rendered read-only UI for projects/status,
+Refs/reflog, and creator-session report/timeline/evidence/images. Upload, Human
+review, `fsck`, export, restore, and the dedicated incomplete-session
+diagnostics route remain unimplemented. Core v0.1 remains a Stage 0 draft;
+this application slice is not the formal Core roadmap's Stage 1.
 
 This document defines an application-level contract. It does not change the
 normative Core protocol, canonical bytes, OIDs, Ref semantics, or archive
@@ -19,7 +23,7 @@ IPv4 loopback. It is not a public GitHub-like service. Rust remains the only
 authority for validation, OID creation, publication, projection rebuild,
 `fsck`, export, and restore.
 
-The planned application has two new Rust packages:
+The application has two Rust packages:
 
 - `synapse-local-service`: a transport-neutral, trusted localhost facade over
   the existing Core, Creator, Application, Observation, and Projection crates;
@@ -103,9 +107,10 @@ defence against accidentally turning a low-level primitive into an endpoint.
 capability-bearing dependencies. Its public types never contain `Repository`,
 `RefUpdate`, `AdmittedProposalHandle`, registration, or permit values.
 
-## Planned package layout
+## Package layout
 
-The following paths are created only when their implementation slice begins:
+Slices 1-3 created the following paths. Later slices extend the same packages
+with write, maintenance, diagnostic, and end-to-end boundaries:
 
 ```text
 api/
@@ -455,20 +460,21 @@ files to recover an error.
 Each independently useful slice is one commit. “Slice” here is application
 sequencing and does not advance the formal Core stage.
 
-1. Architecture, machine-readable API contract, package layout, and contract
+1. **Implemented:** architecture, machine-readable API contract, package layout, and contract
    verification.
-2. `synapse-local-service` read DTOs and read-only loopback API for projects,
+2. **Implemented:** `synapse-local-service` read DTOs and read-only loopback API for projects,
    status, Refs, reflog, creator-session discovery/report, evidence, and images.
-3. Askama/semantic-HTML shell, project dashboard, history navigation,
+3. **Implemented:** Askama/semantic-HTML shell, project dashboard, history navigation,
    progressive ES-module enhancement, and same-origin asset serving.
-4. Bounded three-file upload plus proposal-only `begin_creator_session`.
-5. Image and Observation/evidence views with explicit byte-identity limits.
-6. Pending proposal review and Human `adopt` / `reject` / `defer` through the
+4. **Planned:** bounded three-file upload plus proposal-only `begin_creator_session`.
+5. **Planned:** expanded Image and Observation/evidence views with explicit byte-identity limits.
+6. **Planned:** pending proposal review and Human `adopt` / `reject` / `defer` through the
    admitted application route.
-7. Report, `fsck`, export, and empty-target restore with confirmations and safe
+7. **Planned:** report maintenance, `fsck`, export, and empty-target restore with confirmations and safe
    error presentation.
-8. Incomplete-session diagnostics, packaging, end-to-end coverage, and user
-   documentation.
+8. **Planned:** incomplete-session diagnostics, distributable packaging, complete browser
+   end-to-end coverage, and release documentation. The native release build and initial runbook
+   already exist for the read-only slices.
 
 ## Verification and acceptance
 

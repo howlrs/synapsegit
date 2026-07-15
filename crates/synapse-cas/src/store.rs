@@ -352,6 +352,40 @@ impl FileObjectStore {
         Ok(Some(bytes))
     }
 
+    /// Return one digest-verified Blob without reading or allocating beyond a
+    /// caller-supplied response limit.
+    ///
+    /// Unlike [`Self::read_raw`], this boundary rejects structured object OIDs
+    /// and applies the tighter caller limit before allocation. The file reader
+    /// also observes at most one byte beyond the limit so concurrent growth
+    /// fails closed.
+    pub fn read_verified_blob_limited(
+        &self,
+        oid: &str,
+        max_bytes: u64,
+    ) -> Result<Option<Vec<u8>>, StoreError> {
+        if max_bytes == 0 {
+            return Err(resource_limit(
+                "verified Blob max_bytes must be greater than zero",
+            ));
+        }
+        let (kind, path) = self.validated_object_path(oid)?;
+        if kind != ObjectKind::Blob {
+            return Err(CoreError::new(
+                ErrorCode::ReferenceTypeMismatch,
+                "verified Blob read requires a Blob OID",
+            )
+            .into());
+        }
+        let Some(metadata) = regular_file_metadata_if_present(&path, oid)? else {
+            return Ok(None);
+        };
+        let effective_limit = max_bytes.min(self.limits.max_blob_bytes);
+        let bytes = read_blob_file_exact_limited(&path, oid, metadata.len(), effective_limit)?;
+        verify_blob_oid(oid, &bytes).map_err(|error| stored_object_error(oid, error))?;
+        Ok(Some(bytes))
+    }
+
     /// Verify an object while copying its raw stored bytes to a caller-owned
     /// stream. Blobs remain bounded-memory; structured objects retain their
     /// configured parse/canonicalization bound.
@@ -1164,6 +1198,43 @@ fn read_file_limited(path: &Path, metadata_len: u64, limit: u64) -> Result<Vec<u
         )));
     }
     Ok(bytes)
+}
+
+fn read_blob_file_exact_limited(
+    path: &Path,
+    oid: &str,
+    metadata_len: u64,
+    limit: u64,
+) -> Result<Vec<u8>, StoreError> {
+    if metadata_len > limit {
+        return Err(resource_limit(format!(
+            "stored Blob is {metadata_len} bytes; verification limit is {limit}"
+        )));
+    }
+    let length = usize::try_from(metadata_len)
+        .map_err(|_| resource_limit("stored Blob does not fit in addressable memory"))?;
+    let mut file = File::open(path).map_err(|error| StoreError::io("open Blob", path, error))?;
+    let mut bytes = vec![0_u8; length];
+    if let Err(error) = file.read_exact(&mut bytes) {
+        if error.kind() == io::ErrorKind::UnexpectedEof {
+            return Err(StoreError::CorruptObject {
+                oid: oid.to_owned(),
+                detail: "Blob length shrank while it was being read".to_owned(),
+            });
+        }
+        return Err(StoreError::io("read Blob", path, error));
+    }
+    let mut extra = [0_u8; 1];
+    match file.read(&mut extra) {
+        Ok(0) => Ok(bytes),
+        Ok(_) => Err(StoreError::CorruptObject {
+            oid: oid.to_owned(),
+            detail: format!(
+                "Blob length grew after metadata inspection (verification limit {limit})"
+            ),
+        }),
+        Err(error) => Err(StoreError::io("probe Blob length", path, error)),
+    }
 }
 
 fn verify_blob_file(

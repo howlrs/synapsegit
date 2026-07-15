@@ -4,8 +4,10 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_core::Repository;
 use synapse_creator::{
     AnalysisComparability, AnalysisStatus, ByteIdentityOutcome, CreatorDisposition, CreatorError,
-    CreatorRunOptions, creator_report, run_creator_session,
+    CreatorRunOptions, CreatorSessionState, creator_report, creator_report_from_snapshot,
+    discover_creator_sessions, run_creator_session,
 };
+use synapse_projection::{ProjectionLimits, SqliteProjectionStore};
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -76,6 +78,29 @@ fn creator_workflow_uses_ai_and_human_routes_and_survives_restore() {
 
     let report = creator_report(&repository_path, "mural-1").unwrap();
     assert_eq!(report.disposition, CreatorDisposition::Adopt);
+
+    let snapshot_repository = Repository::open(&repository_path).unwrap();
+    let snapshot = snapshot_repository.refs().snapshot().unwrap();
+    let snapshot_report =
+        creator_report_from_snapshot(&snapshot_repository, &snapshot, "mural-1").unwrap();
+    assert_eq!(snapshot_report.report, report);
+    assert!(
+        snapshot_report
+            .projection_source_fingerprint
+            .starts_with("projection-source-v1:sha256:")
+    );
+    let mut independent_projection = SqliteProjectionStore::open_in_memory().unwrap();
+    let independent_rebuild = independent_projection
+        .rebuild_with_limits(
+            snapshot_repository.objects(),
+            &snapshot,
+            ProjectionLimits::default(),
+        )
+        .unwrap();
+    assert_eq!(
+        snapshot_report.projection_source_fingerprint,
+        independent_rebuild.metadata.source_fingerprint
+    );
     assert_eq!(report.decision_head, receipt.decision_head);
     assert_eq!(report.proposal_head, receipt.proposal_head);
     assert_eq!(report.original_blob_oid, receipt.original_blob_oid);
@@ -423,6 +448,77 @@ fn report_requires_both_creator_refs() {
     let error = creator_report(&repository_path, "report-both-incomplete").unwrap_err();
     assert!(
         matches!(error, CreatorError::SessionIncomplete(session) if session == "report-both-incomplete")
+    );
+
+    let repository = Repository::open(&repository_path).unwrap();
+    let snapshot = repository.refs().snapshot().unwrap();
+    let discovered = discover_creator_sessions(&repository, &snapshot, 10).unwrap();
+    let overflow = discover_creator_sessions(&repository, &snapshot, 2)
+        .expect_err("session discovery must enforce its response bound");
+    assert_eq!(overflow.code(), "resource_limit");
+    assert_eq!(
+        discovered
+            .iter()
+            .map(|summary| (summary.session.as_str(), summary.state))
+            .collect::<Vec<_>>(),
+        [
+            ("complete-session", CreatorSessionState::Complete),
+            ("report-both-incomplete", CreatorSessionState::Incomplete),
+            ("report-incomplete", CreatorSessionState::Incomplete),
+        ]
+    );
+}
+
+#[test]
+fn invalid_report_session_does_not_create_a_repository() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("must-not-exist");
+    let error = creator_report(&repository_path, "INVALID").unwrap_err();
+    assert!(matches!(error, CreatorError::InvalidArgument(_)));
+    assert!(!repository_path.exists());
+}
+
+#[test]
+fn caller_supplied_snapshot_remains_stable_after_later_ref_updates() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repo");
+    run_creator_session(&options(
+        &temporary,
+        &repository_path,
+        "first-snapshot",
+        CreatorDisposition::Adopt,
+    ))
+    .unwrap();
+    let repository = Repository::open(&repository_path).unwrap();
+    let first_snapshot = repository.refs().snapshot().unwrap();
+    let first =
+        creator_report_from_snapshot(&repository, &first_snapshot, "first-snapshot").unwrap();
+    drop(repository);
+
+    run_creator_session(&options(
+        &temporary,
+        &repository_path,
+        "later-session",
+        CreatorDisposition::Reject,
+    ))
+    .unwrap();
+    let repository = Repository::open(&repository_path).unwrap();
+    let still_first =
+        creator_report_from_snapshot(&repository, &first_snapshot, "first-snapshot").unwrap();
+    let current_snapshot = repository.refs().snapshot().unwrap();
+    let current =
+        creator_report_from_snapshot(&repository, &current_snapshot, "first-snapshot").unwrap();
+
+    assert_eq!(
+        still_first.projection_source_fingerprint,
+        first.projection_source_fingerprint
+    );
+    assert_eq!(still_first.report.decision_head, first.report.decision_head);
+    assert_eq!(still_first.report.proposal_head, first.report.proposal_head);
+    assert_eq!(still_first.report.timeline, first.report.timeline);
+    assert_ne!(
+        still_first.projection_source_fingerprint,
+        current.projection_source_fingerprint
     );
 }
 
