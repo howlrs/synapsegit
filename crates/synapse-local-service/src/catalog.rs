@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use synapse_core::Repository;
 
 use crate::MAX_PROJECTS;
@@ -85,6 +85,10 @@ pub(crate) struct CatalogEntry {
 }
 
 impl CatalogEntry {
+    pub fn repository_path(&self) -> &Path {
+        &self.repository_path
+    }
+
     pub fn open_repository(&self) -> Result<Repository, CatalogError> {
         Repository::open(&self.repository_path).map_err(|error| {
             CatalogError::new(

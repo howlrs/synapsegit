@@ -17,6 +17,11 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 - The custom SynapseGit Source-Available License 1.0, held by howlrs and
   K-Terashima, with explicit GitHub Fork and pull-request permissions.
 - Generated third-party dependency notices for future release bundles.
+- A two-step creator orchestration boundary that can retain the exact admitted
+  proposal capability between proposal publication and Human review.
+- A bounded localhost creator workflow for staging three caller-supplied files,
+  retaining same-process review authority, and publishing Human `adopt`,
+  `reject`, or `defer` decisions from the browser UI.
 
 ### Changed
 
@@ -25,6 +30,8 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 - Public documentation now distinguishes current technical evaluators from
   the broader future creator audience.
 - Stale private-repository and unimplemented-localhost statements were removed.
+- The tagged-release workflow now installs the same pinned Node.js major used
+  by CI before running protocol and documentation verification scripts.
 
 ## [0.1.0] - 2026-07-15
 

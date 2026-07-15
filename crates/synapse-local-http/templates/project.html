@@ -10,19 +10,81 @@
     <h1>{{ project_label }}</h1>
     <p class="muted">Ref snapshot <code>{{ watermark }}</code></p>
   </div>
-  <span class="status-badge" data-tone="success">ローカル・読取可能</span>
+  <span class="status-badge" data-tone="success">ローカル・利用可能</span>
 </header>
 
 <section class="metric-grid" aria-label="プロジェクト概要">
   <article class="metric"><span class="metric__label">Refs</span><strong>{{ refs.len() }}</strong></article>
   <article class="metric"><span class="metric__label">完了</span><strong>{{ complete_sessions }}</strong></article>
+  <article class="metric"><span class="metric__label">レビュー待ち</span><strong>{{ pending_sessions }}</strong></article>
   <article class="metric"><span class="metric__label">未完了</span><strong>{{ incomplete_sessions }}</strong></article>
+</section>
+
+<section class="card" aria-labelledby="creator-upload-heading">
+  <div class="card__header">
+    <div>
+      <p class="eyebrow">Proposal-only import</p>
+      <h2 id="creator-upload-heading">Creator session を開始</h2>
+      <p class="muted">3ファイルをローカルでstagingし、AI proposalを公開してHuman reviewへ進めます。</p>
+    </div>
+  </div>
+  <div class="notice" data-tone="warning">
+    <h3>AI output は caller-supplied です</h3>
+    <p>この画面やlocalhost processがAI出力を生成したという意味ではありません。選択前に必ず3つの内容とbyte identity evidenceを確認してください。</p>
+  </div>
+  <form
+    hidden
+    method="post"
+    action="/api/v1/projects/{{ project_key }}/creator-sessions"
+    enctype="multipart/form-data"
+    data-synapse-api-form="multipart"
+    data-success-session-base="/projects/{{ project_key }}/creator-sessions/"
+    data-busy-message="ファイルを取り込み、proposalを公開しています…"
+    data-success-message="Proposalを公開しました。レビュー画面へ移動します。"
+  >
+    <div class="form-grid">
+      <label class="field">
+        <span>Session</span>
+        <input name="session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="first-review">
+        <span class="field__hint">小文字英数字とハイフン、1–64文字。create-onlyです。</span>
+      </label>
+      <label class="field">
+        <span>Creator name</span>
+        <input name="creator_name" required maxlength="300" autocomplete="name">
+        <span class="field__hint">UTF-8で300 bytes以内。</span>
+      </label>
+      <label class="field form-grid__wide">
+        <span>Subject label</span>
+        <input name="subject_label" required maxlength="500" autocomplete="off">
+        <span class="field__hint">UTF-8で500 bytes以内。</span>
+      </label>
+      <label class="field">
+        <span>Original image</span>
+        <input type="file" name="original_image" required>
+        <span class="field__hint">raw bytes、64 MiB以内。</span>
+      </label>
+      <label class="field">
+        <span>Current image</span>
+        <input type="file" name="current_image" required>
+        <span class="field__hint">raw bytes、64 MiB以内。</span>
+      </label>
+      <label class="field form-grid__wide">
+        <span>AI output (caller-supplied)</span>
+        <input type="file" name="ai_output" required>
+        <span class="field__hint">raw bytes、64 MiB以内。3ファイル合計192 MiB以内。</span>
+      </label>
+    </div>
+    <div class="actions"><button type="submit" data-synapse-submit>Proposalを作成</button></div>
+    <p class="field__hint">安全なwriteには、このページのJavaScriptとprocess-local tokenが必要です。</p>
+    <p data-synapse-status hidden></p>
+  </form>
+  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、この画面はread-onlyです。安全なuploadにはprocess-local tokenを付けるJavaScriptが必要です。</p></div></noscript>
 </section>
 
 <section aria-labelledby="sessions-heading">
   <div class="section-heading"><h2 id="sessions-heading">Creator sessions</h2><span class="badge">{{ sessions.len() }} 件</span></div>
   {% if sessions.is_empty() %}
-  <div class="empty-state"><h3>セッションはまだありません</h3><p>現在は既存履歴の読み取り画面を提供しています。</p></div>
+  <div class="empty-state"><h3>セッションはまだありません</h3><p>上のフォームから3ファイルを取り込み、最初のproposalとHuman reviewを開始できます。</p></div>
   {% else %}
   <div class="table-wrap"><table>
     <thead><tr><th>セッション</th><th>状態</th><th>Proposal head</th><th>Decision head</th></tr></thead>

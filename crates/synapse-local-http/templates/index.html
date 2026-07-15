@@ -36,7 +36,8 @@
       <dl class="stat-list">
         <div><dt>Refs</dt><dd>{{ project.ref_count }}</dd></div>
         <div><dt>完了セッション</dt><dd>{{ project.complete_sessions }}</dd></div>
-        <div><dt>要確認</dt><dd>{{ project.incomplete_sessions }}</dd></div>
+        <div><dt>レビュー待ち</dt><dd>{{ project.pending_sessions }}</dd></div>
+        <div><dt>未完了</dt><dd>{{ project.incomplete_sessions }}</dd></div>
       </dl>
     </article>
     {% endfor %}

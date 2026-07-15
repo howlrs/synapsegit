@@ -3,9 +3,11 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_core::Repository;
 use synapse_creator::{
-    AnalysisComparability, AnalysisStatus, ByteIdentityOutcome, CreatorDisposition, CreatorError,
-    CreatorRunOptions, CreatorSessionState, creator_report, creator_report_from_snapshot,
-    discover_creator_sessions, run_creator_session,
+    AnalysisComparability, AnalysisStatus, ByteIdentityOutcome, CreatorBeginOptions,
+    CreatorDecisionOptions, CreatorDisposition, CreatorError, CreatorPendingDecisionState,
+    CreatorRunOptions, CreatorSessionState, begin_creator_session, creator_report,
+    creator_report_from_snapshot, decide_creator_session, discover_creator_sessions,
+    run_creator_session,
 };
 use synapse_projection::{ProjectionLimits, SqliteProjectionStore};
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
@@ -28,6 +30,134 @@ impl TempDirectory {
     fn join(&self, path: impl AsRef<Path>) -> PathBuf {
         self.0.join(path)
     }
+}
+
+fn begin_options(options: &CreatorRunOptions) -> CreatorBeginOptions {
+    CreatorBeginOptions {
+        repository: options.repository.clone(),
+        session: options.session.clone(),
+        original_image: options.original_image.clone(),
+        current_image: options.current_image.clone(),
+        ai_output: options.ai_output.clone(),
+        subject_label: options.subject_label.clone(),
+        creator_name: options.creator_name.clone(),
+    }
+}
+
+#[test]
+fn creator_workflow_pauses_with_same_process_authority_until_human_decision() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repo");
+    let run = options(
+        &temporary,
+        &repository_path,
+        "pending-review",
+        CreatorDisposition::Adopt,
+    );
+    let mut pending = begin_creator_session(&begin_options(&run)).unwrap();
+    let receipt = pending.receipt().clone();
+    assert_eq!(pending.decision_state(), CreatorPendingDecisionState::Ready);
+    let debug = format!("{pending:?}");
+    assert!(!debug.contains(repository_path.to_str().unwrap()));
+    assert!(!debug.contains(&receipt.creator_id));
+    assert!(!debug.contains("AdmittedProposalHandle"));
+
+    let repository = Repository::open(&repository_path).unwrap();
+    assert_eq!(
+        repository
+            .refs()
+            .get(&receipt.decision_ref)
+            .unwrap()
+            .unwrap()
+            .head,
+        receipt.base_head
+    );
+    assert_eq!(
+        repository
+            .refs()
+            .get(&receipt.proposal_ref)
+            .unwrap()
+            .unwrap()
+            .head,
+        receipt.proposal_head
+    );
+    let snapshot = repository.refs().snapshot().unwrap();
+    let sessions = discover_creator_sessions(&repository, &snapshot, 10).unwrap();
+    assert_eq!(sessions.len(), 1);
+    assert_eq!(sessions[0].state, CreatorSessionState::Incomplete);
+    drop(repository);
+    assert!(matches!(
+        creator_report(&repository_path, "pending-review"),
+        Err(CreatorError::SessionIncomplete(_))
+    ));
+
+    let pending_snapshot = Repository::open(&repository_path)
+        .unwrap()
+        .refs()
+        .snapshot()
+        .unwrap();
+    assert!(matches!(
+        decide_creator_session(
+            &mut pending,
+            &CreatorDecisionOptions {
+                disposition: CreatorDisposition::Reject,
+                rationale: Some("x".repeat(5_001)),
+            }
+        ),
+        Err(CreatorError::InvalidArgument(_))
+    ));
+    assert_eq!(
+        Repository::open(&repository_path)
+            .unwrap()
+            .refs()
+            .snapshot()
+            .unwrap(),
+        pending_snapshot
+    );
+    assert_eq!(pending.decision_state(), CreatorPendingDecisionState::Ready);
+
+    let completed = decide_creator_session(
+        &mut pending,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Adopt,
+            rationale: Some("Reviewed in the two-step creator workflow.".into()),
+        },
+    )
+    .unwrap();
+    assert_eq!(completed.proposal_head, receipt.proposal_head);
+    assert_eq!(
+        creator_report(&repository_path, "pending-review")
+            .unwrap()
+            .decision_head,
+        completed.decision_head
+    );
+    assert_eq!(pending.completed_receipt(), Some(&completed));
+    assert_eq!(
+        pending.decision_state(),
+        CreatorPendingDecisionState::Consumed
+    );
+
+    let snapshot_before_retry = Repository::open(&repository_path)
+        .unwrap()
+        .refs()
+        .snapshot()
+        .unwrap();
+    assert!(matches!(
+        decide_creator_session(
+            &mut pending,
+            &CreatorDecisionOptions {
+                disposition: CreatorDisposition::Reject,
+                rationale: None,
+            }
+        ),
+        Err(CreatorError::SessionExists(session)) if session == "pending-review"
+    ));
+    let snapshot_after_retry = Repository::open(&repository_path)
+        .unwrap()
+        .refs()
+        .snapshot()
+        .unwrap();
+    assert_eq!(snapshot_after_retry, snapshot_before_retry);
 }
 
 impl Drop for TempDirectory {

@@ -157,7 +157,13 @@ Protocol上、AIの有効能力はActor、Grant、Policy、runtime capabilityの
 ### 現在の実装境界
 
 `synapse-creator`とCLIの`creator-run`／`creator-report`は、このWorkstreamの最初のboundedな
-local single-creator経路を実装する。`creator-run`はoriginal／current／AI outputの3 fileをopaque Blobとして
+local single-creator経路を実装する。library境界はproposal-onlyの`begin_creator_session`と、同じ
+`Application` instance／admitted handleを保持するopaque pending valueを借用する
+`decide_creator_session`へ分割済みである。pending valueは永続化・Clone・再構築できず、既存
+`creator-run`は両phaseを連続実行する互換wrapperである。localhost applicationは、boundedな三file
+staging、proposal公開前に上限を確保するprocess registry、同じprocess内のreview UIまで実装する。
+process restart後のcapability復元、automatic resume／cleanup、maintenance UIは未実装である。
+`creator-run`はoriginal／current／AI outputの3 fileをopaque Blobとして
 格納し、Subject、imported／reference-only CaptureProfile、2 Observation、import Activity、専用`software_tool`
 Actor、byte-identity AnalysisResultとimplementation／configuration Blob、ContextPack、Policy、DelegationGrant、AI Activity、
 proposal Commit、DecisionFeedback、Decision Commitを自動作成する。比較一式はbase snapshotへ入り、proposal／decision

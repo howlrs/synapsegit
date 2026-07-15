@@ -19,14 +19,29 @@
   <article class="metric"><span class="metric__label">AI output selected</span><strong>{{ selected }}</strong></article>
   <article class="metric"><span class="metric__label">Verified objects</span><strong>{{ fsck_objects }}</strong></article>
 </section>
+{% endif %}
 
+{% if pending %}
+<div class="notice" data-tone="warning">
+  <h2>Human reviewが必要です</h2>
+  <p>AI output sourceは <code>{{ ai_output_source }}</code> です。これはcaller-supplied inputであり、このlocalhost processや特定のmodelが生成したという主張ではありません。</p>
+  <p>3つのbytesとevidenceを確認してから、adopt・reject・deferのいずれかを選んでください。</p>
+</div>
+{% endif %}
+
+{% if show_evidence %}
 <section aria-labelledby="images-heading">
-  <div class="section-heading"><div><h2 id="images-heading">画像と出力</h2><p class="muted">画像は現在の検証済みセッションからroleを解決して読み込みます。</p></div></div>
+  <div class="section-heading"><div><h2 id="images-heading">画像と出力</h2><p class="muted">画像は現在の検証済みセッションからroleを解決し、認証付きfetchで読み込みます。</p></div></div>
   <div class="media-grid">
     {% for image in images %}
     <figure class="media-card">
       <div class="media-card__preview"><img data-synapse-image data-url="{{ image.url }}" alt="{{ image.alt }}"></div>
-      <figcaption><strong>{{ image.label }}</strong><p data-synapse-image-status class="muted">読み込み待ち</p><code>{{ image.oid }}</code></figcaption>
+      <figcaption>
+        <strong>{{ image.label }}</strong>
+        <p data-synapse-image-status class="muted">読み込み待ち</p>
+        <a class="button button--secondary" data-synapse-image-download download="{{ image.download_name }}" hidden>検証済みraw bytesをdownload</a>
+        <code>{{ image.oid }}</code>
+      </figcaption>
     </figure>
     {% endfor %}
   </div>
@@ -35,7 +50,11 @@
 <section aria-labelledby="evidence-heading">
   <div class="section-heading"><h2 id="evidence-heading">Byte identity evidence</h2></div>
   {% if has_comparison %}
-  <div class="notice" data-tone="warning"><h3>{{ comparison_outcome }}</h3><p>{{ comparison_warning }}</p></div>
+  <div class="notice" data-tone="warning">
+    <h3>{{ comparison_outcome }}</h3>
+    <p>{{ comparison_warning }}</p>
+    <p>同じbytesでも物理的なsubjectが変化していないとは証明できず、異なるbytesでも視覚的・物理的変化を証明するものではありません。</p>
+  </div>
   <dl class="detail-list">
     <div><dt>Status</dt><dd>{{ comparison_status }}</dd></div>
     <div><dt>Comparability</dt><dd>{{ comparison_comparability }}</dd></div>
@@ -46,7 +65,42 @@
   <div class="notice"><h3>比較情報なし</h3><p>この履歴からbyte identity evidenceは復元できません。</p></div>
   {% endif %}
 </section>
+{% else %}
+<div class="notice" data-tone="warning"><h2>セッションは未完了です</h2><p>{{ diagnostic }}</p><p>履歴を自動で書き換えたり削除したりはしません。別のセッション名を使用するか、診断機能の実装を待ってください。</p></div>
+{% endif %}
 
+{% if pending %}
+<section class="card" aria-labelledby="decision-heading">
+  <div class="card__header"><div><p class="eyebrow">Human gate</p><h2 id="decision-heading">判断を記録</h2></div></div>
+  <form
+    hidden
+    method="post"
+    action="{{ decision_url }}"
+    data-synapse-api-form="json"
+    data-confirm-session="{{ session }}"
+    data-success-reload="true"
+    data-busy-message="Human decisionを検証して公開しています…"
+    data-success-message="Decisionを公開しました。ページを再読み込みします。"
+  >
+    <input type="hidden" name="review_id" value="{{ review_id }}">
+    <label class="field">
+      <span>Rationale（任意）</span>
+      <textarea name="rationale" maxlength="5000" data-max-utf8-bytes="5000" rows="5" placeholder="この判断の理由や、後から確認したい点"></textarea>
+      <span class="field__hint">UTF-8で5000 bytes以内。</span>
+    </label>
+    <div class="actions" aria-label="Disposition">
+      <button type="submit" name="disposition" value="adopt" data-synapse-submit>Adopt</button>
+      <button type="submit" name="disposition" value="reject" data-variant="danger" data-synapse-submit>Reject</button>
+      <button type="submit" name="disposition" value="defer" data-variant="secondary" data-synapse-submit>Defer</button>
+    </div>
+    <p class="field__hint">Decision writeには、このページのJavaScriptとprocess-local tokenが必要です。</p>
+    <p data-synapse-status hidden></p>
+  </form>
+  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、この画面ではDecisionを送信できません。3つのevidenceはread-onlyで確認できます。</p></div></noscript>
+</section>
+{% endif %}
+
+{% if complete %}
 <section aria-labelledby="timeline-heading">
   <div class="section-heading"><h2 id="timeline-heading">Timeline</h2><span class="badge">{{ timeline.len() }} 件</span></div>
   <ol class="timeline">
@@ -55,7 +109,5 @@
     {% endfor %}
   </ol>
 </section>
-{% else %}
-<div class="notice" data-tone="warning"><h2>セッションは未完了です</h2><p>{{ diagnostic }}</p><p>履歴を自動で書き換えたり削除したりはしません。別のセッション名を使用するか、診断機能の実装を待ってください。</p></div>
 {% endif %}
 {% endblock %}

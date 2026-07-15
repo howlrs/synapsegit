@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -30,11 +31,11 @@ pub struct ProjectCapabilities {
 }
 
 impl ProjectCapabilities {
-    pub const fn slice_two() -> Self {
+    pub const fn creator_workflow() -> Self {
         Self {
             read: true,
-            creator_import: false,
-            human_decision: false,
+            creator_import: true,
+            human_decision: true,
             fsck: false,
             archive_export: false,
             archive_restore: false,
@@ -186,6 +187,38 @@ pub struct CreatorSessionSummary {
 pub struct CreatorSessionList {
     pub snapshot: SnapshotContext,
     pub sessions: Vec<CreatorSessionSummary>,
+}
+
+/// Trusted, already-staged inputs for one creator proposal.
+///
+/// Repository selection remains a separate catalog key on [`crate::LocalService`].
+/// These paths are integration-owned staging paths and are deliberately not
+/// serializable transport DTO fields.
+#[derive(Debug)]
+pub struct BeginCreatorSessionRequest {
+    pub session: String,
+    pub subject_label: String,
+    pub creator_name: String,
+    pub original_image: PathBuf,
+    pub current_image: PathBuf,
+    pub ai_output: PathBuf,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CreatorDecision {
+    Adopt,
+    Reject,
+    Defer,
+}
+
+/// Untrusted Human review fields accepted by the transport-neutral service.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreatorDecisionRequest {
+    pub review_id: String,
+    pub disposition: CreatorDecision,
+    pub rationale: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

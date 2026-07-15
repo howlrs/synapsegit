@@ -6,10 +6,13 @@ mod problem;
 mod security;
 
 use askama::Template;
-use axum::body::Body;
-use axum::extract::{OriginalUri, Path, RawQuery, State};
+use axum::body::{Body, to_bytes};
+use axum::extract::{
+    DefaultBodyLimit, FromRequest, Multipart, OriginalUri, Path, RawQuery, Request as AxumRequest,
+    State,
+};
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_LENGTH, CONTENT_TYPE};
-use axum::http::{HeaderValue, StatusCode};
+use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::middleware;
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::get;
@@ -20,17 +23,31 @@ use serde::de::DeserializeOwned;
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
+use std::io;
+use std::path::PathBuf;
 use std::sync::Arc;
 use synapse_local_service::{
-    CreatorImage, CreatorReport, CreatorSessionDetail, CreatorSessionState, HealthResponse,
-    ImageRole, LocalService, ProjectState, ReflogQuery, ServiceError,
+    BeginCreatorSessionRequest, CreatorDecisionRequest, CreatorImage, CreatorReport,
+    CreatorSessionDetail, CreatorSessionState, HealthResponse, ImageRole, LocalService,
+    ProjectState, ReflogQuery, ServiceError,
 };
+use tokio::io::AsyncWriteExt;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
 
 const APP_CSS: &str = include_str!("../assets/app.css");
 const APP_JS: &str = include_str!("../assets/app.js");
 const MAX_BLOCKING_OPERATIONS: usize = 8;
 const MAX_BLOCKING_OPERATIONS_PER_PROJECT: usize = 2;
+const MAX_CONCURRENT_CREATOR_UPLOADS: usize = 2;
+const MAX_CREATOR_FILE_BYTES: usize = 64 * 1024 * 1024;
+const MAX_CREATOR_FILE_AGGREGATE_BYTES: usize = 3 * MAX_CREATOR_FILE_BYTES;
+// The file aggregate is the contractual payload. This small fixed allowance
+// bounds the multipart framing, the three short text fields, and part headers.
+const MAX_CREATOR_MULTIPART_WIRE_BYTES: usize = MAX_CREATOR_FILE_AGGREGATE_BYTES + 1024 * 1024;
+const MAX_DECISION_JSON_BYTES: usize = 8 * 1024;
+const MAX_SESSION_BYTES: usize = 64;
+const MAX_SUBJECT_LABEL_BYTES: usize = 500;
+const MAX_CREATOR_NAME_BYTES: usize = 300;
 
 #[derive(Debug)]
 pub struct StartupError {
@@ -73,6 +90,7 @@ struct AppState {
     service: Arc<LocalService>,
     security: SecurityPolicy,
     blocking: BlockingGates,
+    uploads: Arc<Semaphore>,
 }
 
 #[derive(Clone)]
@@ -161,6 +179,7 @@ fn build_with_identity(
         service,
         security: security.clone(),
         blocking,
+        uploads: Arc::new(Semaphore::new(MAX_CONCURRENT_CREATOR_UPLOADS)),
     };
 
     let router = Router::new()
@@ -185,7 +204,9 @@ fn build_with_identity(
         )
         .route(
             "/api/v1/projects/{project_key}/creator-sessions",
-            get(api_creator_sessions),
+            get(api_creator_sessions)
+                .post(api_begin_creator_session)
+                .layer(DefaultBodyLimit::max(MAX_CREATOR_MULTIPART_WIRE_BYTES)),
         )
         .route(
             "/api/v1/projects/{project_key}/creator-sessions/{session}",
@@ -194,6 +215,10 @@ fn build_with_identity(
         .route(
             "/api/v1/projects/{project_key}/creator-sessions/{session}/images/{role}",
             get(api_creator_image),
+        )
+        .route(
+            "/api/v1/projects/{project_key}/creator-sessions/{session}/decisions",
+            axum::routing::post(api_decide_creator_session),
         )
         .fallback(not_found)
         .method_not_allowed_fallback(method_not_allowed)
@@ -276,6 +301,450 @@ async fn api_creator_sessions(
         service.list_creator_sessions(&project_key)
     })
     .await
+}
+
+async fn api_begin_creator_session(
+    State(state): State<AppState>,
+    Path(project_key): Path<String>,
+    request: AxumRequest,
+) -> Response {
+    if !is_exact_multipart_content_type(request.headers()) {
+        return failure_response(HttpFailure::request(
+            &state,
+            "local_request_denied",
+            "The request Content-Type must be multipart/form-data with exactly one boundary.",
+        ));
+    }
+    let upload_permit = match state.uploads.clone().acquire_owned().await {
+        Ok(permit) => permit,
+        Err(_) => {
+            return failure_response(HttpFailure::internal(
+                &state,
+                "The upload concurrency gate is unavailable.",
+            ));
+        }
+    };
+    let multipart = match Multipart::from_request(request, &state).await {
+        Ok(multipart) => multipart,
+        Err(_) => {
+            return failure_response(HttpFailure::request(
+                &state,
+                "local_request_denied",
+                "The multipart boundary is invalid.",
+            ));
+        }
+    };
+    let staged = match StagedCreatorUpload::from_multipart(multipart).await {
+        Ok(staged) => staged,
+        Err(error) => return failure_response(error.into_http_failure(&state)),
+    };
+
+    let gate_key = project_key.clone();
+    let server_instance = state.security.server_instance().to_owned();
+    match run_blocking(state.clone(), Some(gate_key), move |service| {
+        // Staging is deliberately owned by the detached blocking closure. If
+        // the client disconnects while Creator is publishing, the directory
+        // remains alive until the service has completed publication and
+        // retained the pending review capability.
+        let StagedCreatorUpload {
+            _directory,
+            request,
+        } = staged;
+        let _upload_permit = upload_permit;
+        let result = service.begin_creator_session(&project_key, &server_instance, request);
+        drop(_directory);
+        result
+    })
+    .await
+    {
+        Ok(pending) => (StatusCode::CREATED, Json(pending)).into_response(),
+        Err(BlockingError::Service(error)) => failure_response(HttpFailure::service(&state, error)),
+        Err(BlockingError::Task) => failure_response(HttpFailure::internal(
+            &state,
+            "The creator proposal task failed.",
+        )),
+    }
+}
+
+async fn api_decide_creator_session(
+    State(state): State<AppState>,
+    Path((project_key, session)): Path<(String, String)>,
+    request: AxumRequest,
+) -> Response {
+    if !is_exact_json_content_type(request.headers()) {
+        return failure_response(HttpFailure::request(
+            &state,
+            "local_request_denied",
+            "The request Content-Type must be exactly application/json.",
+        ));
+    }
+    let body = match to_bytes(request.into_body(), MAX_DECISION_JSON_BYTES).await {
+        Ok(body) => body,
+        Err(_) => {
+            return failure_response(HttpFailure::limit(
+                &state,
+                "The decision request exceeds the 8 KiB wire limit.",
+            ));
+        }
+    };
+    let decision = match serde_json::from_slice::<CreatorDecisionRequest>(&body) {
+        Ok(decision) => decision,
+        Err(_) => {
+            return failure_response(HttpFailure::request(
+                &state,
+                "local_request_denied",
+                "The decision JSON is invalid or contains an unknown or duplicate field.",
+            ));
+        }
+    };
+
+    let gate_key = project_key.clone();
+    let server_instance = state.security.server_instance().to_owned();
+    match run_blocking(state.clone(), Some(gate_key), move |service| {
+        service.decide_creator_session(&project_key, &session, &server_instance, decision)
+    })
+    .await
+    {
+        Ok(complete) => Json(complete).into_response(),
+        Err(BlockingError::Service(error)) => failure_response(HttpFailure::service(&state, error)),
+        Err(BlockingError::Task) => failure_response(HttpFailure::internal(
+            &state,
+            "The creator decision task failed.",
+        )),
+    }
+}
+
+fn single_content_type(headers: &HeaderMap) -> Option<&str> {
+    let mut values = headers.get_all(CONTENT_TYPE).iter();
+    let value = values.next()?;
+    if values.next().is_some() {
+        return None;
+    }
+    value.to_str().ok()
+}
+
+fn is_exact_multipart_content_type(headers: &HeaderMap) -> bool {
+    let Some(value) = single_content_type(headers) else {
+        return false;
+    };
+    let Ok(media_type) = value.parse::<mime::Mime>() else {
+        return false;
+    };
+    if media_type.type_() != mime::MULTIPART || media_type.subtype() != mime::FORM_DATA {
+        return false;
+    }
+    let mut parameters = media_type.params();
+    matches!(
+        parameters.next(),
+        Some((name, value)) if name == mime::BOUNDARY && !value.as_str().is_empty()
+    ) && parameters.next().is_none()
+}
+
+fn is_exact_json_content_type(headers: &HeaderMap) -> bool {
+    single_content_type(headers)
+        .and_then(|value| value.parse::<mime::Mime>().ok())
+        .is_some_and(|media_type| media_type == mime::APPLICATION_JSON)
+}
+
+fn has_exact_part_content_type(headers: &HeaderMap, expected: &mime::Mime) -> bool {
+    single_content_type(headers)
+        .and_then(|value| value.parse::<mime::Mime>().ok())
+        .is_some_and(|media_type| media_type == *expected)
+}
+
+struct StagingDirectory {
+    path: PathBuf,
+}
+
+impl StagingDirectory {
+    async fn create() -> io::Result<Self> {
+        Self::create_with(Self::create_sync).await
+    }
+
+    async fn create_with<F>(operation: F) -> io::Result<Self>
+    where
+        F: FnOnce() -> io::Result<Self> + Send + 'static,
+    {
+        // Dropping this JoinHandle detaches the short task, but its returned
+        // StagingDirectory is still dropped when the task completes. Thus a
+        // cancellation cannot separate successful creation from its owner.
+        tokio::task::spawn_blocking(operation)
+            .await
+            .map_err(io::Error::other)?
+    }
+
+    fn create_sync() -> io::Result<Self> {
+        for _ in 0..8 {
+            let suffix = random_hex(16).map_err(io::Error::other)?;
+            let path = std::env::temp_dir().join(format!("synapse-local-upload-{suffix}"));
+            let mut builder = std::fs::DirBuilder::new();
+            #[cfg(unix)]
+            std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+            match builder.create(&path) {
+                Ok(()) => {
+                    let directory = Self { path };
+                    #[cfg(unix)]
+                    std::fs::set_permissions(
+                        &directory.path,
+                        <std::fs::Permissions as std::os::unix::fs::PermissionsExt>::from_mode(
+                            0o700,
+                        ),
+                    )?;
+                    return Ok(directory);
+                }
+                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(error),
+            }
+        }
+        Err(io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "could not allocate a unique upload directory",
+        ))
+    }
+
+    fn file(&self, name: &str) -> PathBuf {
+        self.path.join(name)
+    }
+}
+
+impl Drop for StagingDirectory {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_dir_all(&self.path);
+    }
+}
+
+struct StagedCreatorUpload {
+    _directory: StagingDirectory,
+    request: BeginCreatorSessionRequest,
+}
+
+impl StagedCreatorUpload {
+    async fn from_multipart(mut multipart: Multipart) -> Result<Self, UploadFailure> {
+        let directory = StagingDirectory::create()
+            .await
+            .map_err(|_| UploadFailure::Storage)?;
+        let mut session = None;
+        let mut subject_label = None;
+        let mut creator_name = None;
+        let mut original_image = None;
+        let mut current_image = None;
+        let mut ai_output = None;
+        let mut aggregate_file_bytes = 0_usize;
+        let mut part_count = 0_usize;
+
+        while let Some(field) = multipart
+            .next_field()
+            .await
+            .map_err(UploadFailure::multipart)?
+        {
+            part_count += 1;
+            if part_count > 6 {
+                return Err(UploadFailure::Request(
+                    "The multipart request must contain exactly six fields.",
+                ));
+            }
+            let name = field.name().ok_or(UploadFailure::Request(
+                "Every multipart field must have a name.",
+            ))?;
+            match name {
+                "session" if session.is_none() => {
+                    session = Some(read_text_part(field, MAX_SESSION_BYTES).await?);
+                }
+                "subject_label" if subject_label.is_none() => {
+                    subject_label = Some(read_text_part(field, MAX_SUBJECT_LABEL_BYTES).await?);
+                }
+                "creator_name" if creator_name.is_none() => {
+                    creator_name = Some(read_text_part(field, MAX_CREATOR_NAME_BYTES).await?);
+                }
+                "original_image" if original_image.is_none() => {
+                    let path = directory.file("original-image.bin");
+                    write_file_part(field, &path, &mut aggregate_file_bytes).await?;
+                    original_image = Some(path);
+                }
+                "current_image" if current_image.is_none() => {
+                    let path = directory.file("current-image.bin");
+                    write_file_part(field, &path, &mut aggregate_file_bytes).await?;
+                    current_image = Some(path);
+                }
+                "ai_output" if ai_output.is_none() => {
+                    let path = directory.file("ai-output.bin");
+                    write_file_part(field, &path, &mut aggregate_file_bytes).await?;
+                    ai_output = Some(path);
+                }
+                "session" | "subject_label" | "creator_name" | "original_image"
+                | "current_image" | "ai_output" => {
+                    return Err(UploadFailure::Request(
+                        "Multipart fields must not be duplicated.",
+                    ));
+                }
+                _ => {
+                    return Err(UploadFailure::Request(
+                        "The multipart request contains an unknown field.",
+                    ));
+                }
+            }
+        }
+
+        let session = session.ok_or(UploadFailure::Request(
+            "The multipart request is missing a required field.",
+        ))?;
+        let subject_label = subject_label.ok_or(UploadFailure::Request(
+            "The multipart request is missing a required field.",
+        ))?;
+        let creator_name = creator_name.ok_or(UploadFailure::Request(
+            "The multipart request is missing a required field.",
+        ))?;
+        let original_image = original_image.ok_or(UploadFailure::Request(
+            "The multipart request is missing a required field.",
+        ))?;
+        let current_image = current_image.ok_or(UploadFailure::Request(
+            "The multipart request is missing a required field.",
+        ))?;
+        let ai_output = ai_output.ok_or(UploadFailure::Request(
+            "The multipart request is missing a required field.",
+        ))?;
+
+        if !is_session_slug(&session) || subject_label.is_empty() || creator_name.is_empty() {
+            return Err(UploadFailure::Request(
+                "The multipart text fields do not satisfy the API schema.",
+            ));
+        }
+
+        Ok(Self {
+            _directory: directory,
+            request: BeginCreatorSessionRequest {
+                session,
+                subject_label,
+                creator_name,
+                original_image,
+                current_image,
+                ai_output,
+            },
+        })
+    }
+}
+
+async fn read_text_part(
+    mut field: axum::extract::multipart::Field<'_>,
+    max_bytes: usize,
+) -> Result<String, UploadFailure> {
+    if !has_exact_part_content_type(field.headers(), &mime::TEXT_PLAIN_UTF_8) {
+        return Err(UploadFailure::Request(
+            "Multipart text fields must use text/plain; charset=utf-8.",
+        ));
+    }
+    let mut bytes = Vec::new();
+    while let Some(chunk) = field.chunk().await.map_err(UploadFailure::multipart)? {
+        let next_len = bytes
+            .len()
+            .checked_add(chunk.len())
+            .ok_or(UploadFailure::Request(
+                "A multipart text field exceeds its UTF-8 byte limit.",
+            ))?;
+        if next_len > max_bytes {
+            return Err(UploadFailure::Request(
+                "A multipart text field exceeds its UTF-8 byte limit.",
+            ));
+        }
+        bytes.extend_from_slice(&chunk);
+    }
+    String::from_utf8(bytes)
+        .map_err(|_| UploadFailure::Request("Multipart text fields must contain valid UTF-8."))
+}
+
+async fn write_file_part(
+    mut field: axum::extract::multipart::Field<'_>,
+    path: &PathBuf,
+    aggregate_file_bytes: &mut usize,
+) -> Result<(), UploadFailure> {
+    if !has_exact_part_content_type(field.headers(), &mime::APPLICATION_OCTET_STREAM) {
+        return Err(UploadFailure::Request(
+            "Multipart file fields must use application/octet-stream.",
+        ));
+    }
+    let mut options = tokio::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    options.mode(0o600);
+    let mut file = options
+        .open(path)
+        .await
+        .map_err(|_| UploadFailure::Storage)?;
+    #[cfg(unix)]
+    tokio::fs::set_permissions(
+        path,
+        <std::fs::Permissions as std::os::unix::fs::PermissionsExt>::from_mode(0o600),
+    )
+    .await
+    .map_err(|_| UploadFailure::Storage)?;
+
+    let mut file_bytes = 0_usize;
+    while let Some(chunk) = field.chunk().await.map_err(UploadFailure::multipart)? {
+        file_bytes = file_bytes
+            .checked_add(chunk.len())
+            .ok_or(UploadFailure::Limit(
+                "A creator file exceeds the 64 MiB limit.",
+            ))?;
+        let next_aggregate =
+            aggregate_file_bytes
+                .checked_add(chunk.len())
+                .ok_or(UploadFailure::Limit(
+                    "The creator files exceed the 192 MiB aggregate limit.",
+                ))?;
+        if file_bytes > MAX_CREATOR_FILE_BYTES {
+            return Err(UploadFailure::Limit(
+                "A creator file exceeds the 64 MiB limit.",
+            ));
+        }
+        if next_aggregate > MAX_CREATOR_FILE_AGGREGATE_BYTES {
+            return Err(UploadFailure::Limit(
+                "The creator files exceed the 192 MiB aggregate limit.",
+            ));
+        }
+        file.write_all(&chunk)
+            .await
+            .map_err(|_| UploadFailure::Storage)?;
+        *aggregate_file_bytes = next_aggregate;
+    }
+    file.flush().await.map_err(|_| UploadFailure::Storage)
+}
+
+fn is_session_slug(value: &str) -> bool {
+    let bytes = value.as_bytes();
+    !bytes.is_empty()
+        && bytes.len() <= MAX_SESSION_BYTES
+        && bytes[0].is_ascii_lowercase()
+        && bytes
+            .iter()
+            .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'-')
+}
+
+enum UploadFailure {
+    Request(&'static str),
+    Limit(&'static str),
+    Storage,
+}
+
+impl UploadFailure {
+    fn multipart(error: axum::extract::multipart::MultipartError) -> Self {
+        match error.status() {
+            StatusCode::PAYLOAD_TOO_LARGE => {
+                Self::Limit("The multipart request exceeds the configured wire or file limit.")
+            }
+            StatusCode::BAD_REQUEST => Self::Request("The multipart request is malformed."),
+            _ => Self::Storage,
+        }
+    }
+
+    fn into_http_failure(self, state: &AppState) -> HttpFailure {
+        match self {
+            Self::Request(detail) => HttpFailure::request(state, "local_request_denied", detail),
+            Self::Limit(detail) => HttpFailure::limit(state, detail),
+            Self::Storage => {
+                HttpFailure::storage(state, "The upload staging area could not be written.")
+            }
+        }
+    }
 }
 
 async fn api_creator_session(
@@ -427,6 +896,7 @@ async fn index_page(State(state): State<AppState>) -> Response {
             tone: project_state_tone(project.state),
             ref_count: status.snapshot.ref_count,
             complete_sessions: status.creator_session_counts.complete,
+            pending_sessions: status.creator_session_counts.pending_review,
             incomplete_sessions: status.creator_session_counts.incomplete,
         });
     }
@@ -513,6 +983,7 @@ async fn project_page(State(state): State<AppState>, Path(project_key): Path<Str
             project_label: &project_label,
             watermark: &watermark,
             complete_sessions: dashboard.status.creator_session_counts.complete,
+            pending_sessions: dashboard.status.creator_session_counts.pending_review,
             incomplete_sessions: dashboard.status.creator_session_counts.incomplete,
             refs: &refs,
             reflog: &reflog,
@@ -615,9 +1086,14 @@ async fn session_page(
             project_label: &project_label,
             session: &session,
             complete: view.complete,
+            pending: view.pending,
+            show_evidence: view.show_evidence,
             state_label: &view.state_label,
             state_tone: &view.state_tone,
             state_description: &view.state_description,
+            ai_output_source: &view.ai_output_source,
+            review_id: &view.review_id,
+            decision_url: &view.decision_url,
             disposition: &view.disposition,
             selected: &view.selected,
             fsck_objects: view.fsck_objects,
@@ -684,14 +1160,21 @@ struct HttpFailure {
 impl HttpFailure {
     fn service(state: &AppState, error: ServiceError) -> Self {
         let status = match error.code() {
-            "project_not_found" | "creator_session_not_found" => StatusCode::NOT_FOUND,
+            "project_not_found" | "creator_session_not_found" | "creator_review_state_lost" => {
+                StatusCode::NOT_FOUND
+            }
             "local_request_denied" | "usage_error" | "path_segment_invalid" => {
                 StatusCode::BAD_REQUEST
             }
             "resource_limit" => StatusCode::PAYLOAD_TOO_LARGE,
-            "creator_session_incomplete" | "ref_conflict" | "stale_base" => StatusCode::CONFLICT,
+            "creator_session_exists"
+            | "creator_session_incomplete"
+            | "creator_review_busy"
+            | "creator_outcome_unknown"
+            | "ref_conflict"
+            | "stale_base" => StatusCode::CONFLICT,
             "creator_report_invalid" | "fsck_failed" => StatusCode::UNPROCESSABLE_ENTITY,
-            "storage_error" => StatusCode::SERVICE_UNAVAILABLE,
+            "service_unavailable" | "storage_error" => StatusCode::SERVICE_UNAVAILABLE,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
         Self {
@@ -726,6 +1209,28 @@ impl HttpFailure {
             detail: detail.into(),
             request_id: state.security.request_id(),
             retryable: false,
+        }
+    }
+
+    fn limit(state: &AppState, detail: &str) -> Self {
+        Self {
+            status: StatusCode::PAYLOAD_TOO_LARGE,
+            code: "resource_limit".into(),
+            title: "Payload too large".into(),
+            detail: detail.into(),
+            request_id: state.security.request_id(),
+            retryable: false,
+        }
+    }
+
+    fn storage(state: &AppState, detail: &str) -> Self {
+        Self {
+            status: StatusCode::SERVICE_UNAVAILABLE,
+            code: "storage_error".into(),
+            title: "Storage unavailable".into(),
+            detail: detail.into(),
+            request_id: state.security.request_id(),
+            retryable: true,
         }
     }
 
@@ -780,7 +1285,7 @@ fn render_template(state: &AppState, template: impl Template) -> Response {
 
 fn project_state_label(state: ProjectState) -> &'static str {
     match state {
-        ProjectState::Ready => "読取可能",
+        ProjectState::Ready => "利用可能",
         ProjectState::EmptyRestoreTarget => "空の復元先",
         ProjectState::Unavailable => "利用不可",
     }
@@ -812,9 +1317,14 @@ fn session_state_tone(state: CreatorSessionState) -> &'static str {
 
 struct SessionPageView {
     complete: bool,
+    pending: bool,
+    show_evidence: bool,
     state_label: String,
     state_tone: String,
     state_description: String,
+    ai_output_source: String,
+    review_id: String,
+    decision_url: String,
     disposition: String,
     selected: String,
     fsck_objects: usize,
@@ -841,30 +1351,61 @@ impl SessionPageView {
             CreatorSessionDetail::Complete(detail) => {
                 Self::complete(project_key, session, detail.report)
             }
-            CreatorSessionDetail::PendingReview(_) => Self {
-                complete: false,
-                state_label: "レビュー待ち".into(),
-                state_tone: "info".into(),
-                state_description: "このprocess内でHuman reviewを待っています。".into(),
-                disposition: "—".into(),
-                selected: "—".into(),
-                fsck_objects: 0,
-                images: Vec::new(),
-                has_comparison: false,
-                comparison_outcome: String::new(),
-                comparison_warning: String::new(),
-                comparison_status: String::new(),
-                comparison_comparability: String::new(),
-                comparison_adapter: String::new(),
-                comparison_replay: String::new(),
-                timeline: Vec::new(),
-                diagnostic: "レビュー操作は後続sliceで有効になります。".into(),
-            },
+            CreatorSessionDetail::PendingReview(detail) => {
+                let detail = *detail;
+                let images = Self::images(
+                    project_key,
+                    session,
+                    &detail.original_blob_oid,
+                    &detail.current_blob_oid,
+                    &detail.ai_output_blob_oid,
+                );
+                let comparison = detail.comparison;
+                Self {
+                    complete: false,
+                    pending: true,
+                    show_evidence: true,
+                    state_label: "レビュー待ち".into(),
+                    state_tone: "info".into(),
+                    state_description: "このprocess内でHuman reviewを待っています。".into(),
+                    ai_output_source: detail.ai_output_source,
+                    review_id: detail.review_id,
+                    decision_url: format!(
+                        "/api/v1/projects/{project_key}/creator-sessions/{session}/decisions"
+                    ),
+                    disposition: "—".into(),
+                    selected: "—".into(),
+                    fsck_objects: 0,
+                    images,
+                    has_comparison: true,
+                    comparison_outcome: comparison.outcome,
+                    comparison_warning: comparison.warnings.join(" "),
+                    comparison_status: comparison.status,
+                    comparison_comparability: comparison.comparability,
+                    comparison_adapter: format!(
+                        "{} {}",
+                        comparison.adapter_id, comparison.adapter_version
+                    ),
+                    comparison_replay: if comparison.replay_ready {
+                        "はい"
+                    } else {
+                        "いいえ"
+                    }
+                    .into(),
+                    timeline: Vec::new(),
+                    diagnostic: String::new(),
+                }
+            }
             CreatorSessionDetail::Incomplete(incomplete) => Self {
                 complete: false,
+                pending: false,
+                show_evidence: false,
                 state_label: "未完了".into(),
                 state_tone: "warning".into(),
                 state_description: "現在のRefsは完了したCreator sessionを構成していません。".into(),
+                ai_output_source: String::new(),
+                review_id: String::new(),
+                decision_url: String::new(),
                 disposition: "—".into(),
                 selected: "—".into(),
                 fsck_objects: 0,
@@ -883,28 +1424,13 @@ impl SessionPageView {
     }
 
     fn complete(project_key: &str, session: &str, report: CreatorReport) -> Self {
-        let image_base =
-            format!("/api/v1/projects/{project_key}/creator-sessions/{session}/images");
-        let images = vec![
-            ImageView {
-                label: "Original".into(),
-                alt: "取り込まれたoriginal画像".into(),
-                url: format!("{image_base}/original"),
-                oid: report.original_blob_oid.clone(),
-            },
-            ImageView {
-                label: "Current".into(),
-                alt: "取り込まれたcurrent画像".into(),
-                url: format!("{image_base}/current"),
-                oid: report.current_blob_oid.clone(),
-            },
-            ImageView {
-                label: "AI output".into(),
-                alt: "caller supplied AI output".into(),
-                url: format!("{image_base}/ai-output"),
-                oid: report.ai_output_blob_oid.clone(),
-            },
-        ];
+        let images = Self::images(
+            project_key,
+            session,
+            &report.original_blob_oid,
+            &report.current_blob_oid,
+            &report.ai_output_blob_oid,
+        );
         let timeline = report
             .timeline
             .into_iter()
@@ -952,9 +1478,14 @@ impl SessionPageView {
         };
         Self {
             complete: true,
+            pending: false,
+            show_evidence: true,
             state_label: "完了".into(),
             state_tone: "success".into(),
             state_description: "現在のRefsとCASから検証済みレポートを再構築しました。".into(),
+            ai_output_source: report.ai_output_source,
+            review_id: String::new(),
+            decision_url: String::new(),
             disposition: report.disposition,
             selected: if report.selected_ai_output {
                 "はい".into()
@@ -974,6 +1505,40 @@ impl SessionPageView {
             diagnostic: String::new(),
         }
     }
+
+    fn images(
+        project_key: &str,
+        session: &str,
+        original_oid: &str,
+        current_oid: &str,
+        ai_output_oid: &str,
+    ) -> Vec<ImageView> {
+        let image_base =
+            format!("/api/v1/projects/{project_key}/creator-sessions/{session}/images");
+        vec![
+            ImageView {
+                label: "Original".into(),
+                alt: "取り込まれたoriginal画像".into(),
+                url: format!("{image_base}/original"),
+                oid: original_oid.into(),
+                download_name: format!("{session}-original.bin"),
+            },
+            ImageView {
+                label: "Current".into(),
+                alt: "取り込まれたcurrent画像".into(),
+                url: format!("{image_base}/current"),
+                oid: current_oid.into(),
+                download_name: format!("{session}-current.bin"),
+            },
+            ImageView {
+                label: "AI output".into(),
+                alt: "caller supplied AI output".into(),
+                url: format!("{image_base}/ai-output"),
+                oid: ai_output_oid.into(),
+                download_name: format!("{session}-ai-output.bin"),
+            },
+        ]
+    }
 }
 
 struct ProjectCardView {
@@ -983,6 +1548,7 @@ struct ProjectCardView {
     tone: &'static str,
     ref_count: usize,
     complete_sessions: usize,
+    pending_sessions: usize,
     incomplete_sessions: usize,
 }
 
@@ -1012,6 +1578,7 @@ struct ImageView {
     alt: String,
     url: String,
     oid: String,
+    download_name: String,
 }
 
 struct TimelineView {
@@ -1039,6 +1606,7 @@ struct ProjectTemplate<'a> {
     project_label: &'a str,
     watermark: &'a str,
     complete_sessions: usize,
+    pending_sessions: usize,
     incomplete_sessions: usize,
     refs: &'a [RefView],
     reflog: &'a [ReflogView],
@@ -1054,9 +1622,14 @@ struct SessionTemplate<'a> {
     project_label: &'a str,
     session: &'a str,
     complete: bool,
+    pending: bool,
+    show_evidence: bool,
     state_label: &'a str,
     state_tone: &'a str,
     state_description: &'a str,
+    ai_output_source: &'a str,
+    review_id: &'a str,
+    decision_url: &'a str,
     disposition: &'a str,
     selected: &'a str,
     fsck_objects: usize,
@@ -1184,6 +1757,171 @@ mod tests {
         Request::builder().uri(path).header(HOST, "127.0.0.1:43123")
     }
 
+    fn multipart_body(boundary: &str, parts: &[(&str, &str, &[u8])]) -> Vec<u8> {
+        let mut body = Vec::new();
+        for (name, content_type, bytes) in parts {
+            body.extend_from_slice(format!("--{boundary}\r\n").as_bytes());
+            body.extend_from_slice(
+                format!(
+                    "Content-Disposition: form-data; name=\"{name}\"; filename=\"{name}.bin\"\r\n"
+                )
+                .as_bytes(),
+            );
+            body.extend_from_slice(format!("Content-Type: {content_type}\r\n\r\n").as_bytes());
+            body.extend_from_slice(bytes);
+            body.extend_from_slice(b"\r\n");
+        }
+        body.extend_from_slice(format!("--{boundary}--\r\n").as_bytes());
+        body
+    }
+
+    fn valid_creator_multipart(boundary: &str) -> Vec<u8> {
+        multipart_body(
+            boundary,
+            &[
+                ("session", "text/plain; charset=utf-8", b"web-review"),
+                (
+                    "subject_label",
+                    "text/plain; charset=utf-8",
+                    b"Web transport fixture",
+                ),
+                ("creator_name", "text/plain; charset=utf-8", b"HTTP creator"),
+                (
+                    "original_image",
+                    "application/octet-stream",
+                    b"\x89PNG\r\n\x1a\nweb-original",
+                ),
+                (
+                    "current_image",
+                    "application/octet-stream",
+                    b"<svg xmlns='http://www.w3.org/2000/svg'><rect/></svg>",
+                ),
+                (
+                    "ai_output",
+                    "application/octet-stream",
+                    b"GIF89aweb-ai-output",
+                ),
+            ],
+        )
+    }
+
+    fn unsafe_api_request(
+        path: &str,
+        content_type: impl AsRef<str>,
+        body: Body,
+    ) -> axum::http::Request<Body> {
+        request(path)
+            .method("POST")
+            .header("x-synapse-local-token", "a".repeat(64))
+            .header(ORIGIN, "http://127.0.0.1:43123")
+            .header("sec-fetch-site", "same-origin")
+            .header(CONTENT_TYPE, content_type.as_ref())
+            .body(body)
+            .unwrap()
+    }
+
+    async fn assert_problem(response: Response, status: StatusCode, code: &str) {
+        assert_eq!(response.status(), status);
+        assert_eq!(
+            response.headers().get(CONTENT_TYPE).unwrap(),
+            "application/problem+json"
+        );
+        let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+        let problem: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(problem["status"], status.as_u16());
+        assert_eq!(problem["code"], code);
+    }
+
+    #[test]
+    fn browser_write_enhancement_preserves_submitter_before_disabling_controls() {
+        let prepare = APP_JS
+            .find("prepared = formRequest(form, event.submitter);")
+            .expect("the request captures the clicked submitter");
+        let disable = APP_JS
+            .find("setBusy(form, true);")
+            .expect("the form disables controls while busy");
+        assert!(prepare < disable);
+        assert!(APP_JS.contains("data.append(submitter.name, submitter.value)"));
+        assert!(APP_JS.contains("event.submitter?.name === \"disposition\""));
+        assert!(APP_JS.contains("window.confirm("));
+        assert!(APP_JS.contains("form.hidden = false"));
+    }
+
+    #[test]
+    fn attachment_only_media_uses_download_only_blob_urls() {
+        let start = APP_JS
+            .find("function installAttachmentDownload")
+            .expect("the attachment installer exists");
+        let end = APP_JS[start..]
+            .find("async function loadApiImage")
+            .map(|offset| start + offset)
+            .expect("the attachment installer has a bounded source section");
+        let installer = &APP_JS[start..end];
+        assert!(installer.contains("download.hasAttribute(\"download\")"));
+        assert!(installer.contains("download.setAttribute(\"href\", objectUrl)"));
+        assert!(installer.contains("window.setTimeout("));
+        assert!(!installer.contains("image.src = objectUrl"));
+        assert!(APP_JS.contains("type === ATTACHMENT_MEDIA_TYPE"));
+        assert!(APP_JS.contains("window.addEventListener(\"pagehide\", releaseImageResources)"));
+    }
+
+    #[test]
+    fn staging_directory_creation_immediately_establishes_raii_ownership() {
+        // This intentionally compiles as a synchronous call: there is no await
+        // at which cancellation can detach a successful directory creation
+        // from the cleanup owner.
+        let directory = StagingDirectory::create_sync().unwrap();
+        let path = directory.path.clone();
+        assert!(path.is_dir());
+        #[cfg(unix)]
+        assert_eq!(
+            <std::fs::Permissions as std::os::unix::fs::PermissionsExt>::mode(
+                &fs::metadata(&path).unwrap().permissions(),
+            ) & 0o777,
+            0o700
+        );
+        drop(directory);
+        assert!(!path.exists());
+    }
+
+    #[tokio::test]
+    async fn cancelled_staging_create_drops_the_detached_task_output() {
+        let parent = TestDirectory::new();
+        let path = parent.0.join("detached-staging");
+        let operation_path = path.clone();
+        let (created_tx, created_rx) = tokio::sync::oneshot::channel();
+        let (release_tx, release_rx) = std::sync::mpsc::channel();
+        let waiter = tokio::spawn(StagingDirectory::create_with(move || {
+            std::fs::create_dir(&operation_path)?;
+            let directory = StagingDirectory {
+                path: operation_path,
+            };
+            created_tx.send(()).unwrap();
+            release_rx.recv().unwrap();
+            Ok(directory)
+        }));
+
+        created_rx.await.unwrap();
+        assert!(path.is_dir());
+        waiter.abort();
+        assert!(matches!(waiter.await, Err(error) if error.is_cancelled()));
+        release_tx.send(()).unwrap();
+
+        let path_for_poll = path.clone();
+        let removed = tokio::task::spawn_blocking(move || {
+            for _ in 0..5_000 {
+                if !path_for_poll.exists() {
+                    return true;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(1));
+            }
+            !path_for_poll.exists()
+        })
+        .await
+        .unwrap();
+        assert!(removed, "detached staging owner did not clean up {path:?}");
+    }
+
     #[tokio::test]
     async fn health_is_public_but_host_and_proxy_headers_fail_closed() {
         let (_directory, app) = test_app();
@@ -1274,7 +2012,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn unsafe_and_unimplemented_routes_do_not_open_write_primitives() {
+    async fn unsafe_routes_require_browser_security_and_known_writes_reject_invalid_bodies() {
         let (_directory, app) = test_app();
         let no_origin = app
             .clone()
@@ -1289,7 +2027,7 @@ mod tests {
             .unwrap();
         assert_eq!(no_origin.status(), StatusCode::FORBIDDEN);
 
-        let protected_but_absent = app
+        let protected_write = app
             .clone()
             .oneshot(
                 request("/api/v1/projects/demo/creator-sessions")
@@ -1302,10 +2040,7 @@ mod tests {
             )
             .await
             .unwrap();
-        assert_eq!(
-            protected_but_absent.status(),
-            StatusCode::METHOD_NOT_ALLOWED
-        );
+        assert_eq!(protected_write.status(), StatusCode::BAD_REQUEST);
 
         for forbidden in [
             "/api/v1/objects",
@@ -1324,6 +2059,286 @@ mod tests {
                 .await
                 .unwrap();
             assert_eq!(response.status(), StatusCode::NOT_FOUND, "{forbidden}");
+        }
+    }
+
+    #[tokio::test]
+    async fn creator_multipart_and_decision_complete_the_two_step_transport_workflow() {
+        let (_directory, app) = test_app();
+        let boundary = "synapse-success-boundary";
+        let upload = app
+            .clone()
+            .oneshot(unsafe_api_request(
+                "/api/v1/projects/demo/creator-sessions",
+                format!("multipart/form-data; boundary={boundary}"),
+                Body::from(valid_creator_multipart(boundary)),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(upload.status(), StatusCode::CREATED);
+        assert_eq!(
+            upload.headers().get(CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
+        let upload_body = to_bytes(upload.into_body(), 2 * 1024 * 1024).await.unwrap();
+        let pending: serde_json::Value = serde_json::from_slice(&upload_body).unwrap();
+        assert_eq!(pending["state"], "pending_review");
+        assert_eq!(pending["session"], "web-review");
+        assert_eq!(pending["server_instance"], "local-test-instance");
+        assert_eq!(pending["ai_output_source"], "caller_supplied");
+        let review_id = pending["review_id"].as_str().unwrap().to_owned();
+
+        let pending_page = app
+            .clone()
+            .oneshot(
+                request("/projects/demo/creator-sessions/web-review")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(pending_page.status(), StatusCode::OK);
+        let pending_html = to_bytes(pending_page.into_body(), 2 * 1024 * 1024)
+            .await
+            .unwrap();
+        let pending_html = std::str::from_utf8(&pending_html).unwrap();
+        assert_eq!(pending_html.matches("data-synapse-image ").count(), 3);
+        assert_eq!(
+            pending_html.matches("data-synapse-image-download").count(),
+            3
+        );
+        assert!(pending_html.contains("download=\"web-review-current.bin\" hidden"));
+        assert!(pending_html.contains("caller_supplied"));
+        assert!(pending_html.contains("name=\"disposition\" value=\"adopt\""));
+        assert!(pending_html.contains("name=\"disposition\" value=\"reject\""));
+        assert!(pending_html.contains("name=\"disposition\" value=\"defer\""));
+
+        for (role, expected_type, expected_disposition) in [
+            ("original", "image/png", "inline"),
+            ("current", "application/octet-stream", "attachment"),
+            ("ai-output", "image/gif", "inline"),
+        ] {
+            let image = app
+                .clone()
+                .oneshot(
+                    request(&format!(
+                        "/api/v1/projects/demo/creator-sessions/web-review/images/{role}"
+                    ))
+                    .header("x-synapse-local-token", "a".repeat(64))
+                    .body(Body::empty())
+                    .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(image.status(), StatusCode::OK, "{role}");
+            assert_eq!(image.headers().get(CONTENT_TYPE).unwrap(), expected_type);
+            assert!(
+                image
+                    .headers()
+                    .get(CONTENT_DISPOSITION)
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .starts_with(expected_disposition),
+                "{role}"
+            );
+            assert!(!to_bytes(image.into_body(), 1024).await.unwrap().is_empty());
+        }
+
+        let pending_index = app
+            .clone()
+            .oneshot(request("/").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let pending_index = to_bytes(pending_index.into_body(), 2 * 1024 * 1024)
+            .await
+            .unwrap();
+        let pending_index = std::str::from_utf8(&pending_index).unwrap();
+        assert!(pending_index.contains("<dt>レビュー待ち</dt><dd>1</dd>"));
+
+        let decision_body = serde_json::to_vec(&serde_json::json!({
+            "review_id": review_id,
+            "disposition": "adopt",
+            "rationale": "Reviewed through the localhost transport."
+        }))
+        .unwrap();
+        let decision = app
+            .clone()
+            .oneshot(unsafe_api_request(
+                "/api/v1/projects/demo/creator-sessions/web-review/decisions",
+                "application/json",
+                Body::from(decision_body),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(decision.status(), StatusCode::OK);
+        let decision_body = to_bytes(decision.into_body(), 2 * 1024 * 1024)
+            .await
+            .unwrap();
+        let complete: serde_json::Value = serde_json::from_slice(&decision_body).unwrap();
+        assert_eq!(complete["state"], "complete");
+        assert_eq!(complete["report"]["session"], "web-review");
+        assert_eq!(complete["report"]["disposition"], "adopt");
+
+        let completed_page = app
+            .oneshot(
+                request("/projects/demo/creator-sessions/web-review")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(completed_page.status(), StatusCode::OK);
+        let completed_html = to_bytes(completed_page.into_body(), 2 * 1024 * 1024)
+            .await
+            .unwrap();
+        let completed_html = std::str::from_utf8(&completed_html).unwrap();
+        assert!(completed_html.contains("Disposition"));
+        assert!(!completed_html.contains("Human reviewが必要です"));
+    }
+
+    #[tokio::test]
+    async fn multipart_rejects_duplicate_extra_missing_and_wrong_content_type_fields() {
+        let (_directory, app) = test_app();
+        let boundary = "synapse-invalid-boundary";
+        let content_type = format!("multipart/form-data; boundary={boundary}");
+        let cases = [
+            multipart_body(
+                boundary,
+                &[
+                    ("session", "text/plain; charset=utf-8", b"one"),
+                    ("session", "text/plain; charset=utf-8", b"two"),
+                ],
+            ),
+            multipart_body(
+                boundary,
+                &[("unexpected", "text/plain; charset=utf-8", b"value")],
+            ),
+            multipart_body(
+                boundary,
+                &[
+                    ("session", "text/plain; charset=utf-8", b"missing-file"),
+                    (
+                        "subject_label",
+                        "text/plain; charset=utf-8",
+                        b"Missing fields",
+                    ),
+                    ("creator_name", "text/plain; charset=utf-8", b"HTTP creator"),
+                ],
+            ),
+            multipart_body(
+                boundary,
+                &[("session", "application/octet-stream", b"wrong-type")],
+            ),
+        ];
+
+        for body in cases {
+            let response = app
+                .clone()
+                .oneshot(unsafe_api_request(
+                    "/api/v1/projects/demo/creator-sessions",
+                    &content_type,
+                    Body::from(body),
+                ))
+                .await
+                .unwrap();
+            assert_problem(response, StatusCode::BAD_REQUEST, "local_request_denied").await;
+        }
+
+        let extra_content_type = app
+            .oneshot(unsafe_api_request(
+                "/api/v1/projects/demo/creator-sessions",
+                format!("multipart/form-data; boundary={boundary}; charset=utf-8"),
+                Body::from(multipart_body(boundary, &[])),
+            ))
+            .await
+            .unwrap();
+        assert_problem(
+            extra_content_type,
+            StatusCode::BAD_REQUEST,
+            "local_request_denied",
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn multipart_rejects_a_file_larger_than_sixty_four_mib() {
+        let (_directory, app) = test_app();
+        let boundary = "synapse-oversize-boundary";
+        let oversized = vec![b'x'; MAX_CREATOR_FILE_BYTES + 1];
+        let body = multipart_body(
+            boundary,
+            &[("original_image", "application/octet-stream", &oversized)],
+        );
+        drop(oversized);
+        let response = app
+            .oneshot(unsafe_api_request(
+                "/api/v1/projects/demo/creator-sessions",
+                format!("multipart/form-data; boundary={boundary}"),
+                Body::from(body),
+            ))
+            .await
+            .unwrap();
+        assert_problem(response, StatusCode::PAYLOAD_TOO_LARGE, "resource_limit").await;
+    }
+
+    #[tokio::test]
+    async fn foreign_origin_is_rejected_before_a_creator_write_is_parsed() {
+        let (_directory, app) = test_app();
+        let response = app
+            .oneshot(
+                request("/api/v1/projects/demo/creator-sessions")
+                    .method("POST")
+                    .header("x-synapse-local-token", "a".repeat(64))
+                    .header(ORIGIN, "http://localhost:43123")
+                    .header("sec-fetch-site", "cross-site")
+                    .header(
+                        CONTENT_TYPE,
+                        "multipart/form-data; boundary=foreign-origin-boundary",
+                    )
+                    .body(Body::from("not parsed"))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_problem(response, StatusCode::FORBIDDEN, "local_request_denied").await;
+    }
+
+    #[tokio::test]
+    async fn decision_rejects_non_exact_content_type_unknown_fields_and_oversize_json() {
+        let (_directory, app) = test_app();
+        for (content_type, body, expected_status, expected_code) in [
+            (
+                "application/json; charset=utf-8",
+                Body::from(r#"{"review_id":"abcdefghijklmnopqrstuv","disposition":"defer"}"#),
+                StatusCode::BAD_REQUEST,
+                "local_request_denied",
+            ),
+            (
+                "application/json",
+                Body::from(
+                    r#"{"review_id":"abcdefghijklmnopqrstuv","disposition":"defer","unknown":true}"#,
+                ),
+                StatusCode::BAD_REQUEST,
+                "local_request_denied",
+            ),
+            (
+                "application/json",
+                Body::from(vec![b' '; MAX_DECISION_JSON_BYTES + 1]),
+                StatusCode::PAYLOAD_TOO_LARGE,
+                "resource_limit",
+            ),
+        ] {
+            let response = app
+                .clone()
+                .oneshot(unsafe_api_request(
+                    "/api/v1/projects/demo/creator-sessions/not-pending/decisions",
+                    content_type,
+                    body,
+                ))
+                .await
+                .unwrap();
+            assert_problem(response, expected_status, expected_code).await;
         }
     }
 

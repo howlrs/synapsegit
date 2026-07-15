@@ -77,6 +77,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   min-width: 20rem;
   background: var(--canvas);
@@ -822,6 +826,10 @@ tbody tr:hover {
   display: inline-block;
   max-width: 100%;
   overflow-wrap: anywhere;
+}
+
+[data-synapse-image-download] {
+  margin-block: var(--space-3);
 }
 
 [data-synapse-image][aria-busy="true"] {

@@ -21,8 +21,8 @@ not prove authorship, truth, copyright, permission, or physical change.
 
 ![SynapseGit Local project overview showing a local mural conservation repository](./docs/assets/synapse-local/overview-hero.png)
 
-_The actual `synapse-local` read-only interface, served only from
-`127.0.0.1`. It is not a hosted or multi-user service._
+_The actual `synapse-local` project overview, served only from `127.0.0.1`.
+It is not a hosted or multi-user service._
 
 ## Who can use this preview
 
@@ -36,7 +36,7 @@ The current v0.1.0 preview is most useful to:
 
 The longer-term design also targets painters, architects, construction and
 conservation teams, designers, and future stewards of a work. Capture tooling,
-pixel-level comparison, a write-capable creator UI, and a production cloud
+pixel-level comparison, a general-purpose creator UI, and a production cloud
 service are not implemented yet.
 
 ## Try it in three minutes
@@ -96,20 +96,22 @@ synapse-local \
   --label "demo=My first SynapseGit project"
 ```
 
-Open the exact `http://127.0.0.1:...` URL printed by the process. The current UI
-is read-only; creation, review, export, and restore remain CLI operations. See
-the [installation guide](./docs/install.md) for updates, source builds, and
-uninstallation, or the [source Quickstart](./docs/quickstart.md) for the full
-Core round trip.
+Open the exact `http://127.0.0.1:...` URL printed by the process. The v0.1.0
+binary used above is read-only; creation, review, export, and restore remain CLI
+operations in that tag. A current source build also supports bounded three-file
+import and same-process Human review in the browser. See the
+[local application runbook](./deploy/local/README.md), the
+[installation guide](./docs/install.md), or the
+[source Quickstart](./docs/quickstart.md).
 
 ## What works now
 
-| Capability | v0.1.0 status |
+| Capability | Current `main` status |
 |---|---|
 | Three-file creator Pilot with `adopt`, `reject`, and `defer` | Implemented as a bounded local CLI flow |
 | Human/AI-attributed provenance and a comparison-aware report | Implemented; AI output remains caller-supplied |
 | Original/current comparison | Primary blob byte identity only; always partial comparability |
-| Local browser interface | Implemented for read-only project, session, evidence, and image views |
+| Local browser interface | Read views plus bounded three-file import and same-process `adopt` / `reject` / `defer`; maintenance remains CLI-only |
 | Content-addressed objects, typed closure, Ref CAS, and reflog | Implemented and covered by repository tests |
 | `fsck`, checksum-bound directory export, and verified restore | Implemented for the local repository format |
 | Public multi-user service | Architecture only; not implemented |
@@ -119,6 +121,9 @@ Core round trip.
 real-user authentication, network transport, production operations, or a
 general creator-facing application is ready.
 
+The tagged v0.1.0 `synapse-local` binary predates browser import/review and is
+read-only; those write slices currently require a source build from `main`.
+
 ## How it works
 
 ```mermaid
@@ -127,7 +132,7 @@ flowchart LR
     O --> P["AI-attributed proposal"]
     P --> H["Human decision\nadopt / reject / defer"]
     H --> C["Commit + mutable Ref"]
-    C --> R["Report / local viewer"]
+    C --> R["Report / local application"]
     C --> A["Verified export / restore"]
 ```
 
@@ -144,7 +149,7 @@ local application routes, and archive verification. Read the
 | Install a release or build from a tag | [Installation](./docs/install.md) |
 | Run the complete source demo | [Core Quickstart](./docs/quickstart.md) |
 | Understand creator and AI-assisted use cases | [Usage guide](./docs/usage_guide.md) |
-| Run the loopback-only viewer | [Local application runbook](./deploy/local/README.md) |
+| Run the loopback-only application | [Local application runbook](./deploy/local/README.md) |
 | Look up commands and errors | [CLI reference](./docs/cli_reference.md) |
 | Evaluate current maturity and next work | [Project status](./docs/project_status.md) |
 | Review trust, privacy, and security limits | [Security model](./docs/security_model.md) |

@@ -61,8 +61,8 @@ function walk(value, visit, location = "#", seen = new Set()) {
 if (contract.openapi !== "3.1.1") {
   fail("openapi must be exactly 3.1.1");
 }
-if (contract["x-synapse-status"] !== "planned-contract") {
-  fail("x-synapse-status must state planned-contract");
+if (contract["x-synapse-status"] !== "partially-implemented-contract") {
+  fail("x-synapse-status must state partially-implemented-contract");
 }
 
 const servers = contract.servers ?? [];

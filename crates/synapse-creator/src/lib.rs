@@ -18,10 +18,10 @@ use std::io;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use synapse_application::{
-    AiAuthorityProfileConfig, AiExecutionContext, AiExecutor, Application, ApplicationError,
-    AuthenticatedSession, AuthenticationFailure, Authenticator, ExecutedAiProposal,
-    ExecutionFailure, HumanAuthorityProfileConfig, HumanDecisionCandidate, ProjectSelector,
-    RegisteredProject,
+    AdmittedProposalHandle, AiAuthorityProfileConfig, AiExecutionContext, AiExecutor, Application,
+    ApplicationError, AuthenticatedSession, AuthenticationFailure, Authenticator,
+    ExecutedAiProposal, ExecutionFailure, HumanAuthorityProfileConfig, HumanAuthorityProfileHandle,
+    HumanDecisionCandidate, ProjectSelector, RegisteredProject,
 };
 use synapse_canonical::{ObjectKind, canonical_bytes, parse_strict};
 use synapse_cas::{GraphLimits, fsck};
@@ -124,6 +124,64 @@ pub struct CreatorRunOptions {
     pub creator_name: String,
     pub disposition: CreatorDisposition,
     pub rationale: Option<String>,
+}
+
+/// Inputs needed to publish a creator proposal for later Human review.
+///
+/// The file paths belong to the trusted local integration. Browser and other
+/// request boundaries must stage uploaded bytes and must never accept a
+/// repository path from an untrusted caller.
+#[derive(Clone, Debug)]
+pub struct CreatorBeginOptions {
+    pub repository: PathBuf,
+    pub session: String,
+    pub original_image: PathBuf,
+    pub current_image: PathBuf,
+    pub ai_output: PathBuf,
+    pub subject_label: String,
+    pub creator_name: String,
+}
+
+/// Human input accepted after the exact proposal has been admitted.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreatorDecisionOptions {
+    pub disposition: CreatorDisposition,
+    pub rationale: Option<String>,
+}
+
+/// Stable, non-authoritative identifiers for a proposal awaiting review.
+///
+/// This receipt is safe to render, but it is not sufficient to publish a
+/// Human decision. Publication also requires the opaque same-process pending
+/// value returned by [`begin_creator_session`].
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreatorPendingReceipt {
+    pub session: String,
+    pub project_id: String,
+    pub subject_id: String,
+    pub creator_id: String,
+    pub agent_id: String,
+    pub decision_ref: String,
+    pub proposal_ref: String,
+    pub base_head: String,
+    pub proposal_head: String,
+    pub original_blob_oid: String,
+    pub current_blob_oid: String,
+    pub ai_output_blob_oid: String,
+    pub capture_profile_oid: String,
+    pub original_observation_oid: String,
+    pub current_observation_oid: String,
+    pub comparison: CreatorComparisonReport,
+    pub ai_activity_oid: String,
+}
+
+/// Observable lifecycle of the opaque Human-decision capability.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CreatorPendingDecisionState {
+    Ready,
+    Deciding,
+    Consumed,
+    OutcomeUnknown,
 }
 
 /// Stable identifiers produced by a completed creator session.
@@ -372,14 +430,92 @@ impl From<serde_json::Error> for CreatorError {
 
 pub type Result<T> = std::result::Result<T, CreatorError>;
 
-/// Create one complete local creator session.
+type PilotApplication = Application<PilotAuthenticator, PreparedExecutor, SystemAuthorizationClock>;
+
+/// Opaque, same-process authority needed to publish one Human decision.
+///
+/// This value is intentionally non-Clone and non-serializable. Persisting its
+/// visible identifiers does not recreate the admitted-proposal capability
+/// held by the exact [`Application`] instance.
+#[must_use = "dropping pending creator authority leaves the published proposal incomplete"]
+pub struct PendingCreatorSession {
+    application: PilotApplication,
+    admitted_proposal: AdmittedProposalHandle,
+    human_profile: HumanAuthorityProfileHandle,
+    selector: ProjectSelector,
+    repository_path: PathBuf,
+    ids: SessionIds,
+    receipt: CreatorPendingReceipt,
+    base_tree_oid: String,
+    proposal_tree_oid: String,
+    byte_identity_outcome: ByteIdentityOutcome,
+    comparison_status: AnalysisStatus,
+    comparison_comparability: AnalysisComparability,
+    recording_clock: RecordingClock,
+    decision_state: PendingDecisionState,
+}
+
+enum PendingDecisionState {
+    Ready,
+    Deciding,
+    Consumed(Box<CreatorRunReceipt>),
+    OutcomeUnknown,
+}
+
+impl fmt::Debug for PendingCreatorSession {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PendingCreatorSession")
+            .field("session", &self.receipt.session)
+            .field("proposal_head", &self.receipt.proposal_head)
+            .field("decision_state", &self.decision_state.label())
+            .finish_non_exhaustive()
+    }
+}
+
+impl PendingCreatorSession {
+    pub fn receipt(&self) -> &CreatorPendingReceipt {
+        &self.receipt
+    }
+
+    /// Return the committed receipt even when a later integrity check failed.
+    pub fn completed_receipt(&self) -> Option<&CreatorRunReceipt> {
+        match &self.decision_state {
+            PendingDecisionState::Consumed(receipt) => Some(receipt),
+            _ => None,
+        }
+    }
+
+    /// Report whether a caller may safely attempt a Human decision.
+    pub const fn decision_state(&self) -> CreatorPendingDecisionState {
+        match &self.decision_state {
+            PendingDecisionState::Ready => CreatorPendingDecisionState::Ready,
+            PendingDecisionState::Deciding => CreatorPendingDecisionState::Deciding,
+            PendingDecisionState::Consumed(_) => CreatorPendingDecisionState::Consumed,
+            PendingDecisionState::OutcomeUnknown => CreatorPendingDecisionState::OutcomeUnknown,
+        }
+    }
+}
+
+impl PendingDecisionState {
+    const fn label(&self) -> &'static str {
+        match self {
+            Self::Ready => "ready",
+            Self::Deciding => "deciding",
+            Self::Consumed(_) => "consumed",
+            Self::OutcomeUnknown => "outcome_unknown",
+        }
+    }
+}
+
+/// Publish one local creator proposal and retain its exact Human-review authority.
 ///
 /// Both target Refs must be absent. CAS writes before the base Ref publication
 /// are harmless immutable orphans. A failure after publication may leave an
 /// incomplete or already-complete live session which this create-only Pilot
 /// will not overwrite; callers must inspect it or choose a new session name.
-pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunReceipt> {
-    validate_metadata(options)?;
+pub fn begin_creator_session(options: &CreatorBeginOptions) -> Result<PendingCreatorSession> {
+    validate_begin_metadata(options)?;
     let decision_ref = decision_ref(&options.session);
     let proposal_ref = proposal_ref(&options.session);
     let mut repository = Repository::open(&options.repository)?;
@@ -408,7 +544,11 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
             preflight.issues.len()
         )));
     }
-    validate_input_files(options)?;
+    validate_input_files(
+        &options.original_image,
+        &options.current_image,
+        &options.ai_output,
+    )?;
 
     let original_blob_oid = put_file(&repository, &options.original_image)?;
     let current_blob_oid = put_file(&repository, &options.current_image)?;
@@ -695,41 +835,12 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
             "Caller-supplied output recorded as an AI proposal; canonical decision unchanged",
         ),
     )?;
-
-    let rationale = options
-        .rationale
-        .as_deref()
-        .unwrap_or_else(|| options.disposition.default_rationale());
-    let decision_recorded_at = recording_clock.tick()?;
-    let decision_feedback_oid = put_json(
-        &repository,
-        feedback_record(
-            &ids.feedback,
-            &ids.creator,
-            &ids.subject,
-            &proposal_head,
-            options.disposition,
-            rationale,
-            &decision_recorded_at.timestamp,
-        ),
-    )?;
-    let selected_tree = if options.disposition == CreatorDisposition::Adopt {
-        &proposal_tree_oid
-    } else {
-        &base_tree_oid
-    };
-    let decision_head = put_json(
-        &repository,
-        commit(
-            "decision",
-            slice(&base_head),
-            selected_tree,
-            slice(&decision_feedback_oid),
-            &ids.creator,
-            &decision_recorded_at.timestamp,
-            "Creator reviewed AI proposal",
-        ),
-    )?;
+    let base_media_oid = comparison.base_media_oid.clone().ok_or_else(|| {
+        CreatorError::Integrity("creator byte-identity base media is absent".into())
+    })?;
+    let target_media_oid = comparison.target_media_oid.clone().ok_or_else(|| {
+        CreatorError::Integrity("creator byte-identity target media is absent".into())
+    })?;
 
     let selector = ProjectSelector::new(ids.project.clone());
     let application = Application::new(
@@ -760,39 +871,232 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
         vec![AiCapability::ProposeBranch, AiCapability::ReadContext],
         AiSideEffectClass::None,
     ))?;
-    let execution = application.register_execution(&ai_profile)?;
-    let ai_permit = application.prepare_ai(AGENT_CREDENTIAL, &selector, &execution)?;
-    let ai_receipt = application.execute_and_publish_ai(AGENT_CREDENTIAL, &ai_permit)?;
-    let (_, admitted_proposal) = ai_receipt.into_parts();
-
     let human_profile = application.register_human_profile(HumanAuthorityProfileConfig::new(
         selector.clone(),
         ids.creator.clone(),
         decision_ref.clone(),
-        creator_actor_oid,
-        policy_oid,
+        creator_actor_oid.clone(),
+        policy_oid.clone(),
     ))?;
+    let execution = application.register_execution(&ai_profile)?;
+    let ai_permit = application.prepare_ai(AGENT_CREDENTIAL, &selector, &execution)?;
+    let ai_receipt = application.execute_and_publish_ai(AGENT_CREDENTIAL, &ai_permit)?;
+    let (ai_decision, admitted_proposal) = ai_receipt.into_parts();
+    let published_proposal_ref = ai_decision.reflog.ref_name;
+    let published_proposal_head = ai_decision.reflog.new_head;
+    let published_ai_activity_oid = ai_decision.activity_oid;
+
+    let warning = match comparison.outcome {
+        ByteIdentityOutcome::Identical => {
+            "Identical Blob bytes do not establish that the observed physical subject was unchanged."
+        }
+        ByteIdentityOutcome::Different => {
+            "Different Blob bytes do not establish visual or physical change."
+        }
+        ByteIdentityOutcome::NotCompared => {
+            "Byte identity was not compared because the ordered Observation inputs were incompatible."
+        }
+    };
+    let mut reachable_from = vec![decision_ref.clone(), published_proposal_ref.clone()];
+    reachable_from.sort();
+    let pending_receipt = CreatorPendingReceipt {
+        session: options.session.clone(),
+        project_id: ids.project.clone(),
+        subject_id: ids.subject.clone(),
+        creator_id: ids.creator.clone(),
+        agent_id: ids.agent.clone(),
+        decision_ref: decision_ref.clone(),
+        proposal_ref: published_proposal_ref,
+        base_head: base_head.clone(),
+        proposal_head: published_proposal_head,
+        original_blob_oid: original_blob_oid.clone(),
+        current_blob_oid: current_blob_oid.clone(),
+        ai_output_blob_oid: ai_output_blob_oid.clone(),
+        capture_profile_oid: capture_profile_oid.clone(),
+        original_observation_oid: original_observation_oid.clone(),
+        current_observation_oid: current_observation_oid.clone(),
+        comparison: CreatorComparisonReport {
+            analysis_oid: comparison.analysis_oid,
+            tool_id: comparison_tool_id,
+            tool_actor_oid: comparison_tool_actor_oid,
+            adapter_id: BYTE_IDENTITY_ADAPTER_ID.into(),
+            adapter_version: BYTE_IDENTITY_ADAPTER_VERSION.into(),
+            implementation_oid: comparison.implementation_oid,
+            configuration_oid: comparison.configuration_oid,
+            status: comparison.status.as_str().into(),
+            comparability: comparison.comparability.as_str().into(),
+            outcome: comparison.outcome.as_str().into(),
+            reason_codes: comparison.reason_codes,
+            warnings: vec![warning.into()],
+            base_observation_oid: comparison.base_observation_oid,
+            target_observation_oid: comparison.target_observation_oid,
+            base_media_oid,
+            target_media_oid,
+            replay_ready: true,
+            reachable_from,
+        },
+        ai_activity_oid: published_ai_activity_oid,
+    };
+    let pending = PendingCreatorSession {
+        application,
+        admitted_proposal,
+        human_profile,
+        selector,
+        repository_path: options.repository.clone(),
+        ids,
+        receipt: pending_receipt.clone(),
+        base_tree_oid,
+        proposal_tree_oid,
+        byte_identity_outcome: comparison.outcome,
+        comparison_status: comparison.status,
+        comparison_comparability: comparison.comparability,
+        recording_clock,
+        decision_state: PendingDecisionState::Ready,
+    };
+    Ok(pending)
+}
+
+/// Publish one Human decision through the exact application instance that
+/// admitted the pending proposal.
+///
+/// A publication error is outcome-ambiguous to the caller. The pending value
+/// then refuses replay; callers must inspect the current Refs/report instead
+/// of retrying blindly. After a successful publication, the committed receipt
+/// remains available through [`PendingCreatorSession::completed_receipt`] even
+/// if the final repository integrity check fails.
+pub fn decide_creator_session(
+    pending: &mut PendingCreatorSession,
+    decision: &CreatorDecisionOptions,
+) -> Result<CreatorRunReceipt> {
+    validate_decision_metadata(decision)?;
+    match &pending.decision_state {
+        PendingDecisionState::Ready => {}
+        PendingDecisionState::Consumed(_) => {
+            return Err(CreatorError::SessionExists(pending.receipt.session.clone()));
+        }
+        PendingDecisionState::Deciding => {
+            pending.decision_state = PendingDecisionState::OutcomeUnknown;
+            return Err(CreatorError::SessionIncomplete(
+                pending.receipt.session.clone(),
+            ));
+        }
+        PendingDecisionState::OutcomeUnknown => {
+            return Err(CreatorError::SessionIncomplete(
+                pending.receipt.session.clone(),
+            ));
+        }
+    }
+
+    let rationale = decision
+        .rationale
+        .as_deref()
+        .unwrap_or_else(|| decision.disposition.default_rationale());
+    let decision_recorded_at = pending.recording_clock.tick()?;
+    let repository = Repository::open(&pending.repository_path)?;
+    let decision_feedback_oid = put_json(
+        &repository,
+        feedback_record(
+            &pending.ids.feedback,
+            &pending.ids.creator,
+            &pending.ids.subject,
+            &pending.receipt.proposal_head,
+            decision.disposition,
+            rationale,
+            &decision_recorded_at.timestamp,
+        ),
+    )?;
+    let selected_tree = if decision.disposition == CreatorDisposition::Adopt {
+        &pending.proposal_tree_oid
+    } else {
+        &pending.base_tree_oid
+    };
+    let decision_head = put_json(
+        &repository,
+        commit(
+            "decision",
+            slice(&pending.receipt.base_head),
+            selected_tree,
+            slice(&decision_feedback_oid),
+            &pending.ids.creator,
+            &decision_recorded_at.timestamp,
+            "Creator reviewed AI proposal",
+        ),
+    )?;
+    drop(repository);
+
     let human_candidate = HumanDecisionCandidate::new(
         decision_head.clone(),
         decision_feedback_oid.clone(),
         Some("creator Pilot human decision"),
     );
-    let human_registration =
-        application.register_human_decision(&human_profile, &admitted_proposal, human_candidate)?;
-    let human_permit =
-        application.prepare_human_decision(HUMAN_CREDENTIAL, &selector, &human_registration)?;
-    let human_receipt = application.publish_human_decision(HUMAN_CREDENTIAL, &human_permit)?;
-    if human_receipt.reflog.new_head != decision_head
-        || human_receipt.proposal_commit_oid != proposal_head
-        || human_receipt.decision_feedback_oid != decision_feedback_oid
+    let human_registration = pending.application.register_human_decision(
+        &pending.human_profile,
+        &pending.admitted_proposal,
+        human_candidate,
+    )?;
+    let human_permit = pending.application.prepare_human_decision(
+        HUMAN_CREDENTIAL,
+        &pending.selector,
+        &human_registration,
+    )?;
+    pending.decision_state = PendingDecisionState::Deciding;
+    let human_receipt = match pending
+        .application
+        .publish_human_decision(HUMAN_CREDENTIAL, &human_permit)
     {
+        Ok(receipt) => receipt,
+        Err(error) => {
+            pending.decision_state = PendingDecisionState::OutcomeUnknown;
+            return Err(error.into());
+        }
+    };
+    let receipt_matches_prepared_lineage = human_receipt.reflog.ref_name
+        == pending.receipt.decision_ref
+        && human_receipt.reflog.old_head.as_deref() == Some(pending.receipt.base_head.as_str())
+        && human_receipt.reflog.new_head == decision_head
+        && human_receipt.proposal_commit_oid == pending.receipt.proposal_head
+        && human_receipt.decision_feedback_oid == decision_feedback_oid;
+
+    let comparison = &pending.receipt.comparison;
+    let completed = CreatorRunReceipt {
+        session: pending.receipt.session.clone(),
+        project_id: pending.receipt.project_id.clone(),
+        subject_id: pending.receipt.subject_id.clone(),
+        creator_id: pending.receipt.creator_id.clone(),
+        agent_id: pending.receipt.agent_id.clone(),
+        decision_ref: human_receipt.reflog.ref_name,
+        proposal_ref: pending.receipt.proposal_ref.clone(),
+        base_head: pending.receipt.base_head.clone(),
+        proposal_head: human_receipt.proposal_commit_oid,
+        decision_head: human_receipt.reflog.new_head,
+        original_blob_oid: pending.receipt.original_blob_oid.clone(),
+        current_blob_oid: pending.receipt.current_blob_oid.clone(),
+        ai_output_blob_oid: pending.receipt.ai_output_blob_oid.clone(),
+        capture_profile_oid: pending.receipt.capture_profile_oid.clone(),
+        original_observation_oid: pending.receipt.original_observation_oid.clone(),
+        current_observation_oid: pending.receipt.current_observation_oid.clone(),
+        comparison_tool_id: comparison.tool_id.clone(),
+        comparison_tool_actor_oid: comparison.tool_actor_oid.clone(),
+        comparison_analysis_oid: comparison.analysis_oid.clone(),
+        comparison_implementation_oid: comparison.implementation_oid.clone(),
+        comparison_configuration_oid: comparison.configuration_oid.clone(),
+        byte_identity_outcome: pending.byte_identity_outcome,
+        comparison_status: pending.comparison_status,
+        comparison_comparability: pending.comparison_comparability,
+        comparison_reason_codes: comparison.reason_codes.clone(),
+        ai_activity_oid: pending.receipt.ai_activity_oid.clone(),
+        decision_feedback_oid: human_receipt.decision_feedback_oid,
+        disposition: decision.disposition,
+    };
+    if !receipt_matches_prepared_lineage {
+        pending.decision_state = PendingDecisionState::OutcomeUnknown;
         return Err(CreatorError::Integrity(
             "application receipts do not match the prepared creator lineage".into(),
         ));
     }
-    drop(application);
+    pending.decision_state = PendingDecisionState::Consumed(Box::new(completed.clone()));
 
-    let repository = Repository::open(&options.repository)?;
+    let repository = Repository::open(&pending.repository_path)?;
     let fsck = repository.fsck()?;
     if !fsck.is_clean() {
         return Err(CreatorError::Integrity(format!(
@@ -800,37 +1104,30 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
             fsck.issues.len()
         )));
     }
+    Ok(completed)
+}
 
-    Ok(CreatorRunReceipt {
-        session: options.session.clone(),
-        project_id: ids.project,
-        subject_id: ids.subject,
-        creator_id: ids.creator,
-        agent_id: ids.agent,
-        decision_ref,
-        proposal_ref,
-        base_head,
-        proposal_head,
-        decision_head,
-        original_blob_oid,
-        current_blob_oid,
-        ai_output_blob_oid,
-        capture_profile_oid,
-        original_observation_oid,
-        current_observation_oid,
-        comparison_tool_id,
-        comparison_tool_actor_oid,
-        comparison_analysis_oid: comparison.analysis_oid,
-        comparison_implementation_oid: comparison.implementation_oid,
-        comparison_configuration_oid: comparison.configuration_oid,
-        byte_identity_outcome: comparison.outcome,
-        comparison_status: comparison.status,
-        comparison_comparability: comparison.comparability,
-        comparison_reason_codes: comparison.reason_codes,
-        ai_activity_oid,
-        decision_feedback_oid,
+/// Create one complete local creator session.
+///
+/// This compatibility wrapper preserves the original CLI contract while the
+/// localhost application can pause between proposal admission and review.
+pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunReceipt> {
+    let decision = CreatorDecisionOptions {
         disposition: options.disposition,
-    })
+        rationale: options.rationale.clone(),
+    };
+    validate_decision_metadata(&decision)?;
+    let begin = CreatorBeginOptions {
+        repository: options.repository.clone(),
+        session: options.session.clone(),
+        original_image: options.original_image.clone(),
+        current_image: options.current_image.clone(),
+        ai_output: options.ai_output.clone(),
+        subject_label: options.subject_label.clone(),
+        creator_name: options.creator_name.clone(),
+    };
+    let mut pending = begin_creator_session(&begin)?;
+    decide_creator_session(&mut pending, &decision)
 }
 
 /// Rebuild a creator report from current Refs and CAS.
@@ -1099,7 +1396,7 @@ pub fn discover_creator_sessions(
         .collect()
 }
 
-fn validate_metadata(options: &CreatorRunOptions) -> Result<()> {
+fn validate_begin_metadata(options: &CreatorBeginOptions) -> Result<()> {
     validate_session(&options.session)?;
     if options.subject_label.is_empty() || options.subject_label.len() > 500 {
         return Err(CreatorError::InvalidArgument(
@@ -1111,6 +1408,10 @@ fn validate_metadata(options: &CreatorRunOptions) -> Result<()> {
             "creator name must contain 1 to 300 UTF-8 bytes".into(),
         ));
     }
+    Ok(())
+}
+
+fn validate_decision_metadata(options: &CreatorDecisionOptions) -> Result<()> {
     if options
         .rationale
         .as_ref()
@@ -1123,14 +1424,10 @@ fn validate_metadata(options: &CreatorRunOptions) -> Result<()> {
     Ok(())
 }
 
-fn validate_input_files(options: &CreatorRunOptions) -> Result<()> {
-    for path in [
-        &options.original_image,
-        &options.current_image,
-        &options.ai_output,
-    ] {
+fn validate_input_files(original: &Path, current: &Path, ai_output: &Path) -> Result<()> {
+    for path in [original, current, ai_output] {
         File::open(path).map_err(|source| CreatorError::Io {
-            path: path.clone(),
+            path: path.to_owned(),
             source,
         })?;
     }

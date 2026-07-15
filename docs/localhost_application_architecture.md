@@ -1,15 +1,16 @@
 # SynapseGit localhost application architecture
 
-Status: approved implementation design; localhost application read-only slices 1-3 implemented
+Status: approved implementation design; localhost application slices 1-4 and 6 implemented
 
 Decision date: 2026-07-14
 
-Implementation status: slices 1-3 are implemented. `synapse-local-service` and
-`synapse-local-http` provide the exact project catalog, bounded read facade,
-loopback HTTP boundary, and server-rendered read-only UI for projects/status,
-Refs/reflog, and creator-session report/timeline/evidence/images. Upload, Human
-review, `fsck`, export, restore, and the dedicated incomplete-session
-diagnostics route remain unimplemented. Core v0.1 remains a Stage 0 draft;
+Implementation status: slices 1-4 and 6 are implemented. `synapse-local-service`
+and `synapse-local-http` provide the exact project catalog, bounded read facade,
+loopback HTTP boundary, server-rendered project/session views, bounded three-file
+staging, process-local pending authority, and Human `adopt` / `reject` / `defer`.
+The third file remains caller-supplied; no model is invoked. `fsck`, export,
+restore, and the dedicated incomplete-session diagnostics route remain
+unimplemented in the browser application. Core v0.1 remains a Stage 0 draft;
 this application slice is not the formal Core roadmap's Stage 1.
 
 This document defines an application-level contract. It does not change the
@@ -346,10 +347,10 @@ recording order, not capture or AI-execution time.
 
 ## Two-step creator workflow
 
-The current `run_creator_session` requires a disposition and completes proposal
-and Human publication in one synchronous call. A review UI cannot be a thin
-HTTP wrapper around that function. Before slice 4/6, creator orchestration is
-split into:
+The compatibility `run_creator_session` still accepts a disposition and
+completes proposal and Human publication in one synchronous call. Creator
+orchestration is now split underneath that wrapper so a review UI does not need
+to collapse the two phases:
 
 1. `begin_creator_session`: validate the repository and inputs, create the base
    and byte-identity evidence, publish the AI proposal, and return trusted
@@ -466,10 +467,12 @@ sequencing and does not advance the formal Core stage.
    status, Refs, reflog, creator-session discovery/report, evidence, and images.
 3. **Implemented:** Askama/semantic-HTML shell, project dashboard, history navigation,
    progressive ES-module enhancement, and same-origin asset serving.
-4. **Planned:** bounded three-file upload plus proposal-only `begin_creator_session`.
+4. **Implemented:** bounded three-file staging and proposal-only publication through
+   `begin_creator_session`, with finite process/project registry ownership of the opaque pending
+   capability before the HTTP response is returned.
 5. **Planned:** expanded Image and Observation/evidence views with explicit byte-identity limits.
-6. **Planned:** pending proposal review and Human `adopt` / `reject` / `defer` through the
-   admitted application route.
+6. **Implemented:** pending proposal review and Human `adopt` / `reject` / `defer` through the
+   exact admitted application route, including exclusive decision state and fail-closed ambiguity.
 7. **Planned:** report maintenance, `fsck`, export, and empty-target restore with confirmations and safe
    error presentation.
 8. **Partially implemented:** tagged Linux x86_64 packaging, checksum publication, and release
