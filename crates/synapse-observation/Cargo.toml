@@ -5,7 +5,8 @@ description = "Conservative Observation analysis adapters for SynapseGit Stage 0
 edition.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-publish = false
+license-file.workspace = true
+publish.workspace = true
 
 [dependencies]
 serde_json = "1.0.150"

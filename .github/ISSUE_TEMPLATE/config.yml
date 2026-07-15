@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability privately
+    url: https://github.com/howlrs/synapsegit/security/advisories/new
+    about: Do not disclose exploit details in a public Issue.
+  - name: Read the documentation
+    url: https://github.com/howlrs/synapsegit/tree/main/docs
+    about: Start with installation, FAQ, CLI reference, and the security model.

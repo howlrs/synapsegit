@@ -5,7 +5,8 @@ description = "Loopback-only HTTP and UI transport for the SynapseGit local appl
 edition.workspace = true
 repository.workspace = true
 rust-version.workspace = true
-publish = false
+license-file.workspace = true
+publish.workspace = true
 
 [lib]
 path = "src/lib.rs"

@@ -1,0 +1,182 @@
+SynapseGit Source-Available License 1.0
+
+Copyright (c) 2026 howlrs and K-Terashima. All rights reserved.
+Effective date: 2026-07-15.
+
+This license grants only the permissions stated below. All other rights are
+reserved by the Rights Holders.
+
+1. Definitions
+
+   "Rights Holders" means howlrs and K-Terashima.
+
+   "Contributor" means a person or entity that owns a modification to the
+   Software and either publishes it in a permitted GitHub Fork or intentionally
+   submits it for inclusion in the official SynapseGit repository.
+
+   "Software" means the SynapseGit source code, binaries, documentation,
+   specifications, fixtures, and project assets distributed from the official
+   SynapseGit repository or its Releases, excluding Third-Party Materials. It
+   includes versions made available before or after the effective date,
+   including v0.1.0, unless a version is accompanied by different license
+   terms.
+
+   "GitHub Service" means the repository hosting service at github.com.
+
+   "GitHub Fork" means a public repository created from the official
+   SynapseGit repository by using the GitHub Service's fork functionality and
+   remaining within that repository network.
+
+   "Production Use" means use with production data or to operate or support a
+   live service, external deliverable, operational business or organizational
+   process, or operational decision.
+
+   "Hosted Service" means allowing a third party to access or interact with the
+   Software or its functionality over a network, whether paid or unpaid.
+
+   "Non-Commercial Evaluation" means personal, educational, academic research,
+   or internal evaluation that is not Production Use, a revenue-generating
+   activity, a Hosted Service, work performed for a fee specifically for use or
+   evaluation of the Software, or part of a commercial product or service
+   offered to a third party.
+
+   "Third-Party Materials" means components identified as being governed by a
+   separate license or owned by another party.
+
+2. Permission Grant
+
+   Subject to this license, the Rights Holders grant each recipient a
+   non-exclusive, worldwide, royalty-free, non-transferable, and
+   non-sublicensable license to:
+
+   a. access and view the Software through the GitHub Service;
+
+   b. create a GitHub Fork and reproduce the Software within the GitHub Service
+      as necessary to maintain that GitHub Fork;
+
+   c. clone, compile, run, test, and modify the Software on systems controlled
+      by the recipient solely to develop and maintain changes in a GitHub Fork
+      or to conduct Non-Commercial Evaluation;
+
+   d. use GitHub-hosted automation for a GitHub Fork for those same purposes;
+
+   e. publish source changes in that GitHub Fork and submit them to the official
+      SynapseGit repository as a pull request; and
+
+   f. download, build, and run the Software solely for Non-Commercial
+      Evaluation.
+
+   These permissions are additional to any rights granted by the GitHub Terms
+   of Service and do not limit rights that cannot lawfully be restricted.
+   A commercial entity may exercise them solely to collaborate through the
+   permitted GitHub Fork and pull-request workflow or to conduct qualifying
+   internal Non-Commercial Evaluation; no other commercial right is granted.
+
+3. Conditions
+
+   Every permitted GitHub Fork and modified copy must:
+
+   a. retain this license and all copyright, attribution, and proprietary
+      notices;
+
+   b. state that it is a modified version when material changes have been made;
+      and
+
+   c. not state or imply endorsement by the Rights Holders.
+
+   A Contributor who publishes a modification in a permitted GitHub Fork must
+   offer that modification to GitHub Service users under this same license, to
+   the extent necessary for them to exercise the permissions in Section 2 for
+   the modified Software.
+
+4. Uses Not Granted
+
+   Except as expressly permitted in Section 2, and unless all applicable
+   copyright owners give separate written permission, this license does not
+   grant permission to:
+
+   a. use the Software in Production Use, commercially, or in a
+      revenue-generating activity;
+
+   b. sell, rent, lease, sublicense, or otherwise commercially exploit the
+      Software;
+
+   c. redistribute the Software, modified copies, or binaries outside the
+      GitHub Service, except for local copies reasonably necessary for
+      Non-Commercial Evaluation or maintaining a GitHub Fork;
+
+   d. publish the Software or modified copies as a GitHub Release, GitHub
+      Package, container image, downloadable binary distribution, or repository
+      mirror; the source files ordinarily exposed by a permitted GitHub Fork
+      and GitHub-generated source archives of that Fork are not prohibited by
+      this clause;
+
+   e. provide the Software or a modified version as a Hosted Service, managed
+      service, or software-as-a-service offering;
+
+   f. remove or alter copyright, license, attribution, or proprietary notices;
+      or
+
+   g. use the names, logos, or trademarks of SynapseGit or the Rights Holders.
+
+   No patent, trademark, or other intellectual-property license is granted
+   except for the copyright permissions expressly stated in Section 2.
+
+5. Contributions
+
+   Unless a separate written agreement applies, a Contributor who intentionally
+   submits a contribution for inclusion in the official SynapseGit repository:
+
+   a. represents that they have the legal right to submit the contribution and
+      grant the rights in this Section;
+
+   b. grants the Rights Holders, acting jointly, a perpetual, worldwide,
+      non-exclusive, irrevocable, royalty-free, fully paid, transferable, and
+      sublicensable copyright license to use, reproduce, modify, prepare
+      derivative works of, publicly display, publicly perform, distribute,
+      sublicense, and relicense the contribution, alone or as part of the
+      Software, for any purpose, including commercial purposes; and
+
+   c. agrees that the contribution may be offered to recipients as part of the
+      Software under this license.
+
+   This grant is not a copyright assignment. Contributors retain copyright in
+   their own contributions unless they separately assign it in writing.
+   Any transfer, sublicense, or relicense under Section 5(b) requires both
+   Rights Holders to agree in writing.
+   Submission does not require the Rights Holders to accept a contribution.
+
+6. Third-Party Materials
+
+   Third-Party Materials remain subject to their own license terms. This
+   license does not reduce or replace rights or obligations under those terms.
+   Notices for Rust dependencies used by distributed binaries are collected in
+   THIRD_PARTY_NOTICES.md.
+
+7. Termination
+
+   The permissions granted by this license terminate automatically upon a
+   material breach. They are reinstated if the breach is cured within 30 days
+   after the recipient discovers it or receives notice of it, provided that
+   this is the recipient's first cured breach. Any further reinstatement
+   requires written permission from the Rights Holders.
+
+8. Disclaimer of Warranty
+
+   THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   IMPLIED, INCLUDING BUT NOT LIMITED TO WARRANTIES OF MERCHANTABILITY, FITNESS
+   FOR A PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT. THE RECIPIENT ASSUMES
+   ALL RISK ARISING FROM USE OF THE SOFTWARE.
+
+9. Limitation of Liability
+
+   TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE RIGHTS HOLDERS AND CONTRIBUTORS
+   WILL NOT BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER LIABILITY, WHETHER IN
+   CONTRACT, TORT, OR OTHERWISE, ARISING FROM OR RELATED TO THE SOFTWARE OR ITS
+   USE.
+
+10. License Character
+
+   This is a source-available license. It is not an OSI-approved open-source
+   license. Permission for a use not expressly granted here must be obtained
+   separately in writing from the Rights Holders.

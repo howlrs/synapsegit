@@ -1,0 +1,78 @@
+name: Bug report
+description: Report a reproducible defect in the CLI, local viewer, Core, or documentation.
+title: "[Bug]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for helping improve SynapseGit. Search existing Issues first.
+        Do not report vulnerabilities or include private creator data here; use private vulnerability reporting instead.
+
+  - type: input
+    id: version
+    attributes:
+      label: SynapseGit version
+      description: Paste `synapse --version`, `synapse-local --version`, or the commit SHA.
+      placeholder: synapse 0.1.0
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, architecture, glibc version if relevant, and installation route.
+      placeholder: Ubuntu 22.04, x86_64, GitHub Release archive
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - creator-run or creator-report
+        - synapse-local viewer
+        - Core repository, fsck, export, or restore
+        - Schema, OID, or protocol fixture
+        - Documentation or release packaging
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Use synthetic files and include exact commands in a code block.
+      placeholder: |
+        1. Run ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior and output
+      description: Redact private paths, identifiers, OIDs, tokens, images, and cloud details.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Public-data confirmation
+      options:
+        - label: I used synthetic or publishable data and removed credentials, private paths, personal information, and sensitive identifiers.
+          required: true
+        - label: This report does not contain a vulnerability or embargoed security detail.
+          required: true

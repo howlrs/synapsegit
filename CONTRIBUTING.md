@@ -3,6 +3,19 @@
 SynapseGit Core は現在 Stage 0 draft である。特に OID、canonicalization、schema、Ref、archive の変更は、
 既存 object の identity と復元性へ影響するため、code だけを先行変更しない。
 
+## Contribution license
+
+SynapseGitは独自のsource-available licenseで公開しており、open-source projectではない。
+Pull Requestその他の方法で公式repositoryへの取り込みを意図してcontributionを提出する場合、
+提出者は[`LICENSE` Section 5](LICENSE)を読み、提出する法的権利を持つことを表明し、howlrsと
+K-Terashimaへ共同で同Sectionのcopyright licenseを付与する。この許諾にはcommercial利用と
+relicenseが含まれるが、copyrightの譲渡ではなく、contributorは自分のcontributionのcopyrightを
+保持する。transfer、sublicense、relicenseには両権利者の書面合意を必要とする。別の書面合意が
+ある場合は、その合意を優先する。Fork内だけの改変には、この公式提出向けの広い許諾は発生しない。
+
+この条件に同意できない、または雇用・委託・third-party code等により提出権限が不明な場合は、
+codeを提出せず、先にIssueで相談する。Pull Requestの提出は採用を保証しない。
+
 ## 開発環境
 
 - Rust 1.88 以降
@@ -18,6 +31,8 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 cargo doc --workspace --no-deps --locked
 node scripts/verify_core_fixtures.mjs
 node scripts/verify_local_api.mjs
+node scripts/verify_license.mjs
+node scripts/generate_third_party_notices.mjs --check
 node scripts/verify_docs.mjs
 git diff --check
 ```
@@ -157,6 +172,7 @@ machine-readable error code は protocol と CLI の契約である。既存 cod
 
 ## pull request の説明に含めるもの
 
+- `LICENSE` Section 5への同意と、contributionを提出できる権限の確認
 - 何が変わり、どの不変条件を保つか
 - normative spec / fixture / OID への影響
 - migration または backward compatibility の扱い

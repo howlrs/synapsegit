@@ -4,8 +4,8 @@
 脅威モデルの完成版や production deployment guide ではない。
 
 Status: **Stage 0 draft**<br>
-Implemented scope: local object / Ref / archive integrity path, process-local authenticated Creative AI and narrow Human Decision routes, Core admissions, and disposable SQLite projection libraries<br>
-Planned scope: single-user IPv4-loopback image application architecture and HTTP contract; no server or route is implemented yet<br>
+Implemented scope: local object / Ref / archive integrity path, process-local authenticated Creative AI and narrow Human Decision routes, Core admissions, disposable SQLite projection libraries, and the read-only single-user IPv4-loopback image application<br>
+Planned scope: localhost upload、Human review、`fsck`、export／restore UI and a production application boundary<br>
 Production target: GCP primary / AWS portability architecture is specified; cloud implementation is not started<br>
 Out of current implementation scope: concrete HTTP/JWT identity、durable/distributed authorization state、OS sandbox/egress、production tenant isolation
 
@@ -21,7 +21,7 @@ Out of current implementation scope: concrete HTTP/JWT identity、durable/distri
 | `synapse-application` initial routes | AIではexact project ACL、Core preflight、exclusive-TTL permit、trusted Executor、実行後reauthを、Humanではsame-instance admitted proposal、server-fixed candidate、one-shot permitを束縛し、両方をlive profile／FIFO fenceからCore full validationへ接続 | Authenticator実装自体の強度、HTTP/JWT、restartを越えるACL／permit、multi-process ordering、OS sandbox／connector／egress、Projection route、organization／quorum／release／modified／partial |
 | `HumanDecisionRuntime` | trusted single-human authorityに対する`decision/*`のidentity／Policy／proposal／base／disposition／duplicate／atomic CAS整合 | credential本人確認、ACL、organization代理、quorum／MFA、modified／partial／release approval |
 | `synapse-creator` Pilot / report | fixed local stateからCore-validなbase、AI proposal、Human Decisionを作り、取得した一つのRef snapshotに対するcurrent lineageとtimelineを監査表示する | OS userや`--creator`の本人性、caller-supplied fileのAI生成、Application routeを実際に通ったこと、cross-Ref transaction、reportをauthorization sourceとして使うこと |
-| planned localhost application | exact startup catalog、safe facade、loopback／Host／Origin／browser-token boundaryを通して既存routeとread modelだけを公開する設計 | 現時点ではruntime保証なし。OS-user authentication、same-user process isolation、public／multi-user service、malicious media sandbox |
+| current localhost application | exact startup catalog、safe facade、loopback／Host／Origin／browser-token boundaryを通し、project／session／evidence／画像のread modelだけを公開する | upload／Human review／maintenance UI、OS-user authentication、same-user process isolation、public／multi-user service、malicious media sandbox |
 | planned cloud service | tenant-scoped immutable CAS、PostgreSQL Ref/reflog transaction、durable command、OIDC、single-writer regional DRをGCP主系／AWS移植profileで要求する設計 | 現時点ではruntime保証なし。cloud adapter、public API、tenant isolation、durable admission、deploymentは未実装 |
 | `SqliteProjectionStore` | supplied Ref snapshotのcurrent closure、derived query row、Analysis lineage／prerequisite availability、missing診断とtombstoned availability／count、source fingerprint | authorization、ACL／tenant isolation、exact replay、最新Refとの自動同期、objectの正本性、archive／recovery completeness |
 | detached Assurance | signer / service が何を検査・主張したか | Claim 本文の真実 |
@@ -435,11 +435,11 @@ productionで必要なcontrolとrelease gateは
 - release approvalとmodified／partial human adoption workflow
 - pre-execution sandbox、connector、external egress、physical-effect enforcement
 - Grant revocation、credential／key rotation、delegation chain enforcement
-- public／multi-user HTTP transport、TLS、rate limiting（loopback-only contract自体も現時点では未実装）
+- public／multi-user HTTP transport、TLS、rate limiting（loopback-only read contractは実装済み）
 - encrypted-at-rest payload、KMS、key rotation
 - signed release / signed archive distribution profile、trusted timestamp
 - malicious media decode isolation
-- security issue の非公開報告窓口と response policy
+- guaranteed security response SLA
 
-repository を公開運用する前に、連絡先、embargo、supported versions、response policy を
-root `SECURITY.md` として追加する。
+非公開報告窓口、supported versions、coordinated disclosure方針はroot
+[`SECURITY.md`](../SECURITY.md)に定義する。

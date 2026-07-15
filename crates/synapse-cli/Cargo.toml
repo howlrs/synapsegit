@@ -5,6 +5,8 @@ description = "Stage 0 command-line interface for SynapseGit Core"
 edition.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+license-file.workspace = true
+publish.workspace = true
 
 [[bin]]
 name = "synapse"

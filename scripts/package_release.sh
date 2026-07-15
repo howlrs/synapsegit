@@ -10,6 +10,14 @@ if [[ -z "$target" ]]; then
   echo "release_error: a Rust host target is required" >&2
   exit 1
 fi
+if [[ ! -s LICENSE ]]; then
+  echo "release_error: missing or empty LICENSE" >&2
+  exit 1
+fi
+if [[ ! -s THIRD_PARTY_NOTICES.md ]]; then
+  echo "release_error: missing or empty THIRD_PARTY_NOTICES.md" >&2
+  exit 1
+fi
 
 host="$(rustc -vV | awk '$1 == "host:" { print $2 }')"
 if [[ "$host" != "$target" ]]; then
@@ -40,6 +48,10 @@ mkdir -p "$bundle_directory"
 install -m 0755 "$release_directory/synapse" "$bundle_directory/synapse"
 install -m 0755 "$release_directory/synapse-local" "$bundle_directory/synapse-local"
 install -m 0644 "docs/releases/$tag.md" "$bundle_directory/README.md"
+install -m 0644 SECURITY.md "$bundle_directory/SECURITY.md"
+install -m 0644 CHANGELOG.md "$bundle_directory/CHANGELOG.md"
+install -m 0644 LICENSE "$bundle_directory/LICENSE"
+install -m 0644 THIRD_PARTY_NOTICES.md "$bundle_directory/THIRD_PARTY_NOTICES.md"
 
 source_date_epoch="${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct)}"
 if [[ ! "$source_date_epoch" =~ ^[0-9]+$ ]]; then
