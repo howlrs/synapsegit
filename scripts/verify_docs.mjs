@@ -27,7 +27,18 @@ function collect(relativePath) {
   }
 }
 
-for (const entry of ["README.md", "CONTRIBUTING.md", "deploy", "docs", "spec"]) {
+for (const entry of [
+  "README.md",
+  "README.ja.md",
+  "CHANGELOG.md",
+  "CONTRIBUTING.md",
+  "SECURITY.md",
+  "SUPPORT.md",
+  ".github",
+  "deploy",
+  "docs",
+  "spec",
+]) {
   collect(entry);
 }
 markdownFiles.sort();

@@ -5,6 +5,8 @@ description = "Integrated local repository and archive boundary for SynapseGit C
 edition.workspace = true
 repository.workspace = true
 rust-version.workspace = true
+license-file.workspace = true
+publish.workspace = true
 
 [dependencies]
 serde = { version = "1.0.228", features = ["derive"] }

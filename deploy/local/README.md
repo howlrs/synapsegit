@@ -29,7 +29,7 @@ diagnostics route and production packaging are also later slices.
 
 Linux x86_64では、[`v0.1.0` preview release](../../docs/releases/v0.1.0.md)に
 `synapse-local`を含む検証済みbinary archiveがある。downloadとchecksum検証は
-[root README](../../README.md#install-the-v010-preview)を参照する。その他のplatformでは、
+[Installation guide](../../docs/install.md#install-the-linux-x86-64-release)を参照する。その他のplatformでは、
 下記のsource buildを使用する。
 
 Use a Rust toolchain compatible with the workspace MSRV, then run these

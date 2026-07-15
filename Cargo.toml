@@ -4,8 +4,10 @@ resolver = "2"
 
 [workspace.package]
 edition = "2024"
+license-file = "LICENSE"
 repository = "https://github.com/howlrs/synapsegit"
 rust-version = "1.88"
+publish = false
 
 [workspace.dependencies]
 sha2 = "0.10.9"

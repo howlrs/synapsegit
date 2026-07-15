@@ -44,15 +44,18 @@ write／maintenance操作は対応するCLIを使う。詳しいoption、localho
 
 *Session detail — Human Decision、AI outputの選択状態、original／current／AI output、byte-identity evidenceを同じsession内で確認できるread-only画面です。*
 
-## 想定利用者と最初に返す価値
+## 将来の想定利用者とv0.1で返せる価値
 
-| 利用者 | 最初の利用場面 | その場で返すもの |
-|---|---|---|
-| 画家・壁画家 | 制作session前後を同じ視点から記録する | 前後比較、差分候補、制作process pack |
-| 建築家 | Plan、直前現況、現在現況を照合する | 設計変更理由、採用・是正・保留の判断card |
-| 施工・修復担当 | Hold Pointや不可逆な処置の前後を残す | 進捗・処置報告、EvidenceGap、引き渡し資料 |
-| デザイナー | 複数tool・参考資料・AI案の採否をつなぐ | Proposalの比較、却下理由、可搬なContextPack |
-| 制作チーム・後任 | DecisionまたはReleaseから重要変更を辿る | 根拠、制約、未解決事項、未採用案への到達 |
+次の「将来価値」は導入構想であり、v0.1の実装状態を表さない。現在のpreviewを直接扱えるのは、
+local CLIを利用できるtechnical creator、researcher、tool builder、developerである。
+
+| 将来の利用者 | 想定する最初の場面 | 将来価値 | v0.1で実際に返せるもの |
+|---|---|---|---|
+| 画家・壁画家 | 制作session前後を同じ視点から記録する | 前後比較、差分候補、制作process pack | callerが用意した3 file、byte identity、Human Decisionのlocal report。visual diffなし |
+| 建築家 | Plan、直前現況、現在現況を照合する | 設計変更理由、採用・是正・保留の判断card | opaque fileと提案の採否履歴。BIM／CAD連携と適合判定なし |
+| 施工・修復担当 | Hold Pointや不可逆な処置の前後を残す | 進捗・処置報告、EvidenceGap、引き渡し資料 | checksum付きlocal archiveとreport。field capture workflowなし |
+| デザイナー | 複数tool・参考資料・AI案の採否をつなぐ | Proposalの比較、却下理由、可搬なContextPack | caller-supplied candidateの帰属、`adopt`／`reject`／`defer`記録。model実行なし |
+| 制作チーム・後任 | DecisionまたはReleaseから重要変更を辿る | 根拠、制約、未解決事項、未採用案への到達 | local viewerとexport／restore。multi-user認証・共同作業なし |
 
 Coreは既存の制作ソフト、BIM/CAD、ペイントツールを置き換えない。それらを横断して、物理対象、成果物、観測、判断を接続する。
 
@@ -312,7 +315,7 @@ Stage 0のcreator／Observation Pilotとして残るもの:
 
 - general ProjectionStore CLI／自動refresh、SurrealDB adapter、SQLiteとの全8-query／性能比較
 
-優先順位と利用目標ごとの必須範囲は[作業引き継ぎ](./handoff.md)と
+優先順位と利用目標ごとの必須範囲は[Project status](./project_status.md)と
 [Stage 0 execution plan](./stage0_execution_plan.md)を参照する。
 
 ## 表示・評価でしないこと
@@ -327,4 +330,5 @@ Stage 0のcreator／Observation Pilotとして残るもの:
 
 repository内のMarkdownはfork、review branch、offline checkoutでも辿れる相対linkを使う。生成済みPPTX内の配布導線は現在GitHubの`main` URLを使用する。release資料として固定配布する場合は、`main`よりrelease tagまたはcommit permalinkへ更新する。
 
-リポジトリはprivateであるため、反映後もリンクの閲覧にはGitHub上のリポジトリ権限が必要である。権限を持たない外部利用者へは、PPTXまたはPDFを別の許可済み経路で配布する。
+repositoryはpublicである。公開説明でversionを固定する場合は、`main`ではなくrelease tagまたは
+commit permalinkを使い、配布物と説明の境界が後から変わらないようにする。

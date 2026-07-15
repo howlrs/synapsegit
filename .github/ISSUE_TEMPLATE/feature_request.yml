@@ -1,0 +1,61 @@
+name: Feature request
+description: Describe a concrete creator, evaluator, or implementer need.
+title: "[Feature]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        SynapseGit is a Stage 0 preview. A useful request starts with the user's problem and keeps evidence, analysis, claims, and Human Decision distinct.
+
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Intended user
+      options:
+        - Technical creator
+        - Artist, architect, construction, or conservation practitioner
+        - Researcher or tool builder
+        - Protocol or storage implementer
+        - Maintainer or release operator
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem to solve
+      description: What decision, handoff, evaluation, or recovery task is difficult today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Desired workflow
+      description: Describe inputs, actions, outputs, and where a human decision is required.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Current workaround or alternative
+    validations:
+      required: false
+
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Trust, privacy, or compatibility constraints
+      description: Note any local-only, offline, sensitive-media, interoperability, or migration requirements.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: claims
+    attributes:
+      label: Claim boundary
+      options:
+        - label: I am not asking SynapseGit to infer authorship, truth, copyright, productivity, or physical change from a hash or activity count.
+          required: true

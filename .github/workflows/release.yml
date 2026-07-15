@@ -7,6 +7,8 @@ on:
 
 permissions:
   contents: write
+  id-token: write
+  attestations: write
 
 concurrency:
   group: release-${{ github.ref }}
@@ -44,6 +46,8 @@ jobs:
           node scripts/verify_core_fixtures.mjs
           node scripts/verify_local_api.mjs
           node scripts/verify_docs.mjs
+          node scripts/verify_license.mjs
+          node scripts/generate_third_party_notices.mjs --check
           node scripts/verify_mermaid.mjs
           git diff --check
 
@@ -64,6 +68,26 @@ jobs:
         run: |
           export SOURCE_DATE_EPOCH="$(git show -s --format=%ct "$GITHUB_SHA")"
           bash scripts/package_release.sh "$GITHUB_REF_NAME" "$TARGET" dist
+
+      - name: Smoke-test the packaged archive
+        run: |
+          bundle="synapsegit-$GITHUB_REF_NAME-$TARGET"
+          unpacked="$(mktemp -d)"
+          trap 'rm -rf "$unpacked"' EXIT
+          tar -xzf "dist/$bundle.tar.gz" -C "$unpacked"
+          for file in LICENSE THIRD_PARTY_NOTICES.md SECURITY.md CHANGELOG.md; do
+            test -s "$unpacked/$bundle/$file"
+          done
+          version="${GITHUB_REF_NAME#v}"
+          test "$("$unpacked/$bundle/synapse" --version)" = "synapse $version"
+          test "$("$unpacked/$bundle/synapse-local" --version)" = "synapse-local $version"
+          "$unpacked/$bundle/synapse" --help >/dev/null
+          "$unpacked/$bundle/synapse-local" --help >/dev/null
+
+      - name: Attest the release archive
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4
+        with:
+          subject-path: dist/synapsegit-${{ github.ref_name }}-${{ env.TARGET }}.tar.gz
 
       - name: Create or resume the draft release
         env:

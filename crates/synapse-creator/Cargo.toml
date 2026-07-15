@@ -5,7 +5,8 @@ description = "Local creator-facing provenance workflow for SynapseGit Stage 0"
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
-publish = false
+license-file.workspace = true
+publish.workspace = true
 
 [dependencies]
 getrandom = "0.3.4"

@@ -71,7 +71,8 @@ unzip -t docs/presentations/synapsegit_user_scenarios_ja.pptx
 
 ## 内容を更新するとき
 
-- UIが未実装の間は、実在する画面のようなモックへ置き換えない。
+- 概念slideを実在する画面のようなmockへ置き換えない。実画面を追加する場合は、versionと
+  read-only等の実装境界をcaptionへ明記する。
 - `20秒`, `30秒`, `2分`, `100%`は実績値ではなく、必ずPilot UX／受入目標と表示する。
 - 写真やAnalysisを物理的事実として表示しない。
 - 作者性、現実、真正性、契約適合、永久保存、改ざん不能を保証しない。
@@ -87,4 +88,5 @@ unzip -t docs/presentations/synapsegit_user_scenarios_ja.pptx
 
 この環境にはLibreOffice／sofficeがないため、配布前の最終レンダリング、PowerPoint Accessibility Checker、reading order、PDF変換後のlink確認はPowerPoint等で行う。
 
-リポジトリはprivateであるため、`main`リンクは反映後もリポジトリ閲覧権限を持つGitHub利用者だけが開ける。外部配布時はPPTXまたはPDFを別の許可済み経路で渡す。
+repositoryはpublicである。固定versionの説明資料として配布する場合は、PPTX内の`main` linkを
+release tagまたはcommit permalinkへ更新し、link先の内容が後から変わらないようにする。

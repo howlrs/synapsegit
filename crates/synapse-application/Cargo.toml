@@ -5,7 +5,8 @@ description = "Authenticated one-shot Creative AI and narrow Human Decision appl
 edition.workspace = true
 rust-version.workspace = true
 repository.workspace = true
-publish = false
+license-file.workspace = true
+publish.workspace = true
 
 [dependencies]
 synapse-core = { path = "../synapse-core" }

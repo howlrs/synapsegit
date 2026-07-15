@@ -1,0 +1,48 @@
+name: Usage question
+description: Ask about evaluating the current local preview or its documented boundaries.
+title: "[Question]: "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read the README, installation guide, FAQ, and CLI reference first. Support is best-effort.
+        Do not include vulnerability details or private creator data in a public question.
+
+  - type: dropdown
+    id: goal
+    attributes:
+      label: What are you trying to do?
+      options:
+        - Install or update SynapseGit
+        - Run the creator Pilot
+        - Use the local viewer
+        - Export, restore, or verify a repository
+        - Evaluate or implement the Core protocol
+        - Understand a current limitation
+        - Other
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      placeholder: v0.1.0
+    validations:
+      required: true
+
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: Include the documentation or command you already tried, using synthetic examples only.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Public-data confirmation
+      options:
+        - label: I removed private images, paths, identifiers, OIDs, credentials, and personal information.
+          required: true
