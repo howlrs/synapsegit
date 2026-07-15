@@ -6,6 +6,8 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-15
+
 ### Added
 
 - A concise English entry README and a matching Japanese README.
@@ -13,7 +15,7 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   security documentation.
 - Pull request and Issue forms for actionable community feedback.
 - Continuous integration for `main` and pull requests.
-- Build-provenance attestation for future tagged release archives.
+- Build-provenance attestation for tagged release archives.
 - The custom SynapseGit Source-Available License 1.0, held by howlrs and
   K-Terashima, with explicit GitHub Fork and pull-request permissions.
 - Generated third-party dependency notices for future release bundles.
@@ -79,5 +81,6 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/howlrs/synapsegit/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/howlrs/synapsegit/releases/tag/v0.1.0

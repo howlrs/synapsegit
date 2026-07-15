@@ -2,7 +2,7 @@
 
 Status: **Core v0.1 / Stage 0 draft**
 
-このガイドは、SynapseGit Coreの想定利用者、Pilotでの使い方、現在このリポジトリで実行できる範囲をまとめる。現時点ではproduction向け制作アプリやcapture clientを提供していないが、3画像から手書きJSONなしで一sessionを記録するboundedなlocal single-creator Pilotと、current `main`ではそのimport／reviewを行うloopback-only UIまで実装されている。利用フローの図は実装済み境界に加えて構想とPilot仮説を含む。
+このガイドは、SynapseGit Coreの想定利用者、Pilotでの使い方、現在このリポジトリで実行できる範囲をまとめる。現時点ではproduction向け制作アプリやcapture clientを提供していないが、3画像から手書きJSONなしで一sessionを記録するboundedなlocal single-creator Pilotと、v0.2.0ではそのimport／reviewを行うloopback-only UIまで実装されている。利用フローの図は実装済み境界に加えて構想とPilot仮説を含む。
 
 対象はSynapseGit Coreのみであり、Chrono-Engine、歴史的人物の思考再現、自動利益分配はこのガイドとCore v0.1の対象外である。
 
@@ -33,14 +33,14 @@ mkdir -p "$HOME/SynapseGit/demo"
 
 terminalに表示された`http://127.0.0.1:8787`をbrowserで開き、終了時はCtrl-Cを押す。hostは
 `127.0.0.1`固定で、network共有用のoverrideはない。複数projectは`--project KEY=PATH`を繰り返して登録する。
-空directoryは空repositoryとして開かれる。current `main`のsource buildはproject画面からsessionを作成でき、
+空directoryは空repositoryとして開かれる。v0.2.0はproject画面からsessionを作成でき、
 後述の`creator-run`で同じpathへ作成したsessionも表示できる。
 
 UIで現在読めるのはproject status、Refs／reflog、creator sessionのreport／timeline／evidence／画像である。
-current `main`ではoriginal／current／caller-supplied AI outputの三fileをbounded stagingへuploadし、proposalを
+v0.2.0ではoriginal／current／caller-supplied AI outputの三fileをbounded stagingへuploadし、proposalを
 同じprocess内でHuman `adopt`／`reject`／`defer`できる。review前にprocessを終了するとauthorityは復元できず、
 sessionはincompleteになる。`fsck`、archive export／restore、automatic recoveryのUIは未実装なので、既存の
-maintenance操作は対応するCLIを使う。tagged v0.1.0の`synapse-local`はread-onlyである。詳しいoption、limit、
+maintenance操作は対応するCLIを使う。tagged v0.2.0の`synapse-local`もこのwrite sliceを含む。詳しいoption、limit、
 localhost security boundary、GCP CLI smokeとの違いは[native localhost runbook](../deploy/local/README.md)を参照する。
 
 ![SynapseGit Localのcreator session詳細。Human Decision、AI output selected、三つの画像roleを表示](./assets/synapse-local/creator-session.png)

@@ -29,6 +29,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Validate immutable release source
+        run: |
+          test "$(git cat-file -t "refs/tags/$GITHUB_REF_NAME")" = tag
+          test "$(git rev-parse "refs/tags/$GITHUB_REF_NAME^{commit}")" = "$GITHUB_SHA"
+          git fetch --no-tags origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" FETCH_HEAD
+
       - name: Validate tag and package versions
         run: bash scripts/verify_release_version.sh "$GITHUB_REF_NAME"
 

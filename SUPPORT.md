@@ -30,8 +30,8 @@ private material; redact it when it is not required to reproduce the problem.
 
 ## Support boundary
 
-The current supported evaluation path is the local CLI and loopback-only viewer
-described in [README.md](./README.md). Public reverse-proxy deployment,
+The current supported evaluation path is the local CLI and loopback-only
+application described in [README.md](./README.md). Public reverse-proxy deployment,
 multi-user hosting, production cloud operation, image-difference interpretation,
 and recovery from manually edited object or SQLite files are outside the
 current support scope.

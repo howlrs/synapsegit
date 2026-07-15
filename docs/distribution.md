@@ -2,7 +2,7 @@
 
 Audience: maintainer、release担当、公開文書を更新するcontributor
 Status: Stage 0運用runbook
-Applies to: v0.1.x
+Applies to: v0.2.x
 Last verified: 2026-07-15
 
 この文書は、SynapseGitを「GitHub上で見つける」「現在の用途を判断する」「安全に試す」までの
@@ -12,10 +12,11 @@ Last verified: 2026-07-15
 
 現在のprimary audienceは、Linux CLIを扱えるtechnical creator、creative provenance／
 human-in-the-loop AIを評価する研究者・tool builder、Rust developerである。画家、建築家、
-施工・修復担当、デザイナーは将来の対象だが、capture、visual diff、write-capable UI、
-production serviceが必要な一般導入にはまだ適さない。
+施工・修復担当、デザイナーは将来の対象だが、capture、visual diff、restart-durable review、
+production serviceが必要な一般導入にはまだ適さない。v0.2.0のlocalhost UIはboundedな
+三file importとsame-process Human reviewに限ってwrite-capableである。
 
-公開文面では、将来の利用構想とv0.1で実行できる能力を同じものとして表示しない。
+公開文面では、将来の利用構想とv0.2で実行できる能力を同じものとして表示しない。
 
 ## 公開surface
 
@@ -88,7 +89,7 @@ GitHub SettingsのSocial previewへ明示的にuploadしない限り、repositor
 
 ## Release asset構成
 
-更新後のpackaging scriptで作る次回以降のbinary archiveは次を含む。公開済みv0.1.0
+v0.2.0以降のpackaging scriptで作るbinary archiveは次を含む。公開済みv0.1.0
 archiveは`SECURITY.md`と`CHANGELOG.md`追加前に作られたため、binary二つとrelease notesの
 `README.md`だけを含む。
 
@@ -129,6 +130,7 @@ node scripts/verify_license.mjs
 node scripts/generate_third_party_notices.mjs --check
 node scripts/verify_docs.mjs
 node scripts/verify_mermaid.mjs
+node scripts/manage_github_security.mjs --validate
 git diff --check
 ```
 
@@ -177,7 +179,7 @@ license変更時は少なくとも次を同じPull Requestで更新する。
 
 - [Installation](./install.md)
 - [Project status](./project_status.md)
-- [Release notes](./releases/v0.1.0.md)
+- [Release notes](./releases/v0.2.0.md)
 - [Security model](./security_model.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Documentation index](./README.md)
