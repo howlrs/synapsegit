@@ -47,6 +47,8 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 - The localhost facade serializes creator mutations per project so concurrent
   blocking workers cannot race a prospective capacity check, and an empty Ref
   archive restore no longer scans an unused Tombstone inventory.
+- Repository-owner merge and security settings now have a versioned,
+  idempotent GitHub CLI manager and read-only drift check.
 
 ## [0.1.0] - 2026-07-15
 
