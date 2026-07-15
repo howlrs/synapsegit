@@ -34,6 +34,7 @@ Usage:
   synapse creator-run <repo> <session> <original> <current> <ai-output> --subject <label> --creator <name> --decision <adopt|reject|defer> [--rationale <text>]
   synapse creator-report <repo> <session>
 ";
+const VERSION: &str = concat!("synapse ", env!("CARGO_PKG_VERSION"));
 
 #[derive(Debug)]
 enum CliError {
@@ -180,6 +181,7 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
             print_creator_report(&creator_report(&args[1], &args[2])?);
         }
         "help" | "--help" | "-h" => println!("{USAGE}"),
+        "version" | "--version" | "-V" => println!("{VERSION}"),
         other => return Err(CliError::Usage(format!("unknown command {other:?}"))),
     }
     Ok(())

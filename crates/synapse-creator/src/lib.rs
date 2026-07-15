@@ -1655,8 +1655,7 @@ fn validate_report_lineage(
     };
     if decision_snapshot != expected_snapshot {
         return Err(CreatorError::ReportInvalid(format!(
-            "decision snapshot does not match the {:?} disposition",
-            disposition
+            "decision snapshot does not match the {disposition:?} disposition"
         )));
     }
 

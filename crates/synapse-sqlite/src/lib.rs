@@ -1046,9 +1046,9 @@ fn prepare_archive(archive: &RefArchive) -> Result<PreparedArchive> {
     }
     for record in &refs {
         validate_ref_name(&record.name)
-            .map_err(|error| archive_invalid(format!("snapshot contains {}", error)))?;
+            .map_err(|error| archive_invalid(format!("snapshot contains {error}")))?;
         validate_commit_oid(&record.head)
-            .map_err(|error| archive_invalid(format!("snapshot contains {}", error)))?;
+            .map_err(|error| archive_invalid(format!("snapshot contains {error}")))?;
         if record.updated_event_id <= 0 {
             return Err(archive_invalid(format!(
                 "Ref {:?} has non-positive updated_event_id {}",

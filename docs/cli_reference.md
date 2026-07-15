@@ -16,6 +16,7 @@ Status: **implemented at Core v0.1 / Stage 0 draft**
 ```bash
 cargo build -p synapse-cli --locked
 target/debug/synapse --help
+target/debug/synapse --version
 ```
 
 `cargo run` 経由では `--` を挟む。
@@ -26,6 +27,7 @@ cargo run -p synapse-cli -- --help
 
 成功は exit code 0、全 error は現在 exit code 1。error は stderr の先頭に `<code>:` を付ける。
 usage error の場合は usage 全文も stderr に出す。
+`--version`、`-V`、`version` は `synapse <package-version>` を stdout に出して exit code 0 で終了する。
 
 ## Repository layout
 

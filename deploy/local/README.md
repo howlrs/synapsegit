@@ -27,6 +27,11 @@ diagnostics route and production packaging are also later slices.
 
 ## Build and start
 
+Linux x86_64では、[`v0.1.0` preview release](../../docs/releases/v0.1.0.md)に
+`synapse-local`を含む検証済みbinary archiveがある。downloadとchecksum検証は
+[root README](../../README.md#install-the-v010-preview)を参照する。その他のplatformでは、
+下記のsource buildを使用する。
+
 Use a Rust toolchain compatible with the workspace MSRV, then run these
 commands from the repository root:
 
@@ -38,6 +43,8 @@ mkdir -p "$HOME/SynapseGit/demo"
   --project "demo=$HOME/SynapseGit/demo" \
   --label "demo=Demo project"
 ```
+
+binary versionは`./target/release/synapse-local --version`で確認できる。
 
 The repository directory must exist before startup. It may be an existing
 SynapseGit repository or an empty directory; opening an empty directory creates
