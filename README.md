@@ -26,7 +26,7 @@ It is not a hosted or multi-user service._
 
 ## Who can use this preview
 
-The current v0.1.0 preview is most useful to:
+The current v0.2.0 preview is most useful to:
 
 - technical creators who are comfortable with a local command-line workflow;
 - researchers and tool builders evaluating creative provenance,
@@ -48,14 +48,14 @@ Ubuntu 22.04 and requires glibc 2.34 or newer. Other platforms can use the
 ### 1. Install the preview
 
 ```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.1.0/synapsegit-v0.1.0-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.1.0/SHA256SUMS
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.2.0/synapsegit-v0.2.0-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.2.0/SHA256SUMS
 sha256sum --check SHA256SUMS
-tar -xzf synapsegit-v0.1.0-x86_64-unknown-linux-gnu.tar.gz
+tar -xzf synapsegit-v0.2.0-x86_64-unknown-linux-gnu.tar.gz
 
 mkdir -p "$HOME/.local/bin"
-install -m 0755 synapsegit-v0.1.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
-install -m 0755 synapsegit-v0.1.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
+install -m 0755 synapsegit-v0.2.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
+install -m 0755 synapsegit-v0.2.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
 export PATH="$HOME/.local/bin:$PATH"
 
 synapse --version
@@ -96,10 +96,10 @@ synapse-local \
   --label "demo=My first SynapseGit project"
 ```
 
-Open the exact `http://127.0.0.1:...` URL printed by the process. The v0.1.0
-binary used above is read-only; creation, review, export, and restore remain CLI
-operations in that tag. A current source build also supports bounded three-file
-import and same-process Human review in the browser. See the
+Open the exact `http://127.0.0.1:...` URL printed by the process. The v0.2.0
+binary supports bounded three-file import and same-process Human review in the
+browser. Export, restore, `fsck`, and incomplete-session diagnostics remain CLI
+operations. See the
 [local application runbook](./deploy/local/README.md), the
 [installation guide](./docs/install.md), or the
 [source Quickstart](./docs/quickstart.md).
@@ -121,8 +121,8 @@ import and same-process Human review in the browser. See the
 real-user authentication, network transport, production operations, or a
 general creator-facing application is ready.
 
-The tagged v0.1.0 `synapse-local` binary predates browser import/review and is
-read-only; those write slices currently require a source build from `main`.
+The tagged v0.2.0 `synapse-local` binary includes the browser import/review
+slice. Review authority is process-local and cannot be resumed after restart.
 
 ## How it works
 
@@ -160,18 +160,18 @@ local application routes, and archive verification. Read the
 
 ## Distribution status
 
-- [`v0.1.0`](https://github.com/howlrs/synapsegit/releases/tag/v0.1.0) is a
+- [`v0.2.0`](https://github.com/howlrs/synapsegit/releases/tag/v0.2.0) is a
   prerelease, not a production release.
 - The supported prebuilt artifact is Linux x86_64 GNU. Tagged source builds are
   the current path for other supported Unix-like environments.
 - crates.io and GHCR are intentionally not distribution channels for Stage 0.
-- Release assets have SHA-256 checksums. Future tagged builds produced by the
-  updated workflow also receive GitHub build-provenance attestations.
+- Release assets have SHA-256 checksums. The v0.2.0 archive also receives a
+  GitHub build-provenance attestation.
 - The object, archive, and OID formats remain draft and may change before a
   stable release.
 
 See the [changelog](./CHANGELOG.md) and the
-[v0.1.0 release notes](./docs/releases/v0.1.0.md) before evaluating the
+[v0.2.0 release notes](./docs/releases/v0.2.0.md) before evaluating the
 preview with important data.
 
 ## Security, support, and license

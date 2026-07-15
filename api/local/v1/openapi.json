@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "SynapseGit localhost application API",
-    "version": "0.1.0-draft",
+    "version": "0.2.0-draft",
     "description": "Single-user, loopback-only application contract. Read routes plus creator import and same-process Human review are implemented; maintenance, archive, and diagnostics operations remain planned. This is not the public Core protocol."
   },
   "servers": [

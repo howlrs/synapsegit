@@ -2,12 +2,12 @@
 
 Audience: preview evaluators、contributors、maintainers
 Status: public project snapshot
-Applies to: main; tagged v0.1.0 differences are noted below
+Applies to: main and tagged v0.2.0
 Last verified: 2026-07-15
 
-SynapseGit Coreは**Stage 0 draft**である。v0.1.0は、local repositoryとbounded creator
-Pilotを評価するための最初のprereleaseであり、production-readyなcreator applicationや
-multi-user serviceではない。
+SynapseGit Coreは**Stage 0 draft**である。v0.2.0は、local repository、bounded creator
+Pilot、localhost import／reviewを評価するためのprereleaseであり、production-readyな
+creator applicationやmulti-user serviceではない。
 
 ## 現在の成果
 
@@ -24,7 +24,7 @@ multi-user serviceではない。
 - boundedな三file importとsame-process Human reviewを行うlocalhost creator UI
 - process-local authenticated AI routeとnarrow Human Decision library boundary
 - verified Ref snapshotから再構築できるSQLite ProjectionStore
-- Linux x86_64 GNU向けv0.1.0 prerelease archiveとchecksum
+- Linux x86_64 GNU向けv0.2.0 prerelease archive、checksum、build attestation
 
 実装範囲の詳細と根拠は[documentation index](./README.md#現在地)を参照する。
 
@@ -54,23 +54,23 @@ pending reviewはprocess restartを越えて復元できない。
 | Item | Status |
 |---|---|
 | Public repository | Available |
-| v0.1.0 GitHub prerelease | Available |
+| v0.2.0 GitHub prerelease | Available |
 | Linux x86_64 GNU binary | Available; glibc 2.34+ |
 | Source build from fixed tag | Available; Rust 1.88+ |
 | SHA-256 release checksum | Available |
-| Build provenance attestation | Added for future tagged builds; v0.1.0 predates it |
+| Build provenance attestation | Available for the v0.2.0 archive |
 | crates.io / GHCR / OS packages | Intentionally unavailable in Stage 0 |
 | Source use, Fork, and redistribution terms | Custom source-available license available; not open source |
 
-`v0.1.0`の配布済み`SynapseGit Local` binaryはread-onlyである。上記の三file import／reviewは
-current `main`のsource buildに含まれ、次のtagged releaseへはまだ反映されていない。
+`v0.2.0`の`SynapseGit Local` binaryは上記の三file import／reviewを含む。review authorityは
+process-localであり、process restartを越えたpending reviewの再開はできない。
 
 ## 次の優先順位
 
-1. GitHub配布面のCI、license bundle、security reporting、metadata、community feedback導線を運用する。
-2. 実装済みlocalhost import／reviewを、`fsck`、export／restore、incomplete diagnosticsへ拡張する。
-3. fixed-point Observation datasetとpixel-level adapterを別contractとして検証する。
-4. durable admission transactionを含むproduction control planeを実装する。
+1. 実装済みlocalhost import／reviewを、`fsck`、export／restore、incomplete diagnosticsへ拡張する。
+2. fixed-point Observation datasetとpixel-level adapterを別contractとして検証する。
+3. durable admission transactionを含むproduction control planeを実装する。
+4. 追加platformの再現可能なbuild／artifact smokeを整備する。
 
 個別作業は公開Issueで、security-sensitiveな内容はprivate vulnerability reportingで管理する。
 local path、未commit file、temporary cloud project ID等の作業環境snapshotは公開文書へ記録しない。

@@ -42,11 +42,11 @@ custom token header; server-rendered read views remain available without it.
 
 ## Build and start
 
-Linux x86_64では、[`v0.1.0` preview release](../../docs/releases/v0.1.0.md)に
+Linux x86_64では、[`v0.2.0` preview release](../../docs/releases/v0.2.0.md)に
 `synapse-local`を含む検証済みbinary archiveがある。downloadとchecksum検証は
 [Installation guide](../../docs/install.md#install-the-linux-x86-64-release)を参照する。その他のplatformでは、
-下記のsource buildを使用する。v0.1.0の配布済みbinaryはread-onlyであり、三file import／reviewは
-current `main`のsource buildにのみ含まれる。
+下記のsource buildを使用する。v0.2.0の配布済みbinaryには、三file import／same-process
+Human reviewが含まれる。
 
 Use a Rust toolchain compatible with the workspace MSRV, then run these
 commands from the repository root:
@@ -64,10 +64,11 @@ binary versionは`./target/release/synapse-local --version`で確認できる。
 
 The repository directory must exist before startup. It may be an existing
 SynapseGit repository or an empty directory; opening an empty directory creates
-the local repository layout. A current source build can create a session from
-the project page. The CLI remains available by using the same repository path with
+the local repository layout. The v0.2.0 binary and a current source build can
+create a session from the project page. The CLI can use the same repository
+path before starting the application or after stopping it; run
 [`creator-run`](../../docs/usage_guide.md#手書きjsonなしのlocal-creator-pilot)
-before or after starting the application.
+only while `synapse-local` is not running for that project.
 
 The process prints an origin such as `http://127.0.0.1:8787`. Open that exact
 URL in a browser. Press Ctrl-C in the terminal to stop it. The browser session

@@ -1277,7 +1277,7 @@ dependencies = [
 
 [[package]]
 name = "synapse-application"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde_json",
  "synapse-core",
@@ -1286,7 +1286,7 @@ dependencies = [
 
 [[package]]
 name = "synapse-canonical"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "sha2",
  "unicode-normalization",
@@ -1294,7 +1294,7 @@ dependencies = [
 
 [[package]]
 name = "synapse-cas"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "sha2",
  "synapse-canonical",
@@ -1302,7 +1302,7 @@ dependencies = [
 
 [[package]]
 name = "synapse-cli"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "synapse-canonical",
  "synapse-core",
@@ -1312,7 +1312,7 @@ dependencies = [
 
 [[package]]
 name = "synapse-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "rustix",
  "serde",
@@ -1326,7 +1326,7 @@ dependencies = [
 
 [[package]]
 name = "synapse-creator"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "getrandom 0.4.3",
  "serde_json",
@@ -1342,7 +1342,7 @@ dependencies = [
 
 [[package]]
 name = "synapse-local-http"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "askama",
  "axum",
@@ -1359,7 +1359,7 @@ dependencies = [
 
 [[package]]
 name = "synapse-local-service"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "getrandom 0.4.3",
  "serde",
@@ -1372,7 +1372,7 @@ dependencies = [
 
 [[package]]
 name = "synapse-observation"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "serde_json",
  "synapse-canonical",
@@ -1383,7 +1383,7 @@ dependencies = [
 
 [[package]]
 name = "synapse-projection"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "rusqlite",
  "serde_json",
@@ -1396,7 +1396,7 @@ dependencies = [
 
 [[package]]
 name = "synapse-schema"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "jsonschema",
  "serde_json",
@@ -1406,7 +1406,7 @@ dependencies = [
 
 [[package]]
 name = "synapse-sqlite"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "rusqlite",
 ]

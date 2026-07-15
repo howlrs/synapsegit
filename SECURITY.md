@@ -7,7 +7,7 @@ public, multi-user, or production deployment.
 
 | Version | Security handling |
 |---|---|
-| Latest v0.1.x prerelease | Best-effort investigation and fixes |
+| Latest v0.2.x prerelease | Best-effort investigation and fixes |
 | Older prereleases | Upgrade may be required before a fix is provided |
 | Unreleased `main` builds | Not a supported distribution |
 
