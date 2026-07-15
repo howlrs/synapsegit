@@ -213,9 +213,15 @@ Creator begin, decision, and report operations do run a repository-wide
 integrity check, but use Core's bounded fsck entry points with fixed creator
 limits: 10,000 Ref roots, 25,000 CAS objects, 4 GiB of inventoried raw bytes,
 250,000 cumulative closure nodes, 2,500,000 cumulative closure edges, and a
-25,000 Record / 512 MiB Tombstone scan. Limit exhaustion fails before begin
-publication or, after a committed decision, returns the retained committed
-receipt without retrying publication.
+25,000 Record / 512 MiB Tombstone scan. Begin reserves its own bounded growth
+and all eight per-project pending-review decisions, checks the exact prospective two-Ref snapshot, and only then
+publishes. Decision likewise checks its prospective replacement head before
+CAS. Core publication validators use the fixed bounded Tombstone profile too;
+they do not fall back to the legacy complete-inventory scan. Limit exhaustion
+therefore fails before normal publication. If response reconstruction still
+fails after a committed CAS because the repository changed concurrently, the
+service returns HTTP 200 with the exact durable receipt in a `committed`
+response, releases the consumed review slot, and never retries publication.
 
 The existing `creator_report(path, session)` captures its own Ref snapshot and
 does not return Projection metadata, so the facade must not wrap it with an
@@ -285,9 +291,12 @@ server therefore applies all of the following:
    nosniff`, `Referrer-Policy: no-referrer`, and `Cache-Control: no-store` for
    bootstrap/API data.
 7. Run synchronous filesystem/SQLite work on bounded blocking workers. Limit
-   concurrent operations per project and retain Core's publication checks;
-   long maintenance calls return an operation ID and never occupy an async
-   executor thread. A browser disconnect does not cancel or imply rollback.
+   concurrent operations per project and serialize creator begin/decision
+   mutations behind one process-local writer gate per catalog project so a
+   prospective capacity check and its Ref publications cannot race another
+   localhost writer. Long maintenance calls return an operation ID and never
+   occupy an async executor thread. A browser disconnect does not cancel or
+   imply rollback.
 
 The custom request header and exact Origin checks follow the same-origin CSRF
 controls described by the [OWASP CSRF Prevention Cheat
@@ -306,6 +315,11 @@ fail during streaming. An RAII owner removes staging on success, error, client
 disconnect, and handler cancellation. Process-crash leftovers remain a
 diagnostic and packaging-slice concern and must not be removed by an age-only
 cleanup.
+
+The writer gate is cooperative and process-local. While the localhost service
+owns a catalog project, operators must not run an independent CLI, a second
+service instance, or a direct Repository writer against the same repository.
+Cross-process repository writer fencing remains outside this localhost slice.
 
 Core Blobs remain opaque. For inline display, the service may classify only a
 small allowlist of raster signatures (PNG, JPEG, GIF, and WebP), set the exact

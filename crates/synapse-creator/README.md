@@ -40,8 +40,24 @@ One operation is limited to 10,000 Ref roots, 25,000 complete-inventory CAS
 objects, 4 GiB of inventoried raw bytes, 250,000 cumulative closure nodes,
 2,500,000 cumulative closure edges, and a 25,000 Record / 512 MiB Tombstone
 scan. These values are fixed by the trusted creator integration and cannot be
-raised by HTTP input. A pre-publication limit failure leaves Refs unchanged; a
-post-decision limit failure retains the committed receipt and is never retried.
+raised by HTTP input. Each input Blob is also limited to 64 MiB and the three
+inputs to 192 MiB in aggregate. Begin reserves its fixed graph growth plus all
+eight localhost pending-review decisions, then verifies the exact prospective two-Ref snapshot before
+publication. Decision performs the corresponding admission and prospective
+snapshot checks before its compare-and-swap. Publication-time head validation
+uses the same bounded Tombstone profile instead of the legacy unbounded
+inventory scan. A pre-publication limit failure leaves Refs unchanged. If a
+committed decision cannot be rebuilt into the full HTTP report after a
+concurrent repository change, the service returns its exact durable receipt as
+the `committed` success variant, releases the consumed review slot, and never
+retries publication.
+
+The prospective capacity check assumes cooperative serialization of creator
+mutations for one repository. `synapse-local-service` enforces that assumption
+with one process-local writer gate per catalog project across both begin and
+decision. Direct crate embeddings must provide the same serialization and must
+not run an independent Repository writer concurrently; this is not a
+cross-process filesystem lock.
 
 This crate is not a model runner, image decoder, pixel registration/diff adapter,
 HTTP service, durable authorization service, or production credential store.

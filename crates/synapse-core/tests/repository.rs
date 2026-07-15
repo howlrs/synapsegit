@@ -135,6 +135,100 @@ fn validated_store_ref_fsck_export_and_empty_restore_round_trip() {
 }
 
 #[test]
+fn empty_ref_restore_does_not_scan_the_tombstone_inventory() {
+    let temporary = TempDirectory::new("empty-ref-restore-tombstones");
+    let mut source = Repository::open(temporary.join("source")).unwrap();
+    load_fixture_store(&source);
+    assert!(source.refs().snapshot().unwrap().is_empty());
+    let expected_oids = source.objects().list_oids().unwrap();
+    let archive = temporary.join("archive");
+    source.export_archive(&archive).unwrap();
+
+    let mut restored = Repository::open_with_tombstone_scan_limits(
+        temporary.join("restored"),
+        TombstoneScanLimits {
+            max_record_objects: 0,
+            max_record_bytes: 0,
+        },
+    )
+    .unwrap();
+    restored.restore_from(&archive).unwrap();
+    assert_eq!(restored.objects().list_oids().unwrap(), expected_oids);
+    assert!(restored.refs().snapshot().unwrap().is_empty());
+}
+
+#[test]
+fn publication_head_validation_bounds_tombstone_inventory_before_ref_mutation() {
+    let temporary = TempDirectory::new("bounded-publication-tombstones");
+    let repository_path = temporary.join("repo");
+    let repository = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&repository);
+    let record_count = repository
+        .objects()
+        .list_oids()
+        .unwrap()
+        .into_iter()
+        .filter(|oid| oid.starts_with("record:"))
+        .count();
+    assert!(record_count > 1);
+    drop(repository);
+
+    let proposal = oid("proposal-commit.json");
+    let mut lexical_first = Repository::open_with_tombstone_scan_limits(
+        &repository_path,
+        TombstoneScanLimits {
+            max_record_objects: 0,
+            max_record_bytes: 0,
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        lexical_first
+            .validate_head("not-a-commit")
+            .unwrap_err()
+            .code(),
+        "oid_mismatch"
+    );
+    let error = lexical_first
+        .update_ref(RefUpdate {
+            ref_name: "Invalid/Ref",
+            expected_head: None,
+            new_head: &proposal,
+            metadata: ReflogMetadata {
+                occurred_at_unix_nanos: 1_000,
+                actor: None,
+                message: None,
+            },
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), "path_segment_invalid");
+    drop(lexical_first);
+
+    let mut repository = Repository::open_with_tombstone_scan_limits(
+        &repository_path,
+        TombstoneScanLimits {
+            max_record_objects: record_count - 1,
+            max_record_bytes: u64::MAX,
+        },
+    )
+    .unwrap();
+    let error = repository
+        .update_ref(RefUpdate {
+            ref_name: "proposal/agent/bounded",
+            expected_head: None,
+            new_head: &proposal,
+            metadata: ReflogMetadata {
+                occurred_at_unix_nanos: 1_001,
+                actor: None,
+                message: Some("must not publish"),
+            },
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+    assert!(repository.refs().snapshot().unwrap().is_empty());
+}
+
+#[test]
 fn bounded_fsck_checks_empty_ref_commit_roots_and_enforces_every_work_budget() {
     let temporary = TempDirectory::new("bounded-fsck");
     let repository_path = temporary.join("repo");

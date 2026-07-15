@@ -5,11 +5,11 @@
 //! Actor, Activity, ContextPack, DelegationGrant, Policy, candidate Commit, and
 //! live Ref state all agree before publishing an AI proposal.
 
-use super::{Repository, RepositoryError, Result, validate_head};
+use super::{Repository, RepositoryError, Result, validate_prepared_head};
 use std::collections::{BTreeMap, BTreeSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 use synapse_canonical::{CoreError, ErrorCode, ObjectKind, Value, parse_oid};
-use synapse_cas::{ClosureNodeState, verify_closure};
+use synapse_cas::{ClosureNodeState, PreparedClosureVerifier};
 use synapse_schema::validate;
 use synapse_sqlite::{
     RefPrecondition, RefStoreError, RefUpdate, ReflogEntry, ReflogMetadata, ValidationError,
@@ -489,9 +489,18 @@ where
     ) -> Result<AuthorizationDecision> {
         validate_ref_name(request.ref_name)?;
         require_ai_namespace(request.ref_name)?;
+        validate_commit_oid(request.new_head)?;
+        if let Some(expected_head) = request.expected_head {
+            validate_commit_oid(expected_head)?;
+        }
+        require_oid_kind(request.activity_oid, ObjectKind::Record, "AI Activity OID")?;
         require_human_gated_base(self.authority.authorized_base_ref)?;
-        self.repository
-            .validate_head(request.new_head)
+        let closure_verifier = PreparedClosureVerifier::new(
+            &self.repository.objects,
+            self.repository.graph_limits,
+            self.repository.tombstone_scan_limits,
+        )?;
+        validate_prepared_head(&closure_verifier, request.new_head)
             .map_err(RefStoreError::Validation)?;
 
         let commit = load_structured(
@@ -687,9 +696,7 @@ where
                 message: request.message,
             },
         };
-        let objects = &self.repository.objects;
-        let limits = self.repository.graph_limits;
-        let validator = |head: &str| validate_head(objects, head, limits);
+        let validator = |head: &str| validate_prepared_head(&closure_verifier, head);
         let clock = &self.clock;
         let transaction_guard = || {
             let now = clock
@@ -750,6 +757,19 @@ where
             policy_oid: resolved.policy_oid,
             effective_capabilities: requested_capabilities.into_iter().collect(),
         })
+    }
+}
+
+pub(crate) fn require_oid_kind(oid: &str, expected: ObjectKind, label: &str) -> Result<()> {
+    let actual = parse_oid(oid)?;
+    if actual == expected {
+        Ok(())
+    } else {
+        Err(CoreError::new(
+            ErrorCode::ReferenceTypeMismatch,
+            format!("{label} is not a {} OID: {oid}", expected.prefix()),
+        )
+        .into())
     }
 }
 
@@ -1469,12 +1489,13 @@ pub(crate) fn require_candidate_output_binding(
         activity_payload,
         grant_payload,
     } = binding;
-    let candidate = verify_closure(
+    let verifier = PreparedClosureVerifier::new(
         &repository.objects,
-        candidate_commit,
         repository.graph_limits,
+        repository.tombstone_scan_limits,
     )?;
-    let base = verify_closure(&repository.objects, base_commit, repository.graph_limits)?;
+    let candidate = verifier.verify_uncached(candidate_commit)?;
+    let base = verifier.verify_uncached(base_commit)?;
     if !candidate.is_complete() || !base.is_complete() {
         return Err(CoreError::new(
             ErrorCode::ClosureMissing,

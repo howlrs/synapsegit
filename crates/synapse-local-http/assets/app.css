@@ -1071,6 +1071,20 @@ button[data-variant="text"] {
   font-weight: 650;
 }
 
+.committed-receipt {
+  max-height: 24rem;
+  margin-block: var(--space-3);
+  padding: var(--space-4);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  color: var(--ink);
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 details {
   border-block: 1px solid var(--line);
 }

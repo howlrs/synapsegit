@@ -35,6 +35,18 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 - Creator begin, decision, and report now use operation-wide bounded fsck
   profiles for Ref roots, CAS objects/raw bytes, cumulative closure work, and
   Tombstone discovery.
+- Publication-time closure validation now uses bounded prepared Tombstone
+  catalogs. Creator begin reserves its graph and all eight localhost pending
+  decisions' headroom,
+  validates 64 MiB / 192 MiB input ceilings, and checks the exact prospective
+  Ref state before publication; malformed OID references are charged to the
+  cumulative edge budget.
+- A committed creator decision whose full report cannot be rebuilt now returns
+  its exact durable receipt as the HTTP 200 `committed` variant and releases
+  the consumed review slot; publication is never retried.
+- The localhost facade serializes creator mutations per project so concurrent
+  blocking workers cannot race a prospective capacity check, and an empty Ref
+  archive restore no longer scans an unused Tombstone inventory.
 
 ## [0.1.0] - 2026-07-15
 

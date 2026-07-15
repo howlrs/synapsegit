@@ -294,6 +294,12 @@ pub enum CompleteState {
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub enum CommittedState {
+    #[serde(rename = "committed")]
+    Committed,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub enum PendingReviewState {
     #[serde(rename = "pending_review")]
     PendingReview,
@@ -310,6 +316,69 @@ pub enum IncompleteState {
 pub struct CompleteCreatorSession {
     pub state: CompleteState,
     pub report: CreatorReport,
+}
+
+/// Durable publication identifiers returned when the decision committed but
+/// a concurrent repository change prevented rebuilding the full report.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreatorDecisionReceipt {
+    pub session: String,
+    pub project_id: String,
+    pub subject_id: String,
+    pub creator_id: String,
+    pub agent_id: String,
+    pub decision_ref: String,
+    pub proposal_ref: String,
+    pub base_head: String,
+    pub proposal_head: String,
+    pub decision_head: String,
+    pub original_blob_oid: String,
+    pub current_blob_oid: String,
+    pub ai_output_blob_oid: String,
+    pub capture_profile_oid: String,
+    pub original_observation_oid: String,
+    pub current_observation_oid: String,
+    pub comparison_tool_id: String,
+    pub comparison_tool_actor_oid: String,
+    pub comparison_analysis_oid: String,
+    pub comparison_implementation_oid: String,
+    pub comparison_configuration_oid: String,
+    pub byte_identity_outcome: String,
+    pub comparison_status: String,
+    pub comparison_comparability: String,
+    pub comparison_reason_codes: Vec<String>,
+    pub ai_activity_oid: String,
+    pub decision_feedback_oid: String,
+    pub disposition: CreatorDecision,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CommittedCreatorSession {
+    pub state: CommittedState,
+    pub receipt: CreatorDecisionReceipt,
+    pub report_available: bool,
+    pub inspection_required: bool,
+}
+
+/// A decision always returns either the complete rebuilt report or, if the
+/// publication committed but report reconstruction failed, its exact durable
+/// receipt. The untagged representation preserves the existing complete JSON.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum CreatorDecisionResponse {
+    Complete(Box<CompleteCreatorSession>),
+    Committed(Box<CommittedCreatorSession>),
+}
+
+impl CreatorDecisionResponse {
+    pub fn into_complete(self) -> Option<CompleteCreatorSession> {
+        match self {
+            Self::Complete(complete) => Some(*complete),
+            Self::Committed(_) => None,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

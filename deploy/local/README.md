@@ -26,6 +26,9 @@ retained per project, and 64 per process. The browser must finish a review in
 the same running process: restart cannot reconstruct the admitted capability
 from stored Ref/head identifiers and leaves the proposal explicitly incomplete.
 The third file is caller-supplied; the application does not invoke an AI model.
+Creator begin and decision mutations are serialized per catalog project inside
+that process. Do not run another service instance, the CLI, or a direct
+Repository writer against the same repository while this service owns it.
 
 The UI does **not** yet provide `fsck`, archive export/restore, automatic resume
 or cleanup, or the dedicated incomplete-session diagnostics route. Those

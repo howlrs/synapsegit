@@ -21,6 +21,7 @@ pub use human_decision::{
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
@@ -33,11 +34,12 @@ use synapse_canonical::{CoreError, ErrorCode, ObjectKind, parse_oid};
 pub use synapse_cas::TombstoneScanLimits;
 use synapse_cas::{
     ClosureIssueKind, ClosureReport, FileObjectStore, FsckIssue, FsckIssueKind, FsckReport,
-    GraphLimits, PreparedClosureVerifier, PutResult, StoreError, StoreLimits, fsck, verify_closure,
+    GraphLimits, PreparedClosureVerifier, PutResult, StoreError, StoreLimits, fsck,
 };
 use synapse_schema::{ingest, ingest_claimed};
 use synapse_sqlite::{
     RefArchive, RefRecord, RefStoreError, RefUpdate, ReflogEntry, SqliteRefStore, ValidationError,
+    validate_commit_oid,
 };
 pub use synapse_sqlite::{RefArchiveExportLimits, RefSnapshot};
 
@@ -250,6 +252,7 @@ pub struct Repository {
     objects: FileObjectStore,
     refs: SqliteRefStore,
     graph_limits: GraphLimits,
+    tombstone_scan_limits: TombstoneScanLimits,
 }
 
 impl Repository {
@@ -257,10 +260,40 @@ impl Repository {
         Self::open_with_limits(root, StoreLimits::default(), GraphLimits::default())
     }
 
+    /// Open a repository with a service-owned bound for publication-time
+    /// Tombstone discovery while retaining the default object and graph limits.
+    pub fn open_with_tombstone_scan_limits(
+        root: impl AsRef<Path>,
+        tombstone_scan_limits: TombstoneScanLimits,
+    ) -> Result<Self> {
+        Self::open_with_validation_limits(
+            root,
+            StoreLimits::default(),
+            GraphLimits::default(),
+            tombstone_scan_limits,
+        )
+    }
+
     pub fn open_with_limits(
         root: impl AsRef<Path>,
         store_limits: StoreLimits,
         graph_limits: GraphLimits,
+    ) -> Result<Self> {
+        Self::open_with_validation_limits(
+            root,
+            store_limits,
+            graph_limits,
+            TombstoneScanLimits::default(),
+        )
+    }
+
+    /// Open a repository with explicit storage, traversal, and
+    /// publication-time Tombstone scan limits.
+    pub fn open_with_validation_limits(
+        root: impl AsRef<Path>,
+        store_limits: StoreLimits,
+        graph_limits: GraphLimits,
+        tombstone_scan_limits: TombstoneScanLimits,
     ) -> Result<Self> {
         let requested = root.as_ref();
         fs::create_dir_all(requested)
@@ -274,6 +307,7 @@ impl Repository {
             objects,
             refs,
             graph_limits,
+            tombstone_scan_limits,
         })
     }
 
@@ -368,13 +402,22 @@ impl Repository {
     }
 
     pub fn validate_head(&self, head: &str) -> std::result::Result<(), ValidationError> {
-        validate_head(&self.objects, head, self.graph_limits)
+        validate_head(
+            &self.objects,
+            head,
+            self.graph_limits,
+            self.tombstone_scan_limits,
+        )
     }
 
     pub fn update_ref(&mut self, update: RefUpdate<'_>) -> Result<ReflogEntry> {
         let objects = &self.objects;
         let limits = self.graph_limits;
-        let validator = |head: &str| validate_head(objects, head, limits);
+        let tombstone_scan_limits = self.tombstone_scan_limits;
+        // SqliteRefStore performs lexical Ref/head/metadata validation before
+        // invoking this closure, so malformed requests cannot force the
+        // bounded-but-potentially-large Tombstone inventory scan.
+        let validator = |head: &str| validate_head(objects, head, limits, tombstone_scan_limits);
         Ok(self.refs.compare_and_swap(update, &validator)?)
     }
 
@@ -862,7 +905,24 @@ impl Repository {
         let ref_archive = manifest.into_ref_archive();
         let objects = &self.objects;
         let limits = self.graph_limits;
-        let validator = |head: &str| validate_head(objects, head, limits);
+        let tombstone_scan_limits = self.tombstone_scan_limits;
+        let verifier = RefCell::new(None);
+        let validator = |head: &str| {
+            let mut verifier = verifier.borrow_mut();
+            if verifier.is_none() {
+                *verifier = Some(
+                    PreparedClosureVerifier::new(objects, limits, tombstone_scan_limits).map_err(
+                        |error| ValidationError::new(store_error_code(&error), error.to_string()),
+                    )?,
+                );
+            }
+            validate_prepared_head(
+                verifier
+                    .as_ref()
+                    .expect("the archive verifier is initialized above"),
+                head,
+            )
+        };
         self.refs.restore_archive(&ref_archive, &validator)?;
         Ok(())
     }
@@ -879,8 +939,21 @@ fn validate_head(
     objects: &FileObjectStore,
     head: &str,
     limits: GraphLimits,
+    tombstone_scan_limits: TombstoneScanLimits,
 ) -> std::result::Result<(), ValidationError> {
-    let report = verify_closure(objects, head, limits)
+    validate_commit_oid(head)
+        .map_err(|error| ValidationError::new(error.code(), error.to_string()))?;
+    let verifier = PreparedClosureVerifier::new(objects, limits, tombstone_scan_limits)
+        .map_err(|error| ValidationError::new(store_error_code(&error), error.to_string()))?;
+    validate_prepared_head(&verifier, head)
+}
+
+fn validate_prepared_head(
+    verifier: &PreparedClosureVerifier<'_, FileObjectStore>,
+    head: &str,
+) -> std::result::Result<(), ValidationError> {
+    let report = verifier
+        .verify_uncached(head)
         .map_err(|error| ValidationError::new(store_error_code(&error), error.to_string()))?;
     validate_closure_report(&report)
 }

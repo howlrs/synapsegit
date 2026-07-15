@@ -7,7 +7,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Mutex, MutexGuard};
 use synapse_core::{Repository, RepositoryError};
 use synapse_creator::{
-    CreatorBeginOptions, CreatorComparisonReport as CoreComparisonReport, CreatorDecisionOptions,
+    CREATOR_RESERVED_PENDING_DECISIONS, CreatorBeginOptions,
+    CreatorComparisonReport as CoreComparisonReport, CreatorDecisionOptions,
     CreatorDisposition as CoreCreatorDisposition, CreatorError, CreatorPendingDecisionState,
     CreatorPendingReceipt as CorePendingReceipt, CreatorReport as CoreCreatorReport,
     CreatorRunReceipt as CoreRunReceipt, CreatorSessionState as CoreCreatorSessionState,
@@ -30,6 +31,10 @@ pub const MAX_CREATOR_SESSIONS: usize = 50_000;
 pub const IMAGE_RESPONSE_MAX_BYTES: u64 = 64 * 1024 * 1024;
 pub const MAX_PENDING_CREATOR_SESSIONS: usize = 64;
 pub const MAX_PENDING_CREATOR_SESSIONS_PER_PROJECT: usize = 8;
+const _: () = assert!(
+    MAX_PENDING_CREATOR_SESSIONS_PER_PROJECT <= CREATOR_RESERVED_PENDING_DECISIONS,
+    "service pending capacity must fit the creator decision reservation"
+);
 
 /// A safe application-facing failure. Nested repository paths, SQL details,
 /// and raw dependency errors are intentionally not retained.
@@ -265,6 +270,10 @@ impl PendingRegistry {
         );
         Ok(())
     }
+
+    fn consume_committed(&mut self, review_id: &str) {
+        self.entries.remove(review_id);
+    }
 }
 
 /// Exact startup-owned localhost facade.
@@ -275,6 +284,7 @@ impl PendingRegistry {
 pub struct LocalService {
     catalog: ProjectCatalog,
     pending: Mutex<PendingRegistry>,
+    project_writers: BTreeMap<String, Mutex<()>>,
 }
 
 impl fmt::Debug for LocalService {
@@ -291,9 +301,15 @@ impl LocalService {
     pub fn new(
         registrations: impl IntoIterator<Item = ProjectRegistration>,
     ) -> Result<Self, CatalogError> {
+        let catalog = ProjectCatalog::build(registrations)?;
+        let project_writers = catalog
+            .values()
+            .map(|entry| (entry.project_key.clone(), Mutex::new(())))
+            .collect();
         Ok(Self {
-            catalog: ProjectCatalog::build(registrations)?,
+            catalog,
             pending: Mutex::new(PendingRegistry::default()),
+            project_writers,
         })
     }
 
@@ -386,6 +402,11 @@ impl LocalService {
     ) -> Result<PendingCreatorSession, ServiceError> {
         validate_begin_request(server_instance, &request)?;
         let repository_path = self.entry(project_key)?.repository_path().to_owned();
+        // The prospective integrity check and the following Ref publications
+        // form one cooperative localhost-service writer operation. Keep every
+        // begin/decision for this project behind the same gate so two blocking
+        // HTTP workers cannot both admit against the same pre-state.
+        let _writer = self.acquire_project_writer(project_key)?;
         let review_id = self.reserve_pending(project_key, &request.session, server_instance)?;
 
         let repository = match Repository::open(&repository_path).map_err(repository_error) {
@@ -451,9 +472,10 @@ impl LocalService {
         session: &str,
         server_instance: &str,
         request: CreatorDecisionRequest,
-    ) -> Result<CompleteCreatorSession, ServiceError> {
+    ) -> Result<CreatorDecisionResponse, ServiceError> {
         validate_decision_request(session, &request)?;
         self.entry(project_key)?;
+        let _writer = self.acquire_project_writer(project_key)?;
         let repository = self.open_repository(project_key)?;
         let snapshot = capture_snapshot(&repository)?;
         let (mut pending, pending_receipt) = self.claim_ready(
@@ -491,7 +513,7 @@ impl LocalService {
                             "creator decision reported consumed state without a receipt",
                         ));
                     };
-                    return self.finish_decision(
+                    return self.finish_committed_decision(
                         project_key,
                         session,
                         &request.review_id,
@@ -511,7 +533,7 @@ impl LocalService {
                     .with_diagnostic("creator Human decision publication panicked"));
             }
         };
-        self.finish_decision(
+        self.finish_committed_decision(
             project_key,
             session,
             &request.review_id,
@@ -819,6 +841,36 @@ impl LocalService {
         Ok(complete_session(&snapshot, snapshot_report))
     }
 
+    fn finish_committed_decision(
+        &self,
+        project_key: &str,
+        session: &str,
+        review_id: &str,
+        run_receipt: &CoreRunReceipt,
+        pending_receipt: &CorePendingReceipt,
+    ) -> Result<CreatorDecisionResponse, ServiceError> {
+        match self.finish_decision(
+            project_key,
+            session,
+            review_id,
+            run_receipt,
+            pending_receipt,
+        ) {
+            Ok(complete) => Ok(CreatorDecisionResponse::Complete(Box::new(complete))),
+            Err(_) => {
+                // Core returned a committed receipt, so publication outcome is
+                // known even when the derived report cannot be rebuilt. Drop
+                // the consumed same-process authority and return the durable
+                // receipt instead of leaking a registry slot or misreporting
+                // a prepublication failure.
+                lock_registry(&self.pending).consume_committed(review_id);
+                Ok(CreatorDecisionResponse::Committed(Box::new(
+                    committed_session(run_receipt),
+                )))
+            }
+        }
+    }
+
     fn consume_deciding(&self, review_id: &str) -> Result<(), ServiceError> {
         let mut registry = lock_registry(&self.pending);
         if registry
@@ -846,6 +898,26 @@ impl LocalService {
     fn open_repository(&self, project_key: &str) -> Result<Repository, ServiceError> {
         open_repository(self.entry(project_key)?)
     }
+
+    fn acquire_project_writer(
+        &self,
+        project_key: &str,
+    ) -> Result<MutexGuard<'_, ()>, ServiceError> {
+        lock_project_writer(&self.project_writers, project_key)
+    }
+}
+
+fn lock_project_writer<'a>(
+    writers: &'a BTreeMap<String, Mutex<()>>,
+    project_key: &str,
+) -> Result<MutexGuard<'a, ()>, ServiceError> {
+    let writer = writers
+        .get(project_key)
+        .ok_or_else(ServiceError::project_not_found)?;
+    Ok(match writer.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    })
 }
 
 fn lock_registry(registry: &Mutex<PendingRegistry>) -> MutexGuard<'_, PendingRegistry> {
@@ -1030,6 +1102,14 @@ fn core_disposition(decision: CreatorDecision) -> CoreCreatorDisposition {
         CreatorDecision::Adopt => CoreCreatorDisposition::Adopt,
         CreatorDecision::Reject => CoreCreatorDisposition::Reject,
         CreatorDecision::Defer => CoreCreatorDisposition::Defer,
+    }
+}
+
+fn creator_disposition(disposition: CoreCreatorDisposition) -> CreatorDecision {
+    match disposition {
+        CoreCreatorDisposition::Adopt => CreatorDecision::Adopt,
+        CoreCreatorDisposition::Reject => CreatorDecision::Reject,
+        CoreCreatorDisposition::Defer => CreatorDecision::Defer,
     }
 }
 
@@ -1320,6 +1400,44 @@ fn complete_session(
     }
 }
 
+fn committed_session(receipt: &CoreRunReceipt) -> CommittedCreatorSession {
+    CommittedCreatorSession {
+        state: CommittedState::Committed,
+        receipt: CreatorDecisionReceipt {
+            session: receipt.session.clone(),
+            project_id: receipt.project_id.clone(),
+            subject_id: receipt.subject_id.clone(),
+            creator_id: receipt.creator_id.clone(),
+            agent_id: receipt.agent_id.clone(),
+            decision_ref: receipt.decision_ref.clone(),
+            proposal_ref: receipt.proposal_ref.clone(),
+            base_head: receipt.base_head.clone(),
+            proposal_head: receipt.proposal_head.clone(),
+            decision_head: receipt.decision_head.clone(),
+            original_blob_oid: receipt.original_blob_oid.clone(),
+            current_blob_oid: receipt.current_blob_oid.clone(),
+            ai_output_blob_oid: receipt.ai_output_blob_oid.clone(),
+            capture_profile_oid: receipt.capture_profile_oid.clone(),
+            original_observation_oid: receipt.original_observation_oid.clone(),
+            current_observation_oid: receipt.current_observation_oid.clone(),
+            comparison_tool_id: receipt.comparison_tool_id.clone(),
+            comparison_tool_actor_oid: receipt.comparison_tool_actor_oid.clone(),
+            comparison_analysis_oid: receipt.comparison_analysis_oid.clone(),
+            comparison_implementation_oid: receipt.comparison_implementation_oid.clone(),
+            comparison_configuration_oid: receipt.comparison_configuration_oid.clone(),
+            byte_identity_outcome: receipt.byte_identity_outcome.as_str().into(),
+            comparison_status: receipt.comparison_status.as_str().into(),
+            comparison_comparability: receipt.comparison_comparability.as_str().into(),
+            comparison_reason_codes: receipt.comparison_reason_codes.clone(),
+            ai_activity_oid: receipt.ai_activity_oid.clone(),
+            decision_feedback_oid: receipt.decision_feedback_oid.clone(),
+            disposition: creator_disposition(receipt.disposition),
+        },
+        report_available: false,
+        inspection_required: true,
+    }
+}
+
 fn incomplete_session(snapshot: &RefSnapshot, session: &str) -> IncompleteCreatorSession {
     IncompleteCreatorSession {
         state: IncompleteState::Incomplete,
@@ -1555,6 +1673,62 @@ mod tests {
     fn service_shared_state_is_send_and_sync() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<LocalService>();
+    }
+
+    #[test]
+    fn project_writer_gate_serializes_same_project_without_blocking_another() {
+        let writers = BTreeMap::from([
+            ("alpha".to_owned(), Mutex::new(())),
+            ("beta".to_owned(), Mutex::new(())),
+        ]);
+        let first = lock_project_writer(&writers, "alpha").unwrap();
+        std::thread::scope(|scope| {
+            let (attempted_tx, attempted_rx) = std::sync::mpsc::channel();
+            let (acquired_tx, acquired_rx) = std::sync::mpsc::channel();
+            let writers_ref = &writers;
+            scope.spawn(move || {
+                attempted_tx.send(()).unwrap();
+                let _second = lock_project_writer(writers_ref, "alpha").unwrap();
+                acquired_tx.send(()).unwrap();
+            });
+
+            attempted_rx.recv().unwrap();
+            assert_eq!(
+                acquired_rx.try_recv(),
+                Err(std::sync::mpsc::TryRecvError::Empty)
+            );
+            let other_project = lock_project_writer(&writers, "beta").unwrap();
+            drop(other_project);
+            drop(first);
+            acquired_rx.recv().unwrap();
+        });
+    }
+
+    #[test]
+    fn creator_disposition_conversion_is_exhaustive() {
+        for disposition in [
+            CreatorDecision::Adopt,
+            CreatorDecision::Reject,
+            CreatorDecision::Defer,
+        ] {
+            assert_eq!(
+                creator_disposition(core_disposition(disposition)),
+                disposition
+            );
+        }
+    }
+
+    #[test]
+    fn committed_fallback_releases_the_consumed_review_slot() {
+        let mut registry = PendingRegistry::default();
+        registry
+            .reserve("review-one".into(), "project", "session-one", "server")
+            .unwrap();
+        registry.consume_committed("review-one");
+        assert!(registry.entries.is_empty());
+        registry
+            .reserve("review-two".into(), "project", "session-two", "server")
+            .unwrap();
     }
 
     #[test]

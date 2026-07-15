@@ -27,9 +27,9 @@ use std::io;
 use std::path::PathBuf;
 use std::sync::Arc;
 use synapse_local_service::{
-    BeginCreatorSessionRequest, CreatorDecisionRequest, CreatorImage, CreatorReport,
-    CreatorSessionDetail, CreatorSessionState, HealthResponse, ImageRole, LocalService,
-    ProjectState, ReflogQuery, ServiceError,
+    BeginCreatorSessionRequest, CreatorDecisionRequest, CreatorDecisionResponse, CreatorImage,
+    CreatorReport, CreatorSessionDetail, CreatorSessionState, HealthResponse, ImageRole,
+    LocalService, ProjectState, ReflogQuery, ServiceError,
 };
 use tokio::io::AsyncWriteExt;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -405,13 +405,17 @@ async fn api_decide_creator_session(
     })
     .await
     {
-        Ok(complete) => Json(complete).into_response(),
+        Ok(outcome) => decision_success_response(outcome),
         Err(BlockingError::Service(error)) => failure_response(HttpFailure::service(&state, error)),
         Err(BlockingError::Task) => failure_response(HttpFailure::internal(
             &state,
             "The creator decision task failed.",
         )),
     }
+}
+
+fn decision_success_response(outcome: CreatorDecisionResponse) -> Response {
+    Json(outcome).into_response()
 }
 
 fn single_content_type(headers: &HeaderMap) -> Option<&str> {
@@ -1666,6 +1670,9 @@ mod tests {
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
     use synapse_creator::{CreatorDisposition, CreatorRunOptions, run_creator_session};
+    use synapse_local_service::{
+        CommittedCreatorSession, CommittedState, CreatorDecision, CreatorDecisionReceipt,
+    };
     use tower::ServiceExt;
 
     static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
@@ -1845,6 +1852,61 @@ mod tests {
         assert!(APP_JS.contains("event.submitter?.name === \"disposition\""));
         assert!(APP_JS.contains("window.confirm("));
         assert!(APP_JS.contains("form.hidden = false"));
+        assert!(APP_JS.contains("data?.state === \"committed\""));
+        assert!(APP_JS.contains("showCommittedReceipt(form, data)"));
+        assert!(APP_JS.contains("JSON.stringify(receipt, null, 2)"));
+        assert!(APP_JS.contains("!committedWithoutReport && form.dataset.successReload"));
+    }
+
+    #[tokio::test]
+    async fn committed_decision_receipt_is_an_http_200_success_body() {
+        let commit = format!("commit:sg-oid-v1:sha256:{}", "a".repeat(64));
+        let record = format!("record:sg-oid-v1:sha256:{}", "b".repeat(64));
+        let blob = format!("blob:sg-oid-v1:sha256:{}", "c".repeat(64));
+        let outcome = CreatorDecisionResponse::Committed(Box::new(CommittedCreatorSession {
+            state: CommittedState::Committed,
+            receipt: CreatorDecisionReceipt {
+                session: "receipt-session".into(),
+                project_id: "project-id".into(),
+                subject_id: "subject-id".into(),
+                creator_id: "creator-id".into(),
+                agent_id: "agent-id".into(),
+                decision_ref: "decision/creator/receipt-session".into(),
+                proposal_ref: "proposal/creator-agent/receipt-session".into(),
+                base_head: commit.clone(),
+                proposal_head: commit.clone(),
+                decision_head: commit.clone(),
+                original_blob_oid: blob.clone(),
+                current_blob_oid: blob.clone(),
+                ai_output_blob_oid: blob.clone(),
+                capture_profile_oid: record.clone(),
+                original_observation_oid: record.clone(),
+                current_observation_oid: record.clone(),
+                comparison_tool_id: "comparison-tool".into(),
+                comparison_tool_actor_oid: record.clone(),
+                comparison_analysis_oid: record.clone(),
+                comparison_implementation_oid: blob.clone(),
+                comparison_configuration_oid: blob,
+                byte_identity_outcome: "different".into(),
+                comparison_status: "succeeded".into(),
+                comparison_comparability: "partial".into(),
+                comparison_reason_codes: Vec::new(),
+                ai_activity_oid: record.clone(),
+                decision_feedback_oid: record,
+                disposition: CreatorDecision::Adopt,
+            },
+            report_available: false,
+            inspection_required: true,
+        }));
+
+        let response = decision_success_response(outcome);
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+        let value: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        assert_eq!(value["state"], "committed");
+        assert_eq!(value["receipt"]["decision_head"], commit);
+        assert_eq!(value["report_available"], false);
+        assert_eq!(value["inspection_required"], true);
     }
 
     #[test]

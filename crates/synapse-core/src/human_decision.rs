@@ -12,16 +12,18 @@
 //! embedding service must therefore expose only proposals that passed
 //! `CreativeAiRuntime` (or an equivalent admission boundary).
 
-use super::{Repository, RepositoryError, Result, validate_head};
+use super::{Repository, RepositoryError, Result, validate_prepared_head};
 use crate::authorization::{
     AuthorizationClock, CandidateBinding, SystemAuthorizationClock, load_record, load_structured,
     require_array, require_array_contains, require_candidate_output_binding, require_equal,
-    require_object, require_present_activity_references, require_present_oid_array,
-    require_project_resource, require_role_actor, require_role_oid, require_string,
-    require_writable_prefix, selector_matches, selector_supported, snapshot_object_set,
+    require_object, require_oid_kind, require_present_activity_references,
+    require_present_oid_array, require_project_resource, require_role_actor, require_role_oid,
+    require_string, require_writable_prefix, selector_matches, selector_supported,
+    snapshot_object_set,
 };
 use std::collections::BTreeSet;
 use synapse_canonical::{CoreError, ErrorCode, ObjectKind, Value, parse_oid};
+use synapse_cas::PreparedClosureVerifier;
 use synapse_sqlite::{
     RefPrecondition, RefUpdate, ReflogEntry, ReflogMetadata, ValidationError, validate_ref_name,
 };
@@ -176,15 +178,23 @@ where
         require_ref_namespace(self.authority.proposal_ref_name, "proposal")?;
         require_commit_oid(self.authority.decision_head, "trusted decision head")?;
         require_commit_oid(self.authority.proposal_head, "trusted proposal head")?;
+        require_commit_oid(update.new_head, "candidate decision head")?;
+        require_oid_kind(
+            update.decision_feedback_oid,
+            ObjectKind::Record,
+            "DecisionFeedback OID",
+        )?;
 
-        self.repository
-            .validate_head(self.authority.decision_head)
+        let closure_verifier = PreparedClosureVerifier::new(
+            &self.repository.objects,
+            self.repository.graph_limits,
+            self.repository.tombstone_scan_limits,
+        )?;
+        validate_prepared_head(&closure_verifier, self.authority.decision_head)
             .map_err(synapse_sqlite::RefStoreError::Validation)?;
-        self.repository
-            .validate_head(self.authority.proposal_head)
+        validate_prepared_head(&closure_verifier, self.authority.proposal_head)
             .map_err(synapse_sqlite::RefStoreError::Validation)?;
-        self.repository
-            .validate_head(update.new_head)
+        validate_prepared_head(&closure_verifier, update.new_head)
             .map_err(synapse_sqlite::RefStoreError::Validation)?;
 
         let base_commit = load_structured(
@@ -392,9 +402,7 @@ where
             ref_name: self.authority.proposal_ref_name,
             expected_head: Some(self.authority.proposal_head),
         };
-        let objects = &self.repository.objects;
-        let limits = self.repository.graph_limits;
-        let validator = |head: &str| validate_head(objects, head, limits);
+        let validator = |head: &str| validate_prepared_head(&closure_verifier, head);
         let clock = &self.clock;
         let transaction_guard = || {
             let now = clock

@@ -493,6 +493,28 @@ function publicErrorMessage(error) {
   return "The local application could not complete the request.";
 }
 
+function showCommittedReceipt(form, data) {
+  const receipt = data?.receipt;
+  if (!receipt || typeof receipt !== "object" || typeof receipt.decision_head !== "string") {
+    throw new TypeError("The committed creator receipt is invalid.");
+  }
+
+  setStatus(
+    form,
+    `Decision committed at ${receipt.decision_head}. The full report is unavailable; inspect and retain the durable receipt below.`,
+    "success",
+  );
+  let output = form.querySelector("[data-synapse-committed-receipt]");
+  if (!(output instanceof HTMLElement)) {
+    output = document.createElement("pre");
+    output.dataset.synapseCommittedReceipt = "";
+    output.className = "committed-receipt";
+    form.after(output);
+  }
+  output.textContent = JSON.stringify(receipt, null, 2);
+  output.hidden = false;
+}
+
 async function submitEnhancedForm(event) {
   const form = event.currentTarget;
   if (!(form instanceof HTMLFormElement)) return;
@@ -538,7 +560,13 @@ async function submitEnhancedForm(event) {
     }
 
     const data = await apiJson(prepared.url, prepared.init);
-    setStatus(form, form.dataset.successMessage || "Completed.", "success");
+    const committedWithoutReport = data?.state === "committed";
+    if (committedWithoutReport) {
+      showCommittedReceipt(form, data);
+      destination = null;
+    } else {
+      setStatus(form, form.dataset.successMessage || "Completed.", "success");
+    }
 
     if (form.dataset.successSessionBase) {
       const sessionBase = new URL(form.dataset.successSessionBase, window.location.origin);
@@ -563,7 +591,7 @@ async function submitEnhancedForm(event) {
 
     if (destination) {
       window.location.assign(destination);
-    } else if (form.dataset.successReload === "true") {
+    } else if (!committedWithoutReport && form.dataset.successReload === "true") {
       window.location.reload();
     }
   } catch (error) {

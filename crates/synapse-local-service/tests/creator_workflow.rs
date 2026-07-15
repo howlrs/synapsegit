@@ -143,7 +143,9 @@ fn begin_overlays_ready_state_and_decide_rebuilds_a_complete_report() {
             "server-instance-a",
             decision(&pending.review_id, CreatorDecision::Adopt),
         )
-        .unwrap();
+        .unwrap()
+        .into_complete()
+        .expect("unchanged repository returns the rebuilt complete report");
     assert_eq!(complete.state, CompleteState::Complete);
     assert_eq!(complete.report.disposition, "adopt");
     assert!(complete.report.selected_ai_output);
@@ -260,7 +262,9 @@ fn rejected_inputs_and_wrong_bindings_leave_the_ready_review_available() {
             "server-instance-a",
             decision(pending.review_id, CreatorDecision::Defer),
         )
-        .unwrap();
+        .unwrap()
+        .into_complete()
+        .expect("unchanged repository returns the rebuilt complete report");
     assert_eq!(complete.report.disposition, "defer");
 }
 
@@ -441,6 +445,44 @@ fn project_capacity_is_reserved_before_a_ninth_proposal_can_publish() {
             .unwrap()
             .is_none()
     );
+}
+
+#[test]
+fn concurrent_begins_publish_as_serialized_project_writer_operations() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.directory("repository");
+    let service = Arc::new(service(&repository_path));
+    let barrier = Arc::new(std::sync::Barrier::new(3));
+    let mut workers = Vec::new();
+    for session in ["parallel-one", "parallel-two"] {
+        let worker_service = service.clone();
+        let worker_barrier = barrier.clone();
+        let request = begin_request(&temporary, session);
+        workers.push(std::thread::spawn(move || {
+            worker_barrier.wait();
+            worker_service.begin_creator_session("project", "server-instance-a", request)
+        }));
+    }
+    barrier.wait();
+    for worker in workers {
+        worker.join().unwrap().unwrap();
+    }
+
+    let repository = Repository::open(&repository_path).unwrap();
+    let reflog = repository.refs().reflog().unwrap();
+    assert_eq!(reflog.len(), 4);
+    for pair in reflog.chunks_exact(2) {
+        let decision_session = pair[0]
+            .ref_name
+            .strip_prefix("decision/creator/")
+            .expect("begin publishes its decision Ref first");
+        let proposal_session = pair[1]
+            .ref_name
+            .strip_prefix("proposal/creator-agent/")
+            .expect("begin publishes its proposal Ref second");
+        assert_eq!(decision_session, proposal_session);
+    }
+    assert!(repository.fsck().unwrap().is_clean());
 }
 
 #[test]
