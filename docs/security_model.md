@@ -4,8 +4,8 @@
 脅威モデルの完成版や production deployment guide ではない。
 
 Status: **Stage 0 draft**<br>
-Implemented scope: local object / Ref / archive integrity path, process-local authenticated Creative AI and narrow Human Decision routes, Core admissions, disposable SQLite projection libraries, and the read-only single-user IPv4-loopback image application<br>
-Planned scope: localhost upload、Human review、`fsck`、export／restore UI and a production application boundary<br>
+Implemented scope: local object / Ref / archive integrity path, process-local authenticated Creative AI and narrow Human Decision routes, Core admissions, disposable SQLite projection libraries, and the single-user IPv4-loopback image application with bounded three-file import and same-process Human review<br>
+Planned scope: localhost `fsck`、export／restore、incomplete diagnostics UI and a production application boundary<br>
 Production target: GCP primary / AWS portability architecture is specified; cloud implementation is not started<br>
 Out of current implementation scope: concrete HTTP/JWT identity、durable/distributed authorization state、OS sandbox/egress、production tenant isolation
 
@@ -21,7 +21,7 @@ Out of current implementation scope: concrete HTTP/JWT identity、durable/distri
 | `synapse-application` initial routes | AIではexact project ACL、Core preflight、exclusive-TTL permit、trusted Executor、実行後reauthを、Humanではsame-instance admitted proposal、server-fixed candidate、one-shot permitを束縛し、両方をlive profile／FIFO fenceからCore full validationへ接続 | Authenticator実装自体の強度、HTTP/JWT、restartを越えるACL／permit、multi-process ordering、OS sandbox／connector／egress、Projection route、organization／quorum／release／modified／partial |
 | `HumanDecisionRuntime` | trusted single-human authorityに対する`decision/*`のidentity／Policy／proposal／base／disposition／duplicate／atomic CAS整合 | credential本人確認、ACL、organization代理、quorum／MFA、modified／partial／release approval |
 | `synapse-creator` Pilot / report | fixed local stateからCore-validなbase、AI proposal、Human Decisionを作り、取得した一つのRef snapshotに対するcurrent lineageとtimelineを監査表示する | OS userや`--creator`の本人性、caller-supplied fileのAI生成、Application routeを実際に通ったこと、cross-Ref transaction、reportをauthorization sourceとして使うこと |
-| current localhost application | exact startup catalog、safe facade、loopback／Host／Origin／browser-token boundaryを通し、project／session／evidence／画像のread modelだけを公開する | upload／Human review／maintenance UI、OS-user authentication、same-user process isolation、public／multi-user service、malicious media sandbox |
+| current localhost application | exact startup catalog、safe facade、loopback／Host／Origin／browser-token boundaryを通し、project／session／evidence／画像のread modelと、boundedな三file import／same-process Human reviewだけを公開する | OS-user authentication、AI outputのmodel生成証明、restartを越えるreview authority、maintenance／diagnostics UI、same-user process isolation、public／multi-user service、malicious media sandbox |
 | planned cloud service | tenant-scoped immutable CAS、PostgreSQL Ref/reflog transaction、durable command、OIDC、single-writer regional DRをGCP主系／AWS移植profileで要求する設計 | 現時点ではruntime保証なし。cloud adapter、public API、tenant isolation、durable admission、deploymentは未実装 |
 | `SqliteProjectionStore` | supplied Ref snapshotのcurrent closure、derived query row、Analysis lineage／prerequisite availability、missing診断とtombstoned availability／count、source fingerprint | authorization、ACL／tenant isolation、exact replay、最新Refとの自動同期、objectの正本性、archive／recovery completeness |
 | detached Assurance | signer / service が何を検査・主張したか | Claim 本文の真実 |
@@ -74,9 +74,9 @@ Human Decisionでは同じapplicationがdirect humanを認証し、成功したA
 candidateからhuman、Human Actor／ContextPack Policy、canonical decision Ref、proposal／base chainを
 `HumanDecisionAuthority`へ固定する。untrusted requestはopaque registration／permitだけである。
 
-planned localhost applicationはpublic HTTP securityの代替ではない。実装時はlistenerをliteral `127.0.0.1`へ固定し、
+current localhost applicationはpublic HTTP securityの代替ではない。listenerをliteral `127.0.0.1`へ固定し、
 exact `Host`／unsafe requestの`Origin`／Fetch Metadata、process-local custom-header token、no-CORS、CSP／`nosniff`、
-bounded streaming uploadを同時に要求する。HTTP requestはserver-owned project／archive logical keyだけを選び、raw path、
+bounded streaming uploadを同時に要求する。HTTP requestはserver-owned project logical keyとcreator session／表示metadataだけを選び、raw path、
 write targetのRef／head、OID、authority profile、registration／permitを選べない。read-only reflog filterだけは
 500 UTF-8 bytes以内のexact Ref名を受ける。transport crateはlocal service facadeだけへ依存し、
 Core／SQLiteへ直接依存しない。詳細は[Localhost application architecture](./localhost_application_architecture.md)を参照する。
