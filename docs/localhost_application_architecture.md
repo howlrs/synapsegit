@@ -31,7 +31,7 @@ The application has two Rust packages:
   `synapse-local-service` but not directly on `synapse-core` or
   `synapse-sqlite`. [Askama 0.14.0](https://docs.rs/askama/0.14.0/askama/)
   renders type-checked HTML templates while
-  preserving the workspace's Rust 1.85 MSRV.
+  preserving the workspace's Rust 1.88 MSRV.
 
 The first UI uses server-rendered semantic HTML with progressive enhancement:
 plain CSS and small browser-native ES modules for local file previews, fetch
@@ -472,9 +472,9 @@ sequencing and does not advance the formal Core stage.
    admitted application route.
 7. **Planned:** report maintenance, `fsck`, export, and empty-target restore with confirmations and safe
    error presentation.
-8. **Planned:** incomplete-session diagnostics, distributable packaging, complete browser
-   end-to-end coverage, and release documentation. The native release build and initial runbook
-   already exist for the read-only slices.
+8. **Partially implemented:** tagged Linux x86_64 packaging, checksum publication, and release
+   documentation are implemented for the read-only binaries. Incomplete-session diagnostics and
+   complete browser end-to-end coverage remain planned.
 
 ## Verification and acceptance
 

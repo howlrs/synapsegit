@@ -5,7 +5,7 @@ SynapseGit Core は現在 Stage 0 draft である。特に OID、canonicalizatio
 
 ## 開発環境
 
-- Rust 1.85 以降
+- Rust 1.88 以降
 - Node.js 18 以降
 - Python 3.10 以降（PPTX を再生成する場合のみ）
 

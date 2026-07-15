@@ -185,9 +185,40 @@ to a new missing diagnostic. An embedding service must monitor rebuild failures
 and projection fingerprint/freshness without using projection age as an
 authorization input.
 
+## Install the v0.1.0 preview
+
+The first tagged preview distributes the current `synapse` CLI and the
+loopback-only `synapse-local` viewer as one Linux x86_64 GNU archive. Download
+the archive and its checksum from the
+[`v0.1.0` GitHub Release](https://github.com/howlrs/synapsegit/releases/tag/v0.1.0):
+
+```bash
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.1.0/synapsegit-v0.1.0-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.1.0/SHA256SUMS
+sha256sum --check SHA256SUMS
+tar -xzf synapsegit-v0.1.0-x86_64-unknown-linux-gnu.tar.gz
+
+mkdir -p "$HOME/.local/bin"
+install -m 0755 synapsegit-v0.1.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
+install -m 0755 synapsegit-v0.1.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
+
+"$HOME/.local/bin/synapse" --version
+"$HOME/.local/bin/synapse-local" --version
+```
+
+This preview is built and tested on Ubuntu 22.04. Windows archive export is not
+supported, and macOS binaries are not yet release-tested; use the source build
+below on other platforms. The release is a Stage 0 draft, not a production
+multi-user service. See the [release notes](docs/releases/v0.1.0.md) for the
+security and feature boundaries.
+
+The repository does not currently declare a project license. The `v0.1.0`
+release does not choose one; confirm use and redistribution terms with the
+project owner before redistributing the binaries.
+
 ## Run the local round trip
 
-Requirements: Rust 1.85+; Node.js 18+ only for the fixture verifier.
+Requirements: Rust 1.88+; Node.js 18+ only for the fixture verifier.
 
 ```bash
 cargo build -p synapse-cli --locked

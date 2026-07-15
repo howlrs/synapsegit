@@ -9,7 +9,7 @@ Audience: 利用を試す人、実装へ参加する人<br>
 
 ## 前提
 
-- Rust 1.85 以降
+- Rust 1.88 以降
 - Bash などの POSIX-compatible shell
 - repository root で command を実行すること
 - Node.js 18 以降は fixture verifier を実行するときだけ必要

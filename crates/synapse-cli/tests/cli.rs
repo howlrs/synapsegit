@@ -59,6 +59,17 @@ fn assert_success(output: &Output) {
     );
 }
 
+#[test]
+fn version_reports_the_package_version() {
+    let output = run(&["--version"]);
+    assert_success(&output);
+    assert_eq!(
+        String::from_utf8(output.stdout).unwrap(),
+        format!("synapse {}\n", env!("CARGO_PKG_VERSION"))
+    );
+    assert!(output.stderr.is_empty());
+}
+
 fn fixture_directory() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../spec/core/v0.1/fixtures")
 }

@@ -13,6 +13,7 @@ async fn main() {
     match run().await {
         Ok(()) => {}
         Err(RunError::Help) => print_help(),
+        Err(RunError::Version) => print_version(),
         Err(RunError::Failure(error)) => {
             eprintln!("synapse-local: {error}");
             std::process::exit(1);
@@ -78,6 +79,7 @@ fn parse_args(arguments: impl IntoIterator<Item = String>) -> Result<Cli, RunErr
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
             "-h" | "--help" => return Err(RunError::Help),
+            "-V" | "--version" => return Err(RunError::Version),
             "--port" => {
                 let value = arguments
                     .next()
@@ -143,6 +145,7 @@ fn split_assignment<'a>(value: &'a str, message: &str) -> Result<(&'a str, &'a s
 #[derive(Debug)]
 enum RunError {
     Help,
+    Version,
     Failure(Box<dyn Error + Send + Sync>),
 }
 
@@ -156,6 +159,10 @@ fn print_help() {
     println!(
         "SynapseGit Local\n\nUsage:\n  synapse-local --project KEY=PATH [--label KEY=LABEL] [--port PORT]\n\nThe server always binds to 127.0.0.1. --project may be repeated."
     );
+}
+
+fn print_version() {
+    println!("synapse-local {}", env!("CARGO_PKG_VERSION"));
 }
 
 #[cfg(test)]
@@ -180,6 +187,18 @@ mod tests {
         assert_eq!(cli.port, 0);
         assert_eq!(cli.projects, [("demo".into(), PathBuf::from("/tmp/demo"))]);
         assert_eq!(cli.labels.get("demo").unwrap(), "Demo project");
+    }
+
+    #[test]
+    fn cli_recognizes_the_version_flag_without_a_project() {
+        assert!(matches!(
+            parse_args(strings(&["--version"])),
+            Err(RunError::Version)
+        ));
+        assert!(matches!(
+            parse_args(strings(&["-V"])),
+            Err(RunError::Version)
+        ));
     }
 
     #[test]
