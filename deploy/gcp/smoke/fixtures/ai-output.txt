@@ -1,0 +1,1 @@
+Harmless AI-output fixture proposed by the SynapseGit Cloud Run smoke test.

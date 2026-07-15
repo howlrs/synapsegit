@@ -609,7 +609,7 @@ flowchart TB
     Objects -. rebuild .-> Projection[(Query Projection)]
 ```
 
-現在のlocal実装はfilesystem ObjectStore + SQLite Ref / reflog、process-local authenticated AI route、same-instance admitted proposalに限定したnarrow Human application route、両Core admissionに加え、caller-suppliedな一貫したRef snapshotから明示的・原子的に再構築するSQLite query projectionを持つ。applicationはinjected Authenticator、exact project map／process ACL、AI Core preflight／trusted Executor／post-execution reauth、Human profile／server-fixed candidate／one-shot permit、共通FIFO fenceを実装する。上図のCapture Client、job queue、general server API、HTTP／JWT、durable/distributed authorization、Projection application route、OS sandboxと、projectionの自動更新／SurrealDB adapterは未実装。最新のstorage decisionは[Runtime architecture](./runtime_architecture.md)を正とする。
+現在のlocal実装はfilesystem ObjectStore + SQLite Ref / reflog、process-local authenticated AI route、same-instance admitted proposalに限定したnarrow Human application route、両Core admissionに加え、caller-suppliedな一貫したRef snapshotから明示的・原子的に再構築するSQLite query projectionを持つ。さらにcreate-only creator Pilotは、3 opaque fileからimported CaptureProfile、2 Observation、AI proposal、Human Decisionを構成し、`synapse-observation`の決定論的byte-identity adapterを専用software-tool Actorとしてbase snapshotへ記録する。adapterはprimary Blob OIDだけを比較し、Creatorでの比較成功時も`partial`／`byte_identity_only`としてpixel、EXIF、registration、視覚・物理変化を解釈しない。applicationはinjected Authenticator、exact project map／process ACL、AI Core preflight／trusted Executor／post-execution reauth、Human profile／server-fixed candidate／one-shot permit、共通FIFO fenceを実装する。上図のCapture Client、job queue、general server API、HTTP／JWT、durable/distributed authorization、Projection application route、OS sandbox、pixel-level registration／diffと、projectionの自動更新／SurrealDB adapterは未実装。最新のstorage decisionは[Runtime architecture](./runtime_architecture.md)を正とする。
 
 ### 12.1 将来の共有service候補
 
@@ -944,7 +944,7 @@ C2PAや署名を「内容が真実である証明」と表示しない。ODRLを
 | Commit model | 人が承認するDecision Commit | 画像差分を判断と混同しない |
 | Local storage | filesystem ObjectStore + SQLite Ref/reflog | Stage 0で実装済み。OIDとarchiveをDBから分離する |
 | Shared service candidate | object storage + PostgreSQL RefStore | 将来のserver topology。未実装 |
-| Analysis | versioned adapter | 将来の解析器で原証拠を再解釈できる |
+| Analysis | versioned adapter。byte identity baselineは実装済み | 将来の解析器で原証拠を再解釈できる。pixel registration／diffは後続 |
 | Privacy | private raw + redacted preview | 現場・制作途中の機密性を守る |
 | Export | open manifest + blobs + schemas | SaaS終了後も継承できる |
 

@@ -2,7 +2,7 @@
 
 Status: **Core v0.1 / Stage 0 draft**
 
-このガイドは、SynapseGit Coreの想定利用者、Pilotでの使い方、現在このリポジトリで実行できる範囲をまとめる。現時点では完成済みの制作アプリやcapture clientを提供していない。利用フローの図は構想とPilot仮説を含む。
+このガイドは、SynapseGit Coreの想定利用者、Pilotでの使い方、現在このリポジトリで実行できる範囲をまとめる。現時点ではproduction向け制作アプリやcapture clientを提供していないが、3画像から手書きJSONなしで一sessionを記録するboundedなlocal single-creator CLI Pilotと、その履歴を読むloopback-only UIは実装されている。利用フローの図は実装済み境界に加えて構想とPilot仮説を含む。
 
 対象はSynapseGit Coreのみであり、Chrono-Engine、歴史的人物の思考再現、自動利益分配はこのガイドとCore v0.1の対象外である。
 
@@ -10,11 +10,39 @@ Status: **Core v0.1 / Stage 0 draft**
 
 - [Documentation index](./README.md)
 - [5分Quickstart](./quickstart.md)
+- [Native localhost application起動手順](../deploy/local/README.md)
 - [想定利用者別シナリオ（PPTX・日本語）](./presentations/synapsegit_user_scenarios_ja.pptx)
 - [PPTXの利用・再生成手順](./presentations/README.md)
 - [Core構想](./core_concept.md)
 - [Coreデータモデル](./core_model.md)
 - [Core Protocol v0.1](../spec/core/v0.1/README.md)
+
+## Read-only localhost UIを起動する
+
+現在の`SynapseGit Local`は、CloudやDockerへ配置するserviceではなく、利用者のmachine上でnativeに動く
+single-user viewerである。repository directoryを先に作り、release binaryへtrustedなproject mappingを渡す。
+
+```bash
+cargo build --release --locked -p synapse-local-http --bin synapse-local
+
+mkdir -p "$HOME/SynapseGit/demo"
+./target/release/synapse-local \
+  --project "demo=$HOME/SynapseGit/demo" \
+  --label "demo=Demo project"
+```
+
+terminalに表示された`http://127.0.0.1:8787`をbrowserで開き、終了時はCtrl-Cを押す。hostは
+`127.0.0.1`固定で、network共有用のoverrideはない。複数projectは`--project KEY=PATH`を繰り返して登録する。
+空directoryは空repositoryとして開かれる。履歴を表示する場合は、同じpathに後述の`creator-run`でsessionを作る。
+
+UIで現在読めるのはproject status、Refs／reflog、creator sessionのreport／timeline／evidence／画像である。
+三file upload、Human `adopt`／`reject`／`defer`、`fsck`、archive export／restoreのUIは未実装なので、既存の
+write／maintenance操作は対応するCLIを使う。詳しいoption、localhost security boundary、GCP CLI smokeとの違いは
+[native localhost runbook](../deploy/local/README.md)を参照する。
+
+![SynapseGit Localのcreator session詳細。Human Decision、AI output selected、三つの画像roleを表示](./assets/synapse-local/creator-session.png)
+
+*Session detail — Human Decision、AI outputの選択状態、original／current／AI output、byte-identity evidenceを同じsession内で確認できるread-only画面です。*
 
 ## 想定利用者と最初に返す価値
 
@@ -60,6 +88,10 @@ Coreは既存の制作ソフト、BIM/CAD、ペイントツールを置き換え
 
 通常Captureでは長文を要求せず、画像、対象、時刻、状態chip、任意の一言または音声を基本にする。Pilot UX目標は能動入力中央値20秒以内であり、現時点の実績値ではない。
 
+現在の`creator-run`は撮影機能ではなく、利用者が用意したoriginal／current fileを`Imported` Observationとして
+取り込む。fileから信頼できる撮影時刻を得たとは扱わず、Observationの`capture_time`とActivityの
+`valid_time`は`unknown`にする。画像bytes、EXIF、filenameから外部時刻や物理状態を捏造しない。
+
 ### 5. 三者を比較する
 
 ```mermaid
@@ -69,14 +101,43 @@ flowchart LR
 ```
 
 画像差分は`Analysis`であり、物理変化の確定事実ではない。registration失敗、遮蔽、blur、露出不良、欠測を「変化なし」へ置き換えない。
+現在のcreator Pilotが行うのは、callerがoriginal／current roleを与えた二つのObservationについて、verified primary
+Blob OIDが同じか異なるかを記録する保守的なbyte-identity比較だけである。pixel／EXIFをdecodeせず、画像registration、
+visual change、physical changeを判定しない。`identical`でも物理対象の不変を、`different`でも外観または物理変化を
+確定しないため、結果のcomparabilityは`partial`である。
 
 ### 6. 人が意味を確定する
 
 差分候補を、実変化、照明、影、遮蔽物、濡れ・乾燥、不明などへ分類する。採用理由、未解決事項、次に守る制約を必要最小限だけ確認し、Decision Commitとして節目を残す。Pilot UX目標は通常Commitの能動入力中央値30秒以内である。
 
+現在の`creator-run`は`adopt`、`reject`、`defer`の三つを受け付ける。`adopt`はAI proposalを
+`adopted_unchanged`としてdecision snapshotへ選び、`reject`／`defer`はbase snapshotを維持する。
+どの場合もAI outputとproposal Refは削除しない。reportはagentへの記録上の帰属を
+`proposal_attributed_to_agent`、入力bytesの由来を`ai_output_source=caller_supplied`、reviewerを
+`reviewed_by_human`として分離する。attributionはcommandやmodelが第三fileを生成した証明ではない。
+このPilotが作るDecisionFeedbackはreason `unspecified`、`visibility=private`、
+`training_use_policy=prohibited`を既定にする。
+
 ### 7. 報告・引き継ぎ・archiveへ返す
 
-選択した履歴から、進捗、制作process、処置記録、As-recorded、引き継ぎ資料を構成する。現在のlocal Coreはchecksum付きdirectory archiveをexportし、空repository、または同じarchiveの失敗restoreが残したexact object subsetへrestoreできる。画像・報告UIを含むPilot体験は未実装である。
+選択した履歴から、進捗、制作process、処置記録、As-recorded、引き継ぎ資料を構成する。現在のlocal Coreはchecksum付きdirectory archiveをexportし、空repository、または同じarchiveの失敗restoreが残したexact object subsetへrestoreできる。read-only localhost UIは既存sessionのreport／timeline／evidence／画像を表示できるが、capture、画像registration・visual比較、upload／review／archive操作を統合したPilot体験は未実装である。
+
+`creator-report`はUIではないが、一つのconsistent Ref snapshotからcurrent proposal／decisionを解決し、
+同じsnapshotで一時SQLite Projectionをrebuildする。Subject extensionのsession manifestからEntityIdを復元し、
+DecisionFeedbackを含むlineageとbase／proposal／decision snapshotを再検証して、SubjectのObservation／Activity
+timeline、3画像OID、decision、reviewerをtext表示する。`selected=true`になるのは`adopt`だけで、
+`reject`／`defer`は`selected=false`である。timelineは`original_observation`、`current_observation`、
+`image_import`、`ai_proposal`の各stageについて、run内で単調増加するrecording timestampと
+`*_recorded_at_fallback` basisを表示する。撮影時刻、AI execution time、外部eventの物理順序ではない。
+新しいsessionでは、byte-identity AnalysisResultも検証し、
+`comparison_analysis`、`comparison_adapter`、`comparison_status`、`comparison_comparability`、
+`byte_identity`、`comparison_reason_codes`、`comparison_replay_ready`、`comparison_warning`を表示する。
+`comparison_replay_ready=true`はordered inputとadapter implementation／configuration等のprerequisite objectが
+利用可能というsummaryであり、runtime互換性やexact replayを保証しない。base Treeにcomparison evidenceを持たない
+legacy-shaped sessionは`comparison=unavailable`と表示する。このshapeは作成時期を証明せず、byte同一性や
+「変化なし」を推測しない。
+reportは`fsck`がcleanでなければ拒否する。別commandの`export`／`restore`後にも同じOIDとreportを
+再構築できることをprocess testで検証している。
 
 ## Creative AIを使う場合
 
@@ -110,7 +171,9 @@ flowchart LR
 > same-instance admitted proposal handle、reusable Human profile、server-fixed candidate、one-shot
 > registration／permitを束縛して`HumanDecisionRuntime`のfull `decision/*` admissionへ接続する。
 > HTTP／JWT、durable／distributed ACL・permit、release／modified／quorum approval、OS sandbox／egress、
-> Grant revocation、Projection application routeは未実装で、現在のlocal CLIはどのrouteも公開しない。
+> Grant revocation、general Projection application routeは未実装である。CLIの`creator-run`はfixed local
+> Pilot identity／profile／prepared Executorを組み立ててAI／Human routeを内部利用するが、一般的な
+> publish routeや実利用者authenticationを公開しない。
 
 - AI requestはcredential、project selector、opaque execution handle／permitだけを送る。applicationは認証後に
   exact server mapとACLでprojectを選び、reusable profileとone-time registrationからauthority／targetを構築する。
@@ -146,8 +209,9 @@ flowchart LR
   modified／partialとreleaseは未実装である。
 - 新しいTreeだけによる既存snapshot objectの再配置は、baseのnon-Tree objectを保持する限りproposalとして許可される。
 - 採用、公開、引き渡し、Policy変更、削除、外部送信、物理作用は人の承認を必要とする。
-- `generated_by AI`, `selected_by human`, `modified_by human`, `approved_by human`を分離する。
-- DecisionFeedbackは既定でproject-localとし、明示opt-inなしに外部model学習へ使用しない。
+- `proposal attributed to agent`, `caller-supplied output`, `selected by human`, `modified by human`,
+  `approved by human`を分離する。
+- creator PilotのDecisionFeedbackはreason `unspecified`、private visibility、training use prohibitedを既定にする。
 - AIの採用率だけを成功指標にしない。却下、保留、探索、批評も履歴として価値を持つ。
 
 ## 現在このリポジトリで実行できること
@@ -159,7 +223,44 @@ node scripts/verify_core_fixtures.mjs
 cargo test --workspace --locked
 ```
 
-現在のRust実装は、strict JSONとOIDだけでなく、具象schema／local semantic validation、filesystem ObjectStore、Commit／Tree／Record closure、Tombstone availability、SQLite Ref CAS／reflog、process-local authenticated AI executionとadmitted-proposal-bound Human Decision application route、両Core admission、fsck、checksum付きdirectory export／restoreまでを実行できる。加えて`SqliteProjectionStore` libraryは、caller-suppliedな一貫したRef snapshotからcurrent reachable closureをatomic rebuildし、Ref-scoped Subject timeline、Observation dependency、typed AnalysisResult lineage、missing closure issue、tombstoned availability／countをqueryできる。Analysis replay readinessはinput／adapter implementation／configuration／transformのavailabilityだけを表し、exact replayを保証しない。production経路はschema検証後にcanonical bytesだけをObjectStoreへ渡す。低水準APIは検証前であることを示すため`*_unchecked`の名前を維持する。
+### 手書きJSONなしのlocal creator Pilot
+
+original、current、AI outputの3 fileを用意し、一意なsession名で実行する。AI outputはこのcommandがmodelを
+起動して生成するものではなく、trusted local integrationが事前に用意した入力である。
+
+```bash
+cargo run -p synapse-cli -- creator-run .synapse-creator mural-1 \
+  path/to/original.png path/to/current.png path/to/ai-output.png \
+  --subject "North wall mural" \
+  --creator "Aki" \
+  --decision adopt \
+  --rationale "The proposal fits the intended palette."
+
+cargo run -p synapse-cli -- creator-report .synapse-creator mural-1
+cargo run -p synapse-cli -- export .synapse-creator creator-archive
+cargo run -p synapse-cli -- restore creator-archive restored.synapse
+cargo run -p synapse-cli -- creator-report restored.synapse mural-1
+```
+
+`creator-run`はrepositoryを開くか新規作成し、Subject、imported CaptureProfile、original／current Observation、
+byte-identity AnalysisResult、import／AI Activity、human／AI／comparison software-tool Actor、Policy、DelegationGrant、
+ContextPack、proposal、DecisionFeedback、Human Decisionを自動構成する。
+proposalとdecisionのpublicationは`Application`のAI／Human routeを通る。commandは完了時に`fsck`を実行し、
+receiptに続けてreportも表示する。EntityIdはOSの暗号学的乱数からrunごとに新規生成され、Subject extensionの
+session manifestへcore IDを保存する。comparison tool／analysis IDは保存されたseries IDから決定的に再導出する。
+archive restore後の再発見には使うが、同じ人をsession横断で識別するIDではない。
+`--creator`はself-declaredな表示名でありcredential確認ではない。両Observationが参照するCaptureProfileは
+`imported`／`reference_only`で、station、viewpoint、calibration、lighting、capture timeを検証したとは扱わない。
+comparisonはprimary Blob OIDだけを比較し、pixel／EXIFのdecode、画像registration、visual／physical changeの推論を
+行わない。CLIは結果とともに`partial` comparability、reason codes、conservative warningを表示する。
+
+sessionはcreate-onlyである。両Refを持つcomplete sessionの再実行は`creator_session_exists`になる。base Ref公開後かつ
+Human Decision前にfailureしたpartial sessionは`creator_session_incomplete`になる。Decision publication後のfailureは
+complete sessionを残し得る。このPilotはどちらも自動resume／cleanupや上書きを行わないため、callerはcurrent Refsを
+診断する。`reject`／`defer`でもAI outputとproposalは履歴に残り、reportの
+`reviewed_by_human`はreviewer、`selected`はproposalがdecision snapshotへ選ばれたかを示す。
+
+現在のRust実装は、strict JSONとOIDだけでなく、具象schema／local semantic validation、filesystem ObjectStore、Commit／Tree／Record closure、Tombstone availability、SQLite Ref CAS／reflog、process-local authenticated AI executionとadmitted-proposal-bound Human Decision application route、両Core admission、local creator orchestration、fsck、checksum付きdirectory export／restoreまでを実行できる。加えて`SqliteProjectionStore` libraryは、caller-suppliedな一貫したRef snapshotからcurrent reachable closureをatomic rebuildし、Ref-scoped Subject timeline、Observation dependency、typed AnalysisResult lineage、missing closure issue、tombstoned availability／countをqueryできる。Analysis replay readinessはinput／adapter implementation／configuration／transformのavailabilityだけを表し、exact replayを保証しない。production経路はschema検証後にcanonical bytesだけをObjectStoreへ渡す。低水準APIは検証前であることを示すため`*_unchecked`の名前を維持する。
 
 最小CLI経路は次のとおりである。
 
@@ -178,9 +279,10 @@ cargo run -p synapse-cli -- refs restored.synapse
 
 Ref作成時の`-`は「現在headが存在しないこと」を表す。更新時は`-`の代わりに現在のCommit OIDを指定する。staleなOIDならRefとreflogを一切変更せず`ref_conflict`を返す。`put-record`、`build-tree`、`commit`はobject familyも検査し、`put-object`は三つのstructured familyを自動dispatchする。
 
-このCLI例の`update-ref`はlocal trusted operator primitiveであり、`synapse-application`／`CreativeAiRuntime`／`HumanDecisionRuntime`の認証・trusted authority・Policy検査を通らない。AIと対応するnarrow Human Decisionを組み込むcallerはprocess-local application routeを使い、低水準CLIをuntrusted callerへ直接渡してはならない。
+このlow-level CLI例の`update-ref`はlocal trusted operator primitiveであり、`synapse-application`／`CreativeAiRuntime`／`HumanDecisionRuntime`の認証・trusted authority・Policy検査を通らない。`creator-run`は別で、fixed local Pilotとしてprocess-local application routeを内部利用する。どちらもuntrusted callerへ公開するproduction APIではない。
 
-ProjectionStoreも現在はRust APIだけで、CLI commandや自動refreshはない。query結果は派生cacheであり、
+ProjectionStoreの一般queryは現在もRust APIだけで、CLIには`creator-report`のboundedなsession report以外の
+rebuild／query commandや自動refreshはない。query結果は派生cacheであり、
 authorization、Ref更新、archive、recovery判断に使わない。fresh resultが必要なcallerは一貫した
 Ref snapshotを取得し、明示的にrebuildしてからqueryする。rebuild中はObjectStoreをcooperative
 append-onlyとして扱い、GC／removalを並行させない。serviceはfailed rebuildとfingerprint／freshnessを
@@ -192,15 +294,26 @@ exportはdirectory archiveを新規作成し、object bytes、Ref snapshot、完
 
 ## まだ実行できないこと
 
+Stage 0のcreator／Observation Pilotとして残るもの:
+
 - 実際のcapture client、画像registration、compare UI
+- 実model／connector／paint toolとのintegration、継続session編集、creator-facing GUI
+- 実データによる便益・画像比較評価
+
+公開・複数利用者向けserviceに必要だが、local trusted Pilotとは分離するもの:
+
 - concrete HTTP／JWT／MFA、credential database、durable／distributed ACL・permit、multi-process fence
-- Projection authenticated application route
+- creator-report以外のgeneral Projection authenticated application route
 - multi-project CAS membership／classification resolver
 - organization／quorum／MFA、release approval、modified／partial adoption workflow
 - AI ExecutorのOS sandbox／connector／egress制御、Grant revocation
-- ProjectionStore CLI／自動refresh、SurrealDB adapter、SQLiteとの全8-query／性能比較
 
-これらは[Stage 0 execution plan](./stage0_execution_plan.md)の残りのexit gateに従って実装する。
+追加integration／technology decisionとして残るもの:
+
+- general ProjectionStore CLI／自動refresh、SurrealDB adapter、SQLiteとの全8-query／性能比較
+
+優先順位と利用目標ごとの必須範囲は[作業引き継ぎ](./handoff.md)と
+[Stage 0 execution plan](./stage0_execution_plan.md)を参照する。
 
 ## 表示・評価でしないこと
 

@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+<header class="page-header">
+  <div class="page-header__intro">
+    <p class="eyebrow">このコンピューター上だけで動作中</p>
+    <h1>制作履歴を、手元で確かめる</h1>
+    <p class="muted">画像、AIの提案、人の判断をローカルの不変履歴として確認できます。外部への公開や同期は行いません。</p>
+  </div>
+</header>
+
+<section aria-labelledby="projects-heading">
+  <div class="section-heading">
+    <div>
+      <h2 id="projects-heading">プロジェクト</h2>
+      <p class="muted">起動時に登録された正確なローカルリポジトリのみを表示します。</p>
+    </div>
+    <span class="badge">{{ projects.len() }} 件</span>
+  </div>
+  {% if projects.is_empty() %}
+  <div class="empty-state">
+    <h3>登録されたプロジェクトがありません</h3>
+    <p>サーバー起動時に <code>--project key=path</code> を指定してください。</p>
+  </div>
+  {% else %}
+  <div class="card-grid">
+    {% for project in projects %}
+    <article class="card">
+      <div class="card__header">
+        <div>
+          <p class="eyebrow">{{ project.key }}</p>
+          <h3><a href="/projects/{{ project.key }}">{{ project.label }}</a></h3>
+        </div>
+        <span class="status-badge" data-tone="{{ project.tone }}">{{ project.state_label }}</span>
+      </div>
+      <dl class="stat-list">
+        <div><dt>Refs</dt><dd>{{ project.ref_count }}</dd></div>
+        <div><dt>完了セッション</dt><dd>{{ project.complete_sessions }}</dd></div>
+        <div><dt>要確認</dt><dd>{{ project.incomplete_sessions }}</dd></div>
+      </dl>
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
+{% endblock %}

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+
+{% block content %}
+<nav class="breadcrumbs" aria-label="パンくずリスト">
+  <ol>
+    <li><a href="/">プロジェクト</a></li>
+    <li><a href="/projects/{{ project_key }}">{{ project_label }}</a></li>
+    <li aria-current="page">{{ session }}</li>
+  </ol>
+</nav>
+<header class="page-header">
+  <div class="page-header__intro"><p class="eyebrow">Creator session</p><h1>{{ session }}</h1><p class="muted">{{ state_description }}</p></div>
+  <span class="status-badge" data-tone="{{ state_tone }}">{{ state_label }}</span>
+</header>
+
+{% if complete %}
+<section class="metric-grid" aria-label="レビュー結果">
+  <article class="metric"><span class="metric__label">Disposition</span><strong>{{ disposition }}</strong></article>
+  <article class="metric"><span class="metric__label">AI output selected</span><strong>{{ selected }}</strong></article>
+  <article class="metric"><span class="metric__label">Verified objects</span><strong>{{ fsck_objects }}</strong></article>
+</section>
+
+<section aria-labelledby="images-heading">
+  <div class="section-heading"><div><h2 id="images-heading">画像と出力</h2><p class="muted">画像は現在の検証済みセッションからroleを解決して読み込みます。</p></div></div>
+  <div class="media-grid">
+    {% for image in images %}
+    <figure class="media-card">
+      <div class="media-card__preview"><img data-synapse-image data-url="{{ image.url }}" alt="{{ image.alt }}"></div>
+      <figcaption><strong>{{ image.label }}</strong><p data-synapse-image-status class="muted">読み込み待ち</p><code>{{ image.oid }}</code></figcaption>
+    </figure>
+    {% endfor %}
+  </div>
+</section>
+
+<section aria-labelledby="evidence-heading">
+  <div class="section-heading"><h2 id="evidence-heading">Byte identity evidence</h2></div>
+  {% if has_comparison %}
+  <div class="notice" data-tone="warning"><h3>{{ comparison_outcome }}</h3><p>{{ comparison_warning }}</p></div>
+  <dl class="detail-list">
+    <div><dt>Status</dt><dd>{{ comparison_status }}</dd></div>
+    <div><dt>Comparability</dt><dd>{{ comparison_comparability }}</dd></div>
+    <div><dt>Adapter</dt><dd><code>{{ comparison_adapter }}</code></dd></div>
+    <div><dt>Replay ready</dt><dd>{{ comparison_replay }}</dd></div>
+  </dl>
+  {% else %}
+  <div class="notice"><h3>比較情報なし</h3><p>この履歴からbyte identity evidenceは復元できません。</p></div>
+  {% endif %}
+</section>
+
+<section aria-labelledby="timeline-heading">
+  <div class="section-heading"><h2 id="timeline-heading">Timeline</h2><span class="badge">{{ timeline.len() }} 件</span></div>
+  <ol class="timeline">
+    {% for entry in timeline %}
+    <li class="timeline__item"><div class="timeline__marker" aria-hidden="true"></div><div><p><strong>{{ entry.stage }}</strong> <span class="badge">{{ entry.kind }}</span></p><p>{{ entry.ordering_time }}</p><p class="muted">{{ entry.time_basis }} · <code>{{ entry.oid }}</code></p></div></li>
+    {% endfor %}
+  </ol>
+</section>
+{% else %}
+<div class="notice" data-tone="warning"><h2>セッションは未完了です</h2><p>{{ diagnostic }}</p><p>履歴を自動で書き換えたり削除したりはしません。別のセッション名を使用するか、診断機能の実装を待ってください。</p></div>
+{% endif %}
+{% endblock %}

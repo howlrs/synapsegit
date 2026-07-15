@@ -17,7 +17,8 @@ Audience: 利用を試す人、実装へ参加する人<br>
 network service、database server、SurrealDB は不要である。SQLite は bundled build を使用する。
 workspaceにはprocess-local authenticated Creative AI route、そこから成功したproposalに限定した
 narrow Human Decision application route、disposable SQLite ProjectionStore libraryも含まれるが、
-このQuickstartと現在のCLIはどれも起動・公開しない。
+下記のfixture demoはそれらを起動しない。後半の`creator-run`だけがAI／Human routeをfixed local
+orchestrationとして内部利用する。
 
 ## 1. build する
 
@@ -84,6 +85,29 @@ proposal/agent/demo  commit:sg-oid-v1:sha256:21f1e5...
 
 `ARCHIVE` は単一 file ではなく、manifest、checksum、objects、Refs、reflog を含む **directory archive** である。
 
+## 3. creator Pilotとbyte identity reportを試す
+
+画像形式はdecodeされないため、最小確認には任意の3 fileを使える。
+
+```bash
+CREATOR_REPO="$DEMO/creator-repository"
+printf 'original bytes\n' > "$DEMO/original.bin"
+printf 'current bytes\n' > "$DEMO/current.bin"
+printf 'caller supplied proposal bytes\n' > "$DEMO/proposal.bin"
+
+"$SG" creator-run "$CREATOR_REPO" wall-1 \
+  "$DEMO/original.bin" "$DEMO/current.bin" "$DEMO/proposal.bin" \
+  --subject "North wall" --creator "Aki" --decision adopt
+"$SG" creator-report "$CREATOR_REPO" wall-1
+```
+
+`creator-run`はimported／reference-only CaptureProfile、original／current Observation、専用
+`software_tool` Actor、byte-identity AnalysisResult、AI proposal、Human Decisionを手書きJSONなしで作る。
+期待する比較出力は`comparison_status=succeeded`、`comparison_comparability=partial`、
+`byte_identity=different`、`byte_identity_only`を含むreason codesである。同じbytesを二つの入力へ渡せば
+`byte_identity=identical`になるが、これは物理的対象が不変だったという意味ではない。異なるbytesも
+視覚・物理変化を証明しない。adapterはpixel、EXIF、media formatをdecodeせず、registrationを行わない。
+
 ## この demo で起きること
 
 ```mermaid
@@ -128,7 +152,8 @@ application TTL、live ACL／profile、FIFO fenceを通って`HumanDecisionRunti
 handleはdenial後の修正版registrationへ再利用できるが、registrationとpermitはone-shotである。
 `HumanDecisionRuntime`はtrusted authenticated single human、Policy、proposal／baseを固定し、supported
 dispositionだけをcanonical `decision/*`へatomicに記録する。
-このQuickstartとCLIはどのrouteも使わず、`update-ref`をlocal trusted operator primitiveとして実行する。
+前半のlow-level fixture demoはどのadmission routeも使わず、`update-ref`をlocal trusted operator primitiveとして
+実行する。後半の`creator-run`だけは、AI／Human routeをfixed local Pilot orchestrationとして内部利用する。
 applicationはHTTP／JWT serverではなく、Projection routeを持たない。concrete credential／persistent human
 membership、restartを越えるACL／permit、multi-process fence、organization／quorum、release／modified／partial
 workflow、ExecutorのOS sandbox／egress、Grant revocationは未実装である。
@@ -159,6 +184,8 @@ synapse refs <repo>
 synapse fsck <repo>
 synapse export <repo> <archive-dir>
 synapse restore <archive-dir> <repo>
+synapse creator-run <repo> <session> <original> <current> <ai-output> --subject <label> --creator <name> --decision <adopt|reject|defer> [--rationale <text>]
+synapse creator-report <repo> <session>
 ```
 
 `cargo run` を使う場合は Cargo と CLI 引数の間に `--` が必要である。
@@ -176,10 +203,12 @@ cargo run -p synapse-cli -- --help
 | `oid_mismatch` | `--claimed` と再計算 OID が不一致 | body と object family を確認する |
 | `closure_missing` | Commit から必要 object へ到達できない | Ref 更新前に依存 Blob / Record / Tree / parent を投入する |
 | `ref_conflict` | expected head が current head と異なる | `refs` で current head を読み、branch または明示 merge を選ぶ |
-| `resource_limit` | input または graph が実装上限を超えた | input を分割し、既定上限を [Security model](./security_model.md) で確認する |
+| `resource_limit` | input、graph、archive object件数／bytes／manifest等が実装上限を超えた | input またはrepositoryを分割し、既定上限を [Security model](./security_model.md) で確認する |
 | `archive_invalid` | checksum、manifest、OID、closure の不一致 | archive を変更せず export 元から作り直す |
 | `archive_not_empty` | restore 先に object または Ref が存在する | 新しい空 repository path を使う |
 | `fsck_failed` | integrity issue が見つかった | 元 data を保全し、手編集せず原因を調査する |
+| `creator_session_exists` / `creator_session_incomplete` | create-only session名がcomplete／partial stateですでに存在する | current creator Refsを診断し、completeなら`creator-report`、新規runなら別session名を使う |
+| `creator_report_invalid` | current creator Refs、lineage、既知byte-identity evidenceがsession contractと一致しない | Ref／CASを保全し、手編集せず不一致を調査する |
 
 ## 次に読む
 

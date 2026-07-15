@@ -2,8 +2,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_canonical::blob_oid;
-use synapse_cas::ClosureNodeState;
-use synapse_core::{Repository, RepositoryError};
+use synapse_cas::{
+    ClosureNodeState, GraphLimits, StoreLimits, TombstoneScanLimits, verify_closure,
+};
+use synapse_core::{ArchiveExportLimits, RefArchiveExportLimits, Repository, RepositoryError};
 use synapse_schema::ingest;
 use synapse_sqlite::{
     RefArchive, RefRecord, RefSnapshot, RefStoreError, RefUpdate, ReflogEntry, ReflogMetadata,
@@ -67,6 +69,20 @@ fn load_fixture_store(repository: &Repository) {
 
 fn oid(name: &str) -> String {
     ingest(&fixture(name)).unwrap().oid().to_owned()
+}
+
+fn assert_no_archive_staging(temporary: &TempDirectory, destination_name: &str) {
+    let prefix = format!(".{destination_name}.tmp-");
+    let remaining = fs::read_dir(&temporary.0)
+        .unwrap()
+        .filter_map(Result::ok)
+        .map(|entry| entry.file_name())
+        .filter(|name| name.to_string_lossy().starts_with(&prefix))
+        .collect::<Vec<_>>();
+    assert!(
+        remaining.is_empty(),
+        "archive staging remains: {remaining:?}"
+    );
 }
 
 #[test]
@@ -278,6 +294,266 @@ fn export_rejects_missing_historical_reflog_head_without_publishing_destination(
     let error = repository.export_archive(&destination).unwrap_err();
     assert_eq!(error.code(), "archive_invalid");
     assert!(!destination.exists());
+}
+
+#[test]
+fn bounded_export_enforces_inclusive_object_count_and_cleans_staging() {
+    let temporary = TempDirectory::new("archive-object-count-limit");
+    let mut repository = Repository::open(temporary.join("source")).unwrap();
+    load_fixture_store(&repository);
+    let object_count = repository.objects().list_oids().unwrap().len();
+
+    let exact_destination = temporary.join("exact-archive");
+    repository
+        .export_archive_with_limits(
+            &exact_destination,
+            ArchiveExportLimits {
+                max_objects: object_count,
+                ..ArchiveExportLimits::default()
+            },
+        )
+        .unwrap();
+    assert!(exact_destination.is_dir());
+
+    let limited_destination = temporary.join("limited-archive");
+    let error = repository
+        .export_archive_with_limits(
+            &limited_destination,
+            ArchiveExportLimits {
+                max_objects: object_count - 1,
+                ..ArchiveExportLimits::default()
+            },
+        )
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+    assert!(!limited_destination.exists());
+    assert_no_archive_staging(&temporary, "limited-archive");
+
+    for limits in [
+        ArchiveExportLimits {
+            max_objects: 0,
+            ..ArchiveExportLimits::default()
+        },
+        ArchiveExportLimits {
+            max_object_bytes: 0,
+            ..ArchiveExportLimits::default()
+        },
+        ArchiveExportLimits {
+            max_head_validation_nodes: 0,
+            ..ArchiveExportLimits::default()
+        },
+        ArchiveExportLimits {
+            max_head_validation_edges: 0,
+            ..ArchiveExportLimits::default()
+        },
+    ] {
+        let error = repository
+            .export_archive_with_limits(temporary.join("invalid-limit"), limits)
+            .unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+        assert!(!temporary.join("invalid-limit").exists());
+    }
+}
+
+#[test]
+fn bounded_export_enforces_inclusive_total_bytes_without_partial_publication() {
+    let temporary = TempDirectory::new("archive-object-byte-limit");
+    let mut repository = Repository::open(temporary.join("source")).unwrap();
+    repository.put_blob(b"abc".as_slice()).unwrap();
+    repository.put_blob(b"defg".as_slice()).unwrap();
+
+    let exact_destination = temporary.join("exact-bytes");
+    repository
+        .export_archive_with_limits(
+            &exact_destination,
+            ArchiveExportLimits {
+                max_objects: 2,
+                max_object_bytes: 7,
+                ..ArchiveExportLimits::default()
+            },
+        )
+        .unwrap();
+    Repository::restore_archive(&exact_destination, temporary.join("restored")).unwrap();
+
+    let limited_destination = temporary.join("limited-bytes");
+    let error = repository
+        .export_archive_with_limits(
+            &limited_destination,
+            ArchiveExportLimits {
+                max_objects: 2,
+                max_object_bytes: 6,
+                ..ArchiveExportLimits::default()
+            },
+        )
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+    assert!(!limited_destination.exists());
+    assert_no_archive_staging(&temporary, "limited-bytes");
+}
+
+#[test]
+fn bounded_export_limits_the_shared_tombstone_inventory_scan() {
+    let temporary = TempDirectory::new("archive-tombstone-scan-limit");
+    let mut repository = Repository::open(temporary.join("source")).unwrap();
+    load_fixture_store(&repository);
+    let destination = temporary.join("archive");
+
+    let error = repository
+        .export_archive_with_limits(
+            &destination,
+            ArchiveExportLimits {
+                tombstone_scan: TombstoneScanLimits {
+                    max_record_objects: 1,
+                    max_record_bytes: u64::MAX,
+                },
+                ..ArchiveExportLimits::default()
+            },
+        )
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+    assert!(!destination.exists());
+    assert_no_archive_staging(&temporary, "archive");
+}
+
+#[test]
+fn bounded_export_preserves_a_closure_read_resource_limit() {
+    let temporary = TempDirectory::new("archive-closure-read-limit");
+    let repository_path = temporary.join("source");
+    let proposal = oid("proposal-commit.json");
+    {
+        let mut repository = Repository::open(&repository_path).unwrap();
+        load_fixture_store(&repository);
+        repository
+            .update_ref(RefUpdate {
+                ref_name: "proposal/limited-reader",
+                expected_head: None,
+                new_head: &proposal,
+                metadata: ReflogMetadata::at(1),
+            })
+            .unwrap();
+    }
+
+    let store_limits = StoreLimits {
+        max_blob_bytes: fs::metadata(fixture_directory().join("proposal.txt"))
+            .unwrap()
+            .len()
+            - 1,
+        ..StoreLimits::default()
+    };
+    let mut repository =
+        Repository::open_with_limits(&repository_path, store_limits, GraphLimits::default())
+            .unwrap();
+    let destination = temporary.join("archive");
+
+    let error = repository.export_archive(&destination).unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+    assert!(!destination.exists());
+    assert_no_archive_staging(&temporary, "archive");
+}
+
+#[test]
+fn bounded_export_caps_cumulative_work_across_distinct_heads() {
+    let temporary = TempDirectory::new("archive-head-work-limit");
+    let mut repository = Repository::open(temporary.join("source")).unwrap();
+    load_fixture_store(&repository);
+    let base = oid("base-commit.json");
+    let proposal = oid("proposal-commit.json");
+
+    for (index, (ref_name, head)) in [
+        ("proposal/archive-base", base.as_str()),
+        ("proposal/archive-tip", proposal.as_str()),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        repository
+            .update_ref(RefUpdate {
+                ref_name,
+                expected_head: None,
+                new_head: head,
+                metadata: ReflogMetadata::at(index as i64 + 1),
+            })
+            .unwrap();
+    }
+
+    let base_report = verify_closure(repository.objects(), &base, GraphLimits::default()).unwrap();
+    let proposal_report =
+        verify_closure(repository.objects(), &proposal, GraphLimits::default()).unwrap();
+    assert!(base_report.is_complete());
+    assert!(proposal_report.is_complete());
+    let total_nodes = base_report.nodes.len() + proposal_report.nodes.len();
+    let total_edges = base_report.edges.len() + proposal_report.edges.len();
+
+    let exact = ArchiveExportLimits {
+        max_head_validation_nodes: total_nodes,
+        max_head_validation_edges: total_edges,
+        ..ArchiveExportLimits::default()
+    };
+    let exact_destination = temporary.join("exact-head-work");
+    repository
+        .export_archive_with_limits(&exact_destination, exact)
+        .unwrap();
+    Repository::restore_archive(&exact_destination, temporary.join("restored-head-work")).unwrap();
+
+    for (destination_name, limits) in [
+        (
+            "limited-head-nodes",
+            ArchiveExportLimits {
+                max_head_validation_nodes: total_nodes - 1,
+                ..exact
+            },
+        ),
+        (
+            "limited-head-edges",
+            ArchiveExportLimits {
+                max_head_validation_edges: total_edges - 1,
+                ..exact
+            },
+        ),
+    ] {
+        let destination = temporary.join(destination_name);
+        let error = repository
+            .export_archive_with_limits(&destination, limits)
+            .unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+        assert!(!destination.exists());
+        assert_no_archive_staging(&temporary, destination_name);
+    }
+}
+
+#[test]
+fn bounded_export_rejects_an_oversized_ref_snapshot_before_publication() {
+    let temporary = TempDirectory::new("archive-ref-snapshot-limit");
+    let mut repository = Repository::open(temporary.join("source")).unwrap();
+    load_fixture_store(&repository);
+    let proposal = oid("proposal-commit.json");
+    for (index, ref_name) in ["proposal/one", "proposal/two"].into_iter().enumerate() {
+        repository
+            .update_ref(RefUpdate {
+                ref_name,
+                expected_head: None,
+                new_head: &proposal,
+                metadata: ReflogMetadata::at(index as i64 + 1),
+            })
+            .unwrap();
+    }
+    let destination = temporary.join("archive");
+
+    let error = repository
+        .export_archive_with_limits(
+            &destination,
+            ArchiveExportLimits {
+                ref_archive: RefArchiveExportLimits {
+                    max_refs: 1,
+                    ..RefArchiveExportLimits::default()
+                },
+                ..ArchiveExportLimits::default()
+            },
+        )
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+    assert!(!destination.exists());
+    assert_no_archive_staging(&temporary, "archive");
 }
 
 #[test]

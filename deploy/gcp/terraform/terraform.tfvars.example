@@ -1,0 +1,7 @@
+project_id     = "replace-with-isolated-dev-project"
+region         = "asia-northeast1"
+deployer_email = "deployer@example.com"
+
+# Set this only after Cloud Build has pushed the image and its digest has been
+# resolved. Mutable tags are intentionally rejected by variables.tf.
+# job_image = "asia-northeast1-docker.pkg.dev/replace-with-isolated-dev-project/synapsegit/synapsegit-cli-smoke@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"

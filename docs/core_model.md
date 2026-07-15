@@ -205,6 +205,20 @@ membership、OS sandbox／egressは引き続き未実装である。
 現在のlocal CLI `update-ref`はAI／Human admission routeを公開せず、namespace authorizationを行わない
 trusted operator primitiveである。
 
+## 実装済みの保守的Observation比較
+
+`synapse-observation`の最初のadapterは、順序付きbase／target Observation、参照するCaptureProfile、
+全media Blobをverified CASから検証し、唯一の`role=primary` Blob OIDだけを比較する。実装・設定Blobと
+AnalysisResultはcontent-addressed objectとして記録し、入力順序と`asserted_by` EntityIdを保持する。
+比較成功時も`comparability=partial`、reason `byte_identity_only`である。
+
+これはmedia decoder、EXIF検証、photometric normalization、image registration、pixel diffではない。
+同じOIDは同じbytesを、異なるOIDは異なるbytesを意味するだけで、物理的対象の不変／変化や視覚的差を
+確定しない。Subject／series不一致やprimary mediaの欠落・曖昧さは`not_run`／`incomparable`とし、
+「変化なし」へ変換しない。`synapse-creator`は専用`software_tool` Actorを作り、imported／reference-only
+CaptureProfileを持つ2 Observationへこのbaselineを適用して、Actorと結果をbase snapshotに含める。
+repeatable／calibrated captureとpixel-level比較は後続のWorkstreamである。
+
 ## disposable query projection
 
 `synapse-projection::SqliteProjectionStore`は上記object familyを増やさない。verified

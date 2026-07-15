@@ -23,17 +23,20 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::collections::HashSet;
 use std::error::Error;
+use std::ffi::{OsStr, OsString};
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use synapse_canonical::{CoreError, ErrorCode, ObjectKind, parse_oid};
+pub use synapse_cas::TombstoneScanLimits;
 use synapse_cas::{
-    ClosureIssueKind, FileObjectStore, FsckReport, GraphLimits, PutResult, StoreError, StoreLimits,
-    fsck, verify_closure,
+    ClosureIssueKind, ClosureReport, FileObjectStore, FsckReport, GraphLimits,
+    PreparedClosureVerifier, PutResult, StoreError, StoreLimits, fsck, verify_closure,
 };
 use synapse_schema::{ingest, ingest_claimed};
+pub use synapse_sqlite::RefArchiveExportLimits;
 use synapse_sqlite::{
     RefArchive, RefRecord, RefSnapshot, RefStoreError, RefUpdate, ReflogEntry, SqliteRefStore,
     ValidationError,
@@ -43,6 +46,52 @@ const ARCHIVE_FORMAT: &str = "synapsegit-core-archive-v0.1";
 const MANIFEST_FILE: &str = "manifest.json";
 const MANIFEST_CHECKSUM_FILE: &str = "manifest.sha256";
 const MAX_MANIFEST_BYTES: u64 = 64 * 1024 * 1024;
+/// Default maximum number of immutable objects copied by one archive export.
+pub const DEFAULT_MAX_ARCHIVE_OBJECTS: usize = 100_000;
+/// Default maximum cumulative raw object bytes copied by one archive export.
+pub const DEFAULT_MAX_ARCHIVE_OBJECT_BYTES: u64 = 1024 * 1024 * 1024 * 1024;
+/// Default maximum cumulative nodes visited while validating distinct heads.
+pub const DEFAULT_MAX_ARCHIVE_HEAD_VALIDATION_NODES: usize = 1_000_000;
+/// Default maximum cumulative edges visited while validating distinct heads.
+pub const DEFAULT_MAX_ARCHIVE_HEAD_VALIDATION_EDGES: usize = 10_000_000;
+
+/// Resource limits for one local directory archive export.
+///
+/// Object count and byte limits are inclusive and cover every exported CAS
+/// object, including objects that are not reachable from a current Ref. These
+/// are caller-controlled deployment limits; [`Default`] supplies the local
+/// profile values rather than immutable protocol hard ceilings.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ArchiveExportLimits {
+    /// Maximum complete CAS inventory size.
+    pub max_objects: usize,
+    /// Maximum cumulative raw bytes copied from all inventoried objects.
+    pub max_object_bytes: u64,
+    /// Maximum nodes visited across all distinct current and historical heads.
+    /// Shared closure nodes are charged again when another head re-traverses
+    /// them, so this bounds actual validation work rather than unique objects.
+    pub max_head_validation_nodes: usize,
+    /// Maximum edges visited across all distinct current and historical heads.
+    /// Shared closure edges are charged once per traversal.
+    pub max_head_validation_edges: usize,
+    /// Limits for the one shared Tombstone Record catalog used by head checks.
+    pub tombstone_scan: TombstoneScanLimits,
+    /// Limits for the consistent SQLite Ref/reflog snapshot.
+    pub ref_archive: RefArchiveExportLimits,
+}
+
+impl Default for ArchiveExportLimits {
+    fn default() -> Self {
+        Self {
+            max_objects: DEFAULT_MAX_ARCHIVE_OBJECTS,
+            max_object_bytes: DEFAULT_MAX_ARCHIVE_OBJECT_BYTES,
+            max_head_validation_nodes: DEFAULT_MAX_ARCHIVE_HEAD_VALIDATION_NODES,
+            max_head_validation_edges: DEFAULT_MAX_ARCHIVE_HEAD_VALIDATION_EDGES,
+            tombstone_scan: TombstoneScanLimits::default(),
+            ref_archive: RefArchiveExportLimits::default(),
+        }
+    }
+}
 
 #[derive(Debug)]
 pub enum RepositoryError {
@@ -295,36 +344,89 @@ impl Repository {
     }
 
     pub fn export_archive(&mut self, destination: impl AsRef<Path>) -> Result<()> {
+        self.export_archive_with_limits(destination, ArchiveExportLimits::default())
+    }
+
+    pub fn export_archive_with_limits(
+        &mut self,
+        destination: impl AsRef<Path>,
+        limits: ArchiveExportLimits,
+    ) -> Result<()> {
         let destination = destination.as_ref();
         if destination.exists() {
             return Err(RepositoryError::ArchiveDestinationExists(
                 destination.to_path_buf(),
             ));
         }
+        if limits.max_objects == 0 {
+            return Err(resource_limit(
+                "archive max_objects must be greater than zero",
+            ));
+        }
+        if limits.max_object_bytes == 0 {
+            return Err(resource_limit(
+                "archive max_object_bytes must be greater than zero",
+            ));
+        }
+        if limits.max_head_validation_nodes == 0 {
+            return Err(resource_limit(
+                "archive max_head_validation_nodes must be greater than zero",
+            ));
+        }
+        if limits.max_head_validation_edges == 0 {
+            return Err(resource_limit(
+                "archive max_head_validation_edges must be greater than zero",
+            ));
+        }
         // Refs and their complete reflog are snapshotted first. Objects are
         // immutable and never removed, so concurrent writers can only add data
         // after this point; they cannot make this archived Ref history depend
         // on an omitted newer object.
-        let refs = self.refs.export_archive()?;
+        let refs = self.refs.export_archive_with_limits(limits.ref_archive)?;
+        let verifier =
+            PreparedClosureVerifier::new(&self.objects, self.graph_limits, limits.tombstone_scan)
+                .map_err(|error| {
+                archive_store_error(error, "Tombstone catalog is not exportable".to_owned())
+            })?;
         let mut validated_heads = HashSet::new();
+        let mut validated_head_nodes = 0_usize;
+        let mut validated_head_edges = 0_usize;
+        let mut validate_distinct_head = |head: &str, context: String| -> Result<()> {
+            let remaining_nodes = limits
+                .max_head_validation_nodes
+                .checked_sub(validated_head_nodes)
+                .expect("archive head node work stays within its configured limit");
+            let remaining_edges = limits
+                .max_head_validation_edges
+                .checked_sub(validated_head_edges)
+                .expect("archive head edge work stays within its configured limit");
+            let (nodes, edges) =
+                validate_archive_head(&verifier, head, context, remaining_nodes, remaining_edges)?;
+            validated_head_nodes = validated_head_nodes.checked_add(nodes).ok_or_else(|| {
+                resource_limit("archive head validation node total overflowed usize")
+            })?;
+            validated_head_edges = validated_head_edges.checked_add(edges).ok_or_else(|| {
+                resource_limit("archive head validation edge total overflowed usize")
+            })?;
+            Ok(())
+        };
         for record in &refs.snapshot.refs {
             if validated_heads.insert(record.head.as_str()) {
-                self.validate_head(&record.head).map_err(|error| {
-                    RepositoryError::ArchiveInvalid(format!(
-                        "Ref {:?} is not exportable: {error}",
-                        record.name
-                    ))
-                })?;
+                validate_distinct_head(
+                    &record.head,
+                    format!("Ref {:?} is not exportable", record.name),
+                )?;
             }
         }
         for event in &refs.reflog {
             if validated_heads.insert(event.new_head.as_str()) {
-                self.validate_head(&event.new_head).map_err(|error| {
-                    RepositoryError::ArchiveInvalid(format!(
-                        "reflog event {} for Ref {:?} is not exportable: {error}",
+                validate_distinct_head(
+                    &event.new_head,
+                    format!(
+                        "reflog event {} for Ref {:?} is not exportable",
                         event.id, event.ref_name
-                    ))
-                })?;
+                    ),
+                )?;
             }
         }
         let parent = destination.parent().unwrap_or_else(|| Path::new("."));
@@ -334,11 +436,7 @@ impl Repository {
             .duration_since(UNIX_EPOCH)
             .map_err(|error| RepositoryError::Clock(format!("system clock error: {error}")))?
             .as_nanos();
-        let file_name = destination
-            .file_name()
-            .and_then(|name| name.to_str())
-            .unwrap_or("archive");
-        let staging_path = parent.join(format!(".{file_name}.tmp-{}-{nonce}", std::process::id()));
+        let staging_path = archive_staging_path(destination, nonce);
         let mut staging = StagingDirectory::create(&staging_path)?;
         let objects_directory = staging_path.join("objects");
         fs::create_dir(&objects_directory).map_err(|error| {
@@ -346,7 +444,13 @@ impl Repository {
         })?;
 
         let mut object_rows = Vec::new();
-        for (index, oid) in self.objects.list_oids()?.into_iter().enumerate() {
+        let mut total_object_bytes = 0_u64;
+        for (index, oid) in self
+            .objects
+            .list_oids_limited(limits.max_objects)?
+            .into_iter()
+            .enumerate()
+        {
             let relative_path = format!("objects/{index:08}");
             let output_path = staging_path.join(&relative_path);
             let file = OpenOptions::new()
@@ -356,21 +460,36 @@ impl Repository {
                 .map_err(|error| {
                     RepositoryError::io("create archive object", &output_path, error)
                 })?;
-            let mut writer = HashingWriter::new(file);
-            let info = self
-                .objects
-                .copy_verified_to(&oid, &mut writer)?
-                .ok_or_else(|| {
-                    RepositoryError::ArchiveInvalid(format!(
+            let remaining_object_bytes = limits
+                .max_object_bytes
+                .checked_sub(total_object_bytes)
+                .expect("archive byte total never exceeds its configured limit");
+            let mut writer = HashingWriter::new(file, remaining_object_bytes);
+            let copy_result = self.objects.copy_verified_to(&oid, &mut writer);
+            if writer.limit_exceeded() {
+                return Err(resource_limit(format!(
+                    "archive object bytes exceed max_object_bytes {}",
+                    limits.max_object_bytes
+                )));
+            }
+            let info = match copy_result {
+                Ok(Some(info)) => info,
+                Ok(None) => {
+                    return Err(RepositoryError::ArchiveInvalid(format!(
                         "object disappeared during export: {oid}"
-                    ))
-                })?;
+                    )));
+                }
+                Err(error) => return Err(error.into()),
+            };
             let (byte_length, sha256) = writer.finish(&output_path)?;
             if byte_length != info.byte_len {
                 return Err(RepositoryError::ArchiveInvalid(format!(
                     "object changed length during export: {oid}"
                 )));
             }
+            total_object_bytes = total_object_bytes
+                .checked_add(byte_length)
+                .ok_or_else(|| resource_limit("archive object byte total overflowed u64"))?;
             object_rows.push(ArchiveObject {
                 oid,
                 path: relative_path,
@@ -378,21 +497,44 @@ impl Repository {
                 sha256,
             });
         }
-
         let manifest = ArchiveManifest::from_parts(object_rows, refs);
-        let manifest_bytes = serde_json::to_vec_pretty(&manifest)?;
-        write_new_synced(&staging_path.join(MANIFEST_FILE), &manifest_bytes)?;
-        let checksum = format!("{}\n", sha256_hex(&manifest_bytes));
+        let manifest_path = staging_path.join(MANIFEST_FILE);
+        let manifest_file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&manifest_path)
+            .map_err(|error| {
+                RepositoryError::io("create archive manifest", &manifest_path, error)
+            })?;
+        let mut manifest_writer = HashingWriter::new(manifest_file, MAX_MANIFEST_BYTES);
+        let serialization = serde_json::to_writer_pretty(&mut manifest_writer, &manifest);
+        if manifest_writer.limit_exceeded() {
+            return Err(resource_limit(format!(
+                "archive manifest exceeds the {MAX_MANIFEST_BYTES} byte restore limit"
+            )));
+        }
+        if let Err(error) = serialization {
+            if error.is_io() {
+                let kind = error.io_error_kind().unwrap_or(io::ErrorKind::Other);
+                return Err(RepositoryError::io(
+                    "write archive manifest",
+                    &manifest_path,
+                    io::Error::new(kind, error),
+                ));
+            }
+            return Err(error.into());
+        }
+        let (_, manifest_sha256) = manifest_writer.finish(&manifest_path)?;
+        let checksum = format!("{manifest_sha256}\n");
         write_new_synced(
             &staging_path.join(MANIFEST_CHECKSUM_FILE),
             checksum.as_bytes(),
         )?;
         sync_directory(&objects_directory)?;
         sync_directory(&staging_path)?;
-        fs::rename(&staging_path, destination)
-            .map_err(|error| RepositoryError::io("publish archive", destination, error))?;
-        sync_directory(parent)?;
+        rename_directory_no_replace(&staging_path, destination)?;
         staging.disarm();
+        sync_directory(parent)?;
         Ok(())
     }
 
@@ -531,8 +673,43 @@ fn validate_head(
 ) -> std::result::Result<(), ValidationError> {
     let report = verify_closure(objects, head, limits)
         .map_err(|error| ValidationError::new(store_error_code(&error), error.to_string()))?;
+    validate_closure_report(&report)
+}
+
+fn validate_archive_head(
+    verifier: &PreparedClosureVerifier<'_, FileObjectStore>,
+    head: &str,
+    context: String,
+    max_objects: usize,
+    max_edges: usize,
+) -> Result<(usize, usize)> {
+    // Keep operational StoreError values intact: export callers must observe
+    // resource_limit or storage_error rather than archive_invalid.
+    let report = verifier
+        .verify_uncached_with_work_limits(head, max_objects, max_edges)
+        .map_err(|error| archive_store_error(error, context.clone()))?;
+    validate_closure_report(&report)
+        .map_err(|error| archive_head_error(&error, format!("{context}: {error}")))?;
+    Ok((report.nodes.len(), report.edges.len()))
+}
+
+fn validate_closure_report(report: &ClosureReport) -> std::result::Result<(), ValidationError> {
     if report.is_complete() {
         return Ok(());
+    }
+    if report.truncated
+        || report
+            .issues
+            .iter()
+            .any(|issue| matches!(&issue.kind, ClosureIssueKind::ResourceLimit { .. }))
+    {
+        return Err(ValidationError::new(
+            ErrorCode::ResourceLimit.as_str(),
+            format!(
+                "closure traversal exceeded its configured limits for {}",
+                report.root
+            ),
+        ));
     }
     let Some(issue) = report.issues.first() else {
         return Err(ValidationError::new(
@@ -559,6 +736,29 @@ fn validate_head(
 
 fn store_error_code(error: &StoreError) -> &'static str {
     error.code().map_or("storage_error", ErrorCode::as_str)
+}
+
+fn resource_limit(message: impl Into<String>) -> RepositoryError {
+    CoreError::new(ErrorCode::ResourceLimit, message).into()
+}
+
+fn archive_head_error(error: &ValidationError, message: String) -> RepositoryError {
+    if error.code() == ErrorCode::ResourceLimit.as_str() {
+        resource_limit(message)
+    } else {
+        RepositoryError::ArchiveInvalid(message)
+    }
+}
+
+fn archive_store_error(error: StoreError, context: String) -> RepositoryError {
+    if error
+        .code()
+        .is_none_or(|code| code == ErrorCode::ResourceLimit)
+    {
+        RepositoryError::Store(error)
+    } else {
+        RepositoryError::ArchiveInvalid(format!("{context}: {error}"))
+    }
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -792,15 +992,23 @@ struct HashingWriter {
     file: File,
     digest: Sha256,
     byte_length: u64,
+    max_byte_length: u64,
+    limit_exceeded: bool,
 }
 
 impl HashingWriter {
-    fn new(file: File) -> Self {
+    fn new(file: File, max_byte_length: u64) -> Self {
         Self {
             file,
             digest: Sha256::new(),
             byte_length: 0,
+            max_byte_length,
+            limit_exceeded: false,
         }
+    }
+
+    const fn limit_exceeded(&self) -> bool {
+        self.limit_exceeded
     }
 
     fn finish(mut self, path: &Path) -> Result<(u64, String)> {
@@ -816,7 +1024,18 @@ impl HashingWriter {
 
 impl Write for HashingWriter {
     fn write(&mut self, buffer: &[u8]) -> io::Result<usize> {
-        let count = self.file.write(buffer)?;
+        let remaining = self
+            .max_byte_length
+            .checked_sub(self.byte_length)
+            .expect("archive writer byte length stays within its limit");
+        if remaining == 0 && !buffer.is_empty() {
+            self.limit_exceeded = true;
+            return Err(io::Error::other("archive byte limit exceeded"));
+        }
+        let allowed = usize::try_from(remaining)
+            .unwrap_or(usize::MAX)
+            .min(buffer.len());
+        let count = self.file.write(&buffer[..allowed])?;
         self.digest.update(&buffer[..count]);
         self.byte_length = self
             .byte_length
@@ -859,6 +1078,58 @@ impl Drop for StagingDirectory {
     }
 }
 
+fn archive_staging_path(destination: &Path, nonce: u128) -> PathBuf {
+    let parent = destination.parent().unwrap_or_else(|| Path::new("."));
+    let mut name = OsString::from(".");
+    name.push(
+        destination
+            .file_name()
+            .unwrap_or_else(|| OsStr::new("archive")),
+    );
+    name.push(format!(".tmp-{}-{nonce}", std::process::id()));
+    parent.join(name)
+}
+
+#[cfg(any(
+    target_os = "linux",
+    target_os = "android",
+    target_vendor = "apple",
+    target_os = "redox"
+))]
+fn rename_directory_no_replace(source: &Path, destination: &Path) -> Result<()> {
+    use rustix::fs::{CWD, RenameFlags, renameat_with};
+    use rustix::io::Errno;
+
+    match renameat_with(CWD, source, CWD, destination, RenameFlags::NOREPLACE) {
+        Ok(()) => Ok(()),
+        Err(Errno::EXIST) => Err(RepositoryError::ArchiveDestinationExists(
+            destination.to_path_buf(),
+        )),
+        Err(error) => Err(RepositoryError::io(
+            "publish archive without replacement",
+            destination,
+            io::Error::from_raw_os_error(error.raw_os_error()),
+        )),
+    }
+}
+
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "android",
+    target_vendor = "apple",
+    target_os = "redox"
+)))]
+fn rename_directory_no_replace(_source: &Path, destination: &Path) -> Result<()> {
+    Err(RepositoryError::io(
+        "publish archive without replacement",
+        destination,
+        io::Error::new(
+            io::ErrorKind::Unsupported,
+            "this platform has no supported atomic directory no-replace primitive",
+        ),
+    ))
+}
+
 #[cfg(unix)]
 fn sync_directory(path: &Path) -> Result<()> {
     File::open(path)
@@ -869,4 +1140,134 @@ fn sync_directory(path: &Path) -> Result<()> {
 #[cfg(not(unix))]
 fn sync_directory(_path: &Path) -> Result<()> {
     Ok(())
+}
+
+#[cfg(test)]
+mod archive_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_MANIFEST_TEST: AtomicU64 = AtomicU64::new(0);
+
+    fn unique_test_path(label: &str) -> PathBuf {
+        let sequence = NEXT_MANIFEST_TEST.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!(
+            "synapse-core-{label}-{}-{sequence}",
+            std::process::id()
+        ))
+    }
+
+    #[test]
+    fn manifest_serialization_stops_at_the_writer_byte_limit() {
+        let path = unique_test_path("manifest-limit");
+        let file = OpenOptions::new()
+            .create_new(true)
+            .write(true)
+            .open(&path)
+            .unwrap();
+        let manifest = ArchiveManifest {
+            format: ARCHIVE_FORMAT.to_owned(),
+            objects: Vec::new(),
+            refs: Vec::new(),
+            reflog: vec![ArchiveReflog {
+                id: 1,
+                ref_name: "proposal/agent/manifest-limit".to_owned(),
+                old_head: None,
+                new_head: "commit:sg-oid-v1:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+                    .to_owned(),
+                occurred_at_unix_nanos: 1,
+                actor: None,
+                message: Some("x".repeat(1_024)),
+            }],
+        };
+        let mut writer = HashingWriter::new(file, 128);
+
+        let error = serde_json::to_writer_pretty(&mut writer, &manifest).unwrap_err();
+        assert!(error.is_io());
+        assert!(writer.limit_exceeded());
+        drop(writer);
+        assert_eq!(fs::metadata(&path).unwrap().len(), 128);
+        fs::remove_file(path).unwrap();
+    }
+
+    #[cfg(any(
+        target_os = "linux",
+        target_os = "android",
+        target_vendor = "apple",
+        target_os = "redox"
+    ))]
+    #[test]
+    fn archive_publication_never_replaces_an_existing_directory() {
+        let root = unique_test_path("archive-no-replace");
+        let source = root.join("staging");
+        let destination = root.join("destination");
+        fs::create_dir(&root).unwrap();
+        fs::create_dir(&source).unwrap();
+        fs::write(source.join("manifest.json"), b"staged").unwrap();
+        fs::create_dir(&destination).unwrap();
+
+        let error = rename_directory_no_replace(&source, &destination).unwrap_err();
+        assert_eq!(error.code(), "archive_invalid");
+        assert!(source.join("manifest.json").is_file());
+        assert_eq!(fs::read_dir(&destination).unwrap().count(), 0);
+
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn closure_resource_limits_take_precedence_over_earlier_missing_issues() {
+        let root = "commit:sg-oid-v1:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let report = ClosureReport {
+            root: root.to_owned(),
+            nodes: Default::default(),
+            edges: Vec::new(),
+            issues: vec![
+                synapse_cas::ClosureIssue {
+                    oid: "blob:sg-oid-v1:sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+                        .to_owned(),
+                    referenced_by: Some(root.to_owned()),
+                    role: None,
+                    kind: ClosureIssueKind::Missing,
+                },
+                synapse_cas::ClosureIssue {
+                    oid: root.to_owned(),
+                    referenced_by: None,
+                    role: None,
+                    kind: ClosureIssueKind::ResourceLimit {
+                        resource: "objects",
+                        limit: 1,
+                    },
+                },
+            ],
+            truncated: true,
+        };
+
+        let error = validate_closure_report(&report).unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+    }
+
+    #[test]
+    fn archive_head_store_errors_preserve_only_operational_codes() {
+        let semantic = archive_store_error(
+            CoreError::new(ErrorCode::SchemaInvalid, "invalid head").into(),
+            "Ref is not exportable".to_owned(),
+        );
+        assert_eq!(semantic.code(), "archive_invalid");
+
+        let limited = archive_store_error(
+            CoreError::new(ErrorCode::ResourceLimit, "read limit").into(),
+            "Ref is not exportable".to_owned(),
+        );
+        assert_eq!(limited.code(), "resource_limit");
+
+        let io_error = archive_store_error(
+            StoreError::Io {
+                operation: "read object",
+                path: PathBuf::from("object"),
+                source: io::Error::other("temporary failure"),
+            },
+            "Ref is not exportable".to_owned(),
+        );
+        assert_eq!(io_error.code(), "storage_error");
+    }
 }

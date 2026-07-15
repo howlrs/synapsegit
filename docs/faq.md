@@ -9,7 +9,9 @@ Git repository format や source-code workflow を拡張した fork ではない
 ## 既存の Git、BIM、CAD、ペイント tool を置き換えますか
 
 置き換えない。既存 tool の Artifact と、物理 Subject、観測条件、判断理由を横断して接続する layer を目指す。
-現在あるのはlocal Core CLI、process-local authenticated AI + narrow Human Decision application route、両Core admissionのRust libraryで、creator-facing integrationは未実装である。
+現在はlocal Core CLI、process-local authenticated AI + narrow Human Decision application route、両Core admissionに加え、
+3 fileから履歴を構成するcreate-only creator Pilotと、original／current Blobのbyte identityだけを記録する
+保守的なObservation adapterをRustで実装している。既存制作toolとの常時連携やGUIを置き換えるものではない。
 
 ## 今すぐ何を動かせますか
 
@@ -17,10 +19,16 @@ strict JSON / OID、15 Record type の schema、filesystem ObjectStore、Commit 
 SQLite Ref CAS / reflog、`fsck`、directory export / restoreを動かせる。Rust APIではさらに
 `synapse-application`によるlocal authenticated one-shot AI executionとsame-instance admitted proposalに
 限定したHuman Decision route、`CreativeAiRuntime`によるAI proposal preflight／publication admission、
-`HumanDecisionRuntime`によるtrusted single-humanのnarrow `decision/*` admissionを利用できる。
+`HumanDecisionRuntime`によるtrusted single-humanのnarrow `decision/*` admissionを利用できる。CLIの
+`creator-run`／`creator-report`では、imported CaptureProfile、2 Observation、専用software-tool Actor、
+byte-identity AnalysisResult、AI proposal、Human Decisionを手書きJSONなしで作り、archive restore後も
+同じreportを再構築できる。
 [Quickstart](./quickstart.md) は同梱 fixture だけで end-to-end 実行できる。
 
-capture client、画像registration / diff、HTTP／JWT、durable／distributed ACL・permit、Projection
+byte-identity adapterはverified primary Blob OIDだけを比較し、比較成功時も`partial`／`byte_identity_only`として
+扱う。subject／series不一致やprimaryの欠落・曖昧さは`not_run`／`incomparable`である。pixelやEXIFをdecodeせず、
+同一bytesから物理的不変を、異なるbytesから視覚・物理変化を推論しない。
+capture client、pixel-level画像registration / diff、HTTP／JWT、durable／distributed ACL・permit、Projection
 application route、release／modified／partial／quorum workflow、ExecutorのOS sandbox／egress、
 Grant revocation、SurrealDB adapterはまだない。SQLite projection baselineはlibraryとして
 実装済みだが、projection CLI、自動refresh、全8-query／benchmark比較はない。二つのadmissionもCLI commandとして未公開である。

@@ -1,0 +1,2054 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "SynapseGit localhost application API",
+    "version": "0.1.0-draft",
+    "description": "Planned single-user, loopback-only application contract. This is not the public Core protocol and none of these routes are implemented by the architecture-only slice."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:{port}/api/v1",
+      "description": "The exact loopback origin printed by the local process",
+      "variables": {
+        "port": {
+          "default": "3417",
+          "description": "The bound loopback port"
+        }
+      }
+    }
+  ],
+  "security": [
+    {
+      "localSessionToken": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "process"
+    },
+    {
+      "name": "projects"
+    },
+    {
+      "name": "creator-sessions"
+    },
+    {
+      "name": "maintenance"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "operationId": "getHealth",
+        "tags": [
+          "process"
+        ],
+        "summary": "Check the local process without opening a repository",
+        "security": [],
+        "x-synapse-implementation-slice": 2,
+        "responses": {
+          "200": {
+            "description": "The loopback process is running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/projects": {
+      "get": {
+        "operationId": "listProjects",
+        "tags": [
+          "projects"
+        ],
+        "summary": "List the exact server-owned project catalog",
+        "x-synapse-implementation-slice": 2,
+        "responses": {
+          "200": {
+            "description": "Configured projects without filesystem paths",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectList"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/projects/{projectKey}/status": {
+      "get": {
+        "operationId": "getProjectStatus",
+        "tags": [
+          "projects"
+        ],
+        "summary": "Read project and projection status from one Ref snapshot",
+        "x-synapse-implementation-slice": 2,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current project status; this does not run fsck implicitly",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/projects/{projectKey}/refs": {
+      "get": {
+        "operationId": "listProjectRefs",
+        "tags": [
+          "projects"
+        ],
+        "summary": "List current Refs from one consistent snapshot",
+        "x-synapse-implementation-slice": 2,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Lexicographically ordered current Refs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RefList"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/projects/{projectKey}/reflog": {
+      "get": {
+        "operationId": "listProjectReflog",
+        "tags": [
+          "projects"
+        ],
+        "summary": "List a bounded page of committed Ref transitions",
+        "x-synapse-implementation-slice": 2,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          },
+          {
+            "name": "ref_name",
+            "in": "query",
+            "required": false,
+            "description": "Exact Ref name; omission selects the project reflog",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "description": "1 to 500 UTF-8 bytes after query decoding",
+              "x-synapse-max-utf8-bytes": 500
+            }
+          },
+          {
+            "name": "after_event_id",
+            "in": "query",
+            "required": false,
+            "description": "Exclusive decimal event cursor",
+            "schema": {
+              "$ref": "#/components/schemas/EventId"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/PageLimit"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Ascending reflog page",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReflogPage"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/projects/{projectKey}/creator-sessions": {
+      "get": {
+        "operationId": "listCreatorSessions",
+        "tags": [
+          "creator-sessions"
+        ],
+        "summary": "Discover complete, pending, and incomplete creator sessions",
+        "x-synapse-implementation-slice": 2,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sessions derived from one Ref snapshot and same-process pending state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatorSessionList"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "beginCreatorSession",
+        "tags": [
+          "creator-sessions"
+        ],
+        "summary": "Stream three files and publish a proposal for later Human review",
+        "description": "The AI output is caller-supplied. The request cannot select Refs, heads, OIDs, authority, profiles, or permits.",
+        "x-synapse-implementation-slice": 4,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/BeginCreatorSessionRequest"
+              },
+              "encoding": {
+                "session": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "subject_label": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "creator_name": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "original_image": {
+                  "contentType": "application/octet-stream"
+                },
+                "current_image": {
+                  "contentType": "application/octet-stream"
+                },
+                "ai_output": {
+                  "contentType": "application/octet-stream"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Proposal published and same-process review state retained",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingCreatorSession"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/projects/{projectKey}/creator-sessions/{session}": {
+      "get": {
+        "operationId": "getCreatorSession",
+        "tags": [
+          "creator-sessions"
+        ],
+        "summary": "Read a current creator report or explicit pending/incomplete state",
+        "x-synapse-implementation-slice": 2,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          },
+          {
+            "$ref": "#/components/parameters/Session"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session state bound to the returned Ref snapshot",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatorSessionDetail"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/projects/{projectKey}/creator-sessions/{session}/images/{role}": {
+      "get": {
+        "operationId": "getCreatorSessionImage",
+        "tags": [
+          "creator-sessions"
+        ],
+        "summary": "Read one trusted-session-resolved image Blob, never an arbitrary OID",
+        "description": "Complete sessions resolve roles through a validated current creator report. A same-process pending session resolves roles through its retained receipt after Ref/reachability rechecks; missing pending authority is incomplete. Every response is rejected with resource_limit before body streaming when the verified Blob exceeds 64 MiB. Allowed raster signatures may be returned with an exact image type and nosniff. Unknown bytes and SVG are attachment-only octet streams.",
+        "x-synapse-implementation-slice": 2,
+        "x-synapse-max-response-bytes": 67108864,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          },
+          {
+            "$ref": "#/components/parameters/Session"
+          },
+          {
+            "$ref": "#/components/parameters/ImageRole"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Verified Blob bytes resolved from the current creator session",
+            "headers": {
+              "X-Synapse-Blob-Oid": {
+                "schema": {
+                  "$ref": "#/components/schemas/BlobOid"
+                }
+              },
+              "X-Content-Type-Options": {
+                "schema": {
+                  "type": "string",
+                  "const": "nosniff"
+                }
+              },
+              "Content-Disposition": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+          "image/png": {
+            "schema": {
+              "maxLength": 67108864,
+              "x-synapse-max-raw-bytes": 67108864
+            }
+          },
+          "image/jpeg": {
+            "schema": {
+              "maxLength": 67108864,
+              "x-synapse-max-raw-bytes": 67108864
+            }
+          },
+          "image/gif": {
+            "schema": {
+              "maxLength": 67108864,
+              "x-synapse-max-raw-bytes": 67108864
+            }
+          },
+          "image/webp": {
+            "schema": {
+              "maxLength": 67108864,
+              "x-synapse-max-raw-bytes": 67108864
+            }
+          },
+          "application/octet-stream": {
+            "schema": {
+              "maxLength": 67108864,
+              "x-synapse-max-raw-bytes": 67108864
+            }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/projects/{projectKey}/creator-sessions/{session}/decisions": {
+      "post": {
+        "operationId": "decideCreatorSession",
+        "tags": [
+          "creator-sessions"
+        ],
+        "summary": "Publish adopt, reject, or defer through the admitted Human route",
+        "description": "The review ID names same-process server state. No application handle, permit, Ref, head, OID, or candidate is accepted from the client.",
+        "x-synapse-implementation-slice": 6,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          },
+          {
+            "$ref": "#/components/parameters/Session"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatorDecisionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Human decision published and current report rebuilt",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompleteCreatorSession"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/projects/{projectKey}/creator-sessions/{session}/diagnostics": {
+      "get": {
+        "operationId": "getCreatorSessionDiagnostics",
+        "tags": [
+          "creator-sessions"
+        ],
+        "summary": "Diagnose a creator session without resume, cleanup, or mutation",
+        "x-synapse-implementation-slice": 8,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          },
+          {
+            "$ref": "#/components/parameters/Session"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current diagnostic state",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatorSessionDiagnostic"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/projects/{projectKey}/operations/fsck": {
+      "post": {
+        "operationId": "startFsck",
+        "tags": [
+          "maintenance"
+        ],
+        "summary": "Start an explicitly confirmed repository fsck job",
+        "x-synapse-implementation-slice": 7,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectConfirmation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The operation was validated and queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationAccepted"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/projects/{projectKey}/archive-exports": {
+      "post": {
+        "operationId": "startArchiveExport",
+        "tags": [
+          "maintenance"
+        ],
+        "summary": "Start a no-replace directory archive export job",
+        "x-synapse-implementation-slice": 7,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveExportRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The operation was validated and queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationAccepted"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/projects/{projectKey}/archive-restores": {
+      "post": {
+        "operationId": "startArchiveRestore",
+        "tags": [
+          "maintenance"
+        ],
+        "summary": "Start a restore into a configured empty target project",
+        "x-synapse-implementation-slice": 7,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArchiveRestoreRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The operation was validated and queued",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationAccepted"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/archives": {
+      "get": {
+        "operationId": "listArchives",
+        "tags": [
+          "maintenance"
+        ],
+        "summary": "List Core-inspected logical archives under the server-owned root",
+        "x-synapse-implementation-slice": 7,
+        "responses": {
+          "200": {
+            "description": "Logical archive summaries without filesystem paths",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveList"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/operations/{operationId}": {
+      "get": {
+        "operationId": "getOperation",
+        "tags": [
+          "maintenance"
+        ],
+        "summary": "Read process-local maintenance job state",
+        "x-synapse-implementation-slice": 7,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/OperationId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current operation state and final result when known",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OperationStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "localSessionToken": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "X-Synapse-Local-Token",
+        "description": "High-entropy process-local browser request token. It is not user authentication."
+      }
+    },
+    "parameters": {
+      "ProjectKey": {
+        "name": "projectKey",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Slug"
+        }
+      },
+      "Session": {
+        "name": "session",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "$ref": "#/components/schemas/Slug"
+        }
+      },
+      "ImageRole": {
+        "name": "role",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "enum": [
+            "original",
+            "current",
+            "ai-output"
+          ]
+        }
+      },
+      "OperationId": {
+        "name": "operationId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 22,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9_-]+$"
+        }
+      },
+      "PageLimit": {
+        "name": "limit",
+        "in": "query",
+        "required": false,
+        "schema": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 500,
+          "default": 100
+        }
+      }
+    },
+    "responses": {
+      "Problem": {
+        "description": "A safe structured error; internal paths and capability values are omitted",
+        "content": {
+          "application/problem+json": {
+            "schema": {
+              "$ref": "#/components/schemas/Problem"
+            }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "Slug": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 64,
+        "pattern": "^[a-z][a-z0-9-]{0,63}$"
+      },
+      "DecimalInteger": {
+        "type": "string",
+        "maxLength": 20,
+        "pattern": "^-?(0|[1-9][0-9]{0,18})$",
+        "description": "Canonical decimal rendering of a server-side i64"
+      },
+      "EventId": {
+        "type": "string",
+        "maxLength": 19,
+        "pattern": "^(0|[1-9][0-9]{0,18})$",
+        "description": "Canonical non-negative decimal SQLite event identifier"
+      },
+      "Oid": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 256,
+        "description": "Opaque Core object identifier"
+      },
+      "BlobOid": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Oid"
+          }
+        ],
+        "pattern": "^blob:sg-oid-v1:sha256:[0-9a-f]{64}$"
+      },
+      "CommitOid": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/Oid"
+          }
+        ],
+        "pattern": "^commit:sg-oid-v1:sha256:[0-9a-f]{64}$"
+      },
+      "HealthResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "status",
+          "api_version",
+          "server_instance"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok"
+          },
+          "api_version": {
+            "type": "string",
+            "const": "v1"
+          },
+          "server_instance": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        }
+      },
+      "ProjectCapabilities": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "read",
+          "creator_import",
+          "human_decision",
+          "fsck",
+          "archive_export",
+          "archive_restore"
+        ],
+        "properties": {
+          "read": {
+            "type": "boolean"
+          },
+          "creator_import": {
+            "type": "boolean"
+          },
+          "human_decision": {
+            "type": "boolean"
+          },
+          "fsck": {
+            "type": "boolean"
+          },
+          "archive_export": {
+            "type": "boolean"
+          },
+          "archive_restore": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ProjectSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "project_key",
+          "display_label",
+          "state",
+          "capabilities"
+        ],
+        "properties": {
+          "project_key": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "display_label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "empty_restore_target",
+              "unavailable"
+            ]
+          },
+          "capabilities": {
+            "$ref": "#/components/schemas/ProjectCapabilities"
+          }
+        }
+      },
+      "ProjectList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "projects"
+        ],
+        "properties": {
+          "projects": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProjectSummary"
+            },
+            "maxItems": 1000
+          }
+        }
+      },
+      "SnapshotContext": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "watermark",
+          "ref_count",
+          "projection_source_fingerprint"
+        ],
+        "properties": {
+          "watermark": {
+            "type": "string",
+            "pattern": "^sha256:[0-9a-f]{64}$"
+          },
+          "ref_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "projection_source_fingerprint": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^projection-source-v1:sha256:[0-9a-f]{64}$"
+          }
+        }
+      },
+      "ProjectStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "project",
+          "snapshot",
+          "creator_session_counts",
+          "projection_state",
+          "last_fsck"
+        ],
+        "properties": {
+          "project": {
+            "$ref": "#/components/schemas/ProjectSummary"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/SnapshotContext"
+          },
+          "creator_session_counts": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "complete",
+              "pending_review",
+              "incomplete"
+            ],
+            "properties": {
+              "complete": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pending_review": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "incomplete": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          },
+          "projection_state": {
+            "type": "string",
+            "enum": [
+              "not_built",
+              "current",
+              "rebuild_failed"
+            ]
+          },
+          "last_fsck": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FsckResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "RefRecord": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "head",
+          "updated_event_id"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "1 to 500 UTF-8 bytes",
+            "x-synapse-max-utf8-bytes": 500
+          },
+          "head": {
+            "$ref": "#/components/schemas/CommitOid"
+          },
+          "updated_event_id": {
+            "$ref": "#/components/schemas/EventId"
+          }
+        }
+      },
+      "RefList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "snapshot",
+          "refs"
+        ],
+        "properties": {
+          "snapshot": {
+            "$ref": "#/components/schemas/SnapshotContext"
+          },
+          "refs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RefRecord"
+            },
+            "maxItems": 100000
+          }
+        }
+      },
+      "ReflogEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "event_id",
+          "ref_name",
+          "old_head",
+          "new_head",
+          "occurred_at_unix_nanos",
+          "actor",
+          "message"
+        ],
+        "properties": {
+          "event_id": {
+            "$ref": "#/components/schemas/EventId"
+          },
+          "ref_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "1 to 500 UTF-8 bytes",
+            "x-synapse-max-utf8-bytes": 500
+          },
+          "old_head": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CommitOid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "new_head": {
+            "$ref": "#/components/schemas/CommitOid"
+          },
+          "occurred_at_unix_nanos": {
+            "$ref": "#/components/schemas/DecimalInteger"
+          },
+          "actor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 1024
+          },
+          "message": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 16384
+          }
+        }
+      },
+      "ReflogPage": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "snapshot",
+          "entries",
+          "next_after_event_id"
+        ],
+        "properties": {
+          "snapshot": {
+            "$ref": "#/components/schemas/SnapshotContext"
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ReflogEntry"
+            },
+            "maxItems": 500
+          },
+          "next_after_event_id": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/EventId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "CreatorSessionState": {
+        "type": "string",
+        "enum": [
+          "complete",
+          "pending_review",
+          "incomplete"
+        ]
+      },
+      "CreatorSessionSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "session",
+          "state",
+          "proposal_ref",
+          "proposal_head",
+          "decision_ref",
+          "decision_head"
+        ],
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CreatorSessionState"
+          },
+          "proposal_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "proposal_head": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CommitOid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decision_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decision_head": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CommitOid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "CreatorSessionList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "snapshot",
+          "sessions"
+        ],
+        "properties": {
+          "snapshot": {
+            "$ref": "#/components/schemas/SnapshotContext"
+          },
+          "sessions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CreatorSessionSummary"
+            },
+            "maxItems": 50000
+          }
+        }
+      },
+      "BeginCreatorSessionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Exactly three raw binary file parts; each file is at most 64 MiB and their aggregate is at most 192 MiB.",
+        "x-synapse-max-file-parts": 3,
+        "x-synapse-max-aggregate-file-bytes": 201326592,
+        "required": [
+          "session",
+          "subject_label",
+          "creator_name",
+          "original_image",
+          "current_image",
+          "ai_output"
+        ],
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "subject_label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "1 to 500 UTF-8 bytes",
+            "x-synapse-max-utf8-bytes": 500
+          },
+          "creator_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "1 to 300 UTF-8 bytes",
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "original_image": {
+            "contentMediaType": "application/octet-stream",
+            "maxLength": 67108864,
+            "description": "Raw, unencoded binary; maxLength counts octets under OpenAPI 3.1",
+            "x-synapse-raw-binary": true,
+            "x-synapse-max-raw-bytes": 67108864
+          },
+          "current_image": {
+            "contentMediaType": "application/octet-stream",
+            "maxLength": 67108864,
+            "description": "Raw, unencoded binary; maxLength counts octets under OpenAPI 3.1",
+            "x-synapse-raw-binary": true,
+            "x-synapse-max-raw-bytes": 67108864
+          },
+          "ai_output": {
+            "contentMediaType": "application/octet-stream",
+            "maxLength": 67108864,
+            "description": "Raw, unencoded binary; maxLength counts octets under OpenAPI 3.1",
+            "x-synapse-raw-binary": true,
+            "x-synapse-max-raw-bytes": 67108864
+          }
+        }
+      },
+      "CreatorDecisionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "review_id",
+          "disposition"
+        ],
+        "properties": {
+          "review_id": {
+            "type": "string",
+            "minLength": 22,
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9_-]+$"
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "adopt",
+              "reject",
+              "defer"
+            ]
+          },
+          "rationale": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 5000,
+            "description": "At most 5000 UTF-8 bytes when present",
+            "x-synapse-max-utf8-bytes": 5000
+          }
+        }
+      },
+      "ComparisonEvidence": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "analysis_oid",
+          "tool_id",
+          "tool_actor_oid",
+          "adapter_id",
+          "adapter_version",
+          "implementation_oid",
+          "configuration_oid",
+          "status",
+          "comparability",
+          "outcome",
+          "reason_codes",
+          "warnings",
+          "base_observation_oid",
+          "target_observation_oid",
+          "base_media_oid",
+          "target_media_oid",
+          "replay_ready",
+          "reachable_from"
+        ],
+        "properties": {
+          "analysis_oid": {
+            "$ref": "#/components/schemas/Oid"
+          },
+          "tool_id": {
+            "type": "string"
+          },
+          "tool_actor_oid": {
+            "$ref": "#/components/schemas/Oid"
+          },
+          "adapter_id": {
+            "type": "string"
+          },
+          "adapter_version": {
+            "type": "string"
+          },
+          "implementation_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "configuration_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "not_run"
+            ]
+          },
+          "comparability": {
+            "type": "string",
+            "enum": [
+              "partial",
+              "incomparable"
+            ]
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "identical",
+              "different",
+              "not_compared"
+            ]
+          },
+          "reason_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 1
+          },
+          "base_observation_oid": {
+            "$ref": "#/components/schemas/Oid"
+          },
+          "target_observation_oid": {
+            "$ref": "#/components/schemas/Oid"
+          },
+          "base_media_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "target_media_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "replay_ready": {
+            "type": "boolean"
+          },
+          "reachable_from": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "TimelineEntry": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "oid",
+          "stage",
+          "kind",
+          "entity_id",
+          "ordering_time",
+          "time_basis",
+          "reachable_from"
+        ],
+        "properties": {
+          "oid": {
+            "$ref": "#/components/schemas/Oid"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "observation",
+              "activity"
+            ]
+          },
+          "entity_id": {
+            "type": "string"
+          },
+          "ordering_time": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "time_basis": {
+            "type": "string"
+          },
+          "reachable_from": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "PendingCreatorSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "snapshot",
+          "server_instance",
+          "review_id",
+          "session",
+          "project_id",
+          "subject_id",
+          "proposal_ref",
+          "proposal_head",
+          "original_blob_oid",
+          "current_blob_oid",
+          "ai_output_blob_oid",
+          "ai_output_source",
+          "comparison"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "const": "pending_review"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/SnapshotContext"
+          },
+          "server_instance": {
+            "type": "string"
+          },
+          "review_id": {
+            "type": "string",
+            "minLength": 22,
+            "maxLength": 128
+          },
+          "session": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "subject_id": {
+            "type": "string"
+          },
+          "proposal_ref": {
+            "type": "string"
+          },
+          "proposal_head": {
+            "$ref": "#/components/schemas/CommitOid"
+          },
+          "original_blob_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "current_blob_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "ai_output_blob_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "ai_output_source": {
+            "type": "string",
+            "const": "caller_supplied"
+          },
+          "comparison": {
+            "$ref": "#/components/schemas/ComparisonEvidence"
+          }
+        }
+      },
+      "CreatorReport": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "snapshot",
+          "session",
+          "project_id",
+          "subject_id",
+          "creator_id",
+          "agent_id",
+          "decision_ref",
+          "proposal_ref",
+          "decision_head",
+          "proposal_head",
+          "base_head",
+          "base_snapshot",
+          "proposal_snapshot",
+          "decision_snapshot",
+          "disposition",
+          "selected_ai_output",
+          "proposal_attributed_to_agent",
+          "ai_output_source",
+          "reviewed_by_human",
+          "rationale",
+          "original_blob_oid",
+          "current_blob_oid",
+          "ai_output_blob_oid",
+          "comparison",
+          "timeline",
+          "fsck_objects"
+        ],
+        "properties": {
+          "snapshot": {
+            "$ref": "#/components/schemas/SnapshotContext"
+          },
+          "session": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "subject_id": {
+            "type": "string"
+          },
+          "creator_id": {
+            "type": "string"
+          },
+          "agent_id": {
+            "type": "string"
+          },
+          "decision_ref": {
+            "type": "string"
+          },
+          "proposal_ref": {
+            "type": "string"
+          },
+          "decision_head": {
+            "$ref": "#/components/schemas/CommitOid"
+          },
+          "proposal_head": {
+            "$ref": "#/components/schemas/CommitOid"
+          },
+          "base_head": {
+            "$ref": "#/components/schemas/CommitOid"
+          },
+          "base_snapshot": {
+            "$ref": "#/components/schemas/Oid"
+          },
+          "proposal_snapshot": {
+            "$ref": "#/components/schemas/Oid"
+          },
+          "decision_snapshot": {
+            "$ref": "#/components/schemas/Oid"
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "adopt",
+              "reject",
+              "defer"
+            ]
+          },
+          "selected_ai_output": {
+            "type": "boolean"
+          },
+          "proposal_attributed_to_agent": {
+            "type": "string",
+            "description": "Agent EntityId, matching the existing creator report contract"
+          },
+          "ai_output_source": {
+            "type": "string",
+            "const": "caller_supplied"
+          },
+          "reviewed_by_human": {
+            "type": "string",
+            "description": "Human creator EntityId, matching the existing creator report contract"
+          },
+          "rationale": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 5000,
+            "description": "At most 5000 UTF-8 bytes when present",
+            "x-synapse-max-utf8-bytes": 5000
+          },
+          "original_blob_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "current_blob_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "ai_output_blob_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "comparison": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ComparisonEvidence"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TimelineEntry"
+            }
+          },
+          "fsck_objects": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "CompleteCreatorSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "report"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "const": "complete"
+          },
+          "report": {
+            "$ref": "#/components/schemas/CreatorReport"
+          }
+        }
+      },
+      "IncompleteCreatorSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "snapshot",
+          "session",
+          "recovery_supported",
+          "diagnostic"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "const": "incomplete"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/SnapshotContext"
+          },
+          "session": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "recovery_supported": {
+            "type": "boolean",
+            "const": false
+          },
+          "diagnostic": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        }
+      },
+      "CreatorSessionDetail": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CompleteCreatorSession"
+          },
+          {
+            "$ref": "#/components/schemas/PendingCreatorSession"
+          },
+          {
+            "$ref": "#/components/schemas/IncompleteCreatorSession"
+          }
+        ]
+      },
+      "CreatorSessionDiagnostic": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "snapshot",
+          "session",
+          "state",
+          "proposal_ref",
+          "proposal_head",
+          "decision_ref",
+          "decision_head",
+          "automatic_resume_supported",
+          "automatic_cleanup_supported",
+          "recommended_action"
+        ],
+        "properties": {
+          "snapshot": {
+            "$ref": "#/components/schemas/SnapshotContext"
+          },
+          "session": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "state": {
+            "$ref": "#/components/schemas/CreatorSessionState"
+          },
+          "proposal_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "proposal_head": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CommitOid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "decision_ref": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decision_head": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/CommitOid"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "automatic_resume_supported": {
+            "type": "boolean",
+            "const": false
+          },
+          "automatic_cleanup_supported": {
+            "type": "boolean",
+            "const": false
+          },
+          "recommended_action": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          }
+        }
+      },
+      "ProjectConfirmation": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "confirm_project_key"
+        ],
+        "properties": {
+          "confirm_project_key": {
+            "$ref": "#/components/schemas/Slug"
+          }
+        }
+      },
+      "ArchiveExportRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "archive_name",
+          "confirm_project_key"
+        ],
+        "properties": {
+          "archive_name": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "confirm_project_key": {
+            "$ref": "#/components/schemas/Slug"
+          }
+        }
+      },
+      "ArchiveRestoreRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "archive_name",
+          "confirm_target_project_key",
+          "confirm_empty_target"
+        ],
+        "properties": {
+          "archive_name": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "confirm_target_project_key": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "confirm_empty_target": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "OperationAccepted": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation_id",
+          "state",
+          "poll_path"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "minLength": 22,
+            "maxLength": 128
+          },
+          "state": {
+            "type": "string",
+            "const": "queued"
+          },
+          "poll_path": {
+            "type": "string",
+            "pattern": "^/api/v1/operations/[A-Za-z0-9_-]+$"
+          }
+        }
+      },
+      "FsckResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "clean",
+          "objects_seen",
+          "objects_verified",
+          "closure_count",
+          "issue_count"
+        ],
+        "properties": {
+          "clean": {
+            "type": "boolean"
+          },
+          "objects_seen": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "objects_verified": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "closure_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "issue_count": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      },
+      "ArchiveResult": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "archive_name",
+          "result_kind",
+          "report_equivalence_required"
+        ],
+        "properties": {
+          "archive_name": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "result_kind": {
+            "type": "string",
+            "enum": [
+              "exported",
+              "restored"
+            ]
+          },
+          "report_equivalence_required": {
+            "type": "boolean"
+          }
+        }
+      },
+      "OperationStatus": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "operation_id",
+          "kind",
+          "project_key",
+          "state",
+          "submitted_at",
+          "completed_at",
+          "result",
+          "error"
+        ],
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "minLength": 22,
+            "maxLength": 128
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "fsck",
+              "archive_export",
+              "archive_restore"
+            ]
+          },
+          "project_key": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "running",
+              "succeeded",
+              "failed",
+              "outcome_unknown"
+            ]
+          },
+          "submitted_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "completed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "result": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/FsckResult"
+              },
+              {
+                "$ref": "#/components/schemas/ArchiveResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/Problem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        }
+      },
+      "ArchiveSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "archive_name",
+          "state",
+          "manifest_checksum"
+        ],
+        "properties": {
+          "archive_name": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "valid",
+              "invalid",
+              "staging_or_unknown"
+            ]
+          },
+          "manifest_checksum": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "ArchiveList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "archives"
+        ],
+        "properties": {
+          "archives": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ArchiveSummary"
+            },
+            "maxItems": 100000
+          }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "type",
+          "title",
+          "status",
+          "code",
+          "detail",
+          "request_id",
+          "retryable"
+        ],
+        "properties": {
+          "type": {
+            "type": "string",
+            "format": "uri",
+            "pattern": "^urn:synapsegit:error:"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "status": {
+            "type": "integer",
+            "minimum": 400,
+            "maximum": 599
+          },
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$"
+          },
+          "detail": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2000
+          },
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        }
+      }
+    }
+  },
+  "x-synapse-status": "planned-contract",
+  "x-synapse-forbidden-route-capabilities": [
+    "update-ref",
+    "raw-object-put",
+    "arbitrary-head-publication",
+    "authority-profile-administration",
+    "permit-exposure"
+  ]
+}

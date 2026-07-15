@@ -15,6 +15,11 @@ use std::time::Duration;
 
 /// On-disk schema version owned by this crate.
 pub const REF_STORE_SCHEMA_VERSION: i64 = 1;
+pub const DEFAULT_MAX_REF_ARCHIVE_REFS: usize = 100_000;
+pub const DEFAULT_MAX_REF_ARCHIVE_REFLOG_ENTRIES: usize = 100_000;
+pub const DEFAULT_MAX_REF_ARCHIVE_TEXT_BYTES: u64 = 64 * 1024 * 1024;
+pub const MAX_REFLOG_PAGE_ENTRIES: usize = 500;
+pub const MAX_REF_SNAPSHOT_ENTRIES: usize = 100_000;
 
 const MAX_ACTOR_BYTES: usize = 1_024;
 const MAX_MESSAGE_BYTES: usize = 16 * 1_024;
@@ -56,12 +61,44 @@ pub struct ReflogEntry {
     pub message: Option<String>,
 }
 
+/// One bounded reflog page captured with its Ref snapshot in the same SQLite
+/// read transaction.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RefReadPage {
+    pub snapshot: RefSnapshot,
+    pub entries: Vec<ReflogEntry>,
+    /// Exclusive cursor to supply as `after_event_id` for the next page.
+    pub next_after_event_id: Option<i64>,
+}
+
 /// Complete SQLite-owned state needed by an archive export/restore.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct RefArchive {
     pub snapshot: RefSnapshot,
     /// The complete reflog, ordered by ascending event ID.
     pub reflog: Vec<ReflogEntry>,
+}
+
+/// Resource limits for one consistent Ref/reflog archive snapshot.
+///
+/// Entry limits are inclusive. `max_text_bytes` counts the UTF-8 bytes retained
+/// for Ref names, reflog actors, and reflog messages across the returned value.
+/// Commit OIDs have a fixed lexical length and are bounded by the entry counts.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct RefArchiveExportLimits {
+    pub max_refs: usize,
+    pub max_reflog_entries: usize,
+    pub max_text_bytes: u64,
+}
+
+impl Default for RefArchiveExportLimits {
+    fn default() -> Self {
+        Self {
+            max_refs: DEFAULT_MAX_REF_ARCHIVE_REFS,
+            max_reflog_entries: DEFAULT_MAX_REF_ARCHIVE_REFLOG_ENTRIES,
+            max_text_bytes: DEFAULT_MAX_REF_ARCHIVE_TEXT_BYTES,
+        }
+    }
 }
 
 /// Caller-supplied metadata recorded with a successful update.
@@ -398,6 +435,13 @@ impl SqliteRefStore {
         load_snapshot(&self.connection)
     }
 
+    /// Capture at most `max_refs` Refs, inspecting only one additional row to
+    /// detect overflow before returning an oversized response.
+    pub fn snapshot_limited(&self, max_refs: usize) -> Result<RefSnapshot> {
+        validate_snapshot_limit(max_refs)?;
+        load_snapshot_count_limited(&self.connection, max_refs)
+    }
+
     /// Retrieve the complete reflog in ascending event-ID order.
     pub fn reflog(&self) -> Result<Vec<ReflogEntry>> {
         load_reflog(&self.connection, None)
@@ -409,6 +453,74 @@ impl SqliteRefStore {
         load_reflog(&self.connection, Some(ref_name))
     }
 
+    /// Capture a deterministic Ref snapshot and a bounded ascending reflog
+    /// page from one SQLite read transaction.
+    ///
+    /// `after_event_id` is exclusive. `limit + 1` rows are inspected so the
+    /// returned cursor is present only when another row exists. This method
+    /// never materializes the complete reflog.
+    pub fn read_reflog_page(
+        &self,
+        ref_name: Option<&str>,
+        after_event_id: Option<i64>,
+        limit: usize,
+    ) -> Result<RefReadPage> {
+        self.read_reflog_page_with_hook(ref_name, after_event_id, limit, || {})
+    }
+
+    fn read_reflog_page_with_hook(
+        &self,
+        ref_name: Option<&str>,
+        after_event_id: Option<i64>,
+        limit: usize,
+        after_snapshot: impl FnOnce(),
+    ) -> Result<RefReadPage> {
+        if let Some(ref_name) = ref_name {
+            validate_ref_name(ref_name)?;
+        }
+        if after_event_id.is_some_and(|event_id| event_id < 0) {
+            return Err(RefStoreError::InvalidMetadata {
+                message: "after_event_id must be non-negative".into(),
+            });
+        }
+        if !(1..=MAX_REFLOG_PAGE_ENTRIES).contains(&limit) {
+            return Err(ref_archive_resource_limit(format!(
+                "reflog page limit must be between 1 and {MAX_REFLOG_PAGE_ENTRIES}"
+            )));
+        }
+
+        // The store is not Sync and cannot overlap transactions through its
+        // safe API. The unchecked variant permits this read-only method to
+        // retain a shared receiver while still defining one explicit snapshot
+        // boundary.
+        let transaction = self.connection.unchecked_transaction()?;
+        let snapshot = load_snapshot_count_limited(&transaction, MAX_REF_SNAPSHOT_ENTRIES)?;
+        after_snapshot();
+        let mut entries = load_reflog_page(
+            &transaction,
+            ref_name,
+            after_event_id.unwrap_or(0),
+            limit + 1,
+        )?;
+        let has_more = entries.len() > limit;
+        if has_more {
+            entries.pop();
+        }
+        let next_after_event_id = has_more.then(|| {
+            entries
+                .last()
+                .expect("a positive page limit with an extra row has a retained row")
+                .id
+        });
+        transaction.commit()?;
+
+        Ok(RefReadPage {
+            snapshot,
+            entries,
+            next_after_event_id,
+        })
+    }
+
     /// Read the snapshot and complete reflog from one consistent transaction.
     pub fn export_archive(&mut self) -> Result<RefArchive> {
         let transaction = self.connection.transaction()?;
@@ -416,6 +528,39 @@ impl SqliteRefStore {
             snapshot: load_snapshot(&transaction)?,
             reflog: load_reflog(&transaction, None)?,
         };
+        transaction.commit()?;
+        Ok(archive)
+    }
+
+    /// Read a bounded snapshot and complete reflog from one consistent
+    /// transaction.
+    pub fn export_archive_with_limits(
+        &mut self,
+        limits: RefArchiveExportLimits,
+    ) -> Result<RefArchive> {
+        validate_ref_archive_export_limits(limits)?;
+        let transaction = self.connection.transaction()?;
+        let mut text_bytes = 0_u64;
+        let archive = RefArchive {
+            snapshot: load_snapshot_limited(
+                &transaction,
+                limits.max_refs,
+                limits.max_text_bytes,
+                &mut text_bytes,
+            )?,
+            reflog: load_reflog_limited(
+                &transaction,
+                limits.max_reflog_entries,
+                limits.max_text_bytes,
+                &mut text_bytes,
+            )?,
+        };
+        // A database can be modified outside this API while still satisfying
+        // SQLite's coarse CHECK constraints. Reject any snapshot that this
+        // crate's own restore path could not consume before returning it to an
+        // archive writer. The cloned validation work remains bounded by the
+        // entry and retained-text limits above.
+        prepare_archive(&archive)?;
         transaction.commit()?;
         Ok(archive)
     }
@@ -665,6 +810,54 @@ fn load_snapshot(connection: &Connection) -> Result<RefSnapshot> {
     Ok(RefSnapshot { refs })
 }
 
+fn load_snapshot_count_limited(connection: &Connection, max_refs: usize) -> Result<RefSnapshot> {
+    let row_limit = i64::try_from(max_refs.saturating_add(1))
+        .map_err(|_| ref_archive_resource_limit("Ref snapshot limit does not fit SQLite i64"))?;
+    let mut statement = connection.prepare(
+        "SELECT name, head, updated_event_id
+         FROM refs
+         ORDER BY name ASC
+         LIMIT ?1",
+    )?;
+    let rows = statement.query_map([row_limit], ref_record_from_row)?;
+    let mut refs = Vec::with_capacity(max_refs.min(1024));
+    for row in rows {
+        if refs.len() == max_refs {
+            return Err(ref_archive_resource_limit(format!(
+                "Ref snapshot exceeds max_refs {max_refs}"
+            )));
+        }
+        refs.push(row?);
+    }
+    Ok(RefSnapshot { refs })
+}
+
+fn load_snapshot_limited(
+    connection: &Connection,
+    max_refs: usize,
+    max_text_bytes: u64,
+    text_bytes: &mut u64,
+) -> Result<RefSnapshot> {
+    let mut statement = connection.prepare(
+        "SELECT name, head, updated_event_id
+         FROM refs
+         ORDER BY name ASC",
+    )?;
+    let rows = statement.query_map([], ref_record_from_row)?;
+    let mut refs = Vec::new();
+    for row in rows {
+        let record = row?;
+        if refs.len() == max_refs {
+            return Err(ref_archive_resource_limit(format!(
+                "Ref snapshot exceeds max_refs {max_refs}"
+            )));
+        }
+        add_ref_archive_text_bytes(text_bytes, record.name.len(), max_text_bytes)?;
+        refs.push(record);
+    }
+    Ok(RefSnapshot { refs })
+}
+
 fn load_reflog(connection: &Connection, ref_name: Option<&str>) -> Result<Vec<ReflogEntry>> {
     let mut entries = Vec::new();
     if let Some(ref_name) = ref_name {
@@ -692,6 +885,125 @@ fn load_reflog(connection: &Connection, ref_name: Option<&str>) -> Result<Vec<Re
         }
     }
     Ok(entries)
+}
+
+fn load_reflog_page(
+    connection: &Connection,
+    ref_name: Option<&str>,
+    after_event_id: i64,
+    row_limit: usize,
+) -> Result<Vec<ReflogEntry>> {
+    let row_limit = i64::try_from(row_limit)
+        .map_err(|_| ref_archive_resource_limit("reflog page limit does not fit SQLite i64"))?;
+    let mut entries = Vec::new();
+    if let Some(ref_name) = ref_name {
+        let mut statement = connection.prepare(
+            "SELECT id, ref_name, old_head, new_head,
+                    occurred_at_unix_nanos, actor, message
+             FROM ref_events
+             WHERE ref_name = ?1 AND id > ?2
+             ORDER BY id ASC
+             LIMIT ?3",
+        )?;
+        let rows = statement.query_map(
+            params![ref_name, after_event_id, row_limit],
+            reflog_entry_from_row,
+        )?;
+        for row in rows {
+            entries.push(row?);
+        }
+    } else {
+        let mut statement = connection.prepare(
+            "SELECT id, ref_name, old_head, new_head,
+                    occurred_at_unix_nanos, actor, message
+             FROM ref_events
+             WHERE id > ?1
+             ORDER BY id ASC
+             LIMIT ?2",
+        )?;
+        let rows =
+            statement.query_map(params![after_event_id, row_limit], reflog_entry_from_row)?;
+        for row in rows {
+            entries.push(row?);
+        }
+    }
+    Ok(entries)
+}
+
+fn load_reflog_limited(
+    connection: &Connection,
+    max_entries: usize,
+    max_text_bytes: u64,
+    text_bytes: &mut u64,
+) -> Result<Vec<ReflogEntry>> {
+    let mut statement = connection.prepare(
+        "SELECT id, ref_name, old_head, new_head,
+                occurred_at_unix_nanos, actor, message
+         FROM ref_events
+         ORDER BY id ASC",
+    )?;
+    let rows = statement.query_map([], reflog_entry_from_row)?;
+    let mut entries = Vec::new();
+    for row in rows {
+        let entry = row?;
+        if entries.len() == max_entries {
+            return Err(ref_archive_resource_limit(format!(
+                "reflog exceeds max_reflog_entries {max_entries}"
+            )));
+        }
+        let entry_text_bytes = entry
+            .ref_name
+            .len()
+            .checked_add(entry.actor.as_ref().map_or(0, String::len))
+            .and_then(|bytes| bytes.checked_add(entry.message.as_ref().map_or(0, String::len)))
+            .ok_or_else(|| ref_archive_resource_limit("reflog text byte total overflowed usize"))?;
+        add_ref_archive_text_bytes(text_bytes, entry_text_bytes, max_text_bytes)?;
+        entries.push(entry);
+    }
+    Ok(entries)
+}
+
+fn validate_ref_archive_export_limits(limits: RefArchiveExportLimits) -> Result<()> {
+    if limits.max_refs == 0 {
+        return Err(ref_archive_resource_limit(
+            "max_refs must be greater than zero",
+        ));
+    }
+    if limits.max_reflog_entries == 0 {
+        return Err(ref_archive_resource_limit(
+            "max_reflog_entries must be greater than zero",
+        ));
+    }
+    if limits.max_text_bytes == 0 {
+        return Err(ref_archive_resource_limit(
+            "max_text_bytes must be greater than zero",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_snapshot_limit(max_refs: usize) -> Result<()> {
+    if max_refs == 0 {
+        return Err(ref_archive_resource_limit(
+            "Ref snapshot max_refs must be greater than zero",
+        ));
+    }
+    Ok(())
+}
+
+fn add_ref_archive_text_bytes(total: &mut u64, additional: usize, limit: u64) -> Result<()> {
+    let additional = u64::try_from(additional)
+        .map_err(|_| ref_archive_resource_limit("Ref archive text length does not fit u64"))?;
+    let next = total
+        .checked_add(additional)
+        .ok_or_else(|| ref_archive_resource_limit("Ref archive text byte total overflowed u64"))?;
+    if next > limit {
+        return Err(ref_archive_resource_limit(format!(
+            "Ref archive text bytes exceed max_text_bytes {limit}"
+        )));
+    }
+    *total = next;
+    Ok(())
 }
 
 fn query_head(connection: &Connection, ref_name: &str) -> Result<Option<String>> {
@@ -824,6 +1136,10 @@ fn archive_invalid(message: impl Into<String>) -> RefStoreError {
     }
 }
 
+fn ref_archive_resource_limit(message: impl Into<String>) -> RefStoreError {
+    RefStoreError::Validation(ValidationError::new("resource_limit", message))
+}
+
 /// Validate the exact Core v0.1 `RefName` lexical profile.
 pub fn validate_ref_name(name: &str) -> Result<()> {
     let valid = name.len() <= 500 && {
@@ -874,5 +1190,77 @@ pub fn validate_commit_oid(oid: &str) -> Result<()> {
         Err(RefStoreError::InvalidCommitOid {
             value: oid.to_owned(),
         })
+    }
+}
+
+#[cfg(test)]
+mod read_transaction_tests {
+    use super::*;
+    use std::fs;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
+
+    fn commit_oid(digit: char) -> String {
+        format!("commit:sg-oid-v1:sha256:{}", digit.to_string().repeat(64))
+    }
+
+    #[test]
+    fn reflog_page_and_snapshot_keep_the_same_view_across_a_concurrent_commit() {
+        let sequence = NEXT_DIRECTORY.fetch_add(1, Ordering::Relaxed);
+        let directory = std::env::temp_dir().join(format!(
+            "synapse-ref-page-{}-{sequence}",
+            std::process::id()
+        ));
+        fs::create_dir(&directory).unwrap();
+        let database = directory.join("refs.sqlite3");
+        let mut writer = SqliteRefStore::open(&database).unwrap();
+        let head_a = commit_oid('a');
+        let head_b = commit_oid('b');
+        let validator = |_: &str| Ok(());
+        writer
+            .compare_and_swap(
+                RefUpdate {
+                    ref_name: "proposal/concurrent",
+                    expected_head: None,
+                    new_head: &head_a,
+                    metadata: ReflogMetadata::at(10),
+                },
+                &validator,
+            )
+            .unwrap();
+        let reader = SqliteRefStore::open(&database).unwrap();
+
+        let page = reader
+            .read_reflog_page_with_hook(None, None, 10, || {
+                writer
+                    .compare_and_swap(
+                        RefUpdate {
+                            ref_name: "proposal/concurrent",
+                            expected_head: Some(&head_a),
+                            new_head: &head_b,
+                            metadata: ReflogMetadata::at(20),
+                        },
+                        &validator,
+                    )
+                    .unwrap();
+            })
+            .unwrap();
+
+        assert_eq!(page.snapshot.refs[0].head, head_a);
+        assert_eq!(page.snapshot.refs[0].updated_event_id, 1);
+        assert_eq!(
+            page.entries
+                .iter()
+                .map(|entry| entry.id)
+                .collect::<Vec<_>>(),
+            [1]
+        );
+        assert_eq!(writer.snapshot().unwrap().refs[0].head, head_b);
+        assert_eq!(writer.reflog().unwrap().len(), 2);
+
+        drop(reader);
+        drop(writer);
+        fs::remove_dir_all(directory).unwrap();
     }
 }

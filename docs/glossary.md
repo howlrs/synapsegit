@@ -59,6 +59,9 @@ Status label:
 | Term | Status | Definition |
 |---|---|---|
 | CaptureProfile | implemented | `imported`、`repeatable`、`calibrated` と必要条件を定義し、可能な主張の強さを制約する |
+| imported CaptureProfile | implemented creator Pilot | station、viewpoint、calibration、lighting、capture timeを検証していないfile importを`reference_only`へ制限するprofile。repeatable／calibrated captureの代用ではない |
+| `byte_identity` adapter | implemented conservative baseline | 順序付き2 Observationと全media Blobを検証し、primary Blob OIDだけを比較する決定論的adapter。成功しても`partial`／`byte_identity_only`で、pixel、EXIF、registration、視覚・物理変化を解釈しない |
+| `identical` / `different` byte outcome | implemented adapter result | verified primary Blobのbytesが同一か異なるかだけを表す。同一でも物理的不変、相違しても視覚・物理変化を証明しない |
 | 定点 Observation / fixed-viewpoint Observation | concept / pilot | 近い station / viewpoint から繰り返す観測。「固定小数点」を意味しない |
 | fixed-point / ScaledInteger | implemented / protocol | floating point を使わず `mantissa`、`scale`、`unit` で計測値を表す方式。「定点撮影」とは別 |
 | comparable / partial / incomparable | implemented schema | Analysis が入力を比較できる範囲を表す状態 |
@@ -70,6 +73,7 @@ Status label:
 | Term | Status | Definition |
 |---|---|---|
 | ContextPack | implemented schema / protocol / runtime input | base Commit / Ref、selected Evidence、Policy、Grant、制約をAI runへ渡すimmutable context。AI admissionはexpected baseとcurrent base snapshot bindingを検査する |
+| creator Pilot session | implemented bounded CLI/library flow | 3 opaque fileからimported CaptureProfile、Observation、byte-identity evidence、AI proposal、Human Decisionをcreate-onlyで構成し、current 2 RefとCASからreportを再構築するlocal orchestration。model実行、本人認証、継続編集、pixel analysisではない |
 | Policy | implemented schema / protocol / proposal + decision admission | permission、prohibition、Human Gateのproject-local snapshot。AI admissionはcapabilityをaction/resourceへ、Human Decisionは`publish`をcanonical decision Refへ写像し、明示的`default_effect`を尊重する |
 | DelegationGrant | implemented schema / protocol / proposal admission | principal、delegate、capability、project/resource、data class、expiry、output limit、writable Ref prefixの委任上限 |
 | `Application<A,E,C>` | implemented process-local AI + narrow Human application boundary | AIではinjected `Authenticator`、single trusted `AiExecutor`、Clock、exact project ACL、Core preflight、one-shot execution、reauth／FIFO fenceを順序付ける。Humanではsame-instance admitted proposal、server-fixed candidate、one-shot registration／permitをfull `HumanDecisionRuntime` publicationへ接続する。Projection routeは持たない |
