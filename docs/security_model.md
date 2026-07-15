@@ -118,6 +118,7 @@ flowchart LR
 - `fsck` は全 stored object の pathname、OID、canonical bytes を検査し、current Ref head の closure を辿る。
 - Ref が一つもない `fsck` は stored Commit 全件を root にする。
 - `fsck` は全 structured object へ JSON Schema を再適用するものではない。Core ingest / restore を通した object は投入時に schema 検証済みである。
+- creator begin／decision／reportが使うbounded `fsck`は、Ref、complete CAS inventory、raw bytes、全root合算closure work、Tombstone scanをoperation-wideに制限する。limit超過は`resource_limit`でfail closedにする。
 
 ## 既定 resource limit
 
@@ -132,6 +133,10 @@ flowchart LR
 | closure edges | 1,000,000 |
 | closure depth | 512 |
 | closure dynamic reference-role metadata | 64 MiB（hard ceiling） |
+| creator fsck Ref roots / CAS objects | 10,000 / 25,000 |
+| creator fsck inventoried raw object bytes | 4 GiB |
+| creator fsck cumulative closure nodes / edges | 250,000 / 2,500,000 |
+| creator fsck Tombstone Record scan | 25,000 Records / 512 MiB |
 | archive export objects | 100,000 |
 | archive export raw object bytes | 1 TiB |
 | archive export distinct-head validation nodes | 1,000,000 |
@@ -142,7 +147,10 @@ flowchart LR
 | export / restore manifest | 64 MiB |
 | manifest checksum file | 256 bytes |
 
-現在の CLI からこれらを変更できない。library caller は `ArchiveExportLimits` により、object件数、
+現在の CLI からこれらを変更できない。creator fsckの値はlocalhost transport inputから変更できない
+server-fixed ceilingである。library caller は `FsckLimits` で別のbounded profileを構成できるが、
+互換用`Repository::fsck`はunbounded inventoryを維持するためHTTPから使用しない。
+library caller は `ArchiveExportLimits` により、object件数、
 raw object bytes、distinct-head validation nodes／edges、Tombstone scan、Ref／reflog snapshotの
 archive export既定値を小さくも大きくも置き換えられるため、これらの既定値はhard ceilingではない。
 生成manifestの64 MiBとclosureのdynamic reference-role metadata 64 MiBは固定のhard ceilingである。

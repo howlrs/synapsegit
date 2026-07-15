@@ -35,6 +35,14 @@ authorization source. A legacy-shaped session whose base Tree has no comparison
 evidence entries remains reportable with `comparison=unavailable`; this shape
 does not prove when the session was created.
 
+Creator begin, Human decision, and report use the bounded Core fsck boundary.
+One operation is limited to 10,000 Ref roots, 25,000 complete-inventory CAS
+objects, 4 GiB of inventoried raw bytes, 250,000 cumulative closure nodes,
+2,500,000 cumulative closure edges, and a 25,000 Record / 512 MiB Tombstone
+scan. These values are fixed by the trusted creator integration and cannot be
+raised by HTTP input. A pre-publication limit failure leaves Refs unchanged; a
+post-decision limit failure retains the committed receipt and is never retried.
+
 This crate is not a model runner, image decoder, pixel registration/diff adapter,
 HTTP service, durable authorization service, or production credential store.
 All three image files remain opaque immutable Blobs. Imported images do not

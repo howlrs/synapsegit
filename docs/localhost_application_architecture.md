@@ -209,11 +209,13 @@ one backend read transaction. The facade must not emulate this by loading the
 whole reflog or by performing two independently raced reads.
 
 The project status route does not run repository-wide `fsck` implicitly.
-`fsck` is an explicit operation and gains the inventory limits described below
-before HTTP exposure. `creator-report` currently includes a repository-wide
-`fsck`; the service may first reuse that implementation, then separate report
-construction from explicit full diagnostics without weakening lineage
-validation.
+Creator begin, decision, and report operations do run a repository-wide
+integrity check, but use Core's bounded fsck entry points with fixed creator
+limits: 10,000 Ref roots, 25,000 CAS objects, 4 GiB of inventoried raw bytes,
+250,000 cumulative closure nodes, 2,500,000 cumulative closure edges, and a
+25,000 Record / 512 MiB Tombstone scan. Limit exhaustion fails before begin
+publication or, after a committed decision, returns the retained committed
+receipt without retrying publication.
 
 The existing `creator_report(path, session)` captures its own Ref snapshot and
 does not return Projection metadata, so the facade must not wrap it with an
@@ -221,7 +223,7 @@ independently captured `SnapshotContext`. Slice 2 first adds a creator-library
 entry point that accepts one caller-supplied `RefSnapshot` and returns the
 report plus the exact Projection source fingerprint produced by that rebuild.
 The CLI function remains a compatibility wrapper that captures once, calls the
-new entry point, and performs its existing final `fsck`.
+new entry point, and uses the same fixed creator integrity limits.
 
 ### Versioned DTOs and errors
 
@@ -425,10 +427,12 @@ affected project or archive outcome as unknown until it rechecks Refs, `fsck`,
 archive presence/checksums, or restore state. The service never automatically
 repeats a write after disconnect or restart.
 
-Current `Repository::fsck` bounds graph traversal but still inventories the
-whole CAS without an operation-wide inventory/byte limit. Slice 7 must add and
-test fail-closed fsck inventory limits before exposing this route; a blocking
-thread and concurrency gate alone do not make the data scan bounded.
+The compatibility `Repository::fsck` still inventories the whole CAS without
+an operation-wide inventory/byte limit. Core now also provides bounded current-
+and exact-snapshot fsck entry points, which the creator HTTP paths use. Slice 7
+must expose only the bounded entry point with an independently chosen
+maintenance profile; a blocking thread and concurrency gate alone do not make
+the data scan bounded.
 
 Archive listing must not duplicate Core's private manifest parser in the
 facade. Slice 7 first adds a read-only Core archive inspection function that

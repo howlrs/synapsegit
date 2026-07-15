@@ -32,15 +32,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use synapse_canonical::{CoreError, ErrorCode, ObjectKind, parse_oid};
 pub use synapse_cas::TombstoneScanLimits;
 use synapse_cas::{
-    ClosureIssueKind, ClosureReport, FileObjectStore, FsckReport, GraphLimits,
-    PreparedClosureVerifier, PutResult, StoreError, StoreLimits, fsck, verify_closure,
+    ClosureIssueKind, ClosureReport, FileObjectStore, FsckIssue, FsckIssueKind, FsckReport,
+    GraphLimits, PreparedClosureVerifier, PutResult, StoreError, StoreLimits, fsck, verify_closure,
 };
 use synapse_schema::{ingest, ingest_claimed};
-pub use synapse_sqlite::RefArchiveExportLimits;
 use synapse_sqlite::{
-    RefArchive, RefRecord, RefSnapshot, RefStoreError, RefUpdate, ReflogEntry, SqliteRefStore,
-    ValidationError,
+    RefArchive, RefRecord, RefStoreError, RefUpdate, ReflogEntry, SqliteRefStore, ValidationError,
 };
+pub use synapse_sqlite::{RefArchiveExportLimits, RefSnapshot};
 
 const ARCHIVE_FORMAT: &str = "synapsegit-core-archive-v0.1";
 const MANIFEST_FILE: &str = "manifest.json";
@@ -54,6 +53,52 @@ pub const DEFAULT_MAX_ARCHIVE_OBJECT_BYTES: u64 = 1024 * 1024 * 1024 * 1024;
 pub const DEFAULT_MAX_ARCHIVE_HEAD_VALIDATION_NODES: usize = 1_000_000;
 /// Default maximum cumulative edges visited while validating distinct heads.
 pub const DEFAULT_MAX_ARCHIVE_HEAD_VALIDATION_EDGES: usize = 10_000_000;
+/// Default maximum current Ref roots checked by one bounded fsck operation.
+pub const DEFAULT_MAX_FSCK_REF_ROOTS: usize = 100_000;
+/// Default maximum complete CAS inventory size checked by bounded fsck.
+pub const DEFAULT_MAX_FSCK_OBJECTS: usize = 100_000;
+/// Default maximum cumulative inventoried raw object bytes checked by bounded fsck.
+pub const DEFAULT_MAX_FSCK_OBJECT_BYTES: u64 = 1024 * 1024 * 1024 * 1024;
+/// Default maximum cumulative closure nodes visited across distinct Ref heads.
+pub const DEFAULT_MAX_FSCK_CLOSURE_NODES: usize = 1_000_000;
+/// Default maximum cumulative closure edges visited across distinct Ref heads.
+pub const DEFAULT_MAX_FSCK_CLOSURE_EDGES: usize = 10_000_000;
+
+/// Hard resource limits for one bounded repository consistency check.
+///
+/// `max_ref_roots` is applied to the complete supplied Ref snapshot before
+/// duplicate heads are removed. Closure node and edge limits are cumulative
+/// across the resulting distinct heads and therefore bound actual traversal
+/// work. Object count and byte limits cover the complete CAS inventory,
+/// including unreachable objects.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct FsckLimits {
+    /// Maximum number of Ref records in the checked snapshot.
+    pub max_ref_roots: usize,
+    /// Maximum number of objects in the complete CAS inventory.
+    pub max_objects: usize,
+    /// Maximum cumulative regular-file bytes in the complete CAS inventory.
+    pub max_object_bytes: u64,
+    /// Maximum cumulative closure nodes visited across distinct heads.
+    pub max_closure_nodes: usize,
+    /// Maximum cumulative closure edges visited across distinct heads.
+    pub max_closure_edges: usize,
+    /// Limits for the one shared Tombstone Record catalog used by all heads.
+    pub tombstone_scan: TombstoneScanLimits,
+}
+
+impl Default for FsckLimits {
+    fn default() -> Self {
+        Self {
+            max_ref_roots: DEFAULT_MAX_FSCK_REF_ROOTS,
+            max_objects: DEFAULT_MAX_FSCK_OBJECTS,
+            max_object_bytes: DEFAULT_MAX_FSCK_OBJECT_BYTES,
+            max_closure_nodes: DEFAULT_MAX_FSCK_CLOSURE_NODES,
+            max_closure_edges: DEFAULT_MAX_FSCK_CLOSURE_EDGES,
+            tombstone_scan: TombstoneScanLimits::default(),
+        }
+    }
+}
 
 /// Resource limits for one local directory archive export.
 ///
@@ -341,6 +386,170 @@ impl Repository {
             .map(|record| record.head)
             .collect::<Vec<_>>();
         Ok(fsck(&self.objects, &heads, self.graph_limits)?)
+    }
+
+    /// Check the complete CAS inventory and all heads in one bounded current
+    /// Ref snapshot.
+    ///
+    /// This is the service-safe counterpart to [`Self::fsck`]. The legacy
+    /// method remains unbounded for CLI compatibility.
+    pub fn fsck_with_limits(&self, limits: FsckLimits) -> Result<FsckReport> {
+        validate_fsck_limits(limits)?;
+        let snapshot = self.refs.snapshot_limited(limits.max_ref_roots)?;
+        self.fsck_snapshot_with_limits(&snapshot, limits)
+    }
+
+    /// Check the complete CAS inventory using exactly the heads in `snapshot`.
+    ///
+    /// The supplied snapshot is never replaced with a newer database snapshot.
+    /// Its Ref count is charged before duplicate heads are removed; closure work
+    /// is then charged once for each distinct head across the whole operation.
+    pub fn fsck_snapshot_with_limits(
+        &self,
+        snapshot: &RefSnapshot,
+        limits: FsckLimits,
+    ) -> Result<FsckReport> {
+        validate_fsck_limits(limits)?;
+        if snapshot.refs.len() > limits.max_ref_roots {
+            return Err(resource_limit(format!(
+                "fsck Ref snapshot exceeds max_ref_roots {}",
+                limits.max_ref_roots
+            )));
+        }
+
+        let inventory = self.objects.list_oids_limited(limits.max_objects)?;
+        let objects_seen = inventory.len();
+        let mut objects_verified = 0_usize;
+        let mut inventoried_object_bytes = 0_u64;
+        let mut stored_commits = Vec::new();
+        let mut issues = Vec::new();
+
+        for oid in &inventory {
+            if parse_oid(oid)? == ObjectKind::Commit {
+                stored_commits.push(oid.clone());
+            }
+            let Some(byte_len) = self.objects.stored_object_byte_len(oid)? else {
+                issues.push(FsckIssue {
+                    kind: FsckIssueKind::MissingScannedObject { oid: oid.clone() },
+                });
+                continue;
+            };
+            inventoried_object_bytes =
+                inventoried_object_bytes
+                    .checked_add(byte_len)
+                    .ok_or_else(|| {
+                        resource_limit("fsck inventoried object byte total overflowed u64")
+                    })?;
+            if inventoried_object_bytes > limits.max_object_bytes {
+                return Err(resource_limit(format!(
+                    "fsck inventoried object bytes exceed max_object_bytes {}",
+                    limits.max_object_bytes
+                )));
+            }
+            match self.objects.get_verified(oid) {
+                Ok(Some(object)) => {
+                    if object.byte_len() != byte_len {
+                        return Err(RepositoryError::io(
+                            "verify stable fsck object length",
+                            PathBuf::from(oid),
+                            io::Error::other("object length changed during the integrity check"),
+                        ));
+                    }
+                    objects_verified = objects_verified.checked_add(1).ok_or_else(|| {
+                        resource_limit("fsck verified object count overflowed usize")
+                    })?;
+                }
+                Ok(None) => issues.push(FsckIssue {
+                    kind: FsckIssueKind::MissingScannedObject { oid: oid.clone() },
+                }),
+                Err(StoreError::CorruptObject { detail, .. }) => issues.push(FsckIssue {
+                    kind: FsckIssueKind::CorruptObject {
+                        oid: oid.clone(),
+                        detail,
+                    },
+                }),
+                Err(error) if error.code() == Some(ErrorCode::ResourceLimit) => {
+                    return Err(error.into());
+                }
+                Err(error) => issues.push(FsckIssue {
+                    kind: FsckIssueKind::ReadFailure {
+                        oid: oid.clone(),
+                        detail: error.to_string(),
+                    },
+                }),
+            }
+        }
+
+        let verifier =
+            PreparedClosureVerifier::new(&self.objects, self.graph_limits, limits.tombstone_scan)?;
+        let mut distinct_heads = HashSet::new();
+        let mut closure_nodes = 0_usize;
+        let mut closure_edges = 0_usize;
+        let mut closures = Vec::new();
+
+        let roots = if snapshot.refs.is_empty() {
+            stored_commits
+                .iter()
+                .map(String::as_str)
+                .collect::<Vec<_>>()
+        } else {
+            snapshot
+                .refs
+                .iter()
+                .map(|record| record.head.as_str())
+                .collect::<Vec<_>>()
+        };
+        for head in roots {
+            if !distinct_heads.insert(head) {
+                continue;
+            }
+            let remaining_nodes = limits
+                .max_closure_nodes
+                .checked_sub(closure_nodes)
+                .ok_or_else(|| resource_limit("fsck closure node accounting underflowed"))?;
+            let remaining_edges = limits
+                .max_closure_edges
+                .checked_sub(closure_edges)
+                .ok_or_else(|| resource_limit("fsck closure edge accounting underflowed"))?;
+            let closure = verifier.verify_uncached_with_work_limits(
+                head,
+                remaining_nodes,
+                remaining_edges,
+            )?;
+            if closure.truncated
+                || closure
+                    .issues
+                    .iter()
+                    .any(|issue| matches!(issue.kind, ClosureIssueKind::ResourceLimit { .. }))
+            {
+                return Err(resource_limit(format!(
+                    "fsck closure traversal exceeded cumulative limits for {head}"
+                )));
+            }
+            closure_nodes = checked_add_fsck_work(
+                closure_nodes,
+                closure.nodes.len(),
+                limits.max_closure_nodes,
+                "closure nodes",
+            )?;
+            closure_edges = checked_add_fsck_work(
+                closure_edges,
+                closure.edges.len(),
+                limits.max_closure_edges,
+                "closure edges",
+            )?;
+            issues.extend(closure.issues.iter().cloned().map(|issue| FsckIssue {
+                kind: FsckIssueKind::Closure(issue),
+            }));
+            closures.push(closure);
+        }
+
+        Ok(FsckReport {
+            objects_seen,
+            objects_verified,
+            closures,
+            issues,
+        })
     }
 
     pub fn export_archive(&mut self, destination: impl AsRef<Path>) -> Result<()> {
@@ -736,6 +945,53 @@ fn validate_closure_report(report: &ClosureReport) -> std::result::Result<(), Va
 
 fn store_error_code(error: &StoreError) -> &'static str {
     error.code().map_or("storage_error", ErrorCode::as_str)
+}
+
+fn validate_fsck_limits(limits: FsckLimits) -> Result<()> {
+    for (name, value) in [
+        ("max_ref_roots", limits.max_ref_roots),
+        ("max_objects", limits.max_objects),
+        ("max_closure_nodes", limits.max_closure_nodes),
+        ("max_closure_edges", limits.max_closure_edges),
+        (
+            "tombstone_scan.max_record_objects",
+            limits.tombstone_scan.max_record_objects,
+        ),
+    ] {
+        if value == 0 {
+            return Err(resource_limit(format!(
+                "fsck {name} must be greater than zero"
+            )));
+        }
+    }
+    if limits.max_object_bytes == 0 {
+        return Err(resource_limit(
+            "fsck max_object_bytes must be greater than zero",
+        ));
+    }
+    if limits.tombstone_scan.max_record_bytes == 0 {
+        return Err(resource_limit(
+            "fsck tombstone_scan.max_record_bytes must be greater than zero",
+        ));
+    }
+    Ok(())
+}
+
+fn checked_add_fsck_work(
+    current: usize,
+    additional: usize,
+    limit: usize,
+    resource: &str,
+) -> Result<usize> {
+    let total = current
+        .checked_add(additional)
+        .ok_or_else(|| resource_limit(format!("fsck {resource} overflowed usize")))?;
+    if total > limit {
+        return Err(resource_limit(format!(
+            "fsck {resource} exceed cumulative limit {limit}"
+        )));
+    }
+    Ok(total)
 }
 
 fn resource_limit(message: impl Into<String>) -> RepositoryError {

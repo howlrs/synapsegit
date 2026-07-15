@@ -32,6 +32,9 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 - Stale private-repository and unimplemented-localhost statements were removed.
 - The tagged-release workflow now installs the same pinned Node.js major used
   by CI before running protocol and documentation verification scripts.
+- Creator begin, decision, and report now use operation-wide bounded fsck
+  profiles for Ref roots, CAS objects/raw bytes, cumulative closure work, and
+  Tombstone discovery.
 
 ## [0.1.0] - 2026-07-15
 
