@@ -949,10 +949,10 @@ impl SqliteProjectionStore {
                         head_oid: row.get(1)?,
                         complete: row.get(2)?,
                         truncated: row.get(3)?,
-                        issue_count: row.get(4)?,
-                        present_count: row.get(5)?,
-                        tombstoned_count: row.get(6)?,
-                        missing_count: row.get(7)?,
+                        issue_count: nonnegative_u64_from_row(row, 4)?,
+                        present_count: nonnegative_u64_from_row(row, 5)?,
+                        tombstoned_count: nonnegative_u64_from_row(row, 6)?,
+                        missing_count: nonnegative_u64_from_row(row, 7)?,
                     })
                 },
             )?);
@@ -2353,6 +2353,11 @@ fn projected_object_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Projec
         recorded_at: row.get(7)?,
         asserted_by: row.get(8)?,
     })
+}
+
+fn nonnegative_u64_from_row(row: &rusqlite::Row<'_>, index: usize) -> rusqlite::Result<u64> {
+    let value = row.get::<_, i64>(index)?;
+    u64::try_from(value).map_err(|_| rusqlite::Error::IntegralValueOutOfRange(index, value))
 }
 
 fn create_schema(transaction: &Transaction<'_>) -> Result<()> {

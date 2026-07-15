@@ -16,9 +16,9 @@ name = "synapse-local"
 path = "src/main.rs"
 
 [dependencies]
-askama = "=0.14.0"
+askama = "=0.16.0"
 axum = { version = "=0.8.9", features = ["multipart"] }
-getrandom = "0.3.4"
+getrandom = "0.4.3"
 mime = "0.3.17"
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.150"

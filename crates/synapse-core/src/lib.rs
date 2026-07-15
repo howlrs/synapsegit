@@ -1314,7 +1314,18 @@ fn open_regular_limited(path: &Path, limit: u64) -> Result<(File, u64)> {
 }
 
 fn sha256_hex(bytes: &[u8]) -> String {
-    format!("{:x}", Sha256::digest(bytes))
+    lower_hex(Sha256::digest(bytes))
+}
+
+fn lower_hex(bytes: impl IntoIterator<Item = u8>) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let bytes = bytes.into_iter();
+    let mut output = String::with_capacity(bytes.size_hint().0.saturating_mul(2));
+    for byte in bytes {
+        output.push(DIGITS[usize::from(byte >> 4)] as char);
+        output.push(DIGITS[usize::from(byte & 0x0f)] as char);
+    }
+    output
 }
 
 struct HashingWriter {
@@ -1347,7 +1358,7 @@ impl HashingWriter {
         self.file
             .sync_all()
             .map_err(|error| RepositoryError::io("sync archive object", path, error))?;
-        Ok((self.byte_length, format!("{:x}", self.digest.finalize())))
+        Ok((self.byte_length, lower_hex(self.digest.finalize())))
     }
 }
 

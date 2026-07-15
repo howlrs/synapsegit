@@ -520,7 +520,7 @@ impl FileObjectStore {
             .file
             .sync_all()
             .map_err(|error| StoreError::io("sync staged Blob", &staged.path, error))?;
-        let oid = format!("blob:sg-oid-v1:sha256:{:x}", digest.finalize());
+        let oid = format!("blob:sg-oid-v1:sha256:{}", lower_hex(digest.finalize()));
         if let Some(claimed_oid) = claimed_oid
             && claimed_oid != oid
         {
@@ -1276,7 +1276,7 @@ fn verify_blob_file(
         }
         digest.update(&buffer[..count]);
     }
-    let actual = format!("blob:sg-oid-v1:sha256:{:x}", digest.finalize());
+    let actual = format!("blob:sg-oid-v1:sha256:{}", lower_hex(digest.finalize()));
     if actual != oid {
         return Err(StoreError::CorruptObject {
             oid: oid.to_owned(),
@@ -1318,7 +1318,7 @@ fn copy_verified_blob(
             .write_all(&buffer[..count])
             .map_err(|error| StoreError::io("write exported Blob", path, error))?;
     }
-    let actual = format!("blob:sg-oid-v1:sha256:{:x}", digest.finalize());
+    let actual = format!("blob:sg-oid-v1:sha256:{}", lower_hex(digest.finalize()));
     if actual != oid {
         return Err(StoreError::CorruptObject {
             oid: oid.to_owned(),
@@ -1383,6 +1383,17 @@ fn compare_regular_files(
 
 fn is_lower_hex(byte: u8) -> bool {
     byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)
+}
+
+fn lower_hex(bytes: impl IntoIterator<Item = u8>) -> String {
+    const DIGITS: &[u8; 16] = b"0123456789abcdef";
+    let bytes = bytes.into_iter();
+    let mut output = String::with_capacity(bytes.size_hint().0.saturating_mul(2));
+    for byte in bytes {
+        output.push(DIGITS[usize::from(byte >> 4)] as char);
+        output.push(DIGITS[usize::from(byte & 0x0f)] as char);
+    }
+    output
 }
 
 #[cfg(unix)]
