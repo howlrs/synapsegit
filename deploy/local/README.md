@@ -65,10 +65,10 @@ binary versionは`./target/release/synapse-local --version`で確認できる。
 The repository directory must exist before startup. It may be an existing
 SynapseGit repository or an empty directory; opening an empty directory creates
 the local repository layout. The v0.2.0 binary and a current source build can
-create a session from the project page. The CLI remains available by using the
-same repository path with
+create a session from the project page. The CLI can use the same repository
+path before starting the application or after stopping it; run
 [`creator-run`](../../docs/usage_guide.md#手書きjsonなしのlocal-creator-pilot)
-before or after starting the application.
+only while `synapse-local` is not running for that project.
 
 The process prints an origin such as `http://127.0.0.1:8787`. Open that exact
 URL in a browser. Press Ctrl-C in the terminal to stop it. The browser session
