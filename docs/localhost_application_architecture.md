@@ -1,15 +1,16 @@
 # SynapseGit localhost application architecture
 
-Status: approved implementation design; localhost application read-only slices 1-3 implemented
+Status: approved implementation design; localhost application slices 1-4 and 6 implemented
 
 Decision date: 2026-07-14
 
-Implementation status: slices 1-3 are implemented. `synapse-local-service` and
-`synapse-local-http` provide the exact project catalog, bounded read facade,
-loopback HTTP boundary, and server-rendered read-only UI for projects/status,
-Refs/reflog, and creator-session report/timeline/evidence/images. Upload, Human
-review, `fsck`, export, restore, and the dedicated incomplete-session
-diagnostics route remain unimplemented. Core v0.1 remains a Stage 0 draft;
+Implementation status: slices 1-4 and 6 are implemented. `synapse-local-service`
+and `synapse-local-http` provide the exact project catalog, bounded read facade,
+loopback HTTP boundary, server-rendered project/session views, bounded three-file
+staging, process-local pending authority, and Human `adopt` / `reject` / `defer`.
+The third file remains caller-supplied; no model is invoked. `fsck`, export,
+restore, and the dedicated incomplete-session diagnostics route remain
+unimplemented in the browser application. Core v0.1 remains a Stage 0 draft;
 this application slice is not the formal Core roadmap's Stage 1.
 
 This document defines an application-level contract. It does not change the
@@ -208,11 +209,19 @@ one backend read transaction. The facade must not emulate this by loading the
 whole reflog or by performing two independently raced reads.
 
 The project status route does not run repository-wide `fsck` implicitly.
-`fsck` is an explicit operation and gains the inventory limits described below
-before HTTP exposure. `creator-report` currently includes a repository-wide
-`fsck`; the service may first reuse that implementation, then separate report
-construction from explicit full diagnostics without weakening lineage
-validation.
+Creator begin, decision, and report operations do run a repository-wide
+integrity check, but use Core's bounded fsck entry points with fixed creator
+limits: 10,000 Ref roots, 25,000 CAS objects, 4 GiB of inventoried raw bytes,
+250,000 cumulative closure nodes, 2,500,000 cumulative closure edges, and a
+25,000 Record / 512 MiB Tombstone scan. Begin reserves its own bounded growth
+and all eight per-project pending-review decisions, checks the exact prospective two-Ref snapshot, and only then
+publishes. Decision likewise checks its prospective replacement head before
+CAS. Core publication validators use the fixed bounded Tombstone profile too;
+they do not fall back to the legacy complete-inventory scan. Limit exhaustion
+therefore fails before normal publication. If response reconstruction still
+fails after a committed CAS because the repository changed concurrently, the
+service returns HTTP 200 with the exact durable receipt in a `committed`
+response, releases the consumed review slot, and never retries publication.
 
 The existing `creator_report(path, session)` captures its own Ref snapshot and
 does not return Projection metadata, so the facade must not wrap it with an
@@ -220,7 +229,7 @@ independently captured `SnapshotContext`. Slice 2 first adds a creator-library
 entry point that accepts one caller-supplied `RefSnapshot` and returns the
 report plus the exact Projection source fingerprint produced by that rebuild.
 The CLI function remains a compatibility wrapper that captures once, calls the
-new entry point, and performs its existing final `fsck`.
+new entry point, and uses the same fixed creator integrity limits.
 
 ### Versioned DTOs and errors
 
@@ -282,9 +291,12 @@ server therefore applies all of the following:
    nosniff`, `Referrer-Policy: no-referrer`, and `Cache-Control: no-store` for
    bootstrap/API data.
 7. Run synchronous filesystem/SQLite work on bounded blocking workers. Limit
-   concurrent operations per project and retain Core's publication checks;
-   long maintenance calls return an operation ID and never occupy an async
-   executor thread. A browser disconnect does not cancel or imply rollback.
+   concurrent operations per project and serialize creator begin/decision
+   mutations behind one process-local writer gate per catalog project so a
+   prospective capacity check and its Ref publications cannot race another
+   localhost writer. Long maintenance calls return an operation ID and never
+   occupy an async executor thread. A browser disconnect does not cancel or
+   imply rollback.
 
 The custom request header and exact Origin checks follow the same-origin CSRF
 controls described by the [OWASP CSRF Prevention Cheat
@@ -303,6 +315,11 @@ fail during streaming. An RAII owner removes staging on success, error, client
 disconnect, and handler cancellation. Process-crash leftovers remain a
 diagnostic and packaging-slice concern and must not be removed by an age-only
 cleanup.
+
+The writer gate is cooperative and process-local. While the localhost service
+owns a catalog project, operators must not run an independent CLI, a second
+service instance, or a direct Repository writer against the same repository.
+Cross-process repository writer fencing remains outside this localhost slice.
 
 Core Blobs remain opaque. For inline display, the service may classify only a
 small allowlist of raster signatures (PNG, JPEG, GIF, and WebP), set the exact
@@ -346,10 +363,10 @@ recording order, not capture or AI-execution time.
 
 ## Two-step creator workflow
 
-The current `run_creator_session` requires a disposition and completes proposal
-and Human publication in one synchronous call. A review UI cannot be a thin
-HTTP wrapper around that function. Before slice 4/6, creator orchestration is
-split into:
+The compatibility `run_creator_session` still accepts a disposition and
+completes proposal and Human publication in one synchronous call. Creator
+orchestration is now split underneath that wrapper so a review UI does not need
+to collapse the two phases:
 
 1. `begin_creator_session`: validate the repository and inputs, create the base
    and byte-identity evidence, publish the AI proposal, and return trusted
@@ -424,10 +441,12 @@ affected project or archive outcome as unknown until it rechecks Refs, `fsck`,
 archive presence/checksums, or restore state. The service never automatically
 repeats a write after disconnect or restart.
 
-Current `Repository::fsck` bounds graph traversal but still inventories the
-whole CAS without an operation-wide inventory/byte limit. Slice 7 must add and
-test fail-closed fsck inventory limits before exposing this route; a blocking
-thread and concurrency gate alone do not make the data scan bounded.
+The compatibility `Repository::fsck` still inventories the whole CAS without
+an operation-wide inventory/byte limit. Core now also provides bounded current-
+and exact-snapshot fsck entry points, which the creator HTTP paths use. Slice 7
+must expose only the bounded entry point with an independently chosen
+maintenance profile; a blocking thread and concurrency gate alone do not make
+the data scan bounded.
 
 Archive listing must not duplicate Core's private manifest parser in the
 facade. Slice 7 first adds a read-only Core archive inspection function that
@@ -466,10 +485,12 @@ sequencing and does not advance the formal Core stage.
    status, Refs, reflog, creator-session discovery/report, evidence, and images.
 3. **Implemented:** Askama/semantic-HTML shell, project dashboard, history navigation,
    progressive ES-module enhancement, and same-origin asset serving.
-4. **Planned:** bounded three-file upload plus proposal-only `begin_creator_session`.
+4. **Implemented:** bounded three-file staging and proposal-only publication through
+   `begin_creator_session`, with finite process/project registry ownership of the opaque pending
+   capability before the HTTP response is returned.
 5. **Planned:** expanded Image and Observation/evidence views with explicit byte-identity limits.
-6. **Planned:** pending proposal review and Human `adopt` / `reject` / `defer` through the
-   admitted application route.
+6. **Implemented:** pending proposal review and Human `adopt` / `reject` / `defer` through the
+   exact admitted application route, including exclusive decision state and fail-closed ambiguity.
 7. **Planned:** report maintenance, `fsck`, export, and empty-target restore with confirmations and safe
    error presentation.
 8. **Partially implemented:** tagged Linux x86_64 packaging, checksum publication, and release

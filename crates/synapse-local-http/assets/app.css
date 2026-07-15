@@ -77,6 +77,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 html {
   min-width: 20rem;
   background: var(--canvas);
@@ -824,6 +828,10 @@ tbody tr:hover {
   overflow-wrap: anywhere;
 }
 
+[data-synapse-image-download] {
+  margin-block: var(--space-3);
+}
+
 [data-synapse-image][aria-busy="true"] {
   opacity: 0.55;
 }
@@ -1061,6 +1069,20 @@ button[data-variant="text"] {
 [data-synapse-status][data-tone="error"] {
   color: var(--danger);
   font-weight: 650;
+}
+
+.committed-receipt {
+  max-height: 24rem;
+  margin-block: var(--space-3);
+  padding: var(--space-4);
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  color: var(--ink);
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 details {

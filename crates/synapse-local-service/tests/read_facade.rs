@@ -96,8 +96,8 @@ fn catalog_is_exact_sorted_and_never_serializes_paths() {
     );
     assert!(projects.projects.iter().all(|project| {
         project.capabilities.read
-            && !project.capabilities.creator_import
-            && !project.capabilities.human_decision
+            && project.capabilities.creator_import
+            && project.capabilities.human_decision
             && !project.capabilities.fsck
             && !project.capabilities.archive_export
             && !project.capabilities.archive_restore

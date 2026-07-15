@@ -444,6 +444,17 @@ impl FileObjectStore {
         scan_inventory_limited(&self.root, max_objects)
     }
 
+    /// Return the current regular-file length for one syntactically valid OID.
+    ///
+    /// This is a resource-accounting boundary, not an integrity check. Callers
+    /// must still use [`Self::get_verified`] before trusting the object. The
+    /// store's cooperative append-only/no-removal contract must remain in force
+    /// between this metadata read and the subsequent verified read.
+    pub fn stored_object_byte_len(&self, oid: &str) -> Result<Option<u64>, StoreError> {
+        let (_, path) = self.validated_object_path(oid)?;
+        Ok(regular_file_metadata_if_present(&path, oid)?.map(|metadata| metadata.len()))
+    }
+
     /// List one object kind without materializing the other CAS families.
     /// Returned OIDs and retained filesystem leaf entries are bounded by
     /// `max_objects`; at most one additional leaf is examined to detect

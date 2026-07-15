@@ -7,30 +7,46 @@ deployment, or a Docker workload.
 
 ## Current implementation boundary
 
-The current read-only slice provides:
+The current source implementation provides:
 
 - a startup-owned catalog of local repositories;
 - project status, current Refs, and bounded reflog pages;
 - creator-session discovery, report/timeline/evidence display, and bounded
   `original` / `current` / `ai-output` image reads; and
+- a bounded three-file import that publishes a caller-supplied proposal and
+  retains its exact review authority in the running process;
+- Human `adopt` / `reject` / `defer` through that retained same-process
+  authority; and
 - server-rendered HTML with same-origin CSS and JavaScript compiled into the
   Rust binary.
 
-The UI does **not** yet provide three-file upload, Human `adopt` / `reject` /
-`defer`, `fsck`, archive export, or archive restore. Those operations remain
-CLI/library-only where already implemented. The dedicated incomplete-session
-diagnostics route and production packaging are also later slices.
+Each imported file is limited to 64 MiB and the three files to 192 MiB in
+aggregate. At most two uploads stage concurrently, eight pending reviews are
+retained per project, and 64 per process. The browser must finish a review in
+the same running process: restart cannot reconstruct the admitted capability
+from stored Ref/head identifiers and leaves the proposal explicitly incomplete.
+The third file is caller-supplied; the application does not invoke an AI model.
+Creator begin and decision mutations are serialized per catalog project inside
+that process. Do not run another service instance, the CLI, or a direct
+Repository writer against the same repository while this service owns it.
+
+The UI does **not** yet provide `fsck`, archive export/restore, automatic resume
+or cleanup, or the dedicated incomplete-session diagnostics route. Those
+operations remain CLI/library-only where already implemented. JavaScript is
+required for write actions because unsafe API requests require the process-local
+custom token header; server-rendered read views remain available without it.
 
 ![SynapseGit Localのproject dashboard。creator sessions、Refs、最近のreflogを表示](../../docs/assets/synapse-local/project-dashboard.png)
 
-*Project dashboard — one localhost processで、creator session、現在のRefs、最近のreflogを確認するread-only画面です。Public serviceやGCP CLI smokeの画面ではありません。*
+*Project dashboard — one localhost processで、creator session、現在のRefs、最近のreflogを確認する画面です。Public serviceやGCP CLI smokeの画面ではありません。*
 
 ## Build and start
 
 Linux x86_64では、[`v0.1.0` preview release](../../docs/releases/v0.1.0.md)に
 `synapse-local`を含む検証済みbinary archiveがある。downloadとchecksum検証は
 [Installation guide](../../docs/install.md#install-the-linux-x86-64-release)を参照する。その他のplatformでは、
-下記のsource buildを使用する。
+下記のsource buildを使用する。v0.1.0の配布済みbinaryはread-onlyであり、三file import／reviewは
+current `main`のsource buildにのみ含まれる。
 
 Use a Rust toolchain compatible with the workspace MSRV, then run these
 commands from the repository root:
@@ -48,9 +64,10 @@ binary versionは`./target/release/synapse-local --version`で確認できる。
 
 The repository directory must exist before startup. It may be an existing
 SynapseGit repository or an empty directory; opening an empty directory creates
-the local repository layout. Use the same repository path with
+the local repository layout. A current source build can create a session from
+the project page. The CLI remains available by using the same repository path with
 [`creator-run`](../../docs/usage_guide.md#手書きjsonなしのlocal-creator-pilot)
-to populate a session before or after starting the viewer.
+before or after starting the application.
 
 The process prints an origin such as `http://127.0.0.1:8787`. Open that exact
 URL in a browser. Press Ctrl-C in the terminal to stop it. The browser session
@@ -87,4 +104,4 @@ Likewise, the public multi-tenant architecture remains an unimplemented
 production target.
 
 See the [localhost application architecture](../../docs/localhost_application_architecture.md)
-for the trust boundary and planned write/maintenance slices.
+for the trust boundary and remaining maintenance slices.

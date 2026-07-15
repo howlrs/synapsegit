@@ -414,6 +414,8 @@ crates/
   synapse-core        validated repository / AI proposal + Human Decision admission / archive
   synapse-creator     create-only local Creator Pilot orchestration / snapshot-bound report
   synapse-cli         put / trusted-operator update-ref / fsck / export / restore / creator-run / creator-report
+  synapse-local-service transport-neutral localhost read + bounded creator facade / versioned DTO
+  synapse-local-http  Axum + Askama loopback server / embedded assets
 ```
 
 `synapse-sqlite`が保存するのはRefsとreflogであり、query projectionではない。
@@ -423,8 +425,6 @@ crates/
 
 ```text
 crates/
-  synapse-local-service  transport-neutral localhost facade / versioned DTO
-  synapse-local-http     Axum + Askama loopback server / embedded assets
   synapse-service     provider-neutral cloud use case / versioned DTO
   synapse-object      streaming verified cloud ObjectStore port
   synapse-graph       graph traitをCAS crateから分離する場合

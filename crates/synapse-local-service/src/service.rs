@@ -1,12 +1,20 @@
 use sha2::{Digest, Sha256};
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt::{self, Write as _};
-use synapse_core::Repository;
+use std::mem;
+use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::sync::{Mutex, MutexGuard};
+use synapse_core::{Repository, RepositoryError};
 use synapse_creator::{
-    CreatorComparisonReport as CoreComparisonReport, CreatorError,
-    CreatorReport as CoreCreatorReport, CreatorSessionState as CoreCreatorSessionState,
-    CreatorSnapshotReport, CreatorTimelineEntry as CoreTimelineEntry, creator_report_from_snapshot,
-    discover_creator_sessions,
+    CREATOR_RESERVED_PENDING_DECISIONS, CreatorBeginOptions,
+    CreatorComparisonReport as CoreComparisonReport, CreatorDecisionOptions,
+    CreatorDisposition as CoreCreatorDisposition, CreatorError, CreatorPendingDecisionState,
+    CreatorPendingReceipt as CorePendingReceipt, CreatorReport as CoreCreatorReport,
+    CreatorRunReceipt as CoreRunReceipt, CreatorSessionState as CoreCreatorSessionState,
+    CreatorSnapshotReport, CreatorTimelineEntry as CoreTimelineEntry,
+    PendingCreatorSession as CorePendingCreatorSession, begin_creator_session as core_begin,
+    creator_report_from_snapshot, decide_creator_session as core_decide, discover_creator_sessions,
 };
 use synapse_sqlite::{
     MAX_REF_SNAPSHOT_ENTRIES, MAX_REFLOG_PAGE_ENTRIES, RefSnapshot, RefStoreError,
@@ -21,6 +29,12 @@ pub const MAX_PROJECTS: usize = 1_000;
 pub const MAX_REFS: usize = MAX_REF_SNAPSHOT_ENTRIES;
 pub const MAX_CREATOR_SESSIONS: usize = 50_000;
 pub const IMAGE_RESPONSE_MAX_BYTES: u64 = 64 * 1024 * 1024;
+pub const MAX_PENDING_CREATOR_SESSIONS: usize = 64;
+pub const MAX_PENDING_CREATOR_SESSIONS_PER_PROJECT: usize = 8;
+const _: () = assert!(
+    MAX_PENDING_CREATOR_SESSIONS_PER_PROJECT <= CREATOR_RESERVED_PENDING_DECISIONS,
+    "service pending capacity must fit the creator decision reservation"
+);
 
 /// A safe application-facing failure. Nested repository paths, SQL details,
 /// and raw dependency errors are intentionally not retained.
@@ -79,6 +93,30 @@ impl ServiceError {
         )
     }
 
+    fn review_busy() -> Self {
+        Self::new(
+            "creator_review_busy",
+            "The creator review is already being decided.",
+            true,
+        )
+    }
+
+    fn review_state_lost() -> Self {
+        Self::new(
+            "creator_review_state_lost",
+            "The creator review is not available in this server process.",
+            false,
+        )
+    }
+
+    fn outcome_unknown() -> Self {
+        Self::new(
+            "creator_outcome_unknown",
+            "The creator publication outcome is unknown and will not be retried automatically.",
+            false,
+        )
+    }
+
     pub fn code(&self) -> &str {
         &self.code
     }
@@ -132,13 +170,121 @@ impl From<CatalogError> for ServiceError {
     }
 }
 
-/// Exact startup-owned read facade.
+#[derive(Default)]
+struct PendingRegistry {
+    entries: BTreeMap<String, PendingEntry>,
+}
+
+struct PendingEntry {
+    project_key: String,
+    session: String,
+    server_instance: String,
+    proposal_head: Option<String>,
+    state: PendingEntryState,
+}
+
+enum PendingEntryState {
+    Reserved,
+    Ready(Box<ReadyPendingState>),
+    Deciding,
+    OutcomeUnknown,
+}
+
+struct ReadyPendingState {
+    pending: CorePendingCreatorSession,
+    receipt: CorePendingReceipt,
+}
+
+#[derive(Clone)]
+struct ReadyPending {
+    review_id: String,
+    server_instance: String,
+    receipt: CorePendingReceipt,
+}
+
+impl PendingRegistry {
+    fn reserve(
+        &mut self,
+        review_id: String,
+        project_key: &str,
+        session: &str,
+        server_instance: &str,
+    ) -> Result<(), ServiceError> {
+        if self.entries.len() >= MAX_PENDING_CREATOR_SESSIONS {
+            return Err(ServiceError::new(
+                "resource_limit",
+                format!(
+                    "The process already retains {MAX_PENDING_CREATOR_SESSIONS} creator reviews."
+                ),
+                false,
+            ));
+        }
+        if self
+            .entries
+            .values()
+            .filter(|entry| entry.project_key == project_key)
+            .count()
+            >= MAX_PENDING_CREATOR_SESSIONS_PER_PROJECT
+        {
+            return Err(ServiceError::new(
+                "resource_limit",
+                format!(
+                    "The project already retains {MAX_PENDING_CREATOR_SESSIONS_PER_PROJECT} creator reviews."
+                ),
+                false,
+            ));
+        }
+        if let Some(existing) = self
+            .entries
+            .values()
+            .find(|entry| entry.project_key == project_key && entry.session == session)
+        {
+            return Err(match &existing.state {
+                PendingEntryState::Reserved | PendingEntryState::Deciding => {
+                    ServiceError::review_busy()
+                }
+                PendingEntryState::Ready(_) => ServiceError::new(
+                    "creator_session_exists",
+                    "The creator session already has a pending review.",
+                    false,
+                ),
+                PendingEntryState::OutcomeUnknown => ServiceError::review_state_lost(),
+            });
+        }
+        if self.entries.contains_key(&review_id) {
+            return Err(ServiceError::new(
+                "service_unavailable",
+                "A creator review identifier could not be allocated.",
+                true,
+            ));
+        }
+        self.entries.insert(
+            review_id,
+            PendingEntry {
+                project_key: project_key.to_owned(),
+                session: session.to_owned(),
+                server_instance: server_instance.to_owned(),
+                proposal_head: None,
+                state: PendingEntryState::Reserved,
+            },
+        );
+        Ok(())
+    }
+
+    fn consume_committed(&mut self, review_id: &str) {
+        self.entries.remove(review_id);
+    }
+}
+
+/// Exact startup-owned localhost facade.
 ///
-/// Only canonical paths are retained, and a fresh [`Repository`] is opened
-/// inside each call. Therefore the non-`Sync` SQLite connection never becomes
-/// part of shared server state.
+/// Only canonical catalog paths are retained. Read calls open fresh
+/// repositories; pending writes retain the creator-owned application instance,
+/// whose repository connection remains behind its own synchronization boundary.
 pub struct LocalService {
     catalog: ProjectCatalog,
+    pending: Mutex<PendingRegistry>,
+    project_writers: BTreeMap<String, Mutex<()>>,
 }
 
 impl fmt::Debug for LocalService {
@@ -146,6 +292,7 @@ impl fmt::Debug for LocalService {
         formatter
             .debug_struct("LocalService")
             .field("project_count", &self.catalog.len())
+            .field("pending_count", &lock_registry(&self.pending).entries.len())
             .finish_non_exhaustive()
     }
 }
@@ -154,8 +301,15 @@ impl LocalService {
     pub fn new(
         registrations: impl IntoIterator<Item = ProjectRegistration>,
     ) -> Result<Self, CatalogError> {
+        let catalog = ProjectCatalog::build(registrations)?;
+        let project_writers = catalog
+            .values()
+            .map(|entry| (entry.project_key.clone(), Mutex::new(())))
+            .collect();
         Ok(Self {
-            catalog: ProjectCatalog::build(registrations)?,
+            catalog,
+            pending: Mutex::new(PendingRegistry::default()),
+            project_writers,
         })
     }
 
@@ -173,7 +327,7 @@ impl LocalService {
         let entry = self.entry(project_key)?;
         let repository = open_repository(entry)?;
         let snapshot = capture_snapshot(&repository)?;
-        let sessions = discover_sessions(&repository, &snapshot)?;
+        let sessions = self.sessions_with_pending(&repository, &snapshot, project_key)?;
         let mut counts = CreatorSessionCounts {
             complete: 0,
             pending_review: 0,
@@ -238,13 +392,163 @@ impl LocalService {
         })
     }
 
+    /// Publish one proposal using catalog-fixed repository authority and retain
+    /// the exact same-process Human review capability before returning.
+    pub fn begin_creator_session(
+        &self,
+        project_key: &str,
+        server_instance: &str,
+        request: BeginCreatorSessionRequest,
+    ) -> Result<PendingCreatorSession, ServiceError> {
+        validate_begin_request(server_instance, &request)?;
+        let repository_path = self.entry(project_key)?.repository_path().to_owned();
+        // The prospective integrity check and the following Ref publications
+        // form one cooperative localhost-service writer operation. Keep every
+        // begin/decision for this project behind the same gate so two blocking
+        // HTTP workers cannot both admit against the same pre-state.
+        let _writer = self.acquire_project_writer(project_key)?;
+        let review_id = self.reserve_pending(project_key, &request.session, server_instance)?;
+
+        let repository = match Repository::open(&repository_path).map_err(repository_error) {
+            Ok(repository) => repository,
+            Err(error) => {
+                self.remove_reserved(&review_id);
+                return Err(error);
+            }
+        };
+        let before = match capture_snapshot(&repository) {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                self.remove_reserved(&review_id);
+                return Err(error);
+            }
+        };
+        let session = request.session.clone();
+        let options = CreatorBeginOptions {
+            repository: repository_path,
+            session: request.session,
+            original_image: request.original_image,
+            current_image: request.current_image,
+            ai_output: request.ai_output,
+            subject_label: request.subject_label,
+            creator_name: request.creator_name,
+        };
+        let outcome = catch_unwind(AssertUnwindSafe(|| core_begin(&options)));
+        let (pending, receipt) = match outcome {
+            Ok(Ok(pending)) => {
+                let receipt = pending.receipt().clone();
+                (pending, receipt)
+            }
+            Ok(Err(error)) => {
+                self.settle_failed_begin(&review_id, project_key, &session, &before);
+                return Err(creator_error(error));
+            }
+            Err(_) => {
+                self.mark_outcome_unknown(&review_id);
+                return Err(ServiceError::outcome_unknown()
+                    .with_diagnostic("creator proposal publication panicked"));
+            }
+        };
+        if !valid_pending_receipt(&receipt, &session) {
+            self.mark_outcome_unknown(&review_id);
+            return Err(ServiceError::outcome_unknown()
+                .with_diagnostic("creator pending receipt did not match the reserved session"));
+        }
+        self.fill_ready(&review_id, pending, receipt)?;
+
+        let snapshot = capture_snapshot(&repository)?;
+        self.ready_pending(project_key, &snapshot)?
+            .into_iter()
+            .find(|pending| pending.review_id == review_id)
+            .map(|pending| pending_session(&snapshot, pending))
+            .ok_or_else(ServiceError::outcome_unknown)
+    }
+
+    /// Publish one server-fixed Human decision through the exact pending
+    /// application instance named by `review_id`.
+    pub fn decide_creator_session(
+        &self,
+        project_key: &str,
+        session: &str,
+        server_instance: &str,
+        request: CreatorDecisionRequest,
+    ) -> Result<CreatorDecisionResponse, ServiceError> {
+        validate_decision_request(session, &request)?;
+        self.entry(project_key)?;
+        let _writer = self.acquire_project_writer(project_key)?;
+        let repository = self.open_repository(project_key)?;
+        let snapshot = capture_snapshot(&repository)?;
+        let (mut pending, pending_receipt) = self.claim_ready(
+            project_key,
+            session,
+            server_instance,
+            &request.review_id,
+            &snapshot,
+        )?;
+        let decision = CreatorDecisionOptions {
+            disposition: core_disposition(request.disposition),
+            rationale: request.rationale,
+        };
+        let outcome = catch_unwind(AssertUnwindSafe(|| core_decide(&mut pending, &decision)));
+        let run_receipt = match outcome {
+            Ok(Ok(receipt)) => receipt,
+            Ok(Err(error)) => match pending.decision_state() {
+                CreatorPendingDecisionState::Ready => {
+                    if self.restore_ready_after_error(
+                        &request.review_id,
+                        project_key,
+                        pending,
+                        pending_receipt,
+                    ) {
+                        return Err(creator_error(error));
+                    }
+                    return Err(ServiceError::outcome_unknown().with_diagnostic(
+                        "creator decision failed before publication, but live Refs changed",
+                    ));
+                }
+                CreatorPendingDecisionState::Consumed => {
+                    let Some(completed) = pending.completed_receipt().cloned() else {
+                        self.mark_outcome_unknown(&request.review_id);
+                        return Err(ServiceError::outcome_unknown().with_diagnostic(
+                            "creator decision reported consumed state without a receipt",
+                        ));
+                    };
+                    return self.finish_committed_decision(
+                        project_key,
+                        session,
+                        &request.review_id,
+                        &completed,
+                        &pending_receipt,
+                    );
+                }
+                CreatorPendingDecisionState::Deciding
+                | CreatorPendingDecisionState::OutcomeUnknown => {
+                    self.mark_outcome_unknown(&request.review_id);
+                    return Err(ServiceError::outcome_unknown().with_diagnostic(error.to_string()));
+                }
+            },
+            Err(_) => {
+                self.mark_outcome_unknown(&request.review_id);
+                return Err(ServiceError::outcome_unknown()
+                    .with_diagnostic("creator Human decision publication panicked"));
+            }
+        };
+        self.finish_committed_decision(
+            project_key,
+            session,
+            &request.review_id,
+            &run_receipt,
+            &pending_receipt,
+        )
+    }
+
     pub fn list_creator_sessions(
         &self,
         project_key: &str,
     ) -> Result<CreatorSessionList, ServiceError> {
         let repository = self.open_repository(project_key)?;
         let snapshot = capture_snapshot(&repository)?;
-        let sessions = discover_sessions(&repository, &snapshot)?;
+        let sessions = self.sessions_with_pending(&repository, &snapshot, project_key)?;
         Ok(CreatorSessionList {
             snapshot: snapshot_context(&snapshot, None),
             sessions,
@@ -261,6 +565,15 @@ impl LocalService {
         }
         let repository = self.open_repository(project_key)?;
         let snapshot = capture_snapshot(&repository)?;
+        if let Some(pending) = self
+            .ready_pending(project_key, &snapshot)?
+            .into_iter()
+            .find(|pending| pending.receipt.session == session)
+        {
+            return Ok(CreatorSessionDetail::PendingReview(Box::new(
+                pending_session(&snapshot, pending),
+            )));
+        }
         match creator_report_from_snapshot(&repository, &snapshot, session) {
             Ok(snapshot_report) => Ok(CreatorSessionDetail::Complete(Box::new(complete_session(
                 &snapshot,
@@ -285,6 +598,14 @@ impl LocalService {
         }
         let repository = self.open_repository(project_key)?;
         let snapshot = capture_snapshot(&repository)?;
+        if let Some(pending) = self
+            .ready_pending(project_key, &snapshot)?
+            .into_iter()
+            .find(|pending| pending.receipt.session == session)
+        {
+            let blob_oid = pending_blob_oid(&repository, &pending.receipt, role)?;
+            return load_creator_image(&repository, blob_oid);
+        }
         let snapshot_report = match creator_report_from_snapshot(&repository, &snapshot, session) {
             Ok(report) => report,
             Err(CreatorError::SessionIncomplete(_)) => {
@@ -300,44 +621,272 @@ impl LocalService {
             ImageRole::Current => snapshot_report.report.current_blob_oid,
             ImageRole::AiOutput => snapshot_report.report.ai_output_blob_oid,
         };
-        let bytes = repository
-            .objects()
-            .read_verified_blob_limited(&blob_oid, IMAGE_RESPONSE_MAX_BYTES)
-            .map_err(|error| {
-                let diagnostic = error.to_string();
-                let service_error = match error.code() {
-                    Some(code) if code.as_str() == "resource_limit" => ServiceError::new(
-                        code.as_str(),
-                        "The creator image exceeds the 64 MiB response limit.",
-                        false,
-                    ),
-                    Some(code) => ServiceError::new(
-                        code.as_str(),
-                        "The creator image failed verified storage validation.",
-                        false,
-                    ),
-                    None => ServiceError::storage(),
-                };
-                service_error.with_diagnostic(diagnostic)
-            })?
-            .ok_or_else(|| {
-                ServiceError::new(
-                    "creator_report_invalid",
-                    "The creator image is absent from verified storage.",
-                    false,
-                )
-            })?;
-        let media_type = classify_image_media_type(&bytes);
-        Ok(CreatorImage {
-            blob_oid,
-            media_type,
-            disposition: if media_type.is_attachment() {
-                ImageDisposition::Attachment
+        load_creator_image(&repository, blob_oid)
+    }
+
+    fn sessions_with_pending(
+        &self,
+        repository: &Repository,
+        snapshot: &RefSnapshot,
+        project_key: &str,
+    ) -> Result<Vec<CreatorSessionSummary>, ServiceError> {
+        let sessions = discover_sessions(repository, snapshot)?;
+        Ok(overlay_pending_sessions(
+            sessions,
+            self.ready_pending(project_key, snapshot)?,
+        ))
+    }
+
+    fn reserve_pending(
+        &self,
+        project_key: &str,
+        session: &str,
+        server_instance: &str,
+    ) -> Result<String, ServiceError> {
+        let review_id = random_review_id()?;
+        lock_registry(&self.pending).reserve(
+            review_id.clone(),
+            project_key,
+            session,
+            server_instance,
+        )?;
+        Ok(review_id)
+    }
+
+    fn remove_reserved(&self, review_id: &str) {
+        let mut registry = lock_registry(&self.pending);
+        if registry
+            .entries
+            .get(review_id)
+            .is_some_and(|entry| matches!(entry.state, PendingEntryState::Reserved))
+        {
+            registry.entries.remove(review_id);
+        }
+    }
+
+    fn mark_outcome_unknown(&self, review_id: &str) {
+        if let Some(entry) = lock_registry(&self.pending).entries.get_mut(review_id) {
+            entry.state = PendingEntryState::OutcomeUnknown;
+        }
+    }
+
+    fn settle_failed_begin(
+        &self,
+        review_id: &str,
+        project_key: &str,
+        session: &str,
+        before: &RefSnapshot,
+    ) {
+        let unchanged = self
+            .open_repository(project_key)
+            .and_then(|repository| capture_snapshot(&repository))
+            .is_ok_and(|after| session_heads(before, session) == session_heads(&after, session));
+        if unchanged {
+            self.remove_reserved(review_id);
+        } else {
+            self.mark_outcome_unknown(review_id);
+        }
+    }
+
+    fn fill_ready(
+        &self,
+        review_id: &str,
+        pending: CorePendingCreatorSession,
+        receipt: CorePendingReceipt,
+    ) -> Result<(), ServiceError> {
+        let mut registry = lock_registry(&self.pending);
+        let Some(entry) = registry.entries.get_mut(review_id) else {
+            return Err(ServiceError::outcome_unknown()
+                .with_diagnostic("reserved creator review entry disappeared"));
+        };
+        if !matches!(entry.state, PendingEntryState::Reserved) {
+            entry.state = PendingEntryState::OutcomeUnknown;
+            return Err(ServiceError::outcome_unknown()
+                .with_diagnostic("reserved creator review entry changed state"));
+        }
+        entry.proposal_head = Some(receipt.proposal_head.clone());
+        entry.state = PendingEntryState::Ready(Box::new(ReadyPendingState { pending, receipt }));
+        Ok(())
+    }
+
+    fn ready_pending(
+        &self,
+        project_key: &str,
+        snapshot: &RefSnapshot,
+    ) -> Result<Vec<ReadyPending>, ServiceError> {
+        let mut registry = lock_registry(&self.pending);
+        let mut ready = Vec::new();
+        for (review_id, entry) in &mut registry.entries {
+            if entry.project_key != project_key {
+                continue;
+            }
+            let receipt = match &entry.state {
+                PendingEntryState::Ready(ready) => ready.receipt.clone(),
+                _ => continue,
+            };
+            if entry.proposal_head.as_deref() == Some(receipt.proposal_head.as_str())
+                && pending_heads_match(snapshot, &receipt)
+            {
+                ready.push(ReadyPending {
+                    review_id: review_id.clone(),
+                    server_instance: entry.server_instance.clone(),
+                    receipt,
+                });
             } else {
-                ImageDisposition::Inline
-            },
-            bytes,
-        })
+                entry.state = PendingEntryState::OutcomeUnknown;
+            }
+        }
+        Ok(ready)
+    }
+
+    fn claim_ready(
+        &self,
+        project_key: &str,
+        session: &str,
+        server_instance: &str,
+        review_id: &str,
+        snapshot: &RefSnapshot,
+    ) -> Result<(CorePendingCreatorSession, CorePendingReceipt), ServiceError> {
+        let mut registry = lock_registry(&self.pending);
+        let Some(entry) = registry.entries.get_mut(review_id) else {
+            return Err(ServiceError::review_state_lost());
+        };
+        if entry.project_key != project_key
+            || entry.session != session
+            || entry.server_instance != server_instance
+        {
+            return Err(ServiceError::review_state_lost());
+        }
+        match &entry.state {
+            PendingEntryState::Reserved | PendingEntryState::OutcomeUnknown => {
+                return Err(ServiceError::review_state_lost());
+            }
+            PendingEntryState::Deciding => return Err(ServiceError::review_busy()),
+            PendingEntryState::Ready(ready)
+                if entry.proposal_head.as_deref() != Some(ready.receipt.proposal_head.as_str())
+                    || !pending_heads_match(snapshot, &ready.receipt) =>
+            {
+                entry.state = PendingEntryState::OutcomeUnknown;
+                return Err(ServiceError::review_state_lost());
+            }
+            PendingEntryState::Ready(_) => {}
+        }
+        match mem::replace(&mut entry.state, PendingEntryState::Deciding) {
+            PendingEntryState::Ready(ready) => Ok((ready.pending, ready.receipt)),
+            _ => unreachable!("ready creator review changed while registry was locked"),
+        }
+    }
+
+    fn restore_ready_after_error(
+        &self,
+        review_id: &str,
+        project_key: &str,
+        pending: CorePendingCreatorSession,
+        receipt: CorePendingReceipt,
+    ) -> bool {
+        let heads_match = self
+            .open_repository(project_key)
+            .and_then(|repository| capture_snapshot(&repository))
+            .is_ok_and(|snapshot| pending_heads_match(&snapshot, &receipt));
+        let mut registry = lock_registry(&self.pending);
+        let Some(entry) = registry.entries.get_mut(review_id) else {
+            return false;
+        };
+        if heads_match && matches!(entry.state, PendingEntryState::Deciding) {
+            entry.state =
+                PendingEntryState::Ready(Box::new(ReadyPendingState { pending, receipt }));
+            true
+        } else {
+            entry.state = PendingEntryState::OutcomeUnknown;
+            false
+        }
+    }
+
+    fn finish_decision(
+        &self,
+        project_key: &str,
+        session: &str,
+        review_id: &str,
+        run_receipt: &CoreRunReceipt,
+        pending_receipt: &CorePendingReceipt,
+    ) -> Result<CompleteCreatorSession, ServiceError> {
+        let repository = match self.open_repository(project_key) {
+            Ok(repository) => repository,
+            Err(error) => {
+                self.mark_outcome_unknown(review_id);
+                return Err(error);
+            }
+        };
+        let snapshot = match capture_snapshot(&repository) {
+            Ok(snapshot) => snapshot,
+            Err(error) => {
+                self.mark_outcome_unknown(review_id);
+                return Err(error);
+            }
+        };
+        let snapshot_report = match creator_report_from_snapshot(&repository, &snapshot, session) {
+            Ok(report) if completion_matches(run_receipt, pending_receipt, &report) => report,
+            Ok(_) => {
+                self.mark_outcome_unknown(review_id);
+                return Err(ServiceError::outcome_unknown().with_diagnostic(
+                    "completed creator report did not match the publication receipt",
+                ));
+            }
+            Err(error) => {
+                self.mark_outcome_unknown(review_id);
+                return Err(creator_error(error));
+            }
+        };
+        self.consume_deciding(review_id)?;
+        Ok(complete_session(&snapshot, snapshot_report))
+    }
+
+    fn finish_committed_decision(
+        &self,
+        project_key: &str,
+        session: &str,
+        review_id: &str,
+        run_receipt: &CoreRunReceipt,
+        pending_receipt: &CorePendingReceipt,
+    ) -> Result<CreatorDecisionResponse, ServiceError> {
+        match self.finish_decision(
+            project_key,
+            session,
+            review_id,
+            run_receipt,
+            pending_receipt,
+        ) {
+            Ok(complete) => Ok(CreatorDecisionResponse::Complete(Box::new(complete))),
+            Err(_) => {
+                // Core returned a committed receipt, so publication outcome is
+                // known even when the derived report cannot be rebuilt. Drop
+                // the consumed same-process authority and return the durable
+                // receipt instead of leaking a registry slot or misreporting
+                // a prepublication failure.
+                lock_registry(&self.pending).consume_committed(review_id);
+                Ok(CreatorDecisionResponse::Committed(Box::new(
+                    committed_session(run_receipt),
+                )))
+            }
+        }
+    }
+
+    fn consume_deciding(&self, review_id: &str) -> Result<(), ServiceError> {
+        let mut registry = lock_registry(&self.pending);
+        if registry
+            .entries
+            .get(review_id)
+            .is_some_and(|entry| matches!(entry.state, PendingEntryState::Deciding))
+        {
+            registry.entries.remove(review_id);
+            Ok(())
+        } else {
+            if let Some(entry) = registry.entries.get_mut(review_id) {
+                entry.state = PendingEntryState::OutcomeUnknown;
+            }
+            Err(ServiceError::outcome_unknown()
+                .with_diagnostic("deciding creator review entry changed before consumption"))
+        }
     }
 
     fn entry(&self, project_key: &str) -> Result<&CatalogEntry, ServiceError> {
@@ -349,6 +898,404 @@ impl LocalService {
     fn open_repository(&self, project_key: &str) -> Result<Repository, ServiceError> {
         open_repository(self.entry(project_key)?)
     }
+
+    fn acquire_project_writer(
+        &self,
+        project_key: &str,
+    ) -> Result<MutexGuard<'_, ()>, ServiceError> {
+        lock_project_writer(&self.project_writers, project_key)
+    }
+}
+
+fn lock_project_writer<'a>(
+    writers: &'a BTreeMap<String, Mutex<()>>,
+    project_key: &str,
+) -> Result<MutexGuard<'a, ()>, ServiceError> {
+    let writer = writers
+        .get(project_key)
+        .ok_or_else(ServiceError::project_not_found)?;
+    Ok(match writer.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    })
+}
+
+fn lock_registry(registry: &Mutex<PendingRegistry>) -> MutexGuard<'_, PendingRegistry> {
+    match registry.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+fn validate_begin_request(
+    server_instance: &str,
+    request: &BeginCreatorSessionRequest,
+) -> Result<(), ServiceError> {
+    if !is_slug(&request.session) {
+        return Err(ServiceError::new(
+            "usage_error",
+            "The creator session name is invalid.",
+            false,
+        ));
+    }
+    if request.subject_label.is_empty() || request.subject_label.len() > 500 {
+        return Err(ServiceError::new(
+            "usage_error",
+            "The subject label must contain 1 to 500 UTF-8 bytes.",
+            false,
+        ));
+    }
+    if request.creator_name.is_empty() || request.creator_name.len() > 300 {
+        return Err(ServiceError::new(
+            "usage_error",
+            "The creator name must contain 1 to 300 UTF-8 bytes.",
+            false,
+        ));
+    }
+    if server_instance.is_empty()
+        || server_instance.len() > 300
+        || server_instance.chars().any(char::is_control)
+    {
+        return Err(ServiceError::new(
+            "local_request_denied",
+            "The trusted server instance binding is invalid.",
+            false,
+        ));
+    }
+    Ok(())
+}
+
+fn validate_decision_request(
+    session: &str,
+    request: &CreatorDecisionRequest,
+) -> Result<(), ServiceError> {
+    if !is_slug(session) {
+        return Err(ServiceError::session_not_found());
+    }
+    if !(22..=128).contains(&request.review_id.len())
+        || !request
+            .review_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'_' || byte == b'-')
+    {
+        return Err(ServiceError::new(
+            "local_request_denied",
+            "The creator review identifier is invalid.",
+            false,
+        ));
+    }
+    if request
+        .rationale
+        .as_ref()
+        .is_some_and(|rationale| rationale.len() > 5_000)
+    {
+        return Err(ServiceError::new(
+            "usage_error",
+            "The Human rationale exceeds 5000 UTF-8 bytes.",
+            false,
+        ));
+    }
+    Ok(())
+}
+
+fn random_review_id() -> Result<String, ServiceError> {
+    let mut bytes = [0_u8; 32];
+    getrandom::fill(&mut bytes).map_err(|error| {
+        ServiceError::new(
+            "service_unavailable",
+            "A creator review identifier could not be allocated.",
+            true,
+        )
+        .with_diagnostic(format!("operating-system random source failed: {error}"))
+    })?;
+    let mut review_id = String::with_capacity(bytes.len() * 2);
+    for byte in bytes {
+        write!(&mut review_id, "{byte:02x}").expect("writing to String cannot fail");
+    }
+    Ok(review_id)
+}
+
+fn valid_pending_receipt(receipt: &CorePendingReceipt, session: &str) -> bool {
+    receipt.session == session
+        && receipt.decision_ref == format!("decision/creator/{session}")
+        && receipt.proposal_ref == format!("proposal/creator-agent/{session}")
+        && !receipt.base_head.is_empty()
+        && !receipt.proposal_head.is_empty()
+}
+
+fn snapshot_head<'a>(snapshot: &'a RefSnapshot, name: &str) -> Option<&'a str> {
+    snapshot
+        .refs
+        .iter()
+        .find(|reference| reference.name == name)
+        .map(|reference| reference.head.as_str())
+}
+
+fn pending_heads_match(snapshot: &RefSnapshot, receipt: &CorePendingReceipt) -> bool {
+    snapshot_head(snapshot, &receipt.decision_ref) == Some(receipt.base_head.as_str())
+        && snapshot_head(snapshot, &receipt.proposal_ref) == Some(receipt.proposal_head.as_str())
+}
+
+type RefVersion = Option<(String, i64)>;
+
+fn session_heads(snapshot: &RefSnapshot, session: &str) -> (RefVersion, RefVersion) {
+    let decision_ref = format!("decision/creator/{session}");
+    let proposal_ref = format!("proposal/creator-agent/{session}");
+    let version = |name: &str| {
+        snapshot
+            .refs
+            .iter()
+            .find(|reference| reference.name == name)
+            .map(|reference| (reference.head.clone(), reference.updated_event_id))
+    };
+    (version(&decision_ref), version(&proposal_ref))
+}
+
+fn overlay_pending_sessions(
+    mut sessions: Vec<CreatorSessionSummary>,
+    pending: Vec<ReadyPending>,
+) -> Vec<CreatorSessionSummary> {
+    for pending in pending {
+        let summary = CreatorSessionSummary {
+            session: pending.receipt.session.clone(),
+            state: CreatorSessionState::PendingReview,
+            proposal_ref: Some(pending.receipt.proposal_ref.clone()),
+            proposal_head: Some(pending.receipt.proposal_head.clone()),
+            decision_ref: Some(pending.receipt.decision_ref.clone()),
+            decision_head: Some(pending.receipt.base_head.clone()),
+        };
+        if let Some(existing) = sessions
+            .iter_mut()
+            .find(|session| session.session == summary.session)
+        {
+            *existing = summary;
+        } else {
+            sessions.push(summary);
+        }
+    }
+    sessions.sort_by(|left, right| left.session.cmp(&right.session));
+    sessions
+}
+
+fn pending_session(snapshot: &RefSnapshot, pending: ReadyPending) -> PendingCreatorSession {
+    let receipt = pending.receipt;
+    PendingCreatorSession {
+        state: PendingReviewState::PendingReview,
+        snapshot: snapshot_context(snapshot, None),
+        server_instance: pending.server_instance,
+        review_id: pending.review_id,
+        session: receipt.session,
+        project_id: receipt.project_id,
+        subject_id: receipt.subject_id,
+        proposal_ref: receipt.proposal_ref,
+        proposal_head: receipt.proposal_head,
+        original_blob_oid: receipt.original_blob_oid,
+        current_blob_oid: receipt.current_blob_oid,
+        ai_output_blob_oid: receipt.ai_output_blob_oid,
+        ai_output_source: "caller_supplied".into(),
+        comparison: comparison_evidence(receipt.comparison),
+    }
+}
+
+fn core_disposition(decision: CreatorDecision) -> CoreCreatorDisposition {
+    match decision {
+        CreatorDecision::Adopt => CoreCreatorDisposition::Adopt,
+        CreatorDecision::Reject => CoreCreatorDisposition::Reject,
+        CreatorDecision::Defer => CoreCreatorDisposition::Defer,
+    }
+}
+
+fn creator_disposition(disposition: CoreCreatorDisposition) -> CreatorDecision {
+    match disposition {
+        CoreCreatorDisposition::Adopt => CreatorDecision::Adopt,
+        CoreCreatorDisposition::Reject => CreatorDecision::Reject,
+        CoreCreatorDisposition::Defer => CreatorDecision::Defer,
+    }
+}
+
+fn completion_matches(
+    receipt: &CoreRunReceipt,
+    pending: &CorePendingReceipt,
+    snapshot_report: &CreatorSnapshotReport,
+) -> bool {
+    let report = &snapshot_report.report;
+    receipt.session == pending.session
+        && receipt.session == report.session
+        && receipt.project_id == pending.project_id
+        && receipt.project_id == report.project_id
+        && receipt.subject_id == pending.subject_id
+        && receipt.subject_id == report.subject_id
+        && receipt.creator_id == pending.creator_id
+        && receipt.creator_id == report.creator_id
+        && receipt.agent_id == pending.agent_id
+        && receipt.agent_id == report.agent_id
+        && receipt.decision_ref == pending.decision_ref
+        && receipt.decision_ref == report.decision_ref
+        && receipt.proposal_ref == pending.proposal_ref
+        && receipt.proposal_ref == report.proposal_ref
+        && receipt.base_head == pending.base_head
+        && receipt.base_head == report.base_head
+        && receipt.proposal_head == pending.proposal_head
+        && receipt.proposal_head == report.proposal_head
+        && receipt.decision_head == report.decision_head
+        && receipt.original_blob_oid == pending.original_blob_oid
+        && receipt.original_blob_oid == report.original_blob_oid
+        && receipt.current_blob_oid == pending.current_blob_oid
+        && receipt.current_blob_oid == report.current_blob_oid
+        && receipt.ai_output_blob_oid == pending.ai_output_blob_oid
+        && receipt.ai_output_blob_oid == report.ai_output_blob_oid
+        && receipt.capture_profile_oid == pending.capture_profile_oid
+        && receipt.original_observation_oid == pending.original_observation_oid
+        && receipt.current_observation_oid == pending.current_observation_oid
+        && receipt.comparison_tool_id == pending.comparison.tool_id
+        && receipt.comparison_tool_actor_oid == pending.comparison.tool_actor_oid
+        && receipt.comparison_analysis_oid == pending.comparison.analysis_oid
+        && receipt.comparison_implementation_oid == pending.comparison.implementation_oid
+        && receipt.comparison_configuration_oid == pending.comparison.configuration_oid
+        && receipt.ai_activity_oid == pending.ai_activity_oid
+        && report.comparison.as_ref().is_some_and(|comparison| {
+            comparison.analysis_oid == receipt.comparison_analysis_oid
+                && comparison.tool_id == receipt.comparison_tool_id
+                && comparison.tool_actor_oid == receipt.comparison_tool_actor_oid
+                && comparison.implementation_oid == receipt.comparison_implementation_oid
+                && comparison.configuration_oid == receipt.comparison_configuration_oid
+        })
+        && receipt.disposition == report.disposition
+}
+
+fn pending_blob_oid(
+    repository: &Repository,
+    receipt: &CorePendingReceipt,
+    role: ImageRole,
+) -> Result<String, ServiceError> {
+    let (head, entry_name, expected_oid) = match role {
+        ImageRole::Original => (
+            &receipt.base_head,
+            "original.image",
+            &receipt.original_blob_oid,
+        ),
+        ImageRole::Current => (
+            &receipt.base_head,
+            "current.image",
+            &receipt.current_blob_oid,
+        ),
+        ImageRole::AiOutput => (
+            &receipt.proposal_head,
+            "ai-proposal.image",
+            &receipt.ai_output_blob_oid,
+        ),
+    };
+    verify_pending_tree_entry(repository, head, entry_name, expected_oid)?;
+    Ok(expected_oid.clone())
+}
+
+fn verify_pending_tree_entry(
+    repository: &Repository,
+    head: &str,
+    entry_name: &str,
+    expected_oid: &str,
+) -> Result<(), ServiceError> {
+    let commit = read_pending_json(repository, head)?;
+    let tree_oid = commit
+        .get("snapshot")
+        .and_then(serde_json::Value::as_str)
+        .filter(|_| {
+            commit
+                .get("object_type")
+                .and_then(serde_json::Value::as_str)
+                == Some("commit")
+        })
+        .ok_or_else(pending_lineage_invalid)?;
+    let tree = read_pending_json(repository, tree_oid)?;
+    let entry = tree
+        .get("entries")
+        .and_then(serde_json::Value::as_object)
+        .and_then(|entries| entries.get(entry_name))
+        .and_then(serde_json::Value::as_object)
+        .filter(|_| tree.get("object_type").and_then(serde_json::Value::as_str) == Some("tree"))
+        .ok_or_else(pending_lineage_invalid)?;
+    if entry.get("entry_kind").and_then(serde_json::Value::as_str) != Some("blob")
+        || entry.get("oid").and_then(serde_json::Value::as_str) != Some(expected_oid)
+    {
+        return Err(pending_lineage_invalid());
+    }
+    Ok(())
+}
+
+fn read_pending_json(
+    repository: &Repository,
+    oid: &str,
+) -> Result<serde_json::Value, ServiceError> {
+    let bytes = repository
+        .objects()
+        .read_raw(oid)
+        .map_err(|error| pending_lineage_invalid().with_diagnostic(error.to_string()))?
+        .ok_or_else(pending_lineage_invalid)?;
+    serde_json::from_slice(&bytes)
+        .map_err(|error| pending_lineage_invalid().with_diagnostic(error.to_string()))
+}
+
+fn pending_lineage_invalid() -> ServiceError {
+    ServiceError::new(
+        "creator_report_invalid",
+        "The pending creator image is not reachable from its retained proposal lineage.",
+        false,
+    )
+}
+
+fn load_creator_image(
+    repository: &Repository,
+    blob_oid: String,
+) -> Result<CreatorImage, ServiceError> {
+    let bytes = repository
+        .objects()
+        .read_verified_blob_limited(&blob_oid, IMAGE_RESPONSE_MAX_BYTES)
+        .map_err(|error| {
+            let diagnostic = error.to_string();
+            let service_error = match error.code() {
+                Some(code) if code.as_str() == "resource_limit" => ServiceError::new(
+                    code.as_str(),
+                    "The creator image exceeds the 64 MiB response limit.",
+                    false,
+                ),
+                Some(code) => ServiceError::new(
+                    code.as_str(),
+                    "The creator image failed verified storage validation.",
+                    false,
+                ),
+                None => ServiceError::storage(),
+            };
+            service_error.with_diagnostic(diagnostic)
+        })?
+        .ok_or_else(|| {
+            ServiceError::new(
+                "creator_report_invalid",
+                "The creator image is absent from verified storage.",
+                false,
+            )
+        })?;
+    let media_type = classify_image_media_type(&bytes);
+    Ok(CreatorImage {
+        blob_oid,
+        media_type,
+        disposition: if media_type.is_attachment() {
+            ImageDisposition::Attachment
+        } else {
+            ImageDisposition::Inline
+        },
+        bytes,
+    })
+}
+
+fn repository_error(error: RepositoryError) -> ServiceError {
+    let code = error.code().to_owned();
+    let retryable = code == "storage_error";
+    ServiceError::new(
+        code,
+        "The local project could not be opened for a creator operation.",
+        retryable,
+    )
+    .with_diagnostic(error.to_string())
 }
 
 pub fn snapshot_watermark(snapshot: &RefSnapshot) -> String {
@@ -387,7 +1334,7 @@ fn project_summary(entry: &CatalogEntry) -> ProjectSummary {
         project_key: entry.project_key.clone(),
         display_label: entry.display_label.clone(),
         state: ProjectState::Ready,
-        capabilities: ProjectCapabilities::slice_two(),
+        capabilities: ProjectCapabilities::creator_workflow(),
     }
 }
 
@@ -450,6 +1397,44 @@ fn complete_session(
             snapshot_context(snapshot, Some(projection_source_fingerprint)),
             report,
         ),
+    }
+}
+
+fn committed_session(receipt: &CoreRunReceipt) -> CommittedCreatorSession {
+    CommittedCreatorSession {
+        state: CommittedState::Committed,
+        receipt: CreatorDecisionReceipt {
+            session: receipt.session.clone(),
+            project_id: receipt.project_id.clone(),
+            subject_id: receipt.subject_id.clone(),
+            creator_id: receipt.creator_id.clone(),
+            agent_id: receipt.agent_id.clone(),
+            decision_ref: receipt.decision_ref.clone(),
+            proposal_ref: receipt.proposal_ref.clone(),
+            base_head: receipt.base_head.clone(),
+            proposal_head: receipt.proposal_head.clone(),
+            decision_head: receipt.decision_head.clone(),
+            original_blob_oid: receipt.original_blob_oid.clone(),
+            current_blob_oid: receipt.current_blob_oid.clone(),
+            ai_output_blob_oid: receipt.ai_output_blob_oid.clone(),
+            capture_profile_oid: receipt.capture_profile_oid.clone(),
+            original_observation_oid: receipt.original_observation_oid.clone(),
+            current_observation_oid: receipt.current_observation_oid.clone(),
+            comparison_tool_id: receipt.comparison_tool_id.clone(),
+            comparison_tool_actor_oid: receipt.comparison_tool_actor_oid.clone(),
+            comparison_analysis_oid: receipt.comparison_analysis_oid.clone(),
+            comparison_implementation_oid: receipt.comparison_implementation_oid.clone(),
+            comparison_configuration_oid: receipt.comparison_configuration_oid.clone(),
+            byte_identity_outcome: receipt.byte_identity_outcome.as_str().into(),
+            comparison_status: receipt.comparison_status.as_str().into(),
+            comparison_comparability: receipt.comparison_comparability.as_str().into(),
+            comparison_reason_codes: receipt.comparison_reason_codes.clone(),
+            ai_activity_oid: receipt.ai_activity_oid.clone(),
+            decision_feedback_oid: receipt.decision_feedback_oid.clone(),
+            disposition: creator_disposition(receipt.disposition),
+        },
+        report_available: false,
+        inspection_required: true,
     }
 }
 
@@ -600,14 +1585,25 @@ fn creator_error(error: CreatorError) -> ServiceError {
     let diagnostic = error.to_string();
     let code = error.code().to_owned();
     let detail = match code.as_str() {
+        "usage_error" => "The creator request is invalid.",
+        "creator_session_exists" => "The creator session already exists.",
         "creator_session_not_found" => "The requested creator session was not found.",
         "creator_session_incomplete" => "The creator session is incomplete.",
-        "resource_limit" => "Creator session discovery exceeded its resource limit.",
+        "resource_limit" => "The creator operation exceeded a configured resource limit.",
         "creator_report_invalid" => "The creator session report could not be validated.",
         "fsck_failed" => "Creator session integrity validation failed.",
-        _ => "The creator session could not be read.",
+        "ref_conflict" | "stale_base" => "The creator session changed before publication.",
+        "authentication_required"
+        | "project_access_denied"
+        | "execution_permit_invalid"
+        | "execution_failed"
+        | "configuration_invalid" => "The creator application denied the operation.",
+        "service_unavailable" | "storage_error" => {
+            "The creator operation could not access local service state."
+        }
+        _ => "The creator operation failed.",
     };
-    let retryable = code == "storage_error";
+    let retryable = matches!(code.as_str(), "storage_error" | "service_unavailable");
     ServiceError::new(code, detail, retryable).with_diagnostic(diagnostic)
 }
 
@@ -620,12 +1616,19 @@ fn problem_title(code: &str) -> &'static str {
     match code {
         "project_not_found" => "Project not found",
         "creator_session_not_found" => "Creator session not found",
+        "creator_session_exists" => "Creator session already exists",
         "creator_session_incomplete" => "Creator session incomplete",
         "creator_report_invalid" => "Creator report invalid",
+        "creator_review_busy" => "Creator review busy",
+        "creator_review_state_lost" => "Creator review state lost",
+        "creator_outcome_unknown" => "Creator outcome unknown",
         "fsck_failed" => "Integrity check failed",
         "resource_limit" => "Resource limit exceeded",
+        "usage_error" => "Invalid creator request",
         "local_request_denied" => "Local request denied",
-        _ => "Local read failed",
+        "service_unavailable" => "Local service unavailable",
+        "storage_error" => "Local storage failed",
+        _ => "Local operation failed",
     }
 }
 
@@ -670,5 +1673,101 @@ mod tests {
     fn service_shared_state_is_send_and_sync() {
         fn assert_send_sync<T: Send + Sync>() {}
         assert_send_sync::<LocalService>();
+    }
+
+    #[test]
+    fn project_writer_gate_serializes_same_project_without_blocking_another() {
+        let writers = BTreeMap::from([
+            ("alpha".to_owned(), Mutex::new(())),
+            ("beta".to_owned(), Mutex::new(())),
+        ]);
+        let first = lock_project_writer(&writers, "alpha").unwrap();
+        std::thread::scope(|scope| {
+            let (attempted_tx, attempted_rx) = std::sync::mpsc::channel();
+            let (acquired_tx, acquired_rx) = std::sync::mpsc::channel();
+            let writers_ref = &writers;
+            scope.spawn(move || {
+                attempted_tx.send(()).unwrap();
+                let _second = lock_project_writer(writers_ref, "alpha").unwrap();
+                acquired_tx.send(()).unwrap();
+            });
+
+            attempted_rx.recv().unwrap();
+            assert_eq!(
+                acquired_rx.try_recv(),
+                Err(std::sync::mpsc::TryRecvError::Empty)
+            );
+            let other_project = lock_project_writer(&writers, "beta").unwrap();
+            drop(other_project);
+            drop(first);
+            acquired_rx.recv().unwrap();
+        });
+    }
+
+    #[test]
+    fn creator_disposition_conversion_is_exhaustive() {
+        for disposition in [
+            CreatorDecision::Adopt,
+            CreatorDecision::Reject,
+            CreatorDecision::Defer,
+        ] {
+            assert_eq!(
+                creator_disposition(core_disposition(disposition)),
+                disposition
+            );
+        }
+    }
+
+    #[test]
+    fn committed_fallback_releases_the_consumed_review_slot() {
+        let mut registry = PendingRegistry::default();
+        registry
+            .reserve("review-one".into(), "project", "session-one", "server")
+            .unwrap();
+        registry.consume_committed("review-one");
+        assert!(registry.entries.is_empty());
+        registry
+            .reserve("review-two".into(), "project", "session-two", "server")
+            .unwrap();
+    }
+
+    #[test]
+    fn pending_registry_enforces_project_and_process_capacity() {
+        let mut registry = PendingRegistry::default();
+        for project in 0..8 {
+            for session in 0..MAX_PENDING_CREATOR_SESSIONS_PER_PROJECT {
+                registry
+                    .reserve(
+                        format!("review-{project}-{session}"),
+                        &format!("project-{project}"),
+                        &format!("session-{session}"),
+                        "server-instance",
+                    )
+                    .unwrap();
+            }
+            if project == 0 {
+                let error = registry
+                    .reserve(
+                        "project-over-limit".into(),
+                        "project-0",
+                        "session-over-limit",
+                        "server-instance",
+                    )
+                    .unwrap_err();
+                assert_eq!(error.code(), "resource_limit");
+                assert_eq!(registry.entries.len(), 8);
+            }
+        }
+        assert_eq!(registry.entries.len(), MAX_PENDING_CREATOR_SESSIONS);
+        let error = registry
+            .reserve(
+                "process-over-limit".into(),
+                "project-over-limit",
+                "session",
+                "server-instance",
+            )
+            .unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+        assert_eq!(registry.entries.len(), MAX_PENDING_CREATOR_SESSIONS);
     }
 }

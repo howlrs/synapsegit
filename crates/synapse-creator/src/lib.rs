@@ -14,19 +14,19 @@ use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
 use std::fs::File;
-use std::io;
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use synapse_application::{
-    AiAuthorityProfileConfig, AiExecutionContext, AiExecutor, Application, ApplicationError,
-    AuthenticatedSession, AuthenticationFailure, Authenticator, ExecutedAiProposal,
-    ExecutionFailure, HumanAuthorityProfileConfig, HumanDecisionCandidate, ProjectSelector,
-    RegisteredProject,
+    AdmittedProposalHandle, AiAuthorityProfileConfig, AiExecutionContext, AiExecutor, Application,
+    ApplicationError, AuthenticatedSession, AuthenticationFailure, Authenticator,
+    ExecutedAiProposal, ExecutionFailure, HumanAuthorityProfileConfig, HumanAuthorityProfileHandle,
+    HumanDecisionCandidate, ProjectSelector, RegisteredProject,
 };
 use synapse_canonical::{ObjectKind, canonical_bytes, parse_strict};
-use synapse_cas::{GraphLimits, fsck};
 use synapse_core::{
-    AiCapability, AiSideEffectClass, Repository, RepositoryError, SystemAuthorizationClock,
+    AiCapability, AiSideEffectClass, FsckLimits, Repository, RepositoryError,
+    SystemAuthorizationClock, TombstoneScanLimits,
 };
 pub use synapse_observation::{AnalysisComparability, AnalysisStatus, ByteIdentityOutcome};
 use synapse_observation::{
@@ -38,7 +38,7 @@ use synapse_projection::{
     AdapterDeterminism, AnalysisReplayReadiness, ObjectAvailability, ProjectionError,
     ProjectionLimits, RefScope, SqliteProjectionStore, TimelineRecordKind, TimelineTimeBasis,
 };
-use synapse_sqlite::{RefSnapshot, RefStoreError, RefUpdate, ReflogMetadata};
+use synapse_sqlite::{RefRecord, RefSnapshot, RefStoreError, RefUpdate, ReflogMetadata};
 
 const SCHEMA_VERSION: &str = "0.1.0";
 const DECISION_PREFIX: &str = "decision/creator";
@@ -51,6 +51,83 @@ const COMPARISON_TOOL_ENTRY: &str = "byte-identity.tool.actor.json";
 const COMPARISON_ANALYSIS_ENTRY: &str = "original-current.byte-identity.analysis.json";
 const COMPARISON_IMPLEMENTATION_ENTRY: &str = "byte-identity.implementation";
 const COMPARISON_CONFIGURATION_ENTRY: &str = "byte-identity.configuration";
+/// Maximum Ref records retained by one creator integrity check.
+pub const CREATOR_FSCK_MAX_REF_ROOTS: usize = 10_000;
+/// Maximum complete CAS inventory retained by one creator integrity check.
+pub const CREATOR_FSCK_MAX_OBJECTS: usize = 25_000;
+/// Maximum cumulative raw CAS bytes read by the inventory verification phase.
+pub const CREATOR_FSCK_MAX_OBJECT_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+/// Maximum cumulative closure nodes visited across distinct current heads.
+pub const CREATOR_FSCK_MAX_CLOSURE_NODES: usize = 250_000;
+/// Maximum cumulative closure edges visited across distinct current heads.
+pub const CREATOR_FSCK_MAX_CLOSURE_EDGES: usize = 2_500_000;
+const CREATOR_FSCK_MAX_TOMBSTONE_RECORDS: usize = 25_000;
+const CREATOR_FSCK_MAX_TOMBSTONE_BYTES: u64 = 512 * 1024 * 1024;
+const CREATOR_MAX_INPUT_FILE_BYTES: u64 = 64 * 1024 * 1024;
+const CREATOR_MAX_INPUT_AGGREGATE_BYTES: u64 = 3 * CREATOR_MAX_INPUT_FILE_BYTES;
+/// Number of simultaneously retained localhost reviews whose decisions are
+/// covered by creator begin's repository-capacity reservation.
+pub const CREATOR_RESERVED_PENDING_DECISIONS: usize = 8;
+// begin writes three bounded Blobs plus a fixed-schema graph. The reservation
+// is deliberately larger than the current graph and is checked again against
+// the exact prospective Ref snapshot before publication.
+const CREATOR_BEGIN_RESERVE: CreatorFsckReserve = CreatorFsckReserve {
+    ref_roots: 2,
+    objects: 32,
+    object_bytes: CREATOR_MAX_INPUT_AGGREGATE_BYTES + 8 * 1024 * 1024,
+    closure_nodes: 64,
+    closure_edges: 256,
+    tombstone_records: 24,
+    tombstone_bytes: 4 * 1024 * 1024,
+};
+// A Human decision adds exactly one DecisionFeedback Record and one decision
+// Commit. begin reserves a fixed pool of these units so successful proposals
+// cannot consume the space needed by the localhost pending-review slots.
+const CREATOR_DECISION_RESERVE: CreatorFsckReserve = CreatorFsckReserve {
+    ref_roots: 0,
+    objects: 2,
+    object_bytes: 128 * 1024,
+    // DecisionFeedback binds the proposal Commit, so the prospective decision
+    // closure re-traverses the fixed proposal-only graph as well as adding the
+    // two new objects. Keep a conservative margin over that schema-fixed work.
+    closure_nodes: 16,
+    closure_edges: 64,
+    tombstone_records: 1,
+    tombstone_bytes: 64 * 1024,
+};
+const CREATOR_PENDING_DECISION_POOL_RESERVE: CreatorFsckReserve = CreatorFsckReserve {
+    ref_roots: 0,
+    objects: CREATOR_DECISION_RESERVE.objects * CREATOR_RESERVED_PENDING_DECISIONS,
+    object_bytes: CREATOR_DECISION_RESERVE.object_bytes * CREATOR_RESERVED_PENDING_DECISIONS as u64,
+    closure_nodes: CREATOR_DECISION_RESERVE.closure_nodes * CREATOR_RESERVED_PENDING_DECISIONS,
+    closure_edges: CREATOR_DECISION_RESERVE.closure_edges * CREATOR_RESERVED_PENDING_DECISIONS,
+    tombstone_records: CREATOR_DECISION_RESERVE.tombstone_records
+        * CREATOR_RESERVED_PENDING_DECISIONS,
+    tombstone_bytes: CREATOR_DECISION_RESERVE.tombstone_bytes
+        * CREATOR_RESERVED_PENDING_DECISIONS as u64,
+};
+const CREATOR_FSCK_LIMITS: FsckLimits = FsckLimits {
+    max_ref_roots: CREATOR_FSCK_MAX_REF_ROOTS,
+    max_objects: CREATOR_FSCK_MAX_OBJECTS,
+    max_object_bytes: CREATOR_FSCK_MAX_OBJECT_BYTES,
+    max_closure_nodes: CREATOR_FSCK_MAX_CLOSURE_NODES,
+    max_closure_edges: CREATOR_FSCK_MAX_CLOSURE_EDGES,
+    tombstone_scan: TombstoneScanLimits {
+        max_record_objects: CREATOR_FSCK_MAX_TOMBSTONE_RECORDS,
+        max_record_bytes: CREATOR_FSCK_MAX_TOMBSTONE_BYTES,
+    },
+};
+
+#[derive(Clone, Copy)]
+struct CreatorFsckReserve {
+    ref_roots: usize,
+    objects: usize,
+    object_bytes: u64,
+    closure_nodes: usize,
+    closure_edges: usize,
+    tombstone_records: usize,
+    tombstone_bytes: u64,
+}
 
 /// Human outcomes supported by the narrow Stage 0 decision route.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -124,6 +201,64 @@ pub struct CreatorRunOptions {
     pub creator_name: String,
     pub disposition: CreatorDisposition,
     pub rationale: Option<String>,
+}
+
+/// Inputs needed to publish a creator proposal for later Human review.
+///
+/// The file paths belong to the trusted local integration. Browser and other
+/// request boundaries must stage uploaded bytes and must never accept a
+/// repository path from an untrusted caller.
+#[derive(Clone, Debug)]
+pub struct CreatorBeginOptions {
+    pub repository: PathBuf,
+    pub session: String,
+    pub original_image: PathBuf,
+    pub current_image: PathBuf,
+    pub ai_output: PathBuf,
+    pub subject_label: String,
+    pub creator_name: String,
+}
+
+/// Human input accepted after the exact proposal has been admitted.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreatorDecisionOptions {
+    pub disposition: CreatorDisposition,
+    pub rationale: Option<String>,
+}
+
+/// Stable, non-authoritative identifiers for a proposal awaiting review.
+///
+/// This receipt is safe to render, but it is not sufficient to publish a
+/// Human decision. Publication also requires the opaque same-process pending
+/// value returned by [`begin_creator_session`].
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CreatorPendingReceipt {
+    pub session: String,
+    pub project_id: String,
+    pub subject_id: String,
+    pub creator_id: String,
+    pub agent_id: String,
+    pub decision_ref: String,
+    pub proposal_ref: String,
+    pub base_head: String,
+    pub proposal_head: String,
+    pub original_blob_oid: String,
+    pub current_blob_oid: String,
+    pub ai_output_blob_oid: String,
+    pub capture_profile_oid: String,
+    pub original_observation_oid: String,
+    pub current_observation_oid: String,
+    pub comparison: CreatorComparisonReport,
+    pub ai_activity_oid: String,
+}
+
+/// Observable lifecycle of the opaque Human-decision capability.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CreatorPendingDecisionState {
+    Ready,
+    Deciding,
+    Consumed,
+    OutcomeUnknown,
 }
 
 /// Stable identifiers produced by a completed creator session.
@@ -372,17 +507,115 @@ impl From<serde_json::Error> for CreatorError {
 
 pub type Result<T> = std::result::Result<T, CreatorError>;
 
-/// Create one complete local creator session.
+type PilotApplication = Application<PilotAuthenticator, PreparedExecutor, SystemAuthorizationClock>;
+
+/// Opaque, same-process authority needed to publish one Human decision.
+///
+/// This value is intentionally non-Clone and non-serializable. Persisting its
+/// visible identifiers does not recreate the admitted-proposal capability
+/// held by the exact [`Application`] instance.
+#[must_use = "dropping pending creator authority leaves the published proposal incomplete"]
+pub struct PendingCreatorSession {
+    application: PilotApplication,
+    admitted_proposal: AdmittedProposalHandle,
+    human_profile: HumanAuthorityProfileHandle,
+    selector: ProjectSelector,
+    repository_path: PathBuf,
+    ids: SessionIds,
+    receipt: CreatorPendingReceipt,
+    base_tree_oid: String,
+    proposal_tree_oid: String,
+    byte_identity_outcome: ByteIdentityOutcome,
+    comparison_status: AnalysisStatus,
+    comparison_comparability: AnalysisComparability,
+    recording_clock: RecordingClock,
+    decision_state: PendingDecisionState,
+}
+
+enum PendingDecisionState {
+    Ready,
+    Deciding,
+    Consumed(Box<CreatorRunReceipt>),
+    OutcomeUnknown,
+}
+
+impl fmt::Debug for PendingCreatorSession {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("PendingCreatorSession")
+            .field("session", &self.receipt.session)
+            .field("proposal_head", &self.receipt.proposal_head)
+            .field("decision_state", &self.decision_state.label())
+            .finish_non_exhaustive()
+    }
+}
+
+impl PendingCreatorSession {
+    pub fn receipt(&self) -> &CreatorPendingReceipt {
+        &self.receipt
+    }
+
+    /// Return the committed receipt even when a later integrity check failed.
+    pub fn completed_receipt(&self) -> Option<&CreatorRunReceipt> {
+        match &self.decision_state {
+            PendingDecisionState::Consumed(receipt) => Some(receipt),
+            _ => None,
+        }
+    }
+
+    /// Report whether a caller may safely attempt a Human decision.
+    pub const fn decision_state(&self) -> CreatorPendingDecisionState {
+        match &self.decision_state {
+            PendingDecisionState::Ready => CreatorPendingDecisionState::Ready,
+            PendingDecisionState::Deciding => CreatorPendingDecisionState::Deciding,
+            PendingDecisionState::Consumed(_) => CreatorPendingDecisionState::Consumed,
+            PendingDecisionState::OutcomeUnknown => CreatorPendingDecisionState::OutcomeUnknown,
+        }
+    }
+}
+
+impl PendingDecisionState {
+    const fn label(&self) -> &'static str {
+        match self {
+            Self::Ready => "ready",
+            Self::Deciding => "deciding",
+            Self::Consumed(_) => "consumed",
+            Self::OutcomeUnknown => "outcome_unknown",
+        }
+    }
+}
+
+/// Publish one local creator proposal and retain its exact Human-review authority.
 ///
 /// Both target Refs must be absent. CAS writes before the base Ref publication
 /// are harmless immutable orphans. A failure after publication may leave an
 /// incomplete or already-complete live session which this create-only Pilot
 /// will not overwrite; callers must inspect it or choose a new session name.
-pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunReceipt> {
-    validate_metadata(options)?;
+pub fn begin_creator_session(options: &CreatorBeginOptions) -> Result<PendingCreatorSession> {
+    begin_creator_session_with_limits(options, CREATOR_FSCK_LIMITS)
+}
+
+fn begin_creator_session_with_limits(
+    options: &CreatorBeginOptions,
+    fsck_limits: FsckLimits,
+) -> Result<PendingCreatorSession> {
+    validate_begin_metadata(options)?;
+    let pending_decision_capacity_limits = reserve_fsck_capacity(
+        fsck_limits,
+        CREATOR_PENDING_DECISION_POOL_RESERVE,
+        "pending decision pool",
+    )?;
+    let begin_admission_limits = reserve_fsck_capacity(
+        pending_decision_capacity_limits,
+        CREATOR_BEGIN_RESERVE,
+        "begin admission",
+    )?;
     let decision_ref = decision_ref(&options.session);
     let proposal_ref = proposal_ref(&options.session);
-    let mut repository = Repository::open(&options.repository)?;
+    let mut repository = Repository::open_with_tombstone_scan_limits(
+        &options.repository,
+        fsck_limits.tombstone_scan,
+    )?;
     let existing_decision = repository.refs().get(&decision_ref)?;
     let existing_proposal = repository.refs().get(&proposal_ref)?;
     if existing_decision.is_some() || existing_proposal.is_some() {
@@ -401,14 +634,18 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
             CreatorError::SessionIncomplete(options.session.clone())
         });
     }
-    let preflight = repository.fsck()?;
+    let preflight = repository.fsck_with_limits(begin_admission_limits)?;
     if !preflight.is_clean() {
         return Err(CreatorError::Integrity(format!(
             "creator session refused an existing repository with {} fsck issue(s)",
             preflight.issues.len()
         )));
     }
-    validate_input_files(options)?;
+    validate_input_files(
+        &options.original_image,
+        &options.current_image,
+        &options.ai_output,
+    )?;
 
     let original_blob_oid = put_file(&repository, &options.original_image)?;
     let current_blob_oid = put_file(&repository, &options.current_image)?;
@@ -624,17 +861,6 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
             "Creator images imported and observed",
         ),
     )?;
-    repository.update_ref(RefUpdate {
-        ref_name: &decision_ref,
-        expected_head: None,
-        new_head: &base_head,
-        metadata: ReflogMetadata {
-            occurred_at_unix_nanos: import_recorded_at.unix_nanos,
-            actor: Some(&ids.creator),
-            message: Some("initialize creator session"),
-        },
-    })?;
-
     let ai_recorded_at = recording_clock.tick()?;
     let context_oid = put_json(
         &repository,
@@ -695,41 +921,38 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
             "Caller-supplied output recorded as an AI proposal; canonical decision unchanged",
         ),
     )?;
+    let base_media_oid = comparison.base_media_oid.clone().ok_or_else(|| {
+        CreatorError::Integrity("creator byte-identity base media is absent".into())
+    })?;
+    let target_media_oid = comparison.target_media_oid.clone().ok_or_else(|| {
+        CreatorError::Integrity("creator byte-identity target media is absent".into())
+    })?;
 
-    let rationale = options
-        .rationale
-        .as_deref()
-        .unwrap_or_else(|| options.disposition.default_rationale());
-    let decision_recorded_at = recording_clock.tick()?;
-    let decision_feedback_oid = put_json(
+    // Verify the exact state that the two create-only Ref publications will
+    // expose. All creator CAS writes are complete at this point, so a
+    // successful check also proves that begin preserves the reserved Human
+    // decision headroom before it mutates either Ref.
+    let prospective_snapshot = repository
+        .refs()
+        .snapshot_limited(pending_decision_capacity_limits.max_ref_roots)?;
+    prospective_fsck(
         &repository,
-        feedback_record(
-            &ids.feedback,
-            &ids.creator,
-            &ids.subject,
-            &proposal_head,
-            options.disposition,
-            rationale,
-            &decision_recorded_at.timestamp,
-        ),
+        prospective_snapshot,
+        &[(&decision_ref, &base_head), (&proposal_ref, &proposal_head)],
+        pending_decision_capacity_limits,
+        "begin",
     )?;
-    let selected_tree = if options.disposition == CreatorDisposition::Adopt {
-        &proposal_tree_oid
-    } else {
-        &base_tree_oid
-    };
-    let decision_head = put_json(
-        &repository,
-        commit(
-            "decision",
-            slice(&base_head),
-            selected_tree,
-            slice(&decision_feedback_oid),
-            &ids.creator,
-            &decision_recorded_at.timestamp,
-            "Creator reviewed AI proposal",
-        ),
-    )?;
+
+    repository.update_ref(RefUpdate {
+        ref_name: &decision_ref,
+        expected_head: None,
+        new_head: &base_head,
+        metadata: ReflogMetadata {
+            occurred_at_unix_nanos: import_recorded_at.unix_nanos,
+            actor: Some(&ids.creator),
+            message: Some("initialize creator session"),
+        },
+    })?;
 
     let selector = ProjectSelector::new(ids.project.clone());
     let application = Application::new(
@@ -760,84 +983,313 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
         vec![AiCapability::ProposeBranch, AiCapability::ReadContext],
         AiSideEffectClass::None,
     ))?;
-    let execution = application.register_execution(&ai_profile)?;
-    let ai_permit = application.prepare_ai(AGENT_CREDENTIAL, &selector, &execution)?;
-    let ai_receipt = application.execute_and_publish_ai(AGENT_CREDENTIAL, &ai_permit)?;
-    let (_, admitted_proposal) = ai_receipt.into_parts();
-
     let human_profile = application.register_human_profile(HumanAuthorityProfileConfig::new(
         selector.clone(),
         ids.creator.clone(),
         decision_ref.clone(),
-        creator_actor_oid,
-        policy_oid,
+        creator_actor_oid.clone(),
+        policy_oid.clone(),
     ))?;
+    let execution = application.register_execution(&ai_profile)?;
+    let ai_permit = application.prepare_ai(AGENT_CREDENTIAL, &selector, &execution)?;
+    let ai_receipt = application.execute_and_publish_ai(AGENT_CREDENTIAL, &ai_permit)?;
+    let (ai_decision, admitted_proposal) = ai_receipt.into_parts();
+    let published_proposal_ref = ai_decision.reflog.ref_name;
+    let published_proposal_head = ai_decision.reflog.new_head;
+    let published_ai_activity_oid = ai_decision.activity_oid;
+
+    let warning = match comparison.outcome {
+        ByteIdentityOutcome::Identical => {
+            "Identical Blob bytes do not establish that the observed physical subject was unchanged."
+        }
+        ByteIdentityOutcome::Different => {
+            "Different Blob bytes do not establish visual or physical change."
+        }
+        ByteIdentityOutcome::NotCompared => {
+            "Byte identity was not compared because the ordered Observation inputs were incompatible."
+        }
+    };
+    let mut reachable_from = vec![decision_ref.clone(), published_proposal_ref.clone()];
+    reachable_from.sort();
+    let pending_receipt = CreatorPendingReceipt {
+        session: options.session.clone(),
+        project_id: ids.project.clone(),
+        subject_id: ids.subject.clone(),
+        creator_id: ids.creator.clone(),
+        agent_id: ids.agent.clone(),
+        decision_ref: decision_ref.clone(),
+        proposal_ref: published_proposal_ref,
+        base_head: base_head.clone(),
+        proposal_head: published_proposal_head,
+        original_blob_oid: original_blob_oid.clone(),
+        current_blob_oid: current_blob_oid.clone(),
+        ai_output_blob_oid: ai_output_blob_oid.clone(),
+        capture_profile_oid: capture_profile_oid.clone(),
+        original_observation_oid: original_observation_oid.clone(),
+        current_observation_oid: current_observation_oid.clone(),
+        comparison: CreatorComparisonReport {
+            analysis_oid: comparison.analysis_oid,
+            tool_id: comparison_tool_id,
+            tool_actor_oid: comparison_tool_actor_oid,
+            adapter_id: BYTE_IDENTITY_ADAPTER_ID.into(),
+            adapter_version: BYTE_IDENTITY_ADAPTER_VERSION.into(),
+            implementation_oid: comparison.implementation_oid,
+            configuration_oid: comparison.configuration_oid,
+            status: comparison.status.as_str().into(),
+            comparability: comparison.comparability.as_str().into(),
+            outcome: comparison.outcome.as_str().into(),
+            reason_codes: comparison.reason_codes,
+            warnings: vec![warning.into()],
+            base_observation_oid: comparison.base_observation_oid,
+            target_observation_oid: comparison.target_observation_oid,
+            base_media_oid,
+            target_media_oid,
+            replay_ready: true,
+            reachable_from,
+        },
+        ai_activity_oid: published_ai_activity_oid,
+    };
+    let pending = PendingCreatorSession {
+        application,
+        admitted_proposal,
+        human_profile,
+        selector,
+        repository_path: options.repository.clone(),
+        ids,
+        receipt: pending_receipt.clone(),
+        base_tree_oid,
+        proposal_tree_oid,
+        byte_identity_outcome: comparison.outcome,
+        comparison_status: comparison.status,
+        comparison_comparability: comparison.comparability,
+        recording_clock,
+        decision_state: PendingDecisionState::Ready,
+    };
+    Ok(pending)
+}
+
+/// Publish one Human decision through the exact application instance that
+/// admitted the pending proposal.
+///
+/// A publication error is outcome-ambiguous to the caller. The pending value
+/// then refuses replay; callers must inspect the current Refs/report instead
+/// of retrying blindly. After a successful publication, the committed receipt
+/// remains available through [`PendingCreatorSession::completed_receipt`] even
+/// if the final repository integrity check fails.
+pub fn decide_creator_session(
+    pending: &mut PendingCreatorSession,
+    decision: &CreatorDecisionOptions,
+) -> Result<CreatorRunReceipt> {
+    decide_creator_session_with_limits(pending, decision, CREATOR_FSCK_LIMITS)
+}
+
+fn decide_creator_session_with_limits(
+    pending: &mut PendingCreatorSession,
+    decision: &CreatorDecisionOptions,
+    fsck_limits: FsckLimits,
+) -> Result<CreatorRunReceipt> {
+    validate_decision_metadata(decision)?;
+    let decision_admission_limits =
+        reserve_fsck_capacity(fsck_limits, CREATOR_DECISION_RESERVE, "decision admission")?;
+    match &pending.decision_state {
+        PendingDecisionState::Ready => {}
+        PendingDecisionState::Consumed(_) => {
+            return Err(CreatorError::SessionExists(pending.receipt.session.clone()));
+        }
+        PendingDecisionState::Deciding => {
+            pending.decision_state = PendingDecisionState::OutcomeUnknown;
+            return Err(CreatorError::SessionIncomplete(
+                pending.receipt.session.clone(),
+            ));
+        }
+        PendingDecisionState::OutcomeUnknown => {
+            return Err(CreatorError::SessionIncomplete(
+                pending.receipt.session.clone(),
+            ));
+        }
+    }
+
+    let rationale = decision
+        .rationale
+        .as_deref()
+        .unwrap_or_else(|| decision.disposition.default_rationale());
+    let decision_recorded_at = pending.recording_clock.tick()?;
+    let repository = Repository::open_with_tombstone_scan_limits(
+        &pending.repository_path,
+        fsck_limits.tombstone_scan,
+    )?;
+    let preflight = repository.fsck_with_limits(decision_admission_limits)?;
+    if !preflight.is_clean() {
+        return Err(CreatorError::Integrity(format!(
+            "creator decision refused a repository with {} fsck issue(s)",
+            preflight.issues.len()
+        )));
+    }
+    let decision_feedback_oid = put_json(
+        &repository,
+        feedback_record(
+            &pending.ids.feedback,
+            &pending.ids.creator,
+            &pending.ids.subject,
+            &pending.receipt.proposal_head,
+            decision.disposition,
+            rationale,
+            &decision_recorded_at.timestamp,
+        ),
+    )?;
+    let selected_tree = if decision.disposition == CreatorDisposition::Adopt {
+        &pending.proposal_tree_oid
+    } else {
+        &pending.base_tree_oid
+    };
+    let decision_head = put_json(
+        &repository,
+        commit(
+            "decision",
+            slice(&pending.receipt.base_head),
+            selected_tree,
+            slice(&decision_feedback_oid),
+            &pending.ids.creator,
+            &decision_recorded_at.timestamp,
+            "Creator reviewed AI proposal",
+        ),
+    )?;
+
+    let prospective_snapshot = repository
+        .refs()
+        .snapshot_limited(fsck_limits.max_ref_roots)?;
+    prospective_fsck(
+        &repository,
+        prospective_snapshot,
+        &[(
+            pending.receipt.decision_ref.as_str(),
+            decision_head.as_str(),
+        )],
+        fsck_limits,
+        "decision",
+    )?;
+    drop(repository);
+
     let human_candidate = HumanDecisionCandidate::new(
         decision_head.clone(),
         decision_feedback_oid.clone(),
         Some("creator Pilot human decision"),
     );
-    let human_registration =
-        application.register_human_decision(&human_profile, &admitted_proposal, human_candidate)?;
-    let human_permit =
-        application.prepare_human_decision(HUMAN_CREDENTIAL, &selector, &human_registration)?;
-    let human_receipt = application.publish_human_decision(HUMAN_CREDENTIAL, &human_permit)?;
-    if human_receipt.reflog.new_head != decision_head
-        || human_receipt.proposal_commit_oid != proposal_head
-        || human_receipt.decision_feedback_oid != decision_feedback_oid
+    let human_registration = pending.application.register_human_decision(
+        &pending.human_profile,
+        &pending.admitted_proposal,
+        human_candidate,
+    )?;
+    let human_permit = pending.application.prepare_human_decision(
+        HUMAN_CREDENTIAL,
+        &pending.selector,
+        &human_registration,
+    )?;
+    pending.decision_state = PendingDecisionState::Deciding;
+    let human_receipt = match pending
+        .application
+        .publish_human_decision(HUMAN_CREDENTIAL, &human_permit)
     {
+        Ok(receipt) => receipt,
+        Err(error) => {
+            pending.decision_state = PendingDecisionState::OutcomeUnknown;
+            return Err(error.into());
+        }
+    };
+    let receipt_matches_prepared_lineage = human_receipt.reflog.ref_name
+        == pending.receipt.decision_ref
+        && human_receipt.reflog.old_head.as_deref() == Some(pending.receipt.base_head.as_str())
+        && human_receipt.reflog.new_head == decision_head
+        && human_receipt.proposal_commit_oid == pending.receipt.proposal_head
+        && human_receipt.decision_feedback_oid == decision_feedback_oid;
+
+    let comparison = &pending.receipt.comparison;
+    let completed = CreatorRunReceipt {
+        session: pending.receipt.session.clone(),
+        project_id: pending.receipt.project_id.clone(),
+        subject_id: pending.receipt.subject_id.clone(),
+        creator_id: pending.receipt.creator_id.clone(),
+        agent_id: pending.receipt.agent_id.clone(),
+        decision_ref: human_receipt.reflog.ref_name,
+        proposal_ref: pending.receipt.proposal_ref.clone(),
+        base_head: pending.receipt.base_head.clone(),
+        proposal_head: human_receipt.proposal_commit_oid,
+        decision_head: human_receipt.reflog.new_head,
+        original_blob_oid: pending.receipt.original_blob_oid.clone(),
+        current_blob_oid: pending.receipt.current_blob_oid.clone(),
+        ai_output_blob_oid: pending.receipt.ai_output_blob_oid.clone(),
+        capture_profile_oid: pending.receipt.capture_profile_oid.clone(),
+        original_observation_oid: pending.receipt.original_observation_oid.clone(),
+        current_observation_oid: pending.receipt.current_observation_oid.clone(),
+        comparison_tool_id: comparison.tool_id.clone(),
+        comparison_tool_actor_oid: comparison.tool_actor_oid.clone(),
+        comparison_analysis_oid: comparison.analysis_oid.clone(),
+        comparison_implementation_oid: comparison.implementation_oid.clone(),
+        comparison_configuration_oid: comparison.configuration_oid.clone(),
+        byte_identity_outcome: pending.byte_identity_outcome,
+        comparison_status: pending.comparison_status,
+        comparison_comparability: pending.comparison_comparability,
+        comparison_reason_codes: comparison.reason_codes.clone(),
+        ai_activity_oid: pending.receipt.ai_activity_oid.clone(),
+        decision_feedback_oid: human_receipt.decision_feedback_oid,
+        disposition: decision.disposition,
+    };
+    if !receipt_matches_prepared_lineage {
+        pending.decision_state = PendingDecisionState::OutcomeUnknown;
         return Err(CreatorError::Integrity(
             "application receipts do not match the prepared creator lineage".into(),
         ));
     }
-    drop(application);
+    pending.decision_state = PendingDecisionState::Consumed(Box::new(completed.clone()));
 
-    let repository = Repository::open(&options.repository)?;
-    let fsck = repository.fsck()?;
+    let repository = Repository::open(&pending.repository_path)?;
+    let fsck = repository.fsck_with_limits(fsck_limits)?;
     if !fsck.is_clean() {
         return Err(CreatorError::Integrity(format!(
             "creator session completed with {} fsck issue(s)",
             fsck.issues.len()
         )));
     }
+    Ok(completed)
+}
 
-    Ok(CreatorRunReceipt {
-        session: options.session.clone(),
-        project_id: ids.project,
-        subject_id: ids.subject,
-        creator_id: ids.creator,
-        agent_id: ids.agent,
-        decision_ref,
-        proposal_ref,
-        base_head,
-        proposal_head,
-        decision_head,
-        original_blob_oid,
-        current_blob_oid,
-        ai_output_blob_oid,
-        capture_profile_oid,
-        original_observation_oid,
-        current_observation_oid,
-        comparison_tool_id,
-        comparison_tool_actor_oid,
-        comparison_analysis_oid: comparison.analysis_oid,
-        comparison_implementation_oid: comparison.implementation_oid,
-        comparison_configuration_oid: comparison.configuration_oid,
-        byte_identity_outcome: comparison.outcome,
-        comparison_status: comparison.status,
-        comparison_comparability: comparison.comparability,
-        comparison_reason_codes: comparison.reason_codes,
-        ai_activity_oid,
-        decision_feedback_oid,
+/// Create one complete local creator session.
+///
+/// This compatibility wrapper preserves the original CLI contract while the
+/// localhost application can pause between proposal admission and review.
+pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunReceipt> {
+    let decision = CreatorDecisionOptions {
         disposition: options.disposition,
-    })
+        rationale: options.rationale.clone(),
+    };
+    validate_decision_metadata(&decision)?;
+    let begin = CreatorBeginOptions {
+        repository: options.repository.clone(),
+        session: options.session.clone(),
+        original_image: options.original_image.clone(),
+        current_image: options.current_image.clone(),
+        ai_output: options.ai_output.clone(),
+        subject_label: options.subject_label.clone(),
+        creator_name: options.creator_name.clone(),
+    };
+    let mut pending = begin_creator_session(&begin)?;
+    match decide_creator_session(&mut pending, &decision) {
+        Ok(receipt) => Ok(receipt),
+        Err(_) if pending.completed_receipt().is_some() => Ok(pending
+            .completed_receipt()
+            .expect("completed receipt was just observed")
+            .clone()),
+        Err(error) => Err(error),
+    }
 }
 
 /// Rebuild a creator report from current Refs and CAS.
 pub fn creator_report(repository_path: impl AsRef<Path>, session: &str) -> Result<CreatorReport> {
     validate_session(session)?;
     let repository = Repository::open(repository_path)?;
-    let snapshot = repository.refs().snapshot()?;
+    let snapshot = repository
+        .refs()
+        .snapshot_limited(CREATOR_FSCK_MAX_REF_ROOTS)?;
     Ok(creator_report_from_snapshot(&repository, &snapshot, session)?.report)
 }
 
@@ -852,7 +1304,23 @@ pub fn creator_report_from_snapshot(
     snapshot: &RefSnapshot,
     session: &str,
 ) -> Result<CreatorSnapshotReport> {
+    creator_report_from_snapshot_with_limits(repository, snapshot, session, CREATOR_FSCK_LIMITS)
+}
+
+fn creator_report_from_snapshot_with_limits(
+    repository: &Repository,
+    snapshot: &RefSnapshot,
+    session: &str,
+    fsck_limits: FsckLimits,
+) -> Result<CreatorSnapshotReport> {
     validate_session(session)?;
+    let fsck = repository.fsck_snapshot_with_limits(snapshot, fsck_limits)?;
+    if !fsck.is_clean() {
+        return Err(CreatorError::Integrity(format!(
+            "creator report refused {} fsck issue(s)",
+            fsck.issues.len()
+        )));
+    }
     let decision_ref = decision_ref(session);
     let proposal_ref = proposal_ref(session);
     let decision_head = snapshot
@@ -958,19 +1426,6 @@ pub fn creator_report_from_snapshot(
         })
         .transpose()?;
 
-    let heads = snapshot
-        .refs
-        .iter()
-        .map(|record| record.head.clone())
-        .collect::<Vec<_>>();
-    let fsck = fsck(repository.objects(), &heads, GraphLimits::default())
-        .map_err(RepositoryError::from)?;
-    if !fsck.is_clean() {
-        return Err(CreatorError::Integrity(format!(
-            "creator report refused {} fsck issue(s)",
-            fsck.issues.len()
-        )));
-    }
     let timeline = timeline
         .into_iter()
         .map(|entry| CreatorTimelineEntry {
@@ -1099,7 +1554,7 @@ pub fn discover_creator_sessions(
         .collect()
 }
 
-fn validate_metadata(options: &CreatorRunOptions) -> Result<()> {
+fn validate_begin_metadata(options: &CreatorBeginOptions) -> Result<()> {
     validate_session(&options.session)?;
     if options.subject_label.is_empty() || options.subject_label.len() > 500 {
         return Err(CreatorError::InvalidArgument(
@@ -1111,6 +1566,10 @@ fn validate_metadata(options: &CreatorRunOptions) -> Result<()> {
             "creator name must contain 1 to 300 UTF-8 bytes".into(),
         ));
     }
+    Ok(())
+}
+
+fn validate_decision_metadata(options: &CreatorDecisionOptions) -> Result<()> {
     if options
         .rationale
         .as_ref()
@@ -1123,16 +1582,146 @@ fn validate_metadata(options: &CreatorRunOptions) -> Result<()> {
     Ok(())
 }
 
-fn validate_input_files(options: &CreatorRunOptions) -> Result<()> {
-    for path in [
-        &options.original_image,
-        &options.current_image,
-        &options.ai_output,
-    ] {
-        File::open(path).map_err(|source| CreatorError::Io {
-            path: path.clone(),
+fn validate_input_files(original: &Path, current: &Path, ai_output: &Path) -> Result<()> {
+    let mut aggregate_bytes = 0_u64;
+    for path in [original, current, ai_output] {
+        let file = File::open(path).map_err(|source| CreatorError::Io {
+            path: path.to_owned(),
             source,
         })?;
+        let bytes = file
+            .metadata()
+            .map_err(|source| CreatorError::Io {
+                path: path.to_owned(),
+                source,
+            })?
+            .len();
+        if bytes > CREATOR_MAX_INPUT_FILE_BYTES {
+            return Err(CreatorError::ResourceLimit(format!(
+                "creator input file exceeds {CREATOR_MAX_INPUT_FILE_BYTES} bytes"
+            )));
+        }
+        aggregate_bytes = aggregate_bytes.checked_add(bytes).ok_or_else(|| {
+            CreatorError::ResourceLimit("creator input byte total overflowed u64".into())
+        })?;
+        if aggregate_bytes > CREATOR_MAX_INPUT_AGGREGATE_BYTES {
+            return Err(CreatorError::ResourceLimit(format!(
+                "creator input files exceed {CREATOR_MAX_INPUT_AGGREGATE_BYTES} aggregate bytes"
+            )));
+        }
+    }
+    Ok(())
+}
+
+fn reserve_fsck_capacity(
+    limits: FsckLimits,
+    reserve: CreatorFsckReserve,
+    operation: &str,
+) -> Result<FsckLimits> {
+    fn subtract_usize(
+        available: usize,
+        reserved: usize,
+        resource: &str,
+        operation: &str,
+    ) -> Result<usize> {
+        let remaining = available.checked_sub(reserved).ok_or_else(|| {
+            CreatorError::ResourceLimit(format!(
+                "creator {operation} cannot reserve {reserved} {resource} from limit {available}"
+            ))
+        })?;
+        if remaining == 0 {
+            return Err(CreatorError::ResourceLimit(format!(
+                "creator {operation} reservation leaves no {resource} capacity"
+            )));
+        }
+        Ok(remaining)
+    }
+
+    fn subtract_u64(available: u64, reserved: u64, resource: &str, operation: &str) -> Result<u64> {
+        available
+            .checked_sub(reserved)
+            .filter(|remaining| *remaining > 0)
+            .ok_or_else(|| {
+                CreatorError::ResourceLimit(format!(
+                    "creator {operation} cannot reserve {reserved} {resource} from limit {available}"
+                ))
+            })
+    }
+
+    Ok(FsckLimits {
+        max_ref_roots: subtract_usize(
+            limits.max_ref_roots,
+            reserve.ref_roots,
+            "Ref roots",
+            operation,
+        )?,
+        max_objects: subtract_usize(limits.max_objects, reserve.objects, "objects", operation)?,
+        max_object_bytes: subtract_u64(
+            limits.max_object_bytes,
+            reserve.object_bytes,
+            "object bytes",
+            operation,
+        )?,
+        max_closure_nodes: subtract_usize(
+            limits.max_closure_nodes,
+            reserve.closure_nodes,
+            "closure nodes",
+            operation,
+        )?,
+        max_closure_edges: subtract_usize(
+            limits.max_closure_edges,
+            reserve.closure_edges,
+            "closure edges",
+            operation,
+        )?,
+        tombstone_scan: TombstoneScanLimits {
+            max_record_objects: subtract_usize(
+                limits.tombstone_scan.max_record_objects,
+                reserve.tombstone_records,
+                "Tombstone-scan Records",
+                operation,
+            )?,
+            max_record_bytes: subtract_u64(
+                limits.tombstone_scan.max_record_bytes,
+                reserve.tombstone_bytes,
+                "Tombstone-scan Record bytes",
+                operation,
+            )?,
+        },
+    })
+}
+
+fn prospective_fsck(
+    repository: &Repository,
+    mut snapshot: RefSnapshot,
+    updates: &[(&str, &str)],
+    limits: FsckLimits,
+    operation: &str,
+) -> Result<()> {
+    for (ref_name, head) in updates {
+        if let Some(record) = snapshot
+            .refs
+            .iter_mut()
+            .find(|record| record.name == *ref_name)
+        {
+            record.head = (*head).to_owned();
+        } else {
+            snapshot.refs.push(RefRecord {
+                name: (*ref_name).to_owned(),
+                head: (*head).to_owned(),
+                updated_event_id: 0,
+            });
+        }
+    }
+    snapshot
+        .refs
+        .sort_by(|left, right| left.name.cmp(&right.name));
+    let report = repository.fsck_snapshot_with_limits(&snapshot, limits)?;
+    if !report.is_clean() {
+        return Err(CreatorError::Integrity(format!(
+            "creator {operation} prospective state has {} fsck issue(s)",
+            report.issues.len()
+        )));
     }
     Ok(())
 }
@@ -1378,7 +1967,42 @@ fn put_file(repository: &Repository, path: &Path) -> Result<String> {
         path: path.to_owned(),
         source,
     })?;
-    Ok(repository.put_blob(file)?.oid)
+    Ok(repository
+        .put_blob(CreatorFileReader {
+            file,
+            remaining: CREATOR_MAX_INPUT_FILE_BYTES,
+        })?
+        .oid)
+}
+
+struct CreatorFileReader {
+    file: File,
+    remaining: u64,
+}
+
+impl Read for CreatorFileReader {
+    fn read(&mut self, buffer: &mut [u8]) -> io::Result<usize> {
+        if buffer.is_empty() {
+            return Ok(0);
+        }
+        if self.remaining == 0 {
+            let mut overflow = [0_u8; 1];
+            return match self.file.read(&mut overflow)? {
+                0 => Ok(0),
+                _ => Err(io::Error::other(
+                    "creator input changed beyond its 64 MiB limit while being read",
+                )),
+            };
+        }
+        let allowed = usize::try_from(self.remaining.min(buffer.len() as u64))
+            .expect("bounded creator read length fits usize");
+        let count = self.file.read(&mut buffer[..allowed])?;
+        self.remaining = self
+            .remaining
+            .checked_sub(count as u64)
+            .expect("reader never returns more than the supplied buffer");
+        Ok(count)
+    }
 }
 
 fn put_json(repository: &Repository, value: JsonValue) -> Result<String> {
@@ -2814,12 +3438,30 @@ fn commit(
 mod tests {
     use super::{
         COMPARISON_ANALYSIS_ENTRY, COMPARISON_CONFIGURATION_ENTRY, COMPARISON_IMPLEMENTATION_ENTRY,
-        COMPARISON_TOOL_ENTRY, JsonMap, Repository, SessionIds, actor_record, civil_from_days,
-        entity_id, format_timestamp, insert_entry, load_base_snapshot_pointers, manifest_tree,
-        put_json, validate_byte_identity_metric,
+        COMPARISON_TOOL_ENTRY, CREATOR_BEGIN_RESERVE, CREATOR_DECISION_RESERVE,
+        CREATOR_FSCK_LIMITS, CREATOR_PENDING_DECISION_POOL_RESERVE, CreatorBeginOptions,
+        CreatorDecisionOptions, CreatorDisposition, CreatorPendingDecisionState, JsonMap,
+        Repository, SessionIds, actor_record, begin_creator_session,
+        begin_creator_session_with_limits, civil_from_days,
+        creator_report_from_snapshot_with_limits, decide_creator_session,
+        decide_creator_session_with_limits, entity_id, format_timestamp, insert_entry,
+        load_base_snapshot_pointers, manifest_tree, put_json, validate_byte_identity_metric,
     };
     use serde_json::json;
+    use std::fs;
     use std::io::Cursor;
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_RESOURCE_TEST: AtomicU64 = AtomicU64::new(0);
+
+    fn resource_test_path() -> PathBuf {
+        let sequence = NEXT_RESOURCE_TEST.fetch_add(1, Ordering::Relaxed);
+        std::env::temp_dir().join(format!(
+            "synapse-creator-resource-test-{}-{sequence}",
+            std::process::id()
+        ))
+    }
 
     #[test]
     fn timestamp_conversion_matches_epoch_and_leap_day() {
@@ -2948,5 +3590,205 @@ mod tests {
                 json!({ "mantissa": "1", "scale": 0, "unit": "unitless" }),
             );
         assert!(validate_byte_identity_metric(&payload, true).is_err());
+    }
+
+    #[test]
+    fn creator_begin_decision_and_report_fail_closed_at_integrity_limits() {
+        let root = resource_test_path();
+        fs::create_dir(&root).unwrap();
+        let repository_path = root.join("repo");
+        let repository = Repository::open(&repository_path).unwrap();
+        repository
+            .put_blob(Cursor::new(b"preexisting repository object"))
+            .unwrap();
+        drop(repository);
+
+        let original = root.join("original.png");
+        let current = root.join("current.png");
+        let ai_output = root.join("ai-output.png");
+        fs::write(&original, b"original image").unwrap();
+        fs::write(&current, b"current image").unwrap();
+        fs::write(&ai_output, b"AI output image").unwrap();
+        let options = CreatorBeginOptions {
+            repository: repository_path.clone(),
+            session: "bounded-integrity".into(),
+            original_image: original,
+            current_image: current,
+            ai_output,
+            subject_label: "Bounded subject".into(),
+            creator_name: "Bounded creator".into(),
+        };
+
+        let mut begin_limits = CREATOR_FSCK_LIMITS;
+        begin_limits.max_object_bytes = 1;
+        let error = begin_creator_session_with_limits(&options, begin_limits).unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+        assert!(
+            Repository::open(&repository_path)
+                .unwrap()
+                .refs()
+                .snapshot()
+                .unwrap()
+                .is_empty(),
+            "begin limit failure must precede publication"
+        );
+
+        let mut pending = begin_creator_session(&options).unwrap();
+        let repository = Repository::open(&repository_path).unwrap();
+        let before_second_begin_refs = repository.refs().snapshot().unwrap();
+        let before_second_begin_objects = repository.objects().list_oids().unwrap();
+        let ready_record_oids = before_second_begin_objects
+            .iter()
+            .filter(|oid| oid.starts_with("record:"))
+            .collect::<Vec<_>>();
+        let ready_record_bytes = ready_record_oids
+            .iter()
+            .map(|oid| {
+                repository
+                    .objects()
+                    .stored_object_byte_len(oid)
+                    .unwrap()
+                    .unwrap()
+            })
+            .sum::<u64>();
+        let ready_fsck = repository.fsck_with_limits(CREATOR_FSCK_LIMITS).unwrap();
+        let ready_nodes = ready_fsck
+            .closures
+            .iter()
+            .map(|closure| closure.nodes.len())
+            .sum::<usize>();
+        let ready_edges = ready_fsck
+            .closures
+            .iter()
+            .map(|closure| closure.edges.len())
+            .sum::<usize>();
+        assert!(
+            before_second_begin_objects.len() - 1 <= CREATOR_BEGIN_RESERVE.objects,
+            "creator begin object growth exceeded its fixed reservation"
+        );
+        assert!(ready_nodes <= CREATOR_BEGIN_RESERVE.closure_nodes);
+        assert!(ready_edges <= CREATOR_BEGIN_RESERVE.closure_edges);
+        assert!(ready_record_oids.len() <= CREATOR_BEGIN_RESERVE.tombstone_records);
+        assert!(ready_record_bytes <= CREATOR_BEGIN_RESERVE.tombstone_bytes);
+        drop(repository);
+        let mut second_options = options.clone();
+        second_options.session = "bounded-headroom".into();
+        let mut ref_limits = CREATOR_FSCK_LIMITS;
+        ref_limits.max_ref_roots = before_second_begin_refs.len() + 1;
+        let error = begin_creator_session_with_limits(&second_options, ref_limits).unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+        let repository = Repository::open(&repository_path).unwrap();
+        assert_eq!(
+            repository.refs().snapshot().unwrap(),
+            before_second_begin_refs
+        );
+        assert_eq!(
+            repository.objects().list_oids().unwrap(),
+            before_second_begin_objects,
+            "begin Ref headroom failure must precede CAS writes"
+        );
+        drop(repository);
+
+        let mut record_options = options.clone();
+        record_options.session = "bounded-record-headroom".into();
+        let mut record_limits = CREATOR_FSCK_LIMITS;
+        record_limits.tombstone_scan.max_record_bytes = ready_record_bytes
+            + CREATOR_BEGIN_RESERVE.tombstone_bytes
+            + CREATOR_PENDING_DECISION_POOL_RESERVE.tombstone_bytes
+            - 1;
+        let error = begin_creator_session_with_limits(&record_options, record_limits).unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+        assert_eq!(
+            Repository::open(&repository_path)
+                .unwrap()
+                .objects()
+                .list_oids()
+                .unwrap(),
+            before_second_begin_objects,
+            "begin Record-byte headroom failure must precede CAS writes"
+        );
+
+        let mut decision_limits = CREATOR_FSCK_LIMITS;
+        decision_limits.max_objects = 1;
+        let error = decide_creator_session_with_limits(
+            &mut pending,
+            &CreatorDecisionOptions {
+                disposition: CreatorDisposition::Adopt,
+                rationale: Some("Bounded review".into()),
+            },
+            decision_limits,
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+        assert_eq!(
+            pending.decision_state(),
+            CreatorPendingDecisionState::Ready,
+            "decision capacity failure must precede publication"
+        );
+        assert!(pending.completed_receipt().is_none());
+
+        let repository = Repository::open(&repository_path).unwrap();
+        let snapshot = repository.refs().snapshot().unwrap();
+        let error = creator_report_from_snapshot_with_limits(
+            &repository,
+            &snapshot,
+            "bounded-integrity",
+            decision_limits,
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+        drop(repository);
+
+        decide_creator_session(
+            &mut pending,
+            &CreatorDecisionOptions {
+                disposition: CreatorDisposition::Adopt,
+                rationale: Some("Bounded review retry".into()),
+            },
+        )
+        .unwrap();
+        let repository = Repository::open(&repository_path).unwrap();
+        let completed_objects = repository.objects().list_oids().unwrap();
+        let completed_record_oids = completed_objects
+            .iter()
+            .filter(|oid| oid.starts_with("record:"))
+            .collect::<Vec<_>>();
+        let completed_record_bytes = completed_record_oids
+            .iter()
+            .map(|oid| {
+                repository
+                    .objects()
+                    .stored_object_byte_len(oid)
+                    .unwrap()
+                    .unwrap()
+            })
+            .sum::<u64>();
+        let completed_fsck = repository.fsck_with_limits(CREATOR_FSCK_LIMITS).unwrap();
+        let completed_nodes = completed_fsck
+            .closures
+            .iter()
+            .map(|closure| closure.nodes.len())
+            .sum::<usize>();
+        let completed_edges = completed_fsck
+            .closures
+            .iter()
+            .map(|closure| closure.edges.len())
+            .sum::<usize>();
+        assert!(
+            completed_objects.len() - before_second_begin_objects.len()
+                <= CREATOR_DECISION_RESERVE.objects
+        );
+        assert!(completed_nodes - ready_nodes <= CREATOR_DECISION_RESERVE.closure_nodes);
+        assert!(completed_edges - ready_edges <= CREATOR_DECISION_RESERVE.closure_edges);
+        assert!(
+            completed_record_oids.len() - ready_record_oids.len()
+                <= CREATOR_DECISION_RESERVE.tombstone_records
+        );
+        assert!(
+            completed_record_bytes - ready_record_bytes <= CREATOR_DECISION_RESERVE.tombstone_bytes
+        );
+        drop(repository);
+        drop(pending);
+        fs::remove_dir_all(root).unwrap();
     }
 }

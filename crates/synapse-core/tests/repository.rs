@@ -5,7 +5,9 @@ use synapse_canonical::blob_oid;
 use synapse_cas::{
     ClosureNodeState, GraphLimits, StoreLimits, TombstoneScanLimits, verify_closure,
 };
-use synapse_core::{ArchiveExportLimits, RefArchiveExportLimits, Repository, RepositoryError};
+use synapse_core::{
+    ArchiveExportLimits, FsckLimits, RefArchiveExportLimits, Repository, RepositoryError,
+};
 use synapse_schema::ingest;
 use synapse_sqlite::{
     RefArchive, RefRecord, RefSnapshot, RefStoreError, RefUpdate, ReflogEntry, ReflogMetadata,
@@ -71,6 +73,16 @@ fn oid(name: &str) -> String {
     ingest(&fixture(name)).unwrap().oid().to_owned()
 }
 
+fn object_path(repository: &Path, oid: &str) -> PathBuf {
+    let family = oid.split(':').next().unwrap();
+    let digest = oid.rsplit(':').next().unwrap();
+    repository
+        .join("cas/objects")
+        .join(family)
+        .join(&digest[..2])
+        .join(&digest[2..])
+}
+
 fn assert_no_archive_staging(temporary: &TempDirectory, destination_name: &str) {
     let prefix = format!(".{destination_name}.tmp-");
     let remaining = fs::read_dir(&temporary.0)
@@ -120,6 +132,270 @@ fn validated_store_ref_fsck_export_and_empty_restore_round_trip() {
     assert_eq!(restored.refs().snapshot().unwrap(), before_refs);
     assert_eq!(restored.refs().reflog().unwrap(), before_reflog);
     assert!(restored.fsck().unwrap().is_clean());
+}
+
+#[test]
+fn empty_ref_restore_does_not_scan_the_tombstone_inventory() {
+    let temporary = TempDirectory::new("empty-ref-restore-tombstones");
+    let mut source = Repository::open(temporary.join("source")).unwrap();
+    load_fixture_store(&source);
+    assert!(source.refs().snapshot().unwrap().is_empty());
+    let expected_oids = source.objects().list_oids().unwrap();
+    let archive = temporary.join("archive");
+    source.export_archive(&archive).unwrap();
+
+    let mut restored = Repository::open_with_tombstone_scan_limits(
+        temporary.join("restored"),
+        TombstoneScanLimits {
+            max_record_objects: 0,
+            max_record_bytes: 0,
+        },
+    )
+    .unwrap();
+    restored.restore_from(&archive).unwrap();
+    assert_eq!(restored.objects().list_oids().unwrap(), expected_oids);
+    assert!(restored.refs().snapshot().unwrap().is_empty());
+}
+
+#[test]
+fn publication_head_validation_bounds_tombstone_inventory_before_ref_mutation() {
+    let temporary = TempDirectory::new("bounded-publication-tombstones");
+    let repository_path = temporary.join("repo");
+    let repository = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&repository);
+    let record_count = repository
+        .objects()
+        .list_oids()
+        .unwrap()
+        .into_iter()
+        .filter(|oid| oid.starts_with("record:"))
+        .count();
+    assert!(record_count > 1);
+    drop(repository);
+
+    let proposal = oid("proposal-commit.json");
+    let mut lexical_first = Repository::open_with_tombstone_scan_limits(
+        &repository_path,
+        TombstoneScanLimits {
+            max_record_objects: 0,
+            max_record_bytes: 0,
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        lexical_first
+            .validate_head("not-a-commit")
+            .unwrap_err()
+            .code(),
+        "oid_mismatch"
+    );
+    let error = lexical_first
+        .update_ref(RefUpdate {
+            ref_name: "Invalid/Ref",
+            expected_head: None,
+            new_head: &proposal,
+            metadata: ReflogMetadata {
+                occurred_at_unix_nanos: 1_000,
+                actor: None,
+                message: None,
+            },
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), "path_segment_invalid");
+    drop(lexical_first);
+
+    let mut repository = Repository::open_with_tombstone_scan_limits(
+        &repository_path,
+        TombstoneScanLimits {
+            max_record_objects: record_count - 1,
+            max_record_bytes: u64::MAX,
+        },
+    )
+    .unwrap();
+    let error = repository
+        .update_ref(RefUpdate {
+            ref_name: "proposal/agent/bounded",
+            expected_head: None,
+            new_head: &proposal,
+            metadata: ReflogMetadata {
+                occurred_at_unix_nanos: 1_001,
+                actor: None,
+                message: Some("must not publish"),
+            },
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+    assert!(repository.refs().snapshot().unwrap().is_empty());
+}
+
+#[test]
+fn bounded_fsck_checks_empty_ref_commit_roots_and_enforces_every_work_budget() {
+    let temporary = TempDirectory::new("bounded-fsck");
+    let repository_path = temporary.join("repo");
+    let repository = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&repository);
+
+    let report = repository.fsck_with_limits(FsckLimits::default()).unwrap();
+    let stored_commits = repository
+        .objects()
+        .list_oids()
+        .unwrap()
+        .into_iter()
+        .filter(|oid| oid.starts_with("commit:"))
+        .count();
+    assert_eq!(
+        report.closures.len(),
+        stored_commits,
+        "an empty Ref snapshot still uses every stored Commit as a root"
+    );
+
+    let object_count = repository.objects().list_oids().unwrap().len();
+    let limits = FsckLimits {
+        max_objects: object_count - 1,
+        ..FsckLimits::default()
+    };
+    assert_eq!(
+        repository.fsck_with_limits(limits).unwrap_err().code(),
+        "resource_limit"
+    );
+
+    let proposal = oid("proposal-commit.json");
+    let snapshot = RefSnapshot {
+        refs: vec![
+            RefRecord {
+                name: "proposal/agent/one".into(),
+                head: proposal.clone(),
+                updated_event_id: 1,
+            },
+            RefRecord {
+                name: "proposal/agent/two".into(),
+                head: proposal,
+                updated_event_id: 2,
+            },
+        ],
+    };
+    let clean = repository
+        .fsck_snapshot_with_limits(
+            &RefSnapshot {
+                refs: vec![snapshot.refs[0].clone()],
+            },
+            FsckLimits::default(),
+        )
+        .unwrap();
+    assert!(clean.is_clean(), "fsck issues: {:?}", clean.issues);
+    let limits = FsckLimits {
+        max_ref_roots: 1,
+        ..FsckLimits::default()
+    };
+    assert_eq!(
+        repository
+            .fsck_snapshot_with_limits(&snapshot, limits)
+            .unwrap_err()
+            .code(),
+        "resource_limit",
+        "Ref roots are charged before duplicate heads are removed"
+    );
+
+    let limits = FsckLimits {
+        max_closure_nodes: 1,
+        ..FsckLimits::default()
+    };
+    assert_eq!(
+        repository
+            .fsck_snapshot_with_limits(
+                &RefSnapshot {
+                    refs: vec![snapshot.refs[0].clone()],
+                },
+                limits,
+            )
+            .unwrap_err()
+            .code(),
+        "resource_limit"
+    );
+
+    let limits = FsckLimits {
+        max_closure_edges: 1,
+        ..FsckLimits::default()
+    };
+    assert_eq!(
+        repository
+            .fsck_snapshot_with_limits(
+                &RefSnapshot {
+                    refs: vec![snapshot.refs[0].clone()],
+                },
+                limits,
+            )
+            .unwrap_err()
+            .code(),
+        "resource_limit"
+    );
+}
+
+#[test]
+fn bounded_fsck_charges_raw_inventory_bytes_before_digest_verification() {
+    let temporary = TempDirectory::new("bounded-fsck-bytes");
+    let repository_path = temporary.join("repo");
+    let repository = Repository::open(&repository_path).unwrap();
+    let first = repository.put_blob(b"first".as_slice()).unwrap().oid;
+    let second = repository.put_blob(b"second".as_slice()).unwrap().oid;
+    fs::write(object_path(&repository_path, &first), vec![b'x'; 80]).unwrap();
+    fs::write(object_path(&repository_path, &second), vec![b'y'; 80]).unwrap();
+
+    let limits = FsckLimits {
+        max_object_bytes: 159,
+        ..FsckLimits::default()
+    };
+    let error = repository.fsck_with_limits(limits).unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+}
+
+#[test]
+fn bounded_fsck_rejects_zero_limits_before_scanning() {
+    let temporary = TempDirectory::new("bounded-fsck-zero");
+    let repository = Repository::open(temporary.join("repo")).unwrap();
+    let defaults = FsckLimits::default();
+    let invalid = [
+        FsckLimits {
+            max_ref_roots: 0,
+            ..defaults
+        },
+        FsckLimits {
+            max_objects: 0,
+            ..defaults
+        },
+        FsckLimits {
+            max_object_bytes: 0,
+            ..defaults
+        },
+        FsckLimits {
+            max_closure_nodes: 0,
+            ..defaults
+        },
+        FsckLimits {
+            max_closure_edges: 0,
+            ..defaults
+        },
+        FsckLimits {
+            tombstone_scan: TombstoneScanLimits {
+                max_record_objects: 0,
+                ..defaults.tombstone_scan
+            },
+            ..defaults
+        },
+        FsckLimits {
+            tombstone_scan: TombstoneScanLimits {
+                max_record_bytes: 0,
+                ..defaults.tombstone_scan
+            },
+            ..defaults
+        },
+    ];
+    for limits in invalid {
+        assert_eq!(
+            repository.fsck_with_limits(limits).unwrap_err().code(),
+            "resource_limit"
+        );
+    }
 }
 
 #[test]

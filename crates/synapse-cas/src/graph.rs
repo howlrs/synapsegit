@@ -496,6 +496,17 @@ fn verify_closure_with_tombstones<S: ObjectStore + ?Sized>(
                     .expect("bounded reference metadata total cannot overflow");
                 let mut child_visits = Vec::with_capacity(extraction.references.len());
                 for reference in extraction.references {
+                    // Charge every extracted reference to the edge budget,
+                    // including malformed OID text. Otherwise invalid
+                    // references could consume parsing work without advancing
+                    // the operation-visible edge count used by multi-root
+                    // callers.
+                    report.edges.push(GraphEdge {
+                        source: visit.oid.clone(),
+                        target: reference.target.clone(),
+                        expected_kind: reference.expected_kind,
+                        role: reference.role.clone(),
+                    });
                     let actual_kind = match parse_oid(&reference.target) {
                         Ok(kind) => kind,
                         Err(error) => {
@@ -511,12 +522,6 @@ fn verify_closure_with_tombstones<S: ObjectStore + ?Sized>(
                             continue;
                         }
                     };
-                    report.edges.push(GraphEdge {
-                        source: visit.oid.clone(),
-                        target: reference.target.clone(),
-                        expected_kind: reference.expected_kind,
-                        role: reference.role.clone(),
-                    });
                     if actual_kind != reference.expected_kind {
                         report.issues.push(ClosureIssue {
                             oid: reference.target,
@@ -811,6 +816,7 @@ impl ReferenceCollector {
 
     fn try_push(
         &mut self,
+        dynamic_target_bytes: usize,
         dynamic_role_bytes: usize,
         constraint_bytes: usize,
         build: impl FnOnce() -> PendingReference,
@@ -823,11 +829,20 @@ impl ReferenceCollector {
             return false;
         }
 
-        // A dynamic role may coexist in the extracted PendingReference, the
-        // retained GraphEdge, and a ClosureIssue created while its visit is
-        // still live. Charge all three copies before allocating the first one.
-        let Some(reference_bytes) = dynamic_role_bytes
-            .checked_mul(3)
+        // An oversized malformed target may coexist in the parsed object,
+        // PendingReference, retained GraphEdge, InvalidReference value, and
+        // its escaped diagnostic. Valid/fixed-size OID text is bounded by
+        // max_edges; attacker-sized text is conservatively charged eightfold.
+        // A dynamic role may coexist in the PendingReference, GraphEdge, and a
+        // ClosureIssue. Charge these retained copies before allocating the
+        // first one.
+        let Some(reference_bytes) = dynamic_target_bytes
+            .checked_mul(8)
+            .and_then(|bytes| {
+                dynamic_role_bytes
+                    .checked_mul(3)
+                    .and_then(|role_bytes| bytes.checked_add(role_bytes))
+            })
             .and_then(|bytes| bytes.checked_add(constraint_bytes))
         else {
             self.exceed_reference_bytes();
@@ -944,7 +959,7 @@ fn extract_commit_references(
 
     match object_field(fields, "snapshot").and_then(Value::as_str) {
         Some(snapshot) => {
-            output.try_push(0, 0, || PendingReference {
+            output.try_push(dynamic_target_bytes(snapshot), 0, 0, || PendingReference {
                 target: snapshot.to_owned(),
                 expected_kind: ObjectKind::Tree,
                 role: ReferenceRole::CommitSnapshot,
@@ -1055,17 +1070,19 @@ fn collect_record_oid_strings(
                 }) => record_type.len().saturating_add(entity_id.len()),
                 Some(RecordConstraint::RecordType(_) | RecordConstraint::AiActivity) | None => 0,
             };
-            output.try_push(dynamic_role_bytes, constraint_bytes, || PendingReference {
-                target: target.to_owned(),
-                expected_kind,
-                role: if supersedes {
-                    ReferenceRole::RecordSupersedes
-                } else {
-                    ReferenceRole::RecordReference {
-                        pointer: pointer.clone(),
-                    }
-                },
-                record_constraint,
+            output.try_push(0, dynamic_role_bytes, constraint_bytes, || {
+                PendingReference {
+                    target: target.to_owned(),
+                    expected_kind,
+                    role: if supersedes {
+                        ReferenceRole::RecordSupersedes
+                    } else {
+                        ReferenceRole::RecordReference {
+                            pointer: pointer.clone(),
+                        }
+                    },
+                    record_constraint,
+                }
             });
         }
         Value::Array(values) => {
@@ -1233,7 +1250,7 @@ fn append_array_references(
             );
             continue;
         };
-        output.try_push(0, 0, || PendingReference {
+        output.try_push(dynamic_target_bytes(target), 0, 0, || PendingReference {
             target: target.to_owned(),
             expected_kind,
             role: role(index),
@@ -1305,15 +1322,33 @@ fn extract_tree_references(
             );
             continue;
         };
-        output.try_push(segment.len(), 0, || PendingReference {
-            target: target.to_owned(),
-            expected_kind,
-            role: ReferenceRole::TreeEntry {
-                segment: segment.to_owned(),
-            },
-            record_constraint: None,
+        output.try_push(dynamic_target_bytes(target), segment.len(), 0, || {
+            PendingReference {
+                target: target.to_owned(),
+                expected_kind,
+                role: ReferenceRole::TreeEntry {
+                    segment: segment.to_owned(),
+                },
+                record_constraint: None,
+            }
         });
     }
+}
+
+fn dynamic_target_bytes(target: &str) -> usize {
+    // Avoid parse_oid here because its intentionally detailed diagnostic
+    // includes the whole malformed input and would allocate before this
+    // resource check. This is the same fixed lexical profile without error
+    // construction.
+    let Some((family, digest)) = target.split_once(":sg-oid-v1:sha256:") else {
+        return target.len();
+    };
+    let valid = matches!(family, "blob" | "record" | "tree" | "commit")
+        && digest.len() == 64
+        && digest
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'));
+    if valid { 0 } else { target.len() }
 }
 
 fn object_field<'a>(fields: &'a [(String, Value)], name: &str) -> Option<&'a Value> {
@@ -1566,6 +1601,82 @@ mod tests {
                 ClosureIssueKind::Cycle { path } if path == &vec![a.clone(), b.clone(), a.clone()]
             )
         }));
+    }
+
+    #[test]
+    fn malformed_oid_references_are_charged_to_the_edge_budget() {
+        let commit = format!("commit:sg-oid-v1:sha256:{}", "d".repeat(64));
+        let malformed_snapshot = "not-an-oid";
+        let mut objects = HashMap::new();
+        objects.insert(
+            commit.clone(),
+            VerifiedObject::test_structured(
+                &commit,
+                ObjectKind::Commit,
+                root_commit_value(malformed_snapshot),
+            ),
+        );
+        let store = MockStore { objects };
+
+        let report = verify_closure(
+            &store,
+            &commit,
+            GraphLimits {
+                max_objects: 2,
+                max_edges: 1,
+                max_depth: 1,
+            },
+        )
+        .unwrap();
+        assert_eq!(report.edges.len(), 1);
+        assert_eq!(report.edges[0].target, malformed_snapshot);
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|issue| { matches!(issue.kind, ClosureIssueKind::InvalidReference { .. }) })
+        );
+
+        let exhausted = verify_closure(
+            &store,
+            &commit,
+            GraphLimits {
+                max_objects: 2,
+                max_edges: 0,
+                max_depth: 1,
+            },
+        )
+        .unwrap();
+        assert!(exhausted.truncated);
+        assert!(exhausted.issues.iter().any(|issue| {
+            matches!(
+                issue.kind,
+                ClosureIssueKind::ResourceLimit {
+                    resource: "edges",
+                    limit: 0
+                }
+            )
+        }));
+
+        let oversized_target = "x".repeat(129);
+        let oversized = VerifiedObject::test_structured(
+            &commit,
+            ObjectKind::Commit,
+            root_commit_value(&oversized_target),
+        );
+        let mut issues = Vec::new();
+        let extraction = extract_references(
+            &oversized,
+            &mut issues,
+            1,
+            oversized_target.len() * 8 - 1,
+            MAX_GRAPH_REFERENCE_BYTES,
+        );
+        assert!(extraction.references.is_empty());
+        assert_eq!(
+            extraction.exceeded,
+            Some(ReferenceExtractionLimit::ReferenceBytes)
+        );
     }
 
     #[test]

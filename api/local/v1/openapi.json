@@ -3,7 +3,7 @@
   "info": {
     "title": "SynapseGit localhost application API",
     "version": "0.1.0-draft",
-    "description": "Planned single-user, loopback-only application contract. This is not the public Core protocol and none of these routes are implemented by the architecture-only slice."
+    "description": "Single-user, loopback-only application contract. Read routes plus creator import and same-process Human review are implemented; maintenance, archive, and diagnostics operations remain planned. This is not the public Core protocol."
   },
   "servers": [
     {
@@ -432,11 +432,11 @@
         },
         "responses": {
           "200": {
-            "description": "Human decision published and current report rebuilt",
+            "description": "Human decision published; returns the rebuilt report or the durable committed receipt when report reconstruction is unavailable",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CompleteCreatorSession"
+                  "$ref": "#/components/schemas/CreatorDecisionResponse"
                 }
               }
             }
@@ -1627,6 +1627,184 @@
           }
         }
       },
+      "CreatorDecisionReceipt": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "session",
+          "project_id",
+          "subject_id",
+          "creator_id",
+          "agent_id",
+          "decision_ref",
+          "proposal_ref",
+          "base_head",
+          "proposal_head",
+          "decision_head",
+          "original_blob_oid",
+          "current_blob_oid",
+          "ai_output_blob_oid",
+          "capture_profile_oid",
+          "original_observation_oid",
+          "current_observation_oid",
+          "comparison_tool_id",
+          "comparison_tool_actor_oid",
+          "comparison_analysis_oid",
+          "comparison_implementation_oid",
+          "comparison_configuration_oid",
+          "byte_identity_outcome",
+          "comparison_status",
+          "comparison_comparability",
+          "comparison_reason_codes",
+          "ai_activity_oid",
+          "decision_feedback_oid",
+          "disposition"
+        ],
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "subject_id": {
+            "type": "string"
+          },
+          "creator_id": {
+            "type": "string"
+          },
+          "agent_id": {
+            "type": "string"
+          },
+          "decision_ref": {
+            "type": "string"
+          },
+          "proposal_ref": {
+            "type": "string"
+          },
+          "base_head": {
+            "$ref": "#/components/schemas/CommitOid"
+          },
+          "proposal_head": {
+            "$ref": "#/components/schemas/CommitOid"
+          },
+          "decision_head": {
+            "$ref": "#/components/schemas/CommitOid"
+          },
+          "original_blob_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "current_blob_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "ai_output_blob_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "capture_profile_oid": {
+            "$ref": "#/components/schemas/Oid"
+          },
+          "original_observation_oid": {
+            "$ref": "#/components/schemas/Oid"
+          },
+          "current_observation_oid": {
+            "$ref": "#/components/schemas/Oid"
+          },
+          "comparison_tool_id": {
+            "type": "string"
+          },
+          "comparison_tool_actor_oid": {
+            "$ref": "#/components/schemas/Oid"
+          },
+          "comparison_analysis_oid": {
+            "$ref": "#/components/schemas/Oid"
+          },
+          "comparison_implementation_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "comparison_configuration_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "byte_identity_outcome": {
+            "type": "string",
+            "enum": [
+              "identical",
+              "different",
+              "not_compared"
+            ]
+          },
+          "comparison_status": {
+            "type": "string",
+            "enum": [
+              "succeeded",
+              "not_run"
+            ]
+          },
+          "comparison_comparability": {
+            "type": "string",
+            "enum": [
+              "partial",
+              "incomparable"
+            ]
+          },
+          "comparison_reason_codes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "ai_activity_oid": {
+            "$ref": "#/components/schemas/Oid"
+          },
+          "decision_feedback_oid": {
+            "$ref": "#/components/schemas/Oid"
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "adopt",
+              "reject",
+              "defer"
+            ]
+          }
+        }
+      },
+      "CommittedCreatorSession": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "state",
+          "receipt",
+          "report_available",
+          "inspection_required"
+        ],
+        "properties": {
+          "state": {
+            "type": "string",
+            "const": "committed"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/CreatorDecisionReceipt"
+          },
+          "report_available": {
+            "type": "boolean",
+            "const": false
+          },
+          "inspection_required": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "CreatorDecisionResponse": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/CompleteCreatorSession"
+          },
+          {
+            "$ref": "#/components/schemas/CommittedCreatorSession"
+          }
+        ]
+      },
       "IncompleteCreatorSession": {
         "type": "object",
         "additionalProperties": false,
@@ -2043,7 +2221,7 @@
       }
     }
   },
-  "x-synapse-status": "planned-contract",
+  "x-synapse-status": "partially-implemented-contract",
   "x-synapse-forbidden-route-capabilities": [
     "update-ref",
     "raw-object-put",
