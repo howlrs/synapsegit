@@ -20,16 +20,19 @@ use axum::{Json, Router};
 use problem::problem_response;
 use security::{SecurityPolicy, enforce_local_request};
 use serde::de::DeserializeOwned;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::error::Error;
 use std::fmt;
 use std::io;
 use std::path::PathBuf;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use synapse_local_service::{
     BeginCreatorSessionRequest, CreatorDecisionRequest, CreatorDecisionResponse, CreatorImage,
-    CreatorReport, CreatorSessionDetail, CreatorSessionState, HealthResponse, ImageRole,
-    LocalService, ProjectState, ReflogQuery, ServiceError,
+    CreatorReport, CreatorSessionDetail, CreatorSessionDiagnostic, CreatorSessionState,
+    HealthResponse, ImageRole, LocalService, OperationAccepted, OperationKind, OperationResult,
+    OperationState, OperationStatus, Problem as ServiceProblem, ProjectConfirmation, ProjectState,
+    ReflogQuery, ServiceError,
 };
 use tokio::io::AsyncWriteExt;
 use tokio::sync::{OwnedSemaphorePermit, Semaphore};
@@ -45,6 +48,9 @@ const MAX_CREATOR_FILE_AGGREGATE_BYTES: usize = 3 * MAX_CREATOR_FILE_BYTES;
 // bounds the multipart framing, the three short text fields, and part headers.
 const MAX_CREATOR_MULTIPART_WIRE_BYTES: usize = MAX_CREATOR_FILE_AGGREGATE_BYTES + 1024 * 1024;
 const MAX_DECISION_JSON_BYTES: usize = 8 * 1024;
+const MAX_MAINTENANCE_JSON_BYTES: usize = 8 * 1024;
+const MAX_OPERATION_ENTRIES: usize = 256;
+const MAX_ACTIVE_OPERATIONS: usize = 64;
 const MAX_SESSION_BYTES: usize = 64;
 const MAX_SUBJECT_LABEL_BYTES: usize = 500;
 const MAX_CREATOR_NAME_BYTES: usize = 300;
@@ -91,6 +97,7 @@ struct AppState {
     security: SecurityPolicy,
     blocking: BlockingGates,
     uploads: Arc<Semaphore>,
+    operations: OperationRegistry,
 }
 
 #[derive(Clone)]
@@ -146,6 +153,180 @@ struct BlockingPermit {
     _project: Option<OwnedSemaphorePermit>,
 }
 
+/// Finite process-local job metadata. The registry is only an observation
+/// bridge for synchronous Core operations; it is never recovery authority.
+#[derive(Clone, Default)]
+struct OperationRegistry {
+    state: Arc<Mutex<OperationRegistryState>>,
+}
+
+#[derive(Default)]
+struct OperationRegistryState {
+    entries: BTreeMap<String, OperationStatus>,
+    insertion_order: VecDeque<String>,
+    last_timestamp: Option<Duration>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum OperationRegistryError {
+    Capacity,
+    Entropy,
+    Clock,
+}
+
+impl OperationRegistry {
+    fn reserve(
+        &self,
+        kind: OperationKind,
+        project_key: String,
+    ) -> Result<OperationAccepted, OperationRegistryError> {
+        self.reserve_at(kind, project_key, SystemTime::now())
+    }
+
+    fn reserve_at(
+        &self,
+        kind: OperationKind,
+        project_key: String,
+        observed_at: SystemTime,
+    ) -> Result<OperationAccepted, OperationRegistryError> {
+        let mut registry = lock_operations(&self.state);
+        let active = registry
+            .entries
+            .values()
+            .filter(|status| !operation_is_terminal(status.state))
+            .count();
+        if active >= MAX_ACTIVE_OPERATIONS {
+            return Err(OperationRegistryError::Capacity);
+        }
+
+        let expired_position = if registry.entries.len() >= MAX_OPERATION_ENTRIES {
+            let expired = registry.insertion_order.iter().position(|operation_id| {
+                registry
+                    .entries
+                    .get(operation_id)
+                    .is_some_and(|status| operation_is_terminal(status.state))
+            });
+            if expired.is_none() {
+                return Err(OperationRegistryError::Capacity);
+            }
+            expired
+        } else {
+            None
+        };
+
+        let mut operation_id = None;
+        for _ in 0..4 {
+            let candidate = random_hex(32).map_err(|_| OperationRegistryError::Entropy)?;
+            if !registry.entries.contains_key(&candidate) {
+                operation_id = Some(candidate);
+                break;
+            }
+        }
+        let operation_id = operation_id.ok_or(OperationRegistryError::Entropy)?;
+        let submitted_at = monotonic_operation_timestamp(&mut registry.last_timestamp, observed_at)
+            .ok_or(OperationRegistryError::Clock)?;
+
+        if let Some(expired_position) = expired_position {
+            let expired = registry
+                .insertion_order
+                .remove(expired_position)
+                .expect("the selected terminal operation remains in admission order");
+            registry.entries.remove(&expired);
+        }
+
+        let poll_path = format!("/api/v1/operations/{operation_id}");
+        registry.insertion_order.push_back(operation_id.clone());
+        registry.entries.insert(
+            operation_id.clone(),
+            OperationStatus {
+                operation_id: operation_id.clone(),
+                kind,
+                project_key,
+                state: OperationState::Queued,
+                submitted_at,
+                completed_at: None,
+                result: None,
+                error: None,
+            },
+        );
+        Ok(OperationAccepted {
+            operation_id,
+            state: OperationState::Queued,
+            poll_path,
+        })
+    }
+
+    fn mark_running(&self, operation_id: &str) {
+        let mut registry = lock_operations(&self.state);
+        if let Some(status) = registry.entries.get_mut(operation_id)
+            && status.state == OperationState::Queued
+        {
+            status.state = OperationState::Running;
+        }
+    }
+
+    fn finish(
+        &self,
+        operation_id: &str,
+        state: OperationState,
+        result: Option<OperationResult>,
+        error: Option<ServiceProblem>,
+    ) {
+        self.finish_at(operation_id, state, result, error, SystemTime::now());
+    }
+
+    fn finish_at(
+        &self,
+        operation_id: &str,
+        state: OperationState,
+        result: Option<OperationResult>,
+        error: Option<ServiceProblem>,
+        observed_at: SystemTime,
+    ) {
+        debug_assert!(operation_is_terminal(state));
+        let mut registry = lock_operations(&self.state);
+        let should_finish = registry
+            .entries
+            .get(operation_id)
+            .is_some_and(|status| !operation_is_terminal(status.state));
+        if should_finish {
+            let completed_at =
+                monotonic_operation_timestamp(&mut registry.last_timestamp, observed_at);
+            let status = registry
+                .entries
+                .get_mut(operation_id)
+                .expect("the active operation remains registered");
+            status.state = state;
+            status.completed_at = completed_at;
+            status.result = result;
+            status.error = error;
+        }
+    }
+
+    fn get(&self, operation_id: &str) -> Option<OperationStatus> {
+        lock_operations(&self.state)
+            .entries
+            .get(operation_id)
+            .cloned()
+    }
+}
+
+fn lock_operations(
+    operations: &Mutex<OperationRegistryState>,
+) -> MutexGuard<'_, OperationRegistryState> {
+    match operations.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+const fn operation_is_terminal(state: OperationState) -> bool {
+    matches!(
+        state,
+        OperationState::Succeeded | OperationState::Failed | OperationState::OutcomeUnknown
+    )
+}
+
 pub fn build_local_application(
     service: Arc<LocalService>,
     port: u16,
@@ -180,6 +361,7 @@ fn build_with_identity(
         security: security.clone(),
         blocking,
         uploads: Arc::new(Semaphore::new(MAX_CONCURRENT_CREATOR_UPLOADS)),
+        operations: OperationRegistry::default(),
     };
 
     let router = Router::new()
@@ -213,6 +395,10 @@ fn build_with_identity(
             get(api_creator_session),
         )
         .route(
+            "/api/v1/projects/{project_key}/creator-sessions/{session}/diagnostics",
+            get(api_creator_session_diagnostics),
+        )
+        .route(
             "/api/v1/projects/{project_key}/creator-sessions/{session}/images/{role}",
             get(api_creator_image),
         )
@@ -220,6 +406,11 @@ fn build_with_identity(
             "/api/v1/projects/{project_key}/creator-sessions/{session}/decisions",
             axum::routing::post(api_decide_creator_session),
         )
+        .route(
+            "/api/v1/projects/{project_key}/operations/fsck",
+            axum::routing::post(api_start_fsck),
+        )
+        .route("/api/v1/operations/{operation_id}", get(api_operation))
         .fallback(not_found)
         .method_not_allowed_fallback(method_not_allowed)
         .with_state(state)
@@ -242,6 +433,64 @@ fn random_hex(byte_count: usize) -> Result<String, StartupError> {
             .expect("writing a hexadecimal byte to String cannot fail");
     }
     Ok(output)
+}
+
+fn monotonic_operation_timestamp(
+    last_timestamp: &mut Option<Duration>,
+    observed_at: SystemTime,
+) -> Option<String> {
+    let observed = observed_at
+        .duration_since(UNIX_EPOCH)
+        .ok()
+        .filter(|duration| format_operation_timestamp(*duration).is_some());
+    let logical = match (*last_timestamp, observed) {
+        (Some(previous), Some(observed)) => previous.max(observed),
+        (Some(previous), None) => previous,
+        (None, Some(observed)) => observed,
+        (None, None) => return None,
+    };
+    let timestamp = format_operation_timestamp(logical)?;
+    *last_timestamp = Some(logical);
+    Some(timestamp)
+}
+
+fn format_operation_timestamp(duration: Duration) -> Option<String> {
+    let unix_seconds = i64::try_from(duration.as_secs()).ok()?;
+    let days = unix_seconds.div_euclid(86_400);
+    let second_of_day = unix_seconds.rem_euclid(86_400);
+    let (year, month, day) = civil_date_from_unix_days(days);
+    if !(0..=9999).contains(&year) {
+        return None;
+    }
+    let hour = second_of_day / 3_600;
+    let minute = (second_of_day % 3_600) / 60;
+    let second = second_of_day % 60;
+    Some(format!(
+        "{year:04}-{month:02}-{day:02}T{hour:02}:{minute:02}:{second:02}.{:09}Z",
+        duration.subsec_nanos()
+    ))
+}
+
+// Howard Hinnant's civil-from-days transform, with day zero at 1970-01-01.
+fn civil_date_from_unix_days(days: i64) -> (i64, i64, i64) {
+    let shifted = days + 719_468;
+    let era = if shifted >= 0 {
+        shifted
+    } else {
+        shifted - 146_096
+    } / 146_097;
+    let day_of_era = shifted - era * 146_097;
+    let year_of_era =
+        (day_of_era - day_of_era / 1_460 + day_of_era / 36_524 - day_of_era / 146_096) / 365;
+    let mut year = year_of_era + era * 400;
+    let day_of_year = day_of_era - (365 * year_of_era + year_of_era / 4 - year_of_era / 100);
+    let month_prime = (5 * day_of_year + 2) / 153;
+    let day = day_of_year - (153 * month_prime + 2) / 5 + 1;
+    let month = month_prime + if month_prime < 10 { 3 } else { -9 };
+    if month <= 2 {
+        year += 1;
+    }
+    (year, month, day)
 }
 
 async fn api_health(State(state): State<AppState>) -> Json<HealthResponse> {
@@ -416,6 +665,137 @@ async fn api_decide_creator_session(
 
 fn decision_success_response(outcome: CreatorDecisionResponse) -> Response {
     Json(outcome).into_response()
+}
+
+async fn api_start_fsck(
+    State(state): State<AppState>,
+    Path(project_key): Path<String>,
+    request: AxumRequest,
+) -> Response {
+    if !is_exact_json_content_type(request.headers()) {
+        return failure_response(HttpFailure::request(
+            &state,
+            "local_request_denied",
+            "The request Content-Type must be exactly application/json.",
+        ));
+    }
+    let body = match to_bytes(request.into_body(), MAX_MAINTENANCE_JSON_BYTES).await {
+        Ok(body) => body,
+        Err(_) => {
+            return failure_response(HttpFailure::limit(
+                &state,
+                "The maintenance request exceeds the 8 KiB wire limit.",
+            ));
+        }
+    };
+    let confirmation = match serde_json::from_slice::<ProjectConfirmation>(&body) {
+        Ok(confirmation) => confirmation,
+        Err(_) => {
+            return failure_response(HttpFailure::request(
+                &state,
+                "local_request_denied",
+                "The maintenance JSON is invalid or contains an unknown or duplicate field.",
+            ));
+        }
+    };
+    if let Err(error) = state
+        .service
+        .validate_fsck_confirmation(&project_key, &confirmation)
+    {
+        return failure_response(HttpFailure::service(&state, error));
+    }
+
+    let accepted = match state
+        .operations
+        .reserve(OperationKind::Fsck, project_key.clone())
+    {
+        Ok(accepted) => accepted,
+        Err(OperationRegistryError::Capacity) => {
+            return failure_response(HttpFailure {
+                status: StatusCode::TOO_MANY_REQUESTS,
+                code: "resource_limit".into(),
+                title: "Maintenance capacity reached".into(),
+                detail: "The process-local maintenance operation registry is full.".into(),
+                request_id: state.security.request_id(),
+                retryable: true,
+            });
+        }
+        Err(OperationRegistryError::Entropy | OperationRegistryError::Clock) => {
+            return failure_response(HttpFailure::internal(
+                &state,
+                "The maintenance operation could not be reserved.",
+            ));
+        }
+    };
+
+    let operation_id = accepted.operation_id.clone();
+    let worker_state = state.clone();
+    tokio::spawn(async move {
+        let gate_key = project_key.clone();
+        let running_operations = worker_state.operations.clone();
+        let running_operation_id = operation_id.clone();
+        let outcome = run_blocking_after_acquire(
+            worker_state.clone(),
+            Some(gate_key),
+            move || running_operations.mark_running(&running_operation_id),
+            move |service| service.run_maintenance_fsck(&project_key),
+        )
+        .await;
+        match outcome {
+            Ok(result) => worker_state.operations.finish(
+                &operation_id,
+                OperationState::Succeeded,
+                Some(OperationResult::Fsck(result)),
+                None,
+            ),
+            Err(BlockingError::Service(error)) => worker_state.operations.finish(
+                &operation_id,
+                OperationState::Failed,
+                None,
+                Some(service_operation_problem(&worker_state, error)),
+            ),
+            Err(BlockingError::Task) => worker_state.operations.finish(
+                &operation_id,
+                OperationState::OutcomeUnknown,
+                None,
+                Some(operation_problem(
+                    &worker_state,
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "storage_error",
+                    "The integrity-check worker stopped before its final state was recorded.",
+                    false,
+                )),
+            ),
+        }
+    });
+
+    (StatusCode::ACCEPTED, Json(accepted)).into_response()
+}
+
+async fn api_operation(
+    State(state): State<AppState>,
+    Path(operation_id): Path<String>,
+) -> Response {
+    if valid_operation_id(&operation_id)
+        && let Some(status) = state.operations.get(&operation_id)
+    {
+        return Json(status).into_response();
+    }
+    failure_response(HttpFailure {
+        status: StatusCode::NOT_FOUND,
+        code: "operation_state_lost".into(),
+        title: "Operation state unavailable".into(),
+        detail: "The process-local maintenance operation state is unavailable.".into(),
+        request_id: state.security.request_id(),
+        retryable: false,
+    })
+}
+
+fn valid_operation_id(operation_id: &str) -> bool {
+    (22..=128).contains(&operation_id.len())
+        && operation_id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
 }
 
 fn single_content_type(headers: &HeaderMap) -> Option<&str> {
@@ -762,6 +1142,17 @@ async fn api_creator_session(
     .await
 }
 
+async fn api_creator_session_diagnostics(
+    State(state): State<AppState>,
+    Path((project_key, session)): Path<(String, String)>,
+) -> Response {
+    let gate_key = project_key.clone();
+    api_blocking(state.clone(), gate_key, move |service| {
+        service.get_creator_session_diagnostic(&project_key, &session)
+    })
+    .await
+}
+
 async fn api_creator_image(
     State(state): State<AppState>,
     Path((project_key, session, role)): Path<(String, String, String)>,
@@ -816,8 +1207,25 @@ where
     T: Send + 'static,
     F: FnOnce(&LocalService) -> Result<T, ServiceError> + Send + 'static,
 {
+    run_blocking_after_acquire(state, project_key, || {}, operation).await
+}
+
+async fn run_blocking_after_acquire<T, S, F>(
+    state: AppState,
+    project_key: Option<String>,
+    on_started: S,
+    operation: F,
+) -> Result<T, BlockingError>
+where
+    T: Send + 'static,
+    S: FnOnce() + Send + 'static,
+    F: FnOnce(&LocalService) -> Result<T, ServiceError> + Send + 'static,
+{
     let permit = state.blocking.acquire(project_key.as_deref()).await?;
     let service = state.service;
+    // Queued maintenance operations transition only after both gates are
+    // held, immediately before their synchronous work is dispatched.
+    on_started();
     tokio::task::spawn_blocking(move || {
         // The permit deliberately lives in the blocking closure. Dropping the
         // handler future detaches the blocking task but cannot release either
@@ -976,6 +1384,23 @@ async fn project_page(State(state): State<AppState>, Path(project_key): Path<Str
             decision_head: session.decision_head.unwrap_or_else(|| "—".into()),
         })
         .collect::<Vec<_>>();
+    let fsck_supported = dashboard.status.project.capabilities.fsck;
+    let has_last_fsck = dashboard.status.last_fsck.is_some();
+    let last_fsck_clean = dashboard
+        .status
+        .last_fsck
+        .as_ref()
+        .is_some_and(|result| result.clean);
+    let last_fsck_objects = dashboard
+        .status
+        .last_fsck
+        .as_ref()
+        .map_or(0, |result| result.objects_verified);
+    let last_fsck_issues = dashboard
+        .status
+        .last_fsck
+        .as_ref()
+        .map_or(0, |result| result.issue_count);
     let project_label = dashboard.status.project.display_label;
     let watermark = dashboard.status.snapshot.watermark;
     render_template(
@@ -989,6 +1414,11 @@ async fn project_page(State(state): State<AppState>, Path(project_key): Path<Str
             complete_sessions: dashboard.status.creator_session_counts.complete,
             pending_sessions: dashboard.status.creator_session_counts.pending_review,
             incomplete_sessions: dashboard.status.creator_session_counts.incomplete,
+            fsck_supported,
+            has_last_fsck,
+            last_fsck_clean,
+            last_fsck_objects,
+            last_fsck_issues,
             refs: &refs,
             reflog: &reflog,
             sessions: &sessions,
@@ -1060,11 +1490,12 @@ async fn session_page(
     let project_key_for_read = project_key.clone();
     let session_for_read = session.clone();
     let gate_key = project_key.clone();
-    let (project_label, detail) =
+    let (project_label, detail, diagnostic) =
         match run_blocking(state.clone(), Some(gate_key), move |service| {
             let project = service.project_status(&project_key_for_read)?.project;
-            let detail = service.get_creator_session(&project.project_key, &session_for_read)?;
-            Ok((project.display_label, detail))
+            let (detail, diagnostic) = service
+                .get_creator_session_with_diagnostic(&project.project_key, &session_for_read)?;
+            Ok((project.display_label, detail, diagnostic))
         })
         .await
         {
@@ -1080,7 +1511,7 @@ async fn session_page(
             }
         };
 
-    let view = SessionPageView::new(&project_key, &project_label, &session, detail);
+    let view = SessionPageView::new(&project_key, &project_label, &session, detail, diagnostic);
     render_template(
         &state,
         SessionTemplate {
@@ -1111,6 +1542,10 @@ async fn session_page(
             comparison_replay: &view.comparison_replay,
             timeline: &view.timeline,
             diagnostic: &view.diagnostic,
+            diagnostic_proposal_ref: &view.diagnostic_proposal_ref,
+            diagnostic_proposal_head: &view.diagnostic_proposal_head,
+            diagnostic_decision_ref: &view.diagnostic_decision_ref,
+            diagnostic_decision_head: &view.diagnostic_decision_head,
         },
     )
 }
@@ -1250,6 +1685,40 @@ impl HttpFailure {
     }
 }
 
+fn service_operation_problem(state: &AppState, error: ServiceError) -> ServiceProblem {
+    let failure = HttpFailure::service(state, error);
+    ServiceProblem {
+        r#type: format!("urn:synapsegit:error:{}", failure.code),
+        title: failure.title,
+        status: failure.status.as_u16(),
+        code: failure.code,
+        detail: failure.detail,
+        request_id: failure.request_id,
+        retryable: failure.retryable,
+    }
+}
+
+fn operation_problem(
+    state: &AppState,
+    status: StatusCode,
+    code: &str,
+    detail: &str,
+    retryable: bool,
+) -> ServiceProblem {
+    ServiceProblem {
+        r#type: format!("urn:synapsegit:error:{code}"),
+        title: status
+            .canonical_reason()
+            .unwrap_or("Local application error")
+            .into(),
+        status: status.as_u16(),
+        code: code.into(),
+        detail: detail.into(),
+        request_id: state.security.request_id(),
+        retryable,
+    }
+}
+
 fn failure_response(failure: HttpFailure) -> Response {
     problem_response(
         failure.status,
@@ -1342,6 +1811,10 @@ struct SessionPageView {
     comparison_replay: String,
     timeline: Vec<TimelineView>,
     diagnostic: String,
+    diagnostic_proposal_ref: String,
+    diagnostic_proposal_head: String,
+    diagnostic_decision_ref: String,
+    diagnostic_decision_head: String,
 }
 
 impl SessionPageView {
@@ -1350,6 +1823,7 @@ impl SessionPageView {
         _project_label: &str,
         session: &str,
         detail: CreatorSessionDetail,
+        diagnostic: Option<CreatorSessionDiagnostic>,
     ) -> Self {
         match detail {
             CreatorSessionDetail::Complete(detail) => {
@@ -1398,32 +1872,69 @@ impl SessionPageView {
                     .into(),
                     timeline: Vec::new(),
                     diagnostic: String::new(),
+                    diagnostic_proposal_ref: String::new(),
+                    diagnostic_proposal_head: String::new(),
+                    diagnostic_decision_ref: String::new(),
+                    diagnostic_decision_head: String::new(),
                 }
             }
-            CreatorSessionDetail::Incomplete(incomplete) => Self {
-                complete: false,
-                pending: false,
-                show_evidence: false,
-                state_label: "未完了".into(),
-                state_tone: "warning".into(),
-                state_description: "現在のRefsは完了したCreator sessionを構成していません。".into(),
-                ai_output_source: String::new(),
-                review_id: String::new(),
-                decision_url: String::new(),
-                disposition: "—".into(),
-                selected: "—".into(),
-                fsck_objects: 0,
-                images: Vec::new(),
-                has_comparison: false,
-                comparison_outcome: String::new(),
-                comparison_warning: String::new(),
-                comparison_status: String::new(),
-                comparison_comparability: String::new(),
-                comparison_adapter: String::new(),
-                comparison_replay: String::new(),
-                timeline: Vec::new(),
-                diagnostic: incomplete.diagnostic,
-            },
+            CreatorSessionDetail::Incomplete(incomplete) => {
+                let (
+                    diagnostic,
+                    diagnostic_proposal_ref,
+                    diagnostic_proposal_head,
+                    diagnostic_decision_ref,
+                    diagnostic_decision_head,
+                ) = diagnostic.map_or_else(
+                    || {
+                        (
+                            incomplete.diagnostic,
+                            "—".into(),
+                            "—".into(),
+                            "—".into(),
+                            "—".into(),
+                        )
+                    },
+                    |diagnostic| {
+                        (
+                            diagnostic.recommended_action,
+                            diagnostic.proposal_ref.unwrap_or_else(|| "—".into()),
+                            diagnostic.proposal_head.unwrap_or_else(|| "—".into()),
+                            diagnostic.decision_ref.unwrap_or_else(|| "—".into()),
+                            diagnostic.decision_head.unwrap_or_else(|| "—".into()),
+                        )
+                    },
+                );
+                Self {
+                    complete: false,
+                    pending: false,
+                    show_evidence: false,
+                    state_label: "未完了".into(),
+                    state_tone: "warning".into(),
+                    state_description: "現在のRefsは完了したCreator sessionを構成していません。"
+                        .into(),
+                    ai_output_source: String::new(),
+                    review_id: String::new(),
+                    decision_url: String::new(),
+                    disposition: "—".into(),
+                    selected: "—".into(),
+                    fsck_objects: 0,
+                    images: Vec::new(),
+                    has_comparison: false,
+                    comparison_outcome: String::new(),
+                    comparison_warning: String::new(),
+                    comparison_status: String::new(),
+                    comparison_comparability: String::new(),
+                    comparison_adapter: String::new(),
+                    comparison_replay: String::new(),
+                    timeline: Vec::new(),
+                    diagnostic,
+                    diagnostic_proposal_ref,
+                    diagnostic_proposal_head,
+                    diagnostic_decision_ref,
+                    diagnostic_decision_head,
+                }
+            }
         }
     }
 
@@ -1507,6 +2018,10 @@ impl SessionPageView {
             comparison_replay,
             timeline,
             diagnostic: String::new(),
+            diagnostic_proposal_ref: String::new(),
+            diagnostic_proposal_head: String::new(),
+            diagnostic_decision_ref: String::new(),
+            diagnostic_decision_head: String::new(),
         }
     }
 
@@ -1612,6 +2127,11 @@ struct ProjectTemplate<'a> {
     complete_sessions: usize,
     pending_sessions: usize,
     incomplete_sessions: usize,
+    fsck_supported: bool,
+    has_last_fsck: bool,
+    last_fsck_clean: bool,
+    last_fsck_objects: usize,
+    last_fsck_issues: usize,
     refs: &'a [RefView],
     reflog: &'a [ReflogView],
     sessions: &'a [SessionSummaryView],
@@ -1647,6 +2167,10 @@ struct SessionTemplate<'a> {
     comparison_replay: &'a str,
     timeline: &'a [TimelineView],
     diagnostic: &'a str,
+    diagnostic_proposal_ref: &'a str,
+    diagnostic_proposal_head: &'a str,
+    diagnostic_decision_ref: &'a str,
+    diagnostic_decision_head: &'a str,
 }
 
 #[derive(Template)]
@@ -1669,7 +2193,10 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicU64, Ordering};
-    use synapse_creator::{CreatorDisposition, CreatorRunOptions, run_creator_session};
+    use synapse_creator::{
+        CreatorBeginOptions, CreatorDisposition, CreatorRunOptions, begin_creator_session,
+        run_creator_session,
+    };
     use synapse_local_service::{
         CommittedCreatorSession, CommittedState, CreatorDecision, CreatorDecisionReceipt,
     };
@@ -1719,6 +2246,13 @@ mod tests {
         current_oid: String,
     }
 
+    struct IncompleteFixture {
+        proposal_ref: String,
+        proposal_head: String,
+        decision_ref: String,
+        decision_head: String,
+    }
+
     fn test_app_with_creator(label: &str) -> (TestDirectory, Router, CreatorFixture) {
         let directory = TestDirectory::new();
         let repository = directory.0.join("repository");
@@ -1752,6 +2286,48 @@ mod tests {
         let service = Arc::new(
             LocalService::new([synapse_local_service::ProjectRegistration::new(
                 "demo", label, repository,
+            )])
+            .unwrap(),
+        );
+        let application =
+            build_with_identity(service, 43123, "a".repeat(64), "local-test-instance".into());
+        (directory, application.into_router(), fixture)
+    }
+
+    fn test_app_with_incomplete() -> (TestDirectory, Router, IncompleteFixture) {
+        let directory = TestDirectory::new();
+        let repository = directory.0.join("repository");
+        fs::create_dir(&repository).unwrap();
+        let original = directory.0.join("incomplete-original.png");
+        let current = directory.0.join("incomplete-current.png");
+        let ai_output = directory.0.join("incomplete-ai-output.png");
+        fs::write(&original, b"\x89PNG\r\n\x1a\nincomplete-original").unwrap();
+        fs::write(&current, b"\x89PNG\r\n\x1a\nincomplete-current").unwrap();
+        fs::write(&ai_output, b"\x89PNG\r\n\x1a\nincomplete-ai-output").unwrap();
+        let pending = begin_creator_session(&CreatorBeginOptions {
+            repository: repository.clone(),
+            session: "incomplete-session".into(),
+            original_image: original,
+            current_image: current,
+            ai_output,
+            subject_label: "Incomplete HTTP fixture".into(),
+            creator_name: "Test creator".into(),
+        })
+        .unwrap();
+        let receipt = pending.receipt().clone();
+        let fixture = IncompleteFixture {
+            proposal_ref: receipt.proposal_ref,
+            proposal_head: receipt.proposal_head,
+            decision_ref: receipt.decision_ref,
+            decision_head: receipt.base_head,
+        };
+        drop(pending);
+
+        let service = Arc::new(
+            LocalService::new([synapse_local_service::ProjectRegistration::new(
+                "demo",
+                "Incomplete project",
+                repository,
             )])
             .unwrap(),
         );
@@ -1856,6 +2432,195 @@ mod tests {
         assert!(APP_JS.contains("showCommittedReceipt(form, data)"));
         assert!(APP_JS.contains("JSON.stringify(receipt, null, 2)"));
         assert!(APP_JS.contains("!committedWithoutReport && form.dataset.successReload"));
+        assert!(APP_JS.contains("async function pollOperation"));
+        assert!(
+            APP_JS.contains(
+                "operation.state === \"failed\" || operation.state === \"outcome_unknown\""
+            )
+        );
+        assert!(APP_JS.contains("data?.state === \"queued\""));
+        assert!(APP_JS.contains("form.dataset.confirmMaintenance"));
+    }
+
+    #[test]
+    fn operation_timestamps_are_rfc3339_and_never_regress() {
+        assert_eq!(civil_date_from_unix_days(0), (1970, 1, 1));
+        assert_eq!(civil_date_from_unix_days(19_205), (2022, 8, 1));
+
+        let later = UNIX_EPOCH + Duration::new(19_205 * 86_400 + 3_661, 123_456_789);
+        let earlier = later - Duration::from_secs(600);
+        let before_epoch = UNIX_EPOCH - Duration::from_secs(1);
+        let advanced = later + Duration::from_secs(5);
+        let mut last_timestamp = None;
+
+        let first = monotonic_operation_timestamp(&mut last_timestamp, later).unwrap();
+        assert_eq!(first.len(), 30);
+        assert_eq!(&first[4..5], "-");
+        assert_eq!(&first[10..11], "T");
+        assert!(first.ends_with('Z'));
+        assert_eq!(
+            monotonic_operation_timestamp(&mut last_timestamp, earlier).unwrap(),
+            first
+        );
+        assert_eq!(
+            monotonic_operation_timestamp(&mut last_timestamp, before_epoch).unwrap(),
+            first
+        );
+        assert!(monotonic_operation_timestamp(&mut last_timestamp, advanced).unwrap() > first);
+    }
+
+    #[test]
+    fn operation_registry_bounds_active_jobs() {
+        let registry = OperationRegistry::default();
+        let mut first_id = None;
+        for index in 0..MAX_ACTIVE_OPERATIONS {
+            let accepted = registry
+                .reserve(OperationKind::Fsck, format!("project-{index}"))
+                .unwrap();
+            first_id.get_or_insert(accepted.operation_id);
+        }
+        assert!(matches!(
+            registry.reserve(OperationKind::Fsck, "overflow".into()),
+            Err(OperationRegistryError::Capacity)
+        ));
+        let first_id = first_id.unwrap();
+        registry.mark_running(&first_id);
+        registry.finish(
+            &first_id,
+            OperationState::Succeeded,
+            Some(OperationResult::Fsck(synapse_local_service::FsckResult {
+                clean: true,
+                objects_seen: 0,
+                objects_verified: 0,
+                closure_count: 0,
+                issue_count: 0,
+            })),
+            None,
+        );
+        assert!(
+            registry
+                .reserve(OperationKind::Fsck, "replacement".into())
+                .is_ok()
+        );
+    }
+
+    #[test]
+    fn operation_registry_evicts_by_admission_order_during_clock_regression() {
+        let registry = OperationRegistry::default();
+        let observed_at = UNIX_EPOCH + Duration::from_secs(2_000_000_000);
+        let mut oldest_id = None;
+        let mut second_id = None;
+        for index in 0..MAX_OPERATION_ENTRIES {
+            let regressed_at = observed_at - Duration::from_secs(index as u64);
+            let accepted = registry
+                .reserve_at(
+                    OperationKind::Fsck,
+                    format!("project-{index}"),
+                    regressed_at,
+                )
+                .unwrap();
+            if index == 0 {
+                oldest_id = Some(accepted.operation_id.clone());
+            } else if index == 1 {
+                second_id = Some(accepted.operation_id.clone());
+            }
+            registry.finish_at(
+                &accepted.operation_id,
+                OperationState::Succeeded,
+                None,
+                None,
+                regressed_at,
+            );
+        }
+
+        let oldest_id = oldest_id.unwrap();
+        let second_id = second_id.unwrap();
+        assert!(registry.get(&oldest_id).is_some());
+        registry
+            .reserve_at(OperationKind::Fsck, "replacement".into(), observed_at)
+            .unwrap();
+        assert!(registry.get(&oldest_id).is_none());
+        assert!(registry.get(&second_id).is_some());
+    }
+
+    #[tokio::test]
+    async fn operation_remains_queued_until_all_blocking_gates_are_acquired() {
+        let directory = TestDirectory::new();
+        let repository = directory.0.join("repository");
+        fs::create_dir(&repository).unwrap();
+        let service = Arc::new(
+            LocalService::new([synapse_local_service::ProjectRegistration::new(
+                "demo",
+                "Demo project",
+                repository,
+            )])
+            .unwrap(),
+        );
+        let blocking = BlockingGates::new(["demo".to_owned()]);
+        let operations = OperationRegistry::default();
+        let state = AppState {
+            service,
+            security: SecurityPolicy::new(43123, "a".repeat(64), "local-test-instance".into()),
+            blocking: blocking.clone(),
+            uploads: Arc::new(Semaphore::new(MAX_CONCURRENT_CREATOR_UPLOADS)),
+            operations: operations.clone(),
+        };
+
+        let mut project_permits = Vec::new();
+        let project_gate = blocking.projects.get("demo").unwrap().clone();
+        for _ in 0..MAX_BLOCKING_OPERATIONS_PER_PROJECT {
+            project_permits.push(project_gate.clone().acquire_owned().await.unwrap());
+        }
+        let mut overall_permits = Vec::new();
+        for _ in 0..MAX_BLOCKING_OPERATIONS {
+            overall_permits.push(blocking.overall.clone().acquire_owned().await.unwrap());
+        }
+
+        let accepted = operations
+            .reserve(OperationKind::Fsck, "demo".into())
+            .unwrap();
+        let operation_id = accepted.operation_id;
+        let operations_for_start = operations.clone();
+        let start_id = operation_id.clone();
+        let operations_for_work = operations.clone();
+        let work_id = operation_id.clone();
+        let (started_tx, started_rx) = tokio::sync::oneshot::channel();
+        let worker = tokio::spawn(run_blocking_after_acquire(
+            state,
+            Some("demo".into()),
+            move || {
+                operations_for_start.mark_running(&start_id);
+                started_tx.send(()).unwrap();
+            },
+            move |_| {
+                Ok(operations_for_work
+                    .get(&work_id)
+                    .is_some_and(|status| status.state == OperationState::Running))
+            },
+        ));
+
+        tokio::task::yield_now().await;
+        assert_eq!(
+            operations.get(&operation_id).unwrap().state,
+            OperationState::Queued
+        );
+        project_permits.pop();
+        tokio::task::yield_now().await;
+        assert_eq!(
+            operations.get(&operation_id).unwrap().state,
+            OperationState::Queued
+        );
+
+        overall_permits.pop();
+        tokio::time::timeout(Duration::from_secs(5), started_rx)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            operations.get(&operation_id).unwrap().state,
+            OperationState::Running
+        );
+        assert!(worker.await.unwrap().unwrap());
     }
 
     #[tokio::test]
@@ -2071,6 +2836,196 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(allowed.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn incomplete_session_diagnostics_are_read_only_structured_and_rendered() {
+        let (directory, app, fixture) = test_app_with_incomplete();
+        let diagnostics = app
+            .clone()
+            .oneshot(
+                request("/api/v1/projects/demo/creator-sessions/incomplete-session/diagnostics")
+                    .header("x-synapse-local-token", "a".repeat(64))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(diagnostics.status(), StatusCode::OK);
+        assert_eq!(
+            diagnostics.headers().get(CONTENT_TYPE).unwrap(),
+            "application/json"
+        );
+        let diagnostics = to_bytes(diagnostics.into_body(), 64 * 1024).await.unwrap();
+        let diagnostic: serde_json::Value = serde_json::from_slice(&diagnostics).unwrap();
+        assert_eq!(diagnostic["state"], "incomplete");
+        assert_eq!(diagnostic["session"], "incomplete-session");
+        assert_eq!(diagnostic["proposal_ref"], fixture.proposal_ref);
+        assert_eq!(diagnostic["proposal_head"], fixture.proposal_head);
+        assert_eq!(diagnostic["decision_ref"], fixture.decision_ref);
+        assert_eq!(diagnostic["decision_head"], fixture.decision_head);
+        assert_eq!(diagnostic["automatic_resume_supported"], false);
+        assert_eq!(diagnostic["automatic_cleanup_supported"], false);
+        assert!(
+            diagnostic["recommended_action"]
+                .as_str()
+                .unwrap()
+                .contains("Run fsck")
+        );
+        assert!(
+            !std::str::from_utf8(&diagnostics)
+                .unwrap()
+                .contains(directory.0.to_str().unwrap())
+        );
+
+        let page = app
+            .clone()
+            .oneshot(
+                request("/projects/demo/creator-sessions/incomplete-session")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(page.status(), StatusCode::OK);
+        let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
+        let page = std::str::from_utf8(&page).unwrap();
+        assert!(page.contains("Creator session diagnostics"));
+        assert!(page.contains(&fixture.proposal_ref));
+        assert!(page.contains(&fixture.proposal_head));
+        assert!(page.contains(&fixture.decision_ref));
+        assert!(page.contains(&fixture.decision_head));
+        assert!(page.contains("Automatic resume"));
+        assert!(page.contains("Automatic cleanup"));
+        assert!(!page.contains(directory.0.to_str().unwrap()));
+
+        for session in ["missing-session", "Invalid-Session"] {
+            let response = app
+                .clone()
+                .oneshot(
+                    request(&format!(
+                        "/api/v1/projects/demo/creator-sessions/{session}/diagnostics"
+                    ))
+                    .header("x-synapse-local-token", "a".repeat(64))
+                    .body(Body::empty())
+                    .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_problem(response, StatusCode::NOT_FOUND, "creator_session_not_found").await;
+        }
+    }
+
+    #[tokio::test]
+    async fn bounded_fsck_is_confirmed_queued_polled_and_reflected_in_project_status() {
+        let (_directory, app) = test_app();
+        let start = app
+            .clone()
+            .oneshot(unsafe_api_request(
+                "/api/v1/projects/demo/operations/fsck",
+                "application/json",
+                Body::from(r#"{"confirm_project_key":"demo"}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(start.status(), StatusCode::ACCEPTED);
+        let start = to_bytes(start.into_body(), 64 * 1024).await.unwrap();
+        let accepted: serde_json::Value = serde_json::from_slice(&start).unwrap();
+        assert_eq!(accepted["state"], "queued");
+        let operation_id = accepted["operation_id"].as_str().unwrap();
+        assert!(valid_operation_id(operation_id));
+        let poll_path = accepted["poll_path"].as_str().unwrap();
+        assert_eq!(poll_path, format!("/api/v1/operations/{operation_id}"));
+
+        let mut terminal = None;
+        for _ in 0..2_000 {
+            let response = app
+                .clone()
+                .oneshot(
+                    request(poll_path)
+                        .header("x-synapse-local-token", "a".repeat(64))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK);
+            let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+            let status: serde_json::Value = serde_json::from_slice(&body).unwrap();
+            if matches!(
+                status["state"].as_str(),
+                Some("succeeded" | "failed" | "outcome_unknown")
+            ) {
+                terminal = Some(status);
+                break;
+            }
+            tokio::task::yield_now().await;
+        }
+        let terminal = terminal.expect("the bounded empty-repository fsck did not finish");
+        assert_eq!(terminal["operation_id"], operation_id);
+        assert_eq!(terminal["kind"], "fsck");
+        assert_eq!(terminal["project_key"], "demo");
+        assert_eq!(terminal["state"], "succeeded");
+        assert!(terminal["submitted_at"].as_str().unwrap().ends_with('Z'));
+        assert!(terminal["completed_at"].as_str().unwrap().ends_with('Z'));
+        assert_eq!(terminal["result"]["clean"], true);
+        assert_eq!(terminal["result"]["objects_seen"], 0);
+        assert_eq!(terminal["result"]["objects_verified"], 0);
+        assert_eq!(terminal["result"]["issue_count"], 0);
+        assert_eq!(terminal["error"], serde_json::Value::Null);
+
+        let status = app
+            .clone()
+            .oneshot(
+                request("/api/v1/projects/demo/status")
+                    .header("x-synapse-local-token", "a".repeat(64))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let status = to_bytes(status.into_body(), 64 * 1024).await.unwrap();
+        let status: serde_json::Value = serde_json::from_slice(&status).unwrap();
+        assert_eq!(status["project"]["capabilities"]["fsck"], true);
+        assert_eq!(status["last_fsck"]["clean"], true);
+
+        let page = app
+            .clone()
+            .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
+        let page = std::str::from_utf8(&page).unwrap();
+        assert!(page.contains("Repository integrity check"));
+        assert!(page.contains("name=\"confirm_project_key\""));
+        assert!(page.contains("直近のprocess-local結果: clean"));
+
+        for body in [
+            r#"{"confirm_project_key":"other"}"#,
+            r#"{"confirm_project_key":"demo","unknown":true}"#,
+        ] {
+            let rejected = app
+                .clone()
+                .oneshot(unsafe_api_request(
+                    "/api/v1/projects/demo/operations/fsck",
+                    "application/json",
+                    Body::from(body),
+                ))
+                .await
+                .unwrap();
+            assert_problem(rejected, StatusCode::BAD_REQUEST, "local_request_denied").await;
+        }
+
+        let lost = app
+            .oneshot(
+                request(&format!("/api/v1/operations/{}", "f".repeat(64)))
+                    .header("x-synapse-local-token", "a".repeat(64))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_problem(lost, StatusCode::NOT_FOUND, "operation_state_lost").await;
     }
 
     #[tokio::test]

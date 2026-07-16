@@ -345,13 +345,13 @@ impl SchemaRegistry {
         let schema_name = select_schema(&value)?;
         self.validate_selected(&value, schema_name, limits)?;
         let oid = structured_oid_unchecked_with_limits(&value, limits)?;
-        if let Some(claimed_oid) = claimed_oid {
-            if claimed_oid != oid {
-                return Err(CoreError::new(
-                    ErrorCode::OidMismatch,
-                    format!("claimed {claimed_oid}, expected {oid}"),
-                ));
-            }
+        if let Some(claimed_oid) = claimed_oid
+            && claimed_oid != oid
+        {
+            return Err(CoreError::new(
+                ErrorCode::OidMismatch,
+                format!("claimed {claimed_oid}, expected {oid}"),
+            ));
         }
         Ok(ValidatedObject {
             value,
@@ -563,10 +563,10 @@ impl SchemaRegistry {
                 return;
             }
             output.push(entry);
-            if let Some(reference) = entry.schema.get("$ref").and_then(JsonValue::as_str) {
-                if let Ok(resolved) = registry.resolve_schema_ref(reference, entry.file) {
-                    visit(registry, resolved, seen, output);
-                }
+            if let Some(reference) = entry.schema.get("$ref").and_then(JsonValue::as_str)
+                && let Ok(resolved) = registry.resolve_schema_ref(reference, entry.file)
+            {
+                visit(registry, resolved, seen, output);
             }
             for keyword in ["allOf", "oneOf", "anyOf"] {
                 if let Some(children) = entry.schema.get(keyword).and_then(JsonValue::as_array) {

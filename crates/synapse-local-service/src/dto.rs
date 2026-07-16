@@ -36,7 +36,7 @@ impl ProjectCapabilities {
             read: true,
             creator_import: true,
             human_decision: true,
-            fsck: false,
+            fsck: true,
             archive_export: false,
             archive_restore: false,
         }
@@ -98,6 +98,73 @@ pub struct FsckResult {
     pub objects_verified: usize,
     pub closure_count: usize,
     pub issue_count: usize,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectConfirmation {
+    pub confirm_project_key: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OperationKind {
+    Fsck,
+    ArchiveExport,
+    ArchiveRestore,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OperationState {
+    Queued,
+    Running,
+    Succeeded,
+    Failed,
+    OutcomeUnknown,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OperationAccepted {
+    pub operation_id: String,
+    pub state: OperationState,
+    pub poll_path: String,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArchiveResultKind {
+    Exported,
+    Restored,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArchiveResult {
+    pub archive_name: String,
+    pub result_kind: ArchiveResultKind,
+    pub report_equivalence_required: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum OperationResult {
+    Fsck(FsckResult),
+    Archive(ArchiveResult),
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct OperationStatus {
+    pub operation_id: String,
+    pub kind: OperationKind,
+    pub project_key: String,
+    pub state: OperationState,
+    pub submitted_at: String,
+    pub completed_at: Option<String>,
+    pub result: Option<OperationResult>,
+    pub error: Option<Problem>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -408,6 +475,26 @@ pub struct IncompleteCreatorSession {
     pub session: String,
     pub recovery_supported: bool,
     pub diagnostic: String,
+}
+
+/// Read-only diagnosis of the creator Refs visible in one bounded snapshot.
+///
+/// This DTO deliberately contains no recovery capability. In particular, Ref
+/// heads are evidence for inspection and are never accepted back as authority
+/// for resuming or cleaning up a session.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreatorSessionDiagnostic {
+    pub snapshot: SnapshotContext,
+    pub session: String,
+    pub state: CreatorSessionState,
+    pub proposal_ref: Option<String>,
+    pub proposal_head: Option<String>,
+    pub decision_ref: Option<String>,
+    pub decision_head: Option<String>,
+    pub automatic_resume_supported: bool,
+    pub automatic_cleanup_supported: bool,
+    pub recommended_action: String,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

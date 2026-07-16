@@ -93,7 +93,10 @@ synapse-local \
 
 processが表示した正確な`http://127.0.0.1:...`を開きます。上記でinstallしたv0.2.0のUIでは、
 boundedな三file importとsame-process Human reviewもbrowserから実行できます。export、restore、
-`fsck`、incomplete-session diagnosticsは引き続きCLIで行います。
+`fsck`はCLIで行い、専用のincomplete-session diagnostics routeも含まれません。current source buildでは、
+creator Ref／headと安全な推奨actionをread-onlyで表示し、project keyを明示確認するserver-boundedな
+background `fsck`をpollできます。export／restoreは引き続きCLIのみです。どちらの追加機能もsessionの
+resume、cleanup、history書換えは行いません。
 [local application runbook](./deploy/local/README.md)、[install guide](./docs/install.md)、
 [source Quickstart](./docs/quickstart.md)を参照してください。
 
@@ -104,7 +107,7 @@ boundedな三file importとsame-process Human reviewもbrowserから実行でき
 | `adopt`、`reject`、`defer`を含む3-file creator Pilot | boundedなlocal CLI flowとして実装済み |
 | 人／AI帰属provenanceと比較情報を含むreport | 実装済み。AI outputはcaller-supplied |
 | original／current比較 | primary Blobのbyte identityのみ。comparabilityは常にpartial |
-| local browser UI | read表示とboundedな三file import／same-process `adopt`・`reject`・`defer`を実装済み。maintenanceはCLIのみ |
+| local browser UI | read表示、boundedな三file import／same-process `adopt`・`reject`・`defer`、read-only incomplete-session diagnostics、確認付きbackground `fsck`を実装済み。archive maintenanceはCLIのみ |
 | content-addressed object、typed closure、Ref CAS、reflog | 実装済み、repository test対象 |
 | `fsck`、checksum付きdirectory export、verified restore | local repository formatで実装済み |
 | public multi-user service | architectureのみ。未実装 |
@@ -113,8 +116,9 @@ boundedな三file importとsame-process Human reviewもbrowserから実行でき
 「実装済み」は、このrepositoryのtestで検証される範囲を意味します。real-user認証、network
 transport、production運用、一般利用者向けapplicationの完成を意味しません。
 
-tagged v0.2.0の`synapse-local` binaryにはbrowser import／review sliceが含まれます。
-review authorityはprocess-localで、restart後に再開できません。
+tagged v0.2.0の`synapse-local` binaryにはbrowser import／review sliceが含まれますが、
+current sourceで追加した専用diagnosticsとbounded browser `fsck`は含まれません。review authorityと
+maintenance job stateはprocess-localで、restart後に再開できません。
 
 ## 仕組み
 

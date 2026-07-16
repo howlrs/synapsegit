@@ -6,6 +6,27 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+### Added
+
+- A dedicated read-only localhost creator-session diagnostics service/API/UI
+  that reports the current Ref/head shape and a safe recommended action without
+  reconstructing review authority, resuming, cleaning up, or rewriting history.
+  This addition is available in current source and is not part of tagged v0.2.0.
+- An explicitly confirmed localhost maintenance `fsck` using a server-fixed
+  bounded Core profile, a finite process-local background-job registry and poll
+  API, clean/dirty aggregate results, `last_fsck`, and project-page UI. Browser
+  disconnect does not cancel or retry the job. This addition is also not part of
+  tagged v0.2.0.
+
+### Changed
+
+- The default authorization clock now preserves a process-wide monotonic floor
+  across wall-clock regressions, and creator recording uses the same trusted
+  clock so freshly issued Grants cannot fail spuriously at startup.
+- Documentation now distinguishes current-source browser diagnostics/`fsck`,
+  tagged v0.2.0 behavior, CLI-only archive export/restore, and planned archive
+  inspection/listing.
+
 ## [0.2.0] - 2026-07-15
 
 ### Added

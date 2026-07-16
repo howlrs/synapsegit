@@ -8,10 +8,17 @@ catalog-selected begin/decide workflow.
 
 The current service implements projects/status, Refs/reflog, creator-session
 discovery/report/timeline/evidence, bounded verified image reads, proposal-only
-creator import, and same-process Human review. Pending authority is opaque,
-non-serializable, capacity-bounded, and never reconstructed from Ref/head IDs.
-`fsck`, export, restore, restart-durable review, and automatic incomplete-session
-recovery are not implemented here.
+creator import, same-process Human review, and a dedicated read-only creator-session
+diagnostic DTO/method. Diagnostics return the current Ref/head shape and a safe
+recommended action but never recover, clean up, or mutate a session. Pending
+authority is opaque, non-serializable, capacity-bounded, and never reconstructed
+from Ref/head IDs. The service also validates exact project confirmation, runs
+only `fsck_with_limits` with a server-fixed Core-default-equivalent maintenance
+profile, and retains the latest clean or dirty aggregate result in process-local
+`last_fsck`. Archive inspection/listing, export, restore, restart-durable review, and automatic
+incomplete-session recovery are not implemented here. The diagnostics and
+maintenance `fsck` additions are available in current source and are not part of
+the tagged v0.2.0 binary.
 
 Run its tests with:
 

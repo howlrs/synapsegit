@@ -356,10 +356,10 @@ impl SqliteRefStore {
                 |row| row.get::<_, i64>(0),
             )
             .optional()?;
-        if let Some(found) = existing_version {
-            if found != REF_STORE_SCHEMA_VERSION {
-                return Err(RefStoreError::UnsupportedSchemaVersion { found });
-            }
+        if let Some(found) = existing_version
+            && found != REF_STORE_SCHEMA_VERSION
+        {
+            return Err(RefStoreError::UnsupportedSchemaVersion { found });
         }
 
         let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;

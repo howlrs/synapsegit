@@ -1,17 +1,21 @@
 # SynapseGit localhost application architecture
 
-Status: approved implementation design; localhost application slices 1-4 and 6 implemented
+Status: approved implementation design; slices 1-4/6, the fsck/job part of slice 7, and the read-only diagnostics part of slice 8 implemented in current source
 
 Decision date: 2026-07-14
 
-Implementation status: slices 1-4 and 6 are implemented. `synapse-local-service`
-and `synapse-local-http` provide the exact project catalog, bounded read facade,
-loopback HTTP boundary, server-rendered project/session views, bounded three-file
-staging, process-local pending authority, and Human `adopt` / `reject` / `defer`.
-The third file remains caller-supplied; no model is invoked. `fsck`, export,
-restore, and the dedicated incomplete-session diagnostics route remain
-unimplemented in the browser application. Core v0.1 remains a Stage 0 draft;
-this application slice is not the formal Core roadmap's Stage 1.
+Implementation status: slices 1-4 and 6, the bounded `fsck`/job foundation of
+slice 7, and the read-only diagnostics portion of slice 8 are implemented in
+current source. `synapse-local-service` and `synapse-local-http` provide the exact
+project catalog, bounded read facade, loopback HTTP boundary, server-rendered
+project/session views, bounded three-file staging, process-local pending
+authority, Human `adopt` / `reject` / `defer`, a dedicated read-only diagnosis,
+and an explicitly confirmed background `fsck` with pollable process-local state.
+The third file remains caller-supplied; no model is invoked. Archive list, export,
+and restore remain unimplemented in the browser application. The diagnostics and
+browser `fsck` additions are current-source-only and are not included in the
+tagged v0.2.0 binary. Core v0.1 remains a Stage 0 draft; this application slice is
+not the formal Core roadmap's Stage 1.
 
 This document defines an application-level contract. It does not change the
 normative Core protocol, canonical bytes, OIDs, Ref semantics, or archive
@@ -169,8 +173,9 @@ an implemented one.
 | 2 | `GET .../creator-sessions`, session detail, session images | complete/incomplete discovery, report, timeline, evidence, bounded media |
 | 4 | `POST .../creator-sessions` | stream the three files and publish through the creator proposal boundary |
 | 6 | `POST .../creator-sessions/{session}/decisions` | Human `adopt` / `reject` / `defer` through the admitted proposal route |
-| 7 | `POST .../operations/fsck`, `archive-exports`, `archive-restores`; `GET /archives`, `.../operations/{id}` | explicit, confirmed background maintenance jobs and inspected archive summaries |
-| 8 | `GET .../creator-sessions/{session}/diagnostics` | incomplete-session diagnosis without automatic mutation |
+| 7 | `POST .../operations/fsck`; `GET .../operations/{id}` | implemented in current source: explicit, confirmed bounded fsck job and process-local polling |
+| 7 | `POST .../archive-exports`, `archive-restores`; `GET /archives` | planned: archive jobs and inspected archive summaries |
+| 8 | `GET .../creator-sessions/{session}/diagnostics` | implemented in current source: incomplete-session diagnosis without automatic mutation |
 
 There is intentionally no generic object PUT/GET, no generic Commit route, no
 `update-ref`, no profile/ACL/permit administration, and no arbitrary projection
@@ -178,9 +183,10 @@ query. A complete session image read resolves `original`, `current`, or
 `ai-output` through a validated current creator report. During same-process
 pending review, it resolves the role through the retained trusted pending
 receipt only after rechecking its proposal/base Ref heads and reachable tree
-entries. If that pending capability is gone, the route returns the incomplete
-session problem until slice 8 diagnostics can describe the remaining history;
-a caller can never use an orphan Blob OID as a read capability.
+entries. If that pending capability is gone, the session becomes incomplete and
+the slice 8 diagnostics route describes its current Ref/head shape without
+reconstructing authority; a caller can never use an orphan Blob OID as a read
+capability.
 
 ### Response consistency
 
@@ -425,34 +431,43 @@ still local/session-scoped.
 
 ## Maintenance operations
 
-`fsck`, export, and restore are explicit POST operations with project-scoped
-concurrency gates and confirmation values. A POST validates and reserves the
-operation, starts the synchronous Core method through a bounded blocking
-worker, and returns `202 Accepted` plus a random operation ID.
+Current source implements this contract for `fsck`; export and restore remain
+planned. Maintenance POST operations use project-scoped concurrency gates and
+confirmation values. A POST validates and reserves the operation, starts the
+synchronous Core method through a bounded blocking worker, and returns
+`202 Accepted` plus a random operation ID.
 `GET .../operations/{id}` returns `queued`, `running`, `succeeded`, `failed`, or
 `outcome_unknown` and the final versioned receipt when known.
 
-The initial operation registry is process-local and is not authority. A worker
-join failure may become `outcome_unknown` while the registry entry survives.
+The implemented operation registry is process-local, holds at most 256 entries
+and 64 active jobs, and is not authority. Reserving a new job at the entry limit
+evicts the oldest terminal result; it never evicts an active job. A worker join
+failure may become `outcome_unknown` while the registry entry survives.
 After restart the server cannot recognize an old ID; every syntactically valid
 unknown/expired ID returns the same safe `operation_state_lost` not-found
 problem instead of fabricating a final state. In either case the UI treats the
 affected project or archive outcome as unknown until it rechecks Refs, `fsck`,
-archive presence/checksums, or restore state. The service never automatically
-repeats a write after disconnect or restart.
+archive presence/checksums, or restore state. A browser disconnect does not
+cancel the detached job, and the service never automatically retries an
+operation after disconnect or restart.
 
 The compatibility `Repository::fsck` still inventories the whole CAS without
 an operation-wide inventory/byte limit. Core now also provides bounded current-
-and exact-snapshot fsck entry points, which the creator HTTP paths use. Slice 7
-must expose only the bounded entry point with an independently chosen
-maintenance profile; a blocking thread and concurrency gate alone do not make
-the data scan bounded.
+and exact-snapshot fsck entry points. Current source calls only
+`fsck_with_limits` for maintenance and pins a server-owned profile equal to the
+current Core defaults: 100,000 Ref roots, 100,000 CAS objects, 1 TiB of raw
+object bytes, 1,000,000 cumulative closure nodes, 10,000,000 cumulative closure
+edges, and a 100,000 Record / 1 GiB Tombstone scan. HTTP input cannot raise these
+limits. The user must type the exact project key before reservation. A completed
+dirty check is a successful job with `clean=false` and aggregate counts, not a
+failed worker; path and issue details are not returned. The most recent completed
+result is exposed as process-local `last_fsck` and is lost on restart.
 
 Archive listing must not duplicate Core's private manifest parser in the
-facade. Slice 7 first adds a read-only Core archive inspection function that
-reuses the restore parser, checksum checks, and resource limits without writing
-objects or Refs. `GET /archives` reports `valid`, `invalid`, or
-`staging_or_unknown` only from that inspected result.
+facade. The remaining archive portion of slice 7 must first add a read-only Core
+archive inspection function that reuses the restore parser, checksum checks, and
+resource limits without writing objects or Refs. `GET /archives` reports
+`valid`, `invalid`, or `staging_or_unknown` only from that inspected result.
 
 The inspection, listing, and restore paths share server-fixed operation-wide
 limits for archive-root entries, manifest/object count, aggregate object bytes,
@@ -470,9 +485,10 @@ exposure.
   Refs last, and supports only Core's documented exact-subset retry after a
   failed attempt.
 
-The UI requires the user to type or select the exact project/archive logical
-name for export and restore. It never offers “overwrite” or edits object/SQLite
-files to recover an error.
+The implemented `fsck` UI requires the exact project key and polls the returned
+operation ID. Planned export and restore UI likewise requires the user to type or
+select the exact project/archive logical name. It never offers “overwrite” or
+edits object/SQLite files to recover an error.
 
 ## Implementation slices
 
@@ -491,11 +507,15 @@ sequencing and does not advance the formal Core stage.
 5. **Planned:** expanded Image and Observation/evidence views with explicit byte-identity limits.
 6. **Implemented:** pending proposal review and Human `adopt` / `reject` / `defer` through the
    exact admitted application route, including exclusive decision state and fail-closed ambiguity.
-7. **Planned:** report maintenance, `fsck`, export, and empty-target restore with confirmations and safe
-   error presentation.
+7. **Partially implemented:** current source implements exact project confirmation, server-fixed
+   bounded `fsck`, a finite process-local operation registry/poll route, `last_fsck`, and the
+   confirmation/poll/result UI. Archive inspection/listing, export, and empty-target restore remain
+   planned. The browser `fsck` addition is not in the tagged v0.2.0 binary.
 8. **Partially implemented:** tagged Linux x86_64 packaging, checksum publication, and release
-   documentation are implemented for the read-only binaries. Incomplete-session diagnostics and
-   complete browser end-to-end coverage remain planned.
+   documentation are implemented. Current source also implements the dedicated read-only
+   incomplete-session diagnostics service DTO/method, GET route, and server-rendered
+   Ref/head/recommended-action view; this diagnostics addition is not in the tagged v0.2.0 binary.
+   Complete browser end-to-end coverage remains planned.
 
 ## Verification and acceptance
 
@@ -521,6 +541,11 @@ existing documentation/Mermaid checks. Later slices add:
 - `cargo fmt`, workspace tests, Clippy `-D warnings`, Rustdoc `-D warnings`,
   browser module tests, contract/docs/Mermaid verification, and
   `git diff --check`.
+
+Current service/route/template tests cover the fixed maintenance profile, exact
+confirmation, clean and dirty count-only results, registry capacity/state loss,
+polling, process-local `last_fsck`, and the rendered `fsck` form/result. Archive
+acceptance and complete browser end-to-end coverage remain pending.
 
 The localhost milestone is complete only when the executable refuses
 non-loopback binding, no caller authors JSON or raw Ref mutations, the restored

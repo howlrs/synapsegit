@@ -130,6 +130,62 @@ export async function apiJson(input, init = {}) {
   return data;
 }
 
+function validOperationAccepted(value) {
+  if (!value || value.state !== "queued") return false;
+  if (typeof value.operation_id !== "string" || !/^[A-Za-z0-9_-]{22,128}$/u.test(value.operation_id)) {
+    return false;
+  }
+  return value.poll_path === `/api/v1/operations/${value.operation_id}`;
+}
+
+function operationSuccessMessage(operation) {
+  if (operation?.state !== "succeeded") return null;
+  if (operation.kind === "fsck") {
+    const result = operation.result;
+    if (
+      !result ||
+      typeof result.clean !== "boolean" ||
+      !Number.isSafeInteger(result.objects_verified) ||
+      !Number.isSafeInteger(result.issue_count)
+    ) {
+      throw new TypeError("The integrity-check result is invalid.");
+    }
+    return result.clean
+      ? `Integrity check completed cleanly after verifying ${result.objects_verified} objects.`
+      : `Integrity check completed with ${result.issue_count} issues.`;
+  }
+  return "Maintenance operation completed.";
+}
+
+async function pollOperation(form, accepted) {
+  if (!validOperationAccepted(accepted)) {
+    throw new TypeError("The maintenance operation receipt is invalid.");
+  }
+  const pollUrl = resolveApiUrl(accepted.poll_path);
+  let pollDelayMs = 250;
+  for (;;) {
+    const operation = await apiJson(pollUrl, { method: "GET" });
+    if (operation?.operation_id !== accepted.operation_id || typeof operation.state !== "string") {
+      throw new TypeError("The maintenance operation status is invalid.");
+    }
+    if (operation.state === "queued" || operation.state === "running") {
+      setStatus(form, `Maintenance operation is ${operation.state}…`, null);
+      await new Promise((resolve) => window.setTimeout(resolve, pollDelayMs));
+      pollDelayMs = Math.min(pollDelayMs * 2, 2_000);
+      continue;
+    }
+    if (operation.state === "succeeded") return operation;
+    if (operation.state === "failed" || operation.state === "outcome_unknown") {
+      const detail =
+        typeof operation.error?.detail === "string"
+          ? operation.error.detail
+          : "The maintenance operation did not complete successfully.";
+      throw new TypeError(detail);
+    }
+    throw new TypeError("The maintenance operation status is invalid.");
+  }
+}
+
 function imageStatusElement(image) {
   const targetId = image.dataset.statusTarget;
   const target = targetId ? document.getElementById(targetId) : null;
@@ -548,6 +604,16 @@ async function submitEnhancedForm(event) {
     }
   }
 
+  if (form.dataset.confirmMaintenance === "fsck") {
+    const confirmed = window.confirm(
+      "Read-only fsckを開始します。大きなrepositoryでは完了まで時間がかかる場合があります。続行しますか？",
+    );
+    if (!confirmed) {
+      setStatus(form, "Integrity checkは開始されませんでした。", null);
+      return;
+    }
+  }
+
   setBusy(form, true);
   setStatus(form, form.dataset.busyMessage || "Working…", null);
 
@@ -559,13 +625,21 @@ async function submitEnhancedForm(event) {
       throw new TypeError("The success destination must use the local application origin.");
     }
 
-    const data = await apiJson(prepared.url, prepared.init);
+    let data = await apiJson(prepared.url, prepared.init);
+    if (data?.state === "queued") {
+      setStatus(form, "Maintenance operationを開始しました…", null);
+      data = await pollOperation(form, data);
+    }
     const committedWithoutReport = data?.state === "committed";
     if (committedWithoutReport) {
       showCommittedReceipt(form, data);
       destination = null;
     } else {
-      setStatus(form, form.dataset.successMessage || "Completed.", "success");
+      setStatus(
+        form,
+        operationSuccessMessage(data) || form.dataset.successMessage || "Completed.",
+        "success",
+      );
     }
 
     if (form.dataset.successSessionBase) {

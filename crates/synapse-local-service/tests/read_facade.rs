@@ -98,7 +98,7 @@ fn catalog_is_exact_sorted_and_never_serializes_paths() {
         project.capabilities.read
             && project.capabilities.creator_import
             && project.capabilities.human_decision
-            && !project.capabilities.fsck
+            && project.capabilities.fsck
             && !project.capabilities.archive_export
             && !project.capabilities.archive_restore
     }));
@@ -275,6 +275,23 @@ fn facade_lists_pages_and_reports_from_coherent_snapshots() {
     assert_eq!(comparison.comparability, "partial");
     assert_eq!(comparison.reason_codes[0], "byte_identity_only");
     assert!(!comparison.warnings.is_empty());
+
+    let diagnostic = service
+        .get_creator_session_diagnostic("project", "complete-session")
+        .unwrap();
+    assert_eq!(diagnostic.state, CreatorSessionState::Complete);
+    assert_eq!(diagnostic.snapshot, refs.snapshot);
+    assert_eq!(
+        diagnostic.proposal_head.as_deref(),
+        Some(receipt.proposal_head.as_str())
+    );
+    assert_eq!(
+        diagnostic.decision_head.as_deref(),
+        Some(receipt.decision_head.as_str())
+    );
+    assert!(!diagnostic.automatic_resume_supported);
+    assert!(!diagnostic.automatic_cleanup_supported);
+    assert!(diagnostic.recommended_action.contains("complete"));
 }
 
 #[test]
@@ -343,6 +360,37 @@ fn both_refs_with_a_non_decision_head_remain_incomplete() {
     assert_eq!(detail.state, IncompleteState::Incomplete);
     assert!(!detail.recovery_supported);
     assert_eq!(detail.snapshot.projection_source_fingerprint, None);
+
+    let diagnostic = service
+        .get_creator_session_diagnostic("project", "incomplete-session")
+        .unwrap();
+    assert_eq!(diagnostic.state, CreatorSessionState::Incomplete);
+    assert_eq!(diagnostic.proposal_ref, incomplete.proposal_ref);
+    assert_eq!(diagnostic.proposal_head, incomplete.proposal_head);
+    assert_eq!(diagnostic.decision_ref, incomplete.decision_ref);
+    assert_eq!(diagnostic.decision_head, incomplete.decision_head);
+    assert!(!diagnostic.automatic_resume_supported);
+    assert!(!diagnostic.automatic_cleanup_supported);
+    assert!(diagnostic.recommended_action.contains("Run fsck"));
+
+    let (page_detail, page_diagnostic) = service
+        .get_creator_session_with_diagnostic("project", "incomplete-session")
+        .unwrap();
+    let CreatorSessionDetail::Incomplete(page_detail) = page_detail else {
+        panic!("the aggregate read changed the incomplete state");
+    };
+    let page_diagnostic = page_diagnostic.expect("incomplete sessions include diagnostics");
+    assert_eq!(page_detail.snapshot, page_diagnostic.snapshot);
+    assert_eq!(page_diagnostic.state, CreatorSessionState::Incomplete);
+
+    let malformed = service
+        .get_creator_session_diagnostic("project", "../incomplete-session")
+        .unwrap_err();
+    let unknown = service
+        .get_creator_session_diagnostic("project", "missing-session")
+        .unwrap_err();
+    assert_eq!(malformed, unknown);
+    assert_eq!(unknown.code(), "creator_session_not_found");
 
     let image_error = service
         .get_creator_session_image("project", "incomplete-session", ImageRole::Original)

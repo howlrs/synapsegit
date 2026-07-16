@@ -98,8 +98,12 @@ synapse-local \
 
 Open the exact `http://127.0.0.1:...` URL printed by the process. The v0.2.0
 binary supports bounded three-file import and same-process Human review in the
-browser. Export, restore, `fsck`, and incomplete-session diagnostics remain CLI
-operations. See the
+browser. Its `fsck`, export, and restore operations remain CLI-only, and it does
+not include the dedicated incomplete-session diagnostics route. Current source
+builds additionally show a read-only diagnosis with the current creator Ref/head
+shape and provide an explicitly confirmed, server-bounded background `fsck` with
+pollable results. Export and restore remain CLI-only. Neither addition resumes,
+cleans up, or rewrites a creator session. See the
 [local application runbook](./deploy/local/README.md), the
 [installation guide](./docs/install.md), or the
 [source Quickstart](./docs/quickstart.md).
@@ -111,7 +115,7 @@ operations. See the
 | Three-file creator Pilot with `adopt`, `reject`, and `defer` | Implemented as a bounded local CLI flow |
 | Human/AI-attributed provenance and a comparison-aware report | Implemented; AI output remains caller-supplied |
 | Original/current comparison | Primary blob byte identity only; always partial comparability |
-| Local browser interface | Read views plus bounded three-file import and same-process `adopt` / `reject` / `defer`; maintenance remains CLI-only |
+| Local browser interface | Read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, and confirmed background `fsck`; archive maintenance remains CLI-only |
 | Content-addressed objects, typed closure, Ref CAS, and reflog | Implemented and covered by repository tests |
 | `fsck`, checksum-bound directory export, and verified restore | Implemented for the local repository format |
 | Public multi-user service | Architecture only; not implemented |
@@ -122,7 +126,9 @@ real-user authentication, network transport, production operations, or a
 general creator-facing application is ready.
 
 The tagged v0.2.0 `synapse-local` binary includes the browser import/review
-slice. Review authority is process-local and cannot be resumed after restart.
+slice, but not the dedicated diagnostics or bounded browser `fsck` additions now
+available in current source. Review authority and maintenance job state are
+process-local and cannot be resumed after restart.
 
 ## How it works
 

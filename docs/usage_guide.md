@@ -39,8 +39,9 @@ terminalに表示された`http://127.0.0.1:8787`をbrowserで開き、終了時
 UIで現在読めるのはproject status、Refs／reflog、creator sessionのreport／timeline／evidence／画像である。
 v0.2.0ではoriginal／current／caller-supplied AI outputの三fileをbounded stagingへuploadし、proposalを
 同じprocess内でHuman `adopt`／`reject`／`defer`できる。review前にprocessを終了するとauthorityは復元できず、
-sessionはincompleteになる。`fsck`、archive export／restore、automatic recoveryのUIは未実装なので、既存の
-maintenance操作は対応するCLIを使う。tagged v0.2.0の`synapse-local`もこのwrite sliceを含む。詳しいoption、limit、
+sessionはincompleteになる。current sourceはread-only incomplete diagnosticsと、exact project確認付きの
+server-bounded background `fsck`／poll UIも実装するが、tagged v0.2.0の`synapse-local`にはこの二つを含まない。
+archive export／restoreとautomatic recoveryのUIは未実装なので、archive操作は対応するCLIを使う。詳しいoption、limit、
 localhost security boundary、GCP CLI smokeとの違いは[native localhost runbook](../deploy/local/README.md)を参照する。
 
 ![SynapseGit Localのcreator session詳細。Human Decision、AI output selected、三つの画像roleを表示](./assets/synapse-local/creator-session.png)

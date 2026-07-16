@@ -7,7 +7,8 @@
 
 use super::{Repository, RepositoryError, Result, validate_prepared_head};
 use std::collections::{BTreeMap, BTreeSet};
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::sync::Mutex;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use synapse_canonical::{CoreError, ErrorCode, ObjectKind, Value, parse_oid};
 use synapse_cas::{ClosureNodeState, PreparedClosureVerifier};
 use synapse_schema::validate;
@@ -337,16 +338,75 @@ where
     }
 }
 
+/// A process-wide authorization clock that follows forward wall-clock changes
+/// while advancing by monotonic elapsed time across wall-clock regressions.
+///
+/// Keeping the monotonic floor process-wide lets independently constructed
+/// runtimes compare successive authorization observations without extending a
+/// Grant or permit lifetime when the host wall clock is adjusted backwards.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct SystemAuthorizationClock;
 
+static SYSTEM_AUTHORIZATION_CLOCK_STATE: Mutex<Option<SystemAuthorizationClockState>> =
+    Mutex::new(None);
+
+struct SystemAuthorizationClockState {
+    last_unix_nanos: i128,
+    last_monotonic: Instant,
+}
+
+impl SystemAuthorizationClockState {
+    fn new(last_unix_nanos: i128, last_monotonic: Instant) -> Self {
+        Self {
+            last_unix_nanos,
+            last_monotonic,
+        }
+    }
+
+    fn observe(
+        &mut self,
+        wall_unix_nanos: i128,
+        monotonic_now: Instant,
+    ) -> std::result::Result<i128, String> {
+        let elapsed = monotonic_now
+            .checked_duration_since(self.last_monotonic)
+            .ok_or_else(|| "trusted monotonic clock moved backwards".to_owned())?;
+        let elapsed_nanos = i128::try_from(elapsed.as_nanos())
+            .map_err(|_| "monotonic elapsed time exceeds supported range".to_owned())?;
+        let monotonic_floor = self
+            .last_unix_nanos
+            .checked_add(elapsed_nanos)
+            .ok_or_else(|| "system authorization time exceeds supported range".to_owned())?;
+        let observed = wall_unix_nanos.max(monotonic_floor);
+        self.last_unix_nanos = observed;
+        self.last_monotonic = monotonic_now;
+        Ok(observed)
+    }
+}
+
 impl AuthorizationClock for SystemAuthorizationClock {
     fn now_unix_nanos(&self) -> std::result::Result<i128, String> {
+        // Serialize sampling with the state update. Sampling before locking
+        // would let an older concurrent observation arrive after a newer one.
+        let mut state = SYSTEM_AUTHORIZATION_CLOCK_STATE
+            .lock()
+            .map_err(|_| "system authorization clock state is unavailable".to_owned())?;
         let duration = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|error| format!("system clock is before Unix epoch: {error}"))?;
-        i128::try_from(duration.as_nanos())
-            .map_err(|_| "system time exceeds supported range".to_owned())
+        let wall_unix_nanos = i128::try_from(duration.as_nanos())
+            .map_err(|_| "system time exceeds supported range".to_owned())?;
+        let monotonic_now = Instant::now();
+        match state.as_mut() {
+            Some(state) => state.observe(wall_unix_nanos, monotonic_now),
+            None => {
+                *state = Some(SystemAuthorizationClockState::new(
+                    wall_unix_nanos,
+                    monotonic_now,
+                ));
+                Ok(wall_unix_nanos)
+            }
+        }
     }
 }
 
@@ -2050,9 +2110,35 @@ fn denied(message: impl Into<String>) -> RepositoryError {
 #[cfg(test)]
 mod tests {
     use super::{
-        canonical_timestamp_unix_nanos, segment_prefix_matches, selector_matches,
-        selector_supported,
+        SystemAuthorizationClockState, canonical_timestamp_unix_nanos, segment_prefix_matches,
+        selector_matches, selector_supported,
     };
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn system_clock_state_advances_through_wall_clock_regressions() {
+        let started_at = Instant::now();
+        let mut state = SystemAuthorizationClockState::new(100, started_at);
+
+        assert_eq!(
+            state
+                .observe(99, started_at + Duration::from_nanos(5))
+                .unwrap(),
+            105
+        );
+        assert_eq!(
+            state
+                .observe(200, started_at + Duration::from_nanos(10))
+                .unwrap(),
+            200
+        );
+        assert_eq!(
+            state
+                .observe(150, started_at + Duration::from_nanos(15))
+                .unwrap(),
+            205
+        );
+    }
 
     #[test]
     fn segment_prefixes_do_not_match_nearby_siblings() {
