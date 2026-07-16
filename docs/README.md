@@ -11,10 +11,13 @@ narrow `decision/*` admissionはRust library境界まで実装されている。
 verified ObjectStoreとcaller-supplied Ref snapshotから作るdisposable SQLite query projectionも
 Rust library境界まで実装されている。
 single-user／loopback-onlyのcreator-facing image applicationはarchitectureとversioned HTTP contractに加え、
-slices 1-4/6のsafe facade、server、route、UIまで実装されている。project status、Refs／reflog、creator
-sessionのreport／timeline／evidence／画像を閲覧でき、boundedな三file importとsame-process Human reviewを
-実行できる。`fsck`、export、restore、incomplete diagnosticsのUIは未実装である。このapplication sliceは
-formal Core Stage 1ではなく、Core v0.1は引き続きStage 0 draftである。
+slices 1-4/6、slice 7のbounded `fsck`／job基盤、slice 8のread-only diagnostics部分のsafe facade、
+server、route、UIまで実装されている。project status、Refs／reflog、creator sessionの
+report／timeline／evidence／画像を閲覧でき、boundedな三file import、same-process Human review、project keyの
+明示確認を伴うbackground `fsck`を実行できる。incomplete sessionではcurrent creator Ref／headと推奨actionを
+表示するが、resume、cleanup、history書換えは行わない。archive list／export／restoreのAPI／UIは未実装である。
+diagnosticsとbrowser `fsck`はcurrent sourceだけに含まれ、tagged v0.2.0 binaryには含まれない。この
+application sliceはformal Core Stage 1ではなく、Core v0.1は引き続きStage 0 draftである。
 public multi-tenant serviceについては、Google Cloudを主系、AWSをportability profileとする
 [Cloud service architecture](./cloud_service_architecture.md)を決定した。これはCloud Run／Cloud SQL／Cloud Storageと
 ECS Fargate／RDS PostgreSQL／S3の推奨構成、tenant isolation、durable command、SLO／DR、migration gateを定義する
@@ -70,7 +73,7 @@ flowchart LR
     CR --> SM["Private GCP CLI smoke<br/>one-shot Job / no persistence"]
     E --> P["SQLite query projection<br/>timeline / dependency / Analysis lineage"]
     P --> RP["creator-report<br/>bounded timeline / process report"]
-    RP --> UI["localhost image application<br/>read + import / review"]
+    RP --> UI["localhost image application<br/>read + import / review<br/>bounded fsck / diagnostics"]
     O -. next .-> F["Observation pilot<br/>capture / pixel registration / diff"]
     I -. remaining .-> H["Remaining integration<br/>Projection route / release / quorum"]
     J -. remaining .-> K["Production control plane<br/>HTTP/JWT / durable distributed fence / sandbox"]
@@ -94,7 +97,7 @@ flowchart LR
 | validated ingest、directory export / restore | 実装済み | `synapse-core` |
 | low-level local Core repository round-trip CLI（structured JSONはcaller-supplied） | 実装済み | `synapse-cli`、[Quickstart](./quickstart.md) |
 | local single-creator Pilot（3 opaque画像、imported CaptureProfile、byte-identity Analysis、AI／Human route、adopt／reject／defer、timeline／report） | 実装済み / production integration対象外 | `synapse-creator`、`synapse-cli creator-run`／`creator-report`、creator／CLI process tests |
-| single-user localhost image application（safe facade、loopback HTTP、server-rendered UI） | slices 1-4/6実装済み。read、bounded upload、same-process reviewに対応。maintenance／diagnostics UIは未実装 | [Localhost runbook](../deploy/local/README.md)、[Localhost application architecture](./localhost_application_architecture.md)、[OpenAPI contract](../api/local/v1/openapi.json) |
+| single-user localhost image application（safe facade、loopback HTTP、server-rendered UI） | slices 1-4/6、slice 7のbounded fsck／job基盤、slice 8のread-only diagnostics部分を実装済み。archive API／UIは未実装 | [Localhost runbook](../deploy/local/README.md)、[Localhost application architecture](./localhost_application_architecture.md)、[OpenAPI contract](../api/local/v1/openapi.json) |
 | public multi-tenant cloud service（GCP主系、AWS portability profile） | production architecture完了、実装未着手 | [Cloud service architecture](./cloud_service_architecture.md) |
 | private non-production GCP CLI packaging smoke（one-shot Cloud Run Job） | OCI build／Terraform／digest-pinned実行を検証済み、public endpoint／永続化なし | [GCP CLI smoke deployment](../deploy/gcp/README.md) |
 | deterministic Observation byte-identity baseline（ordered primary Blob OID、`partial`／`byte_identity_only`） | 実装済み / 意味解析対象外 | `synapse-observation`、Observation integration tests |

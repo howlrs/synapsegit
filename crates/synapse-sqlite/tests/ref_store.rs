@@ -42,13 +42,13 @@ impl TestDirectory {
 
 impl Drop for TestDirectory {
     fn drop(&mut self) {
-        if let Err(error) = fs::remove_dir_all(&self.path) {
-            if self.path.exists() {
-                eprintln!(
-                    "failed to remove test directory {}: {error}",
-                    self.path.display()
-                );
-            }
+        if let Err(error) = fs::remove_dir_all(&self.path)
+            && self.path.exists()
+        {
+            eprintln!(
+                "failed to remove test directory {}: {error}",
+                self.path.display()
+            );
         }
     }
 }

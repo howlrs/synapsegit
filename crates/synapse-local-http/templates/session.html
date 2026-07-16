@@ -66,7 +66,21 @@
   {% endif %}
 </section>
 {% else %}
-<div class="notice" data-tone="warning"><h2>セッションは未完了です</h2><p>{{ diagnostic }}</p><p>履歴を自動で書き換えたり削除したりはしません。別のセッション名を使用するか、診断機能の実装を待ってください。</p></div>
+<section aria-labelledby="diagnostics-heading">
+  <div class="notice" data-tone="warning">
+    <h2 id="diagnostics-heading">セッションは未完了です</h2>
+    <p>{{ diagnostic }}</p>
+    <p>表示されたRef/headからauthorityを再構築せず、履歴を自動で書き換えたり削除したりもしません。</p>
+  </div>
+  <dl class="detail-list" aria-label="Creator session diagnostics">
+    <div><dt>Proposal Ref</dt><dd><code>{{ diagnostic_proposal_ref }}</code></dd></div>
+    <div><dt>Proposal head</dt><dd><code>{{ diagnostic_proposal_head }}</code></dd></div>
+    <div><dt>Decision Ref</dt><dd><code>{{ diagnostic_decision_ref }}</code></dd></div>
+    <div><dt>Decision head</dt><dd><code>{{ diagnostic_decision_head }}</code></dd></div>
+    <div><dt>Automatic resume</dt><dd>サポートされません</dd></div>
+    <div><dt>Automatic cleanup</dt><dd>サポートされません</dd></div>
+  </dl>
+</section>
 {% endif %}
 
 {% if pending %}

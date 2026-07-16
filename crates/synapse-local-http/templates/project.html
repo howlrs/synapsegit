@@ -20,6 +20,42 @@
   <article class="metric"><span class="metric__label">未完了</span><strong>{{ incomplete_sessions }}</strong></article>
 </section>
 
+{% if fsck_supported %}
+<section class="card" aria-labelledby="fsck-heading">
+  <div class="card__header">
+    <div>
+      <p class="eyebrow">Maintenance</p>
+      <h2 id="fsck-heading">Repository integrity check</h2>
+      <p class="muted">server固定のresource limit内で、現在のRefsと完全なCAS inventoryをread-only検査します。</p>
+    </div>
+  </div>
+  {% if has_last_fsck %}
+  <div class="notice" data-tone="{% if last_fsck_clean %}success{% else %}danger{% endif %}">
+    <h3>直近のprocess-local結果: {% if last_fsck_clean %}clean{% else %}issues found{% endif %}</h3>
+    <p>Verified objects: {{ last_fsck_objects }} · Issues: {{ last_fsck_issues }}</p>
+  </div>
+  {% endif %}
+  <form
+    hidden
+    method="post"
+    action="/api/v1/projects/{{ project_key }}/operations/fsck"
+    data-synapse-api-form="json"
+    data-confirm-maintenance="fsck"
+    data-success-reload="true"
+    data-busy-message="Integrity checkをqueueしています…"
+  >
+    <label class="field">
+      <span>確認のため project key <code>{{ project_key }}</code> を入力</span>
+      <input name="confirm_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
+    </label>
+    <div class="actions"><button type="submit" data-synapse-submit>Read-only fsckを実行</button></div>
+    <p class="field__hint">処理はbounded background jobとして実行されます。履歴やobjectを変更しません。</p>
+    <p data-synapse-status hidden></p>
+  </form>
+  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、maintenance操作は開始できません。</p></div></noscript>
+</section>
+{% endif %}
+
 <section class="card" aria-labelledby="creator-upload-heading">
   <div class="card__header">
     <div>

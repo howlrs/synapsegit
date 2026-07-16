@@ -161,8 +161,10 @@ local single-creator経路を実装する。library境界はproposal-onlyの`beg
 `Application` instance／admitted handleを保持するopaque pending valueを借用する
 `decide_creator_session`へ分割済みである。pending valueは永続化・Clone・再構築できず、既存
 `creator-run`は両phaseを連続実行する互換wrapperである。localhost applicationは、boundedな三file
-staging、proposal公開前に上限を確保するprocess registry、同じprocess内のreview UIまで実装する。
-process restart後のcapability復元、automatic resume／cleanup、maintenance UIは未実装である。
+staging、proposal公開前に上限を確保するprocess registry、同じprocess内のreview UI、read-only
+incomplete diagnostics、server-fixed bounded `fsck`のbackground job／poll UIまでcurrent sourceで実装する。
+tagged v0.2.0はdiagnostics／browser `fsck`を含まない。process restart後のcapability／job state復元、
+automatic resume／cleanup、archive list／export／restore UIは未実装である。
 `creator-run`はoriginal／current／AI outputの3 fileをopaque Blobとして
 格納し、Subject、imported／reference-only CaptureProfile、2 Observation、import Activity、専用`software_tool`
 Actor、byte-identity AnalysisResultとimplementation／configuration Blob、ContextPack、Policy、DelegationGrant、AI Activity、

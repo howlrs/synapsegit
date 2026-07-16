@@ -16,7 +16,6 @@ use std::fmt;
 use std::fs::File;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
-use std::time::{SystemTime, UNIX_EPOCH};
 use synapse_application::{
     AdmittedProposalHandle, AiAuthorityProfileConfig, AiExecutionContext, AiExecutor, Application,
     ApplicationError, AuthenticatedSession, AuthenticationFailure, Authenticator,
@@ -25,7 +24,7 @@ use synapse_application::{
 };
 use synapse_canonical::{ObjectKind, canonical_bytes, parse_strict};
 use synapse_core::{
-    AiCapability, AiSideEffectClass, FsckLimits, Repository, RepositoryError,
+    AiCapability, AiSideEffectClass, AuthorizationClock, FsckLimits, Repository, RepositoryError,
     SystemAuthorizationClock, TombstoneScanLimits,
 };
 pub use synapse_observation::{AnalysisComparability, AnalysisStatus, ByteIdentityOutcome};
@@ -1860,11 +1859,9 @@ struct RecordingClock {
 
 impl RecordingClock {
     fn tick(&mut self) -> Result<ProtocolTime> {
-        let now = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map_err(|error| CreatorError::Clock(format!("system clock error: {error}")))?;
-        let observed = i128::try_from(now.as_nanos())
-            .map_err(|_| CreatorError::Clock("system time exceeds i128 nanoseconds".into()))?;
+        let observed = SystemAuthorizationClock
+            .now_unix_nanos()
+            .map_err(CreatorError::Clock)?;
         let logical = self
             .last_unix_nanos
             .and_then(|last| last.checked_add(1))

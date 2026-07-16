@@ -5,7 +5,7 @@ use std::fmt::{self, Write as _};
 use std::mem;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::sync::{Mutex, MutexGuard};
-use synapse_core::{Repository, RepositoryError};
+use synapse_core::{FsckLimits, Repository, RepositoryError, TombstoneScanLimits};
 use synapse_creator::{
     CREATOR_RESERVED_PENDING_DECISIONS, CreatorBeginOptions,
     CreatorComparisonReport as CoreComparisonReport, CreatorDecisionOptions,
@@ -31,6 +31,22 @@ pub const MAX_CREATOR_SESSIONS: usize = 50_000;
 pub const IMAGE_RESPONSE_MAX_BYTES: u64 = 64 * 1024 * 1024;
 pub const MAX_PENDING_CREATOR_SESSIONS: usize = 64;
 pub const MAX_PENDING_CREATOR_SESSIONS_PER_PROJECT: usize = 8;
+/// Server-fixed work ceiling for one HTTP-facing maintenance integrity check.
+///
+/// These values intentionally live at the service boundary rather than using
+/// `FsckLimits::default()` so a Core default change cannot silently expand the
+/// work admitted by the localhost application.
+pub const MAINTENANCE_FSCK_LIMITS: FsckLimits = FsckLimits {
+    max_ref_roots: 100_000,
+    max_objects: 100_000,
+    max_object_bytes: 1024 * 1024 * 1024 * 1024,
+    max_closure_nodes: 1_000_000,
+    max_closure_edges: 10_000_000,
+    tombstone_scan: TombstoneScanLimits {
+        max_record_objects: 100_000,
+        max_record_bytes: 1024 * 1024 * 1024,
+    },
+};
 const _: () = assert!(
     MAX_PENDING_CREATOR_SESSIONS_PER_PROJECT <= CREATOR_RESERVED_PENDING_DECISIONS,
     "service pending capacity must fit the creator decision reservation"
@@ -284,6 +300,7 @@ impl PendingRegistry {
 pub struct LocalService {
     catalog: ProjectCatalog,
     pending: Mutex<PendingRegistry>,
+    last_fsck: Mutex<BTreeMap<String, FsckResult>>,
     project_writers: BTreeMap<String, Mutex<()>>,
 }
 
@@ -293,6 +310,7 @@ impl fmt::Debug for LocalService {
             .debug_struct("LocalService")
             .field("project_count", &self.catalog.len())
             .field("pending_count", &lock_registry(&self.pending).entries.len())
+            .field("last_fsck_count", &lock_last_fsck(&self.last_fsck).len())
             .finish_non_exhaustive()
     }
 }
@@ -309,6 +327,7 @@ impl LocalService {
         Ok(Self {
             catalog,
             pending: Mutex::new(PendingRegistry::default()),
+            last_fsck: Mutex::new(BTreeMap::new()),
             project_writers,
         })
     }
@@ -345,8 +364,51 @@ impl LocalService {
             snapshot: snapshot_context(&snapshot, None),
             creator_session_counts: counts,
             projection_state: ProjectionState::NotBuilt,
-            last_fsck: None,
+            last_fsck: lock_last_fsck(&self.last_fsck).get(project_key).cloned(),
         })
+    }
+
+    /// Validate the destructive-operation style confirmation before an fsck
+    /// job is reserved or dispatched by a transport.
+    pub fn validate_fsck_confirmation(
+        &self,
+        project_key: &str,
+        confirmation: &ProjectConfirmation,
+    ) -> Result<(), ServiceError> {
+        self.entry(project_key)?;
+        if confirmation.confirm_project_key != project_key {
+            return Err(ServiceError::new(
+                "local_request_denied",
+                "The project confirmation did not exactly match the requested project.",
+                false,
+            ));
+        }
+        Ok(())
+    }
+
+    /// Run one bounded, synchronous maintenance fsck for a blocking worker.
+    ///
+    /// A dirty report is a completed result, not an execution failure. Only
+    /// aggregate counts cross the service boundary; issue details and paths
+    /// remain inside Core or a [`ServiceError::diagnostic`].
+    pub fn run_maintenance_fsck(&self, project_key: &str) -> Result<FsckResult, ServiceError> {
+        // Keep creator publication out of the fsck window. Although fsck does
+        // not mutate storage, concurrent Ref/CAS publication could otherwise
+        // produce a mixed repository image and a misleading dirty result.
+        let _writer = self.acquire_project_writer(project_key)?;
+        let repository = self.open_repository(project_key)?;
+        let report = repository
+            .fsck_with_limits(MAINTENANCE_FSCK_LIMITS)
+            .map_err(maintenance_fsck_error)?;
+        let result = FsckResult {
+            clean: report.is_clean(),
+            objects_seen: report.objects_seen,
+            objects_verified: report.objects_verified,
+            closure_count: report.closures.len(),
+            issue_count: report.issues.len(),
+        };
+        lock_last_fsck(&self.last_fsck).insert(project_key.to_owned(), result.clone());
+        Ok(result)
     }
 
     pub fn list_refs(&self, project_key: &str) -> Result<RefList, ServiceError> {
@@ -565,26 +627,74 @@ impl LocalService {
         }
         let repository = self.open_repository(project_key)?;
         let snapshot = capture_snapshot(&repository)?;
-        if let Some(pending) = self
-            .ready_pending(project_key, &snapshot)?
-            .into_iter()
-            .find(|pending| pending.receipt.session == session)
-        {
-            return Ok(CreatorSessionDetail::PendingReview(Box::new(
-                pending_session(&snapshot, pending),
-            )));
+        self.creator_session_from_snapshot(&repository, &snapshot, project_key, session)
+    }
+
+    /// Build the session detail and, when incomplete, its structured
+    /// diagnostic from one exact Ref snapshot for server-rendered views.
+    pub fn get_creator_session_with_diagnostic(
+        &self,
+        project_key: &str,
+        session: &str,
+    ) -> Result<(CreatorSessionDetail, Option<CreatorSessionDiagnostic>), ServiceError> {
+        if !is_slug(session) {
+            return Err(ServiceError::session_not_found());
         }
-        match creator_report_from_snapshot(&repository, &snapshot, session) {
-            Ok(snapshot_report) => Ok(CreatorSessionDetail::Complete(Box::new(complete_session(
+        let repository = self.open_repository(project_key)?;
+        let snapshot = capture_snapshot(&repository)?;
+        // The registry is process-local mutable state, so capture its overlay
+        // once and reuse it just like the Ref snapshot. A concurrent decision
+        // must not make the detail and diagnostic describe different views.
+        let ready_pending = self.ready_pending(project_key, &snapshot)?;
+        let detail = creator_session_from_snapshot_with_pending(
+            &repository,
+            &snapshot,
+            session,
+            &ready_pending,
+        )?;
+        let diagnostic = if matches!(&detail, CreatorSessionDetail::Incomplete(_)) {
+            Some(creator_session_diagnostic_from_snapshot_with_pending(
+                &repository,
                 &snapshot,
-                snapshot_report,
-            )))),
-            Err(CreatorError::SessionIncomplete(_)) => Ok(CreatorSessionDetail::Incomplete(
-                Box::new(incomplete_session(&snapshot, session)),
-            )),
-            Err(CreatorError::SessionNotFound(_)) => Err(ServiceError::session_not_found()),
-            Err(error) => Err(creator_error(error)),
+                session,
+                &ready_pending,
+            )?)
+        } else {
+            None
+        };
+        Ok((detail, diagnostic))
+    }
+
+    fn creator_session_from_snapshot(
+        &self,
+        repository: &Repository,
+        snapshot: &RefSnapshot,
+        project_key: &str,
+        session: &str,
+    ) -> Result<CreatorSessionDetail, ServiceError> {
+        let ready_pending = self.ready_pending(project_key, snapshot)?;
+        creator_session_from_snapshot_with_pending(repository, snapshot, session, &ready_pending)
+    }
+
+    /// Diagnose the current creator-session Ref shape without recovering,
+    /// cleaning up, or mutating authoritative history.
+    pub fn get_creator_session_diagnostic(
+        &self,
+        project_key: &str,
+        session: &str,
+    ) -> Result<CreatorSessionDiagnostic, ServiceError> {
+        if !is_slug(session) {
+            return Err(ServiceError::session_not_found());
         }
+        let repository = self.open_repository(project_key)?;
+        let snapshot = capture_snapshot(&repository)?;
+        let ready_pending = self.ready_pending(project_key, &snapshot)?;
+        creator_session_diagnostic_from_snapshot_with_pending(
+            &repository,
+            &snapshot,
+            session,
+            &ready_pending,
+        )
     }
 
     pub fn get_creator_session_image(
@@ -630,11 +740,8 @@ impl LocalService {
         snapshot: &RefSnapshot,
         project_key: &str,
     ) -> Result<Vec<CreatorSessionSummary>, ServiceError> {
-        let sessions = discover_sessions(repository, snapshot)?;
-        Ok(overlay_pending_sessions(
-            sessions,
-            self.ready_pending(project_key, snapshot)?,
-        ))
+        let ready_pending = self.ready_pending(project_key, snapshot)?;
+        sessions_from_snapshot_with_pending(repository, snapshot, &ready_pending)
     }
 
     fn reserve_pending(
@@ -927,6 +1034,15 @@ fn lock_registry(registry: &Mutex<PendingRegistry>) -> MutexGuard<'_, PendingReg
     }
 }
 
+fn lock_last_fsck(
+    last_fsck: &Mutex<BTreeMap<String, FsckResult>>,
+) -> MutexGuard<'_, BTreeMap<String, FsckResult>> {
+    match last_fsck.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
 fn validate_begin_request(
     server_instance: &str,
     request: &BeginCreatorSessionRequest,
@@ -1049,6 +1165,77 @@ fn session_heads(snapshot: &RefSnapshot, session: &str) -> (RefVersion, RefVersi
             .map(|reference| (reference.head.clone(), reference.updated_event_id))
     };
     (version(&decision_ref), version(&proposal_ref))
+}
+
+fn creator_session_from_snapshot_with_pending(
+    repository: &Repository,
+    snapshot: &RefSnapshot,
+    session: &str,
+    ready_pending: &[ReadyPending],
+) -> Result<CreatorSessionDetail, ServiceError> {
+    if let Some(pending) = ready_pending
+        .iter()
+        .find(|pending| pending.receipt.session == session)
+        .cloned()
+    {
+        return Ok(CreatorSessionDetail::PendingReview(Box::new(
+            pending_session(snapshot, pending),
+        )));
+    }
+    match creator_report_from_snapshot(repository, snapshot, session) {
+        Ok(snapshot_report) => Ok(CreatorSessionDetail::Complete(Box::new(complete_session(
+            snapshot,
+            snapshot_report,
+        )))),
+        Err(CreatorError::SessionIncomplete(_)) => Ok(CreatorSessionDetail::Incomplete(Box::new(
+            incomplete_session(snapshot, session),
+        ))),
+        Err(CreatorError::SessionNotFound(_)) => Err(ServiceError::session_not_found()),
+        Err(error) => Err(creator_error(error)),
+    }
+}
+
+fn creator_session_diagnostic_from_snapshot_with_pending(
+    repository: &Repository,
+    snapshot: &RefSnapshot,
+    session: &str,
+    ready_pending: &[ReadyPending],
+) -> Result<CreatorSessionDiagnostic, ServiceError> {
+    let summary = sessions_from_snapshot_with_pending(repository, snapshot, ready_pending)?
+        .into_iter()
+        .find(|candidate| candidate.session == session)
+        .ok_or_else(ServiceError::session_not_found)?;
+    Ok(diagnostic_from_fixed_summary(snapshot, summary))
+}
+
+fn sessions_from_snapshot_with_pending(
+    repository: &Repository,
+    snapshot: &RefSnapshot,
+    ready_pending: &[ReadyPending],
+) -> Result<Vec<CreatorSessionSummary>, ServiceError> {
+    Ok(overlay_pending_sessions(
+        discover_sessions(repository, snapshot)?,
+        ready_pending.to_vec(),
+    ))
+}
+
+fn diagnostic_from_fixed_summary(
+    snapshot: &RefSnapshot,
+    summary: CreatorSessionSummary,
+) -> CreatorSessionDiagnostic {
+    let recommended_action = diagnostic_recommended_action(&summary).to_owned();
+    CreatorSessionDiagnostic {
+        snapshot: snapshot_context(snapshot, None),
+        session: summary.session,
+        state: summary.state,
+        proposal_ref: summary.proposal_ref,
+        proposal_head: summary.proposal_head,
+        decision_ref: summary.decision_ref,
+        decision_head: summary.decision_head,
+        automatic_resume_supported: false,
+        automatic_cleanup_supported: false,
+        recommended_action,
+    }
 }
 
 fn overlay_pending_sessions(
@@ -1298,6 +1485,28 @@ fn repository_error(error: RepositoryError) -> ServiceError {
     .with_diagnostic(error.to_string())
 }
 
+fn maintenance_fsck_error(error: RepositoryError) -> ServiceError {
+    let diagnostic = error.to_string();
+    let service_error = match error.code() {
+        "resource_limit" => ServiceError::new(
+            "resource_limit",
+            "The integrity check exceeded the server resource limit.",
+            false,
+        ),
+        "storage_error" => ServiceError::new(
+            "storage_error",
+            "The integrity check could not read local project storage.",
+            true,
+        ),
+        _ => ServiceError::new(
+            "fsck_failed",
+            "The integrity check could not be completed.",
+            false,
+        ),
+    };
+    service_error.with_diagnostic(diagnostic)
+}
+
 pub fn snapshot_watermark(snapshot: &RefSnapshot) -> String {
     let mut hasher = Sha256::new();
     hash_field(&mut hasher, b"synapse-local-ref-snapshot-v1");
@@ -1445,6 +1654,32 @@ fn incomplete_session(snapshot: &RefSnapshot, session: &str) -> IncompleteCreato
         session: session.to_owned(),
         recovery_supported: false,
         diagnostic: "The current creator Refs do not form a complete validated session. Automatic resume, cleanup, and history mutation are not supported.".into(),
+    }
+}
+
+fn diagnostic_recommended_action(summary: &CreatorSessionSummary) -> &'static str {
+    match summary.state {
+        CreatorSessionState::Complete => "The session is complete. No recovery action is required.",
+        CreatorSessionState::PendingReview => {
+            "Complete the pending Human review in this running localhost process. Do not restart or reconstruct authority from the displayed Ref heads."
+        }
+        CreatorSessionState::Incomplete => match (
+            summary.proposal_head.is_some(),
+            summary.decision_head.is_some(),
+        ) {
+            (true, true) => {
+                "Run fsck and inspect both creator Refs. Their current heads do not form a complete validated session; if work must continue, start a new session with a different name."
+            }
+            (true, false) => {
+                "Run fsck and inspect the proposal Ref. Same-process review authority is unavailable; if work must continue, start a new session with a different name."
+            }
+            (false, true) => {
+                "Run fsck and inspect the decision Ref. The matching proposal history is unavailable; if work must continue, start a new session with a different name."
+            }
+            (false, false) => {
+                "Run fsck and inspect the current creator Refs. Automatic resume and cleanup are not supported."
+            }
+        },
     }
 }
 
@@ -1635,6 +1870,34 @@ fn problem_title(code: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn diagnostic_uses_the_fixed_session_overlay() {
+        let fixed_summary = CreatorSessionSummary {
+            session: "session".into(),
+            state: CreatorSessionState::Incomplete,
+            proposal_ref: Some("proposal/creator-agent/session".into()),
+            proposal_head: Some("proposal-head".into()),
+            decision_ref: Some("decision/creator/session".into()),
+            decision_head: Some("decision-head".into()),
+        };
+        // A later process-local registry view may describe the same Ref
+        // snapshot differently, but an aggregate read must keep using the
+        // overlay it captured before building either response component.
+        let later_summary = CreatorSessionSummary {
+            state: CreatorSessionState::PendingReview,
+            ..fixed_summary.clone()
+        };
+
+        let diagnostic =
+            diagnostic_from_fixed_summary(&RefSnapshot::default(), fixed_summary.clone());
+
+        assert_eq!(diagnostic.state, fixed_summary.state);
+        assert_ne!(diagnostic.state, later_summary.state);
+        assert_eq!(diagnostic.proposal_head, fixed_summary.proposal_head);
+        assert_eq!(diagnostic.decision_head, fixed_summary.decision_head);
+        assert!(diagnostic.recommended_action.contains("Run fsck"));
+    }
 
     #[test]
     fn image_signatures_are_conservative() {

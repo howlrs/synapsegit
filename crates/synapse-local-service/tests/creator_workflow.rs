@@ -125,6 +125,23 @@ fn begin_overlays_ready_state_and_decide_rebuilds_a_complete_report() {
     assert_eq!(refreshed.review_id, pending.review_id);
     assert_eq!(refreshed.proposal_head, pending.proposal_head);
 
+    let diagnostic = service
+        .get_creator_session_diagnostic("project", "review-session")
+        .unwrap();
+    assert_eq!(diagnostic.state, CreatorSessionState::PendingReview);
+    assert_eq!(
+        diagnostic.proposal_head.as_deref(),
+        Some(pending.proposal_head.as_str())
+    );
+    assert!(diagnostic.decision_head.is_some());
+    assert!(!diagnostic.automatic_resume_supported);
+    assert!(!diagnostic.automatic_cleanup_supported);
+    assert!(
+        diagnostic
+            .recommended_action
+            .contains("running localhost process")
+    );
+
     let original = service
         .get_creator_session_image("project", "review-session", ImageRole::Original)
         .unwrap();

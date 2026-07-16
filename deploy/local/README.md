@@ -16,7 +16,11 @@ The current source implementation provides:
 - a bounded three-file import that publishes a caller-supplied proposal and
   retains its exact review authority in the running process;
 - Human `adopt` / `reject` / `defer` through that retained same-process
-  authority; and
+  authority;
+- dedicated read-only incomplete-session diagnostics showing the current creator
+  Ref/head shape and a safe recommended action without recovery or mutation;
+- an exact-project-confirmed, server-bounded background `fsck` with process-local
+  polling and last-result display; and
 - server-rendered HTML with same-origin CSS and JavaScript compiled into the
   Rust binary.
 
@@ -30,11 +34,29 @@ Creator begin and decision mutations are serialized per catalog project inside
 that process. Do not run another service instance, the CLI, or a direct
 Repository writer against the same repository while this service owns it.
 
-The UI does **not** yet provide `fsck`, archive export/restore, automatic resume
-or cleanup, or the dedicated incomplete-session diagnostics route. Those
-operations remain CLI/library-only where already implemented. JavaScript is
-required for write actions because unsafe API requests require the process-local
-custom token header; server-rendered read views remain available without it.
+The current source UI does **not** yet provide archive list/export/restore,
+automatic resume, or cleanup. Archive export/restore remain CLI/library-only;
+archive inspection/listing is still planned.
+The dedicated diagnostics route and server-rendered view are read-only: displayed
+Ref/head values are never accepted back as review authority and history is not
+rewritten. The current source project page also runs read-only `fsck` only after
+the user types the exact project key. It returns `202 Accepted`, polls a random
+process-local operation ID, and displays clean/dirty aggregate counts. A dirty
+repository is a completed result with `clean=false`, not a failed job.
+
+The maintenance profile is fixed at 100,000 Refs, 100,000 CAS objects, 1 TiB raw
+bytes, 1,000,000 cumulative closure nodes, 10,000,000 cumulative closure edges,
+and 100,000 Records / 1 GiB for Tombstone discovery. The process retains at most
+256 job entries and 64 active jobs. It evicts only the oldest terminal result at
+capacity; unknown, evicted, or post-restart IDs return `operation_state_lost`.
+A browser disconnect does not cancel or retry the job, and `last_fsck` is also
+process-local.
+
+The tagged v0.2.0 binary predates both the diagnostics and browser `fsck`
+additions and stops at three-file import/same-process review. JavaScript is
+required for write and maintenance POST actions because unsafe API requests
+require the process-local custom token header; server-rendered read and
+diagnostics views remain available without it.
 
 ![SynapseGit Localのproject dashboard。creator sessions、Refs、最近のreflogを表示](../../docs/assets/synapse-local/project-dashboard.png)
 
@@ -46,7 +68,8 @@ Linux x86_64では、[`v0.2.0` preview release](../../docs/releases/v0.2.0.md)�
 `synapse-local`を含む検証済みbinary archiveがある。downloadとchecksum検証は
 [Installation guide](../../docs/install.md#install-the-linux-x86-64-release)を参照する。その他のplatformでは、
 下記のsource buildを使用する。v0.2.0の配布済みbinaryには、三file import／same-process
-Human reviewが含まれる。
+Human reviewが含まれるが、current sourceで追加したdedicated read-only diagnosticsとbounded browser
+`fsck`は含まれない。
 
 Use a Rust toolchain compatible with the workspace MSRV, then run these
 commands from the repository root:

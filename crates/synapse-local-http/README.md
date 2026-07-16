@@ -7,8 +7,15 @@ binary, applies the localhost Host/Origin/token boundary, and depends on
 
 The current UI supports project/history navigation, creator-session reports,
 authenticated image viewing, bounded three-file proposal upload, and the
-same-process Human `adopt` / `reject` / `defer` review gate. `fsck`, archive
-export, and archive restore UI/routes are not yet implemented.
+same-process Human `adopt` / `reject` / `defer` review gate. It also provides a
+dedicated authenticated GET diagnostics API and server-rendered read-only
+Ref/head/recommended-action view for incomplete sessions. It does not reconstruct
+review authority, resume, clean up, or rewrite history. Confirmed maintenance
+`fsck` runs as a detached bounded job with a 256-entry / 64-active process-local
+registry, pollable states, and project-page result display; dirty is a succeeded
+result with `clean=false`. Archive list/export/restore UI/routes are not yet
+implemented. The diagnostics and browser `fsck` additions are available in
+current source and are not part of the tagged v0.2.0 binary.
 
 Write forms require the embedded JavaScript module. Native HTML form submission
 cannot attach the process-local custom token or normalize each multipart part
