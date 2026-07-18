@@ -27,7 +27,7 @@ use synapse_canonical::{ObjectKind, canonical_bytes, parse_oid, parse_strict};
 use synapse_core::{Repository, RepositoryError};
 use synapse_creator::{
     CREATOR_FSCK_MAX_OBJECTS, CREATOR_FSCK_MAX_REF_ROOTS, CreatorError, CreatorReport,
-    CreatorSessionState, creator_report_from_snapshot, discover_creator_sessions,
+    CreatorSessionState, PreparedCreatorReportReader, discover_creator_sessions,
 };
 
 pub const DEFAULT_MAX_SESSIONS: usize = 100;
@@ -307,11 +307,42 @@ pub fn build_public_projection(options: &ProjectionOptions) -> Result<PublicProj
     let mut sessions = Vec::new();
     let mut incomplete_sessions = Vec::new();
     let mut projection_source_fingerprint = None::<String>;
-    for summary in selected {
+    // Full-inventory fsck and Projection rebuild are snapshot-wide work. Keep
+    // the opaque prepared reader outside the per-session validation loop. The
+    // combined first-report entry point retains the former first-session error
+    // order without repeating either global operation.
+    let first_complete_index = selected
+        .iter()
+        .position(|summary| summary.state == CreatorSessionState::Complete);
+    let (prepared_reports, mut first_snapshot_report) = if let Some(index) = first_complete_index {
+        let (reader, report) = PreparedCreatorReportReader::prepare_with_report(
+            &repository,
+            &snapshot,
+            &selected[index].session,
+        )?;
+        (Some(reader), Some(report))
+    } else {
+        (None, None)
+    };
+    for (index, summary) in selected.into_iter().enumerate() {
         match summary.state {
             CreatorSessionState::Complete => {
-                let snapshot_report =
-                    creator_report_from_snapshot(&repository, &snapshot, &summary.session)?;
+                let snapshot_report = if first_complete_index == Some(index) {
+                    first_snapshot_report.take().ok_or_else(|| {
+                        PublicationError::InvalidBundle(
+                            "first complete session is missing its prepared report".into(),
+                        )
+                    })?
+                } else {
+                    prepared_reports
+                        .as_ref()
+                        .ok_or_else(|| {
+                            PublicationError::InvalidBundle(
+                                "complete session is missing its prepared report reader".into(),
+                            )
+                        })?
+                        .report(&summary.session)?
+                };
                 if let Some(existing) = &projection_source_fingerprint {
                     if existing != &snapshot_report.projection_source_fingerprint {
                         return Err(PublicationError::InvalidBundle(

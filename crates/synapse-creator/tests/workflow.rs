@@ -5,9 +5,9 @@ use synapse_core::Repository;
 use synapse_creator::{
     AnalysisComparability, AnalysisStatus, ByteIdentityOutcome, CreatorBeginOptions,
     CreatorDecisionOptions, CreatorDisposition, CreatorError, CreatorPendingDecisionState,
-    CreatorRunOptions, CreatorSessionState, begin_creator_session, creator_report,
-    creator_report_from_snapshot, decide_creator_session, discover_creator_sessions,
-    run_creator_session,
+    CreatorRunOptions, CreatorSessionState, PreparedCreatorReportReader, begin_creator_session,
+    creator_report, creator_report_from_snapshot, decide_creator_session,
+    discover_creator_sessions, run_creator_session,
 };
 use synapse_projection::{ProjectionLimits, SqliteProjectionStore};
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
@@ -42,6 +42,17 @@ fn begin_options(options: &CreatorRunOptions) -> CreatorBeginOptions {
         subject_label: options.subject_label.clone(),
         creator_name: options.creator_name.clone(),
     }
+}
+
+fn stored_object_path(repository: &Path, oid: &str) -> PathBuf {
+    let kind = oid.split(':').next().unwrap();
+    let digest = oid.rsplit(':').next().unwrap();
+    repository
+        .join("cas")
+        .join("objects")
+        .join(kind)
+        .join(&digest[..2])
+        .join(&digest[2..])
 }
 
 #[test]
@@ -650,6 +661,133 @@ fn caller_supplied_snapshot_remains_stable_after_later_ref_updates() {
         still_first.projection_source_fingerprint,
         current.projection_source_fingerprint
     );
+}
+
+#[test]
+fn prepared_report_reader_reuses_one_fsck_and_projection_across_sessions() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repo");
+    run_creator_session(&options(
+        &temporary,
+        &repository_path,
+        "batch-first",
+        CreatorDisposition::Adopt,
+    ))
+    .unwrap();
+    run_creator_session(&options(
+        &temporary,
+        &repository_path,
+        "batch-second",
+        CreatorDisposition::Reject,
+    ))
+    .unwrap();
+
+    let repository = Repository::open(&repository_path).unwrap();
+    let snapshot = repository.refs().snapshot().unwrap();
+    let object_count_before = repository.objects().list_oids().unwrap().len();
+    let (reader, first) =
+        PreparedCreatorReportReader::prepare_with_report(&repository, &snapshot, "batch-first")
+            .unwrap();
+
+    // A late ordinary orphan changes the bounded fsck inventory but not the
+    // fixed Ref projection. A fresh single-report reader observes it, while
+    // the prepared batch reader retains the one verified object count.
+    repository
+        .put_blob(&b"late fsck inventory object"[..])
+        .unwrap();
+    assert_eq!(
+        repository.objects().list_oids().unwrap().len(),
+        object_count_before + 1
+    );
+    let fresh_before_erasure =
+        creator_report_from_snapshot(&repository, &snapshot, "batch-second").unwrap();
+    assert_eq!(
+        fresh_before_erasure.report.fsck_objects,
+        first.report.fsck_objects + 1
+    );
+    assert_eq!(
+        fresh_before_erasure.projection_source_fingerprint,
+        first.projection_source_fingerprint
+    );
+
+    // Add a new corrupt orphan Record without replacing or removing prepared
+    // source data. Both full fsck and the Projection Tombstone inventory scan
+    // reject it, so either operation being repeated per report would make the
+    // cached reader fail here.
+    let corrupt_oid = format!("record:sg-oid-v1:sha256:{}", "f".repeat(64));
+    let corrupt_path = stored_object_path(&repository_path, &corrupt_oid);
+    assert!(!corrupt_path.exists());
+    fs::create_dir_all(corrupt_path.parent().unwrap()).unwrap();
+    fs::write(&corrupt_path, br#"{"object_type":"record"}"#).unwrap();
+
+    let second = reader.report("batch-second").unwrap();
+    let first_again = reader.report("batch-first").unwrap();
+    assert_eq!(first.report.disposition, CreatorDisposition::Adopt);
+    assert_eq!(second.report.disposition, CreatorDisposition::Reject);
+    assert_eq!(first_again.report, first.report);
+    assert_eq!(second.report.fsck_objects, first.report.fsck_objects);
+    assert_eq!(
+        second.projection_source_fingerprint,
+        first.projection_source_fingerprint
+    );
+
+    let error = match PreparedCreatorReportReader::prepare(&repository, &snapshot) {
+        Ok(_) => panic!("fresh reader accepted a corrupt Record inventory"),
+        Err(error) => error,
+    };
+    assert_eq!(error.code(), "oid_mismatch");
+}
+
+#[test]
+fn legacy_snapshot_report_preserves_fsck_session_and_projection_error_order() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repo");
+    run_creator_session(&options(
+        &temporary,
+        &repository_path,
+        "projection-order",
+        CreatorDisposition::Adopt,
+    ))
+    .unwrap();
+    let repository = Repository::open(&repository_path).unwrap();
+    let mut invalid_projection_snapshot = repository.refs().snapshot().unwrap();
+    assert!(invalid_projection_snapshot.refs.len() >= 2);
+    invalid_projection_snapshot.refs[1].updated_event_id =
+        invalid_projection_snapshot.refs[0].updated_event_id;
+
+    let missing = creator_report_from_snapshot(
+        &repository,
+        &invalid_projection_snapshot,
+        "missing-but-valid-name",
+    )
+    .unwrap_err();
+    assert!(
+        matches!(missing, CreatorError::SessionNotFound(session) if session == "missing-but-valid-name")
+    );
+
+    let existing = creator_report_from_snapshot(
+        &repository,
+        &invalid_projection_snapshot,
+        "projection-order",
+    )
+    .unwrap_err();
+    assert_eq!(existing.code(), "projection_source_invalid");
+
+    // The compatibility API has always run bounded fsck before looking up the
+    // session. Keep that observable order as the prepared reader evolves.
+    let corrupt_oid = format!("record:sg-oid-v1:sha256:{}", "e".repeat(64));
+    let corrupt_path = stored_object_path(&repository_path, &corrupt_oid);
+    assert!(!corrupt_path.exists());
+    fs::create_dir_all(corrupt_path.parent().unwrap()).unwrap();
+    fs::write(&corrupt_path, br#"{"object_type":"record"}"#).unwrap();
+
+    let fsck_error = creator_report_from_snapshot(
+        &repository,
+        &invalid_projection_snapshot,
+        "missing-but-valid-name",
+    )
+    .unwrap_err();
+    assert_eq!(fsck_error.code(), "oid_mismatch");
 }
 
 #[test]

@@ -6,6 +6,13 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+### Changed
+
+- Multi-session publication now shares one snapshot-scoped bounded `fsck` and
+  one disposable ProjectionStore rebuild across all complete creator reports.
+  Per-session lineage validation remains independent, while repository-wide
+  verification work no longer grows linearly with the number of sessions.
+
 ## [0.3.0] - 2026-07-18
 
 ### Added

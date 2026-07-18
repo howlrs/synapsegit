@@ -77,20 +77,19 @@ fn create_three_decision_fixture(root: &Path) {
     }
 }
 
-fn create_incomplete_fixture(root: &Path) {
+fn create_incomplete_fixture(root: &Path) -> String {
     let (original, current, proposal) = create_input_fixture(root);
-    drop(
-        begin_creator_session(&CreatorBeginOptions {
-            repository: root.join("repo"),
-            session: "pending-story".into(),
-            original_image: original,
-            current_image: current,
-            ai_output: proposal,
-            subject_label: "private.pending@example.invalid".into(),
-            creator_name: "Private Pending Creator".into(),
-        })
-        .unwrap(),
-    );
+    let pending = begin_creator_session(&CreatorBeginOptions {
+        repository: root.join("repo"),
+        session: "pending-story".into(),
+        original_image: original,
+        current_image: current,
+        ai_output: proposal,
+        subject_label: "private.pending@example.invalid".into(),
+        creator_name: "Private Pending Creator".into(),
+    })
+    .unwrap();
+    pending.receipt().original_blob_oid.clone()
 }
 
 fn projection_options(repository: PathBuf) -> ProjectionOptions {
@@ -352,7 +351,15 @@ fn verification_rejects_unknown_renderer_profile_name_or_version() {
 #[test]
 fn incomplete_only_projection_marks_source_facts_unverified() {
     let temporary = TempDirectory::new();
-    create_incomplete_fixture(&temporary.0);
+    let unverified_blob = create_incomplete_fixture(&temporary.0);
+    // An incomplete-only projection reports Ref shape without claiming a
+    // verified CAS closure. Removing one reachable Blob proves this path does
+    // not accidentally construct the complete-report reader.
+    fs::remove_file(stored_object_path(
+        &temporary.join("repo"),
+        &unverified_blob,
+    ))
+    .unwrap();
 
     let mut options = ProjectionOptions::new(temporary.join("repo"));
     options.session = Some("pending-story".into());
@@ -373,6 +380,16 @@ fn incomplete_only_projection_marks_source_facts_unverified() {
         "incomplete-only verification scope must disclose unverified CAS lineage: {}",
         projection.source.verification_scope
     );
+}
+
+fn stored_object_path(repository: &Path, oid: &str) -> PathBuf {
+    let kind = oid.split(':').next().unwrap();
+    let digest = oid.rsplit(':').next().unwrap();
+    repository
+        .join("cas/objects")
+        .join(kind)
+        .join(&digest[..2])
+        .join(&digest[2..])
 }
 
 #[test]
