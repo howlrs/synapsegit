@@ -32,6 +32,7 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 node scripts/verify_core_fixtures.mjs
 node scripts/verify_local_api.mjs
+node scripts/test_publication_comprehension_scorer.mjs
 node scripts/verify_license.mjs
 node scripts/generate_third_party_notices.mjs --check
 node scripts/verify_docs.mjs

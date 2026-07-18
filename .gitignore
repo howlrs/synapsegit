@@ -11,6 +11,10 @@ node_modules/
 __pycache__/
 *.py[cod]
 target/
+!docs/evaluation/publication-comprehension/v1/bundles/complete/target/
+!docs/evaluation/publication-comprehension/v1/bundles/complete/target/public-projection.json
+!docs/evaluation/publication-comprehension/v1/bundles/incomplete-only/target/
+!docs/evaluation/publication-comprehension/v1/bundles/incomplete-only/target/public-projection.json
 dist/
 coverage/
 

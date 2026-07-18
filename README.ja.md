@@ -159,6 +159,7 @@ application route、archive verificationはRustが担当します。componentの
 | loopback-only applicationを起動する | [Local application runbook](./deploy/local/README.md) |
 | commandとerrorを調べる | [CLI reference](./docs/cli_reference.md) |
 | read-only local publication bundleを生成する | [CLI reference](./docs/cli_reference.md#synapse-present-companion-cli) |
+| publicationの理解度を評価する | [complete／incomplete-only固定コーパス](./docs/evaluation/publication-comprehension/v1/) |
 | 成熟度と次の作業を確認する | [Project status](./docs/project_status.md) |
 | trust、privacy、security boundaryを確認する | [Security model](./docs/security_model.md) |
 | protocolを実装する | [Core Protocol v0.1](./spec/core/v0.1/README.md) |

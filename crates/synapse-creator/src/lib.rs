@@ -368,6 +368,27 @@ pub struct CreatorSnapshotReport {
     pub projection_source_fingerprint: String,
 }
 
+/// Opaque report reader prepared from one repository and exact Ref snapshot.
+///
+/// [`Self::prepare`] performs one bounded full-inventory fsck followed by one
+/// bounded in-memory Projection rebuild. Every later [`Self::report`] call
+/// reuses both results, so a transport can render several creator sessions
+/// without repeating either store-wide operation. The reader remains bound to
+/// the borrowed repository and snapshot; callers cannot construct or mutate
+/// its private prepared state.
+///
+/// CAS is assumed to follow the repository's cooperative append-only/no-GC
+/// model for the lifetime of the reader. Objects or Tombstones appended later
+/// are intentionally visible only to a newly prepared reader.
+#[must_use = "a prepared creator report reader has not produced any reports"]
+pub struct PreparedCreatorReportReader<'source> {
+    repository: &'source Repository,
+    snapshot: &'source RefSnapshot,
+    projection: SqliteProjectionStore,
+    fsck_objects: usize,
+    projection_source_fingerprint: String,
+}
+
 /// Lightweight creator-session state derived from exact creator Ref
 /// namespaces. A Complete summary is still fully revalidated when its detail
 /// report is requested.
@@ -1297,7 +1318,9 @@ pub fn creator_report(repository_path: impl AsRef<Path>, session: &str) -> Resul
 /// This is the read boundary used by transports that must return one coherent
 /// snapshot watermark and Projection fingerprint. It never captures a second
 /// Ref snapshot internally. CAS remains append-only under the local trust
-/// model, and the final integrity check is scoped to the supplied heads.
+/// model, and the final integrity check is scoped to the supplied heads. This
+/// compatibility API prepares a reader and delegates one report to it; batch
+/// callers should prepare one [`PreparedCreatorReportReader`] directly.
 pub fn creator_report_from_snapshot(
     repository: &Repository,
     snapshot: &RefSnapshot,
@@ -1312,7 +1335,35 @@ fn creator_report_from_snapshot_with_limits(
     session: &str,
     fsck_limits: FsckLimits,
 ) -> Result<CreatorSnapshotReport> {
-    validate_session(session)?;
+    PreparedCreatorReportReader::prepare_with_report_and_limits(
+        repository,
+        snapshot,
+        session,
+        fsck_limits,
+    )
+    .map(|(_, report)| report)
+}
+
+struct CreatorReportVerification<'source> {
+    repository: &'source Repository,
+    snapshot: &'source RefSnapshot,
+    fsck_objects: usize,
+}
+
+struct PreparedCreatorReportSession {
+    decision_ref: String,
+    proposal_ref: String,
+    decision_head: String,
+    proposal_head: String,
+    ids: SessionIds,
+    lineage: ReportLineage,
+}
+
+fn verify_creator_report_snapshot<'source>(
+    repository: &'source Repository,
+    snapshot: &'source RefSnapshot,
+    fsck_limits: FsckLimits,
+) -> Result<CreatorReportVerification<'source>> {
     let fsck = repository.fsck_snapshot_with_limits(snapshot, fsck_limits)?;
     if !fsck.is_clean() {
         return Err(CreatorError::Integrity(format!(
@@ -1320,6 +1371,18 @@ fn creator_report_from_snapshot_with_limits(
             fsck.issues.len()
         )));
     }
+    Ok(CreatorReportVerification {
+        repository,
+        snapshot,
+        fsck_objects: fsck.objects_verified,
+    })
+}
+
+fn prepare_creator_report_session(
+    repository: &Repository,
+    snapshot: &RefSnapshot,
+    session: &str,
+) -> Result<PreparedCreatorReportSession> {
     let decision_ref = decision_ref(session);
     let proposal_ref = proposal_ref(session);
     let decision_head = snapshot
@@ -1345,129 +1408,244 @@ fn creator_report_from_snapshot_with_limits(
         return Err(CreatorError::SessionIncomplete(session.to_owned()));
     }
     let ids = load_session_ids(repository, session, &decision_head)?;
-
     let lineage = validate_report_lineage(repository, &ids, &decision_head, &proposal_head)?;
-    let disposition = lineage.disposition;
-    let rationale = lineage.rationale;
+    Ok(PreparedCreatorReportSession {
+        decision_ref,
+        proposal_ref,
+        decision_head,
+        proposal_head,
+        ids,
+        lineage,
+    })
+}
 
-    let mut projection = SqliteProjectionStore::open_in_memory()?;
-    let rebuild = projection.rebuild_with_limits(
-        repository.objects(),
-        snapshot,
-        ProjectionLimits::default(),
-    )?;
-    let report_scope = RefScope::names([decision_ref.clone(), proposal_ref.clone()]);
-    let timeline = projection.subject_timeline(&ids.subject, None, &report_scope)?;
-    let original_observation = timeline
-        .iter()
-        .find(|entry| entry.entity_id == ids.original_observation)
-        .ok_or_else(|| {
-            CreatorError::ReportInvalid("original Observation is absent from timeline".into())
-        })?;
-    let current_observation = timeline
-        .iter()
-        .find(|entry| entry.entity_id == ids.current_observation)
-        .ok_or_else(|| {
-            CreatorError::ReportInvalid("current Observation is absent from timeline".into())
-        })?;
-    let ai_activity = timeline
-        .iter()
-        .find(|entry| entry.entity_id == ids.ai_activity)
-        .ok_or_else(|| CreatorError::ReportInvalid("AI Activity is absent from timeline".into()))?;
-    if ai_activity.oid != lineage.ai_activity_oid {
-        return Err(CreatorError::ReportInvalid(
-            "timeline AI Activity does not match the current proposal transition".into(),
-        ));
+impl<'source> PreparedCreatorReportReader<'source> {
+    /// Run the bounded integrity and Projection preparation used by all
+    /// reports returned from this reader.
+    pub fn prepare(
+        repository: &'source Repository,
+        snapshot: &'source RefSnapshot,
+    ) -> Result<Self> {
+        Self::prepare_with_limits(repository, snapshot, CREATOR_FSCK_LIMITS)
     }
-    let original_blob_oid = role_oid(
-        object_field(
-            &read_json(repository, &original_observation.oid)?,
-            "payload",
-            "original Observation payload",
-        )?,
-        "media_refs",
-        "primary",
-    )?;
-    let current_blob_oid = role_oid(
-        object_field(
-            &read_json(repository, &current_observation.oid)?,
-            "payload",
-            "current Observation payload",
-        )?,
-        "media_refs",
-        "primary",
-    )?;
-    let ai_output_blob_oid = role_oid(
-        object_field(
-            &read_json(repository, &ai_activity.oid)?,
-            "payload",
-            "AI Activity payload",
-        )?,
-        "output_refs",
-        "proposal",
-    )?;
-    let comparison = lineage
-        .comparison
-        .as_ref()
-        .map(|pointers| {
-            validate_comparison_report(
-                repository,
-                &projection,
-                &report_scope,
-                &ids,
-                pointers,
-                &original_observation.oid,
-                &current_observation.oid,
-                &original_blob_oid,
-                &current_blob_oid,
-                &[decision_ref.as_str(), proposal_ref.as_str()],
-            )
-        })
-        .transpose()?;
 
-    let timeline = timeline
-        .into_iter()
-        .map(|entry| CreatorTimelineEntry {
-            oid: entry.oid,
-            stage: timeline_stage(&entry.entity_id, &ids),
-            kind: match entry.kind {
-                TimelineRecordKind::Observation => "observation",
-                TimelineRecordKind::Activity => "activity",
-            },
-            entity_id: entry.entity_id,
-            ordering_time: entry.ordering_time,
-            time_basis: timeline_time_basis(entry.time_basis),
-            reachable_from: entry.reachable_from,
-        })
-        .collect();
+    /// Prepare one reusable reader and render its first session report.
+    ///
+    /// Unlike calling [`Self::prepare`] followed by [`Self::report`], this
+    /// entry point preserves the compatibility API's exact first-session
+    /// precedence: session syntax, bounded fsck, session Ref shape and lineage,
+    /// then the one eager Projection rebuild and report rendering. Subsequent
+    /// [`Self::report`] calls reuse the returned reader's fsck and Projection.
+    pub fn prepare_with_report(
+        repository: &'source Repository,
+        snapshot: &'source RefSnapshot,
+        session: &str,
+    ) -> Result<(Self, CreatorSnapshotReport)> {
+        Self::prepare_with_report_and_limits(repository, snapshot, session, CREATOR_FSCK_LIMITS)
+    }
 
-    Ok(CreatorSnapshotReport {
-        report: CreatorReport {
-            session: session.to_owned(),
-            project_id: ids.project,
-            subject_id: ids.subject,
-            creator_id: ids.creator,
-            agent_id: ids.agent,
+    fn prepare_with_limits(
+        repository: &'source Repository,
+        snapshot: &'source RefSnapshot,
+        fsck_limits: FsckLimits,
+    ) -> Result<Self> {
+        let verification = verify_creator_report_snapshot(repository, snapshot, fsck_limits)?;
+        Self::from_verification(verification)
+    }
+
+    fn prepare_with_report_and_limits(
+        repository: &'source Repository,
+        snapshot: &'source RefSnapshot,
+        session: &str,
+        fsck_limits: FsckLimits,
+    ) -> Result<(Self, CreatorSnapshotReport)> {
+        // Preserve the complete legacy order before constructing the opaque
+        // reader: argument validation, bounded fsck, session/ref/lineage
+        // validation, then Projection construction and rendering.
+        validate_session(session)?;
+        let verification = verify_creator_report_snapshot(repository, snapshot, fsck_limits)?;
+        let prepared_session = prepare_creator_report_session(repository, snapshot, session)?;
+        let reader = Self::from_verification(verification)?;
+        let report = reader.render_report(session, prepared_session)?;
+        Ok((reader, report))
+    }
+
+    fn from_verification(verification: CreatorReportVerification<'source>) -> Result<Self> {
+        let CreatorReportVerification {
+            repository,
+            snapshot,
+            fsck_objects,
+        } = verification;
+        let mut projection = SqliteProjectionStore::open_in_memory()?;
+        let rebuild = projection.rebuild_with_limits(
+            repository.objects(),
+            snapshot,
+            ProjectionLimits::default(),
+        )?;
+        Ok(Self {
+            repository,
+            snapshot,
+            projection,
+            fsck_objects,
+            projection_source_fingerprint: rebuild.metadata.source_fingerprint,
+        })
+    }
+
+    /// Build one creator-session report from the already prepared snapshot.
+    ///
+    /// Session-name, missing-session, incomplete-session, lineage, and report
+    /// validation retain the same error variants as
+    /// [`creator_report_from_snapshot`].
+    pub fn report(&self, session: &str) -> Result<CreatorSnapshotReport> {
+        validate_session(session)?;
+        self.report_validated(session)
+    }
+
+    fn report_validated(&self, session: &str) -> Result<CreatorSnapshotReport> {
+        let prepared = prepare_creator_report_session(self.repository, self.snapshot, session)?;
+        self.render_report(session, prepared)
+    }
+
+    fn render_report(
+        &self,
+        session: &str,
+        prepared: PreparedCreatorReportSession,
+    ) -> Result<CreatorSnapshotReport> {
+        let repository = self.repository;
+        let projection = &self.projection;
+        let PreparedCreatorReportSession {
             decision_ref,
             proposal_ref,
             decision_head,
             proposal_head,
-            base_head: lineage.base_head,
-            base_snapshot: lineage.base_snapshot,
-            proposal_snapshot: lineage.proposal_snapshot,
-            decision_snapshot: lineage.decision_snapshot,
+            ids,
+            lineage,
+        } = prepared;
+        let ReportLineage {
             disposition,
-            selected_ai_output: disposition == CreatorDisposition::Adopt,
             rationale,
-            original_blob_oid,
-            current_blob_oid,
-            ai_output_blob_oid,
-            comparison,
-            timeline,
-            fsck_objects: fsck.objects_verified,
-        },
-        projection_source_fingerprint: rebuild.metadata.source_fingerprint,
-    })
+            ai_activity_oid,
+            base_head,
+            base_snapshot,
+            proposal_snapshot,
+            decision_snapshot,
+            comparison: comparison_pointers,
+        } = lineage;
+
+        let report_scope = RefScope::names([decision_ref.clone(), proposal_ref.clone()]);
+        let timeline = projection.subject_timeline(&ids.subject, None, &report_scope)?;
+        let original_observation = timeline
+            .iter()
+            .find(|entry| entry.entity_id == ids.original_observation)
+            .ok_or_else(|| {
+                CreatorError::ReportInvalid("original Observation is absent from timeline".into())
+            })?;
+        let current_observation = timeline
+            .iter()
+            .find(|entry| entry.entity_id == ids.current_observation)
+            .ok_or_else(|| {
+                CreatorError::ReportInvalid("current Observation is absent from timeline".into())
+            })?;
+        let ai_activity = timeline
+            .iter()
+            .find(|entry| entry.entity_id == ids.ai_activity)
+            .ok_or_else(|| {
+                CreatorError::ReportInvalid("AI Activity is absent from timeline".into())
+            })?;
+        if ai_activity.oid != ai_activity_oid {
+            return Err(CreatorError::ReportInvalid(
+                "timeline AI Activity does not match the current proposal transition".into(),
+            ));
+        }
+        let original_blob_oid = role_oid(
+            object_field(
+                &read_json(repository, &original_observation.oid)?,
+                "payload",
+                "original Observation payload",
+            )?,
+            "media_refs",
+            "primary",
+        )?;
+        let current_blob_oid = role_oid(
+            object_field(
+                &read_json(repository, &current_observation.oid)?,
+                "payload",
+                "current Observation payload",
+            )?,
+            "media_refs",
+            "primary",
+        )?;
+        let ai_output_blob_oid = role_oid(
+            object_field(
+                &read_json(repository, &ai_activity.oid)?,
+                "payload",
+                "AI Activity payload",
+            )?,
+            "output_refs",
+            "proposal",
+        )?;
+        let comparison = comparison_pointers
+            .as_ref()
+            .map(|pointers| {
+                validate_comparison_report(
+                    repository,
+                    projection,
+                    &report_scope,
+                    &ids,
+                    pointers,
+                    &original_observation.oid,
+                    &current_observation.oid,
+                    &original_blob_oid,
+                    &current_blob_oid,
+                    &[decision_ref.as_str(), proposal_ref.as_str()],
+                )
+            })
+            .transpose()?;
+
+        let timeline = timeline
+            .into_iter()
+            .map(|entry| CreatorTimelineEntry {
+                oid: entry.oid,
+                stage: timeline_stage(&entry.entity_id, &ids),
+                kind: match entry.kind {
+                    TimelineRecordKind::Observation => "observation",
+                    TimelineRecordKind::Activity => "activity",
+                },
+                entity_id: entry.entity_id,
+                ordering_time: entry.ordering_time,
+                time_basis: timeline_time_basis(entry.time_basis),
+                reachable_from: entry.reachable_from,
+            })
+            .collect();
+
+        Ok(CreatorSnapshotReport {
+            report: CreatorReport {
+                session: session.to_owned(),
+                project_id: ids.project,
+                subject_id: ids.subject,
+                creator_id: ids.creator,
+                agent_id: ids.agent,
+                decision_ref,
+                proposal_ref,
+                decision_head,
+                proposal_head,
+                base_head,
+                base_snapshot,
+                proposal_snapshot,
+                decision_snapshot,
+                disposition,
+                selected_ai_output: disposition == CreatorDisposition::Adopt,
+                rationale,
+                original_blob_oid,
+                current_blob_oid,
+                ai_output_blob_oid,
+                comparison,
+                timeline,
+                fsck_objects: self.fsck_objects,
+            },
+            projection_source_fingerprint: self.projection_source_fingerprint.clone(),
+        })
+    }
 }
 
 /// Discover creator-owned Ref pairs without rebuilding one Projection per

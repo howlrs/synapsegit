@@ -171,6 +171,7 @@ local application routes, and archive verification. Read the
 | Run the loopback-only application | [Local application runbook](./deploy/local/README.md) |
 | Look up commands and errors | [CLI reference](./docs/cli_reference.md) |
 | Generate a read-only local publication bundle | [CLI reference](./docs/cli_reference.md#synapse-present-companion-cli) |
+| Evaluate publication comprehension | [Frozen complete and incomplete-only corpus](./docs/evaluation/publication-comprehension/v1/) |
 | Evaluate current maturity and next work | [Project status](./docs/project_status.md) |
 | Review trust, privacy, and security limits | [Security model](./docs/security_model.md) |
 | Implement the protocol | [Core Protocol v0.1](./spec/core/v0.1/README.md) |

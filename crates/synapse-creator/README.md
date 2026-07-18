@@ -35,6 +35,13 @@ authorization source. A legacy-shaped session whose base Tree has no comparison
 evidence entries remains reportable with `comparison=unavailable`; this shape
 does not prove when the session was created.
 
+Embeddings that need several reports from the same Ref snapshot can prepare one
+opaque `PreparedCreatorReportReader`. Preparation performs the bounded snapshot
+`fsck` and one disposable ProjectionStore rebuild. Every `report` reuses those
+fixed results while still validating that session's Ref pair in the supplied snapshot, lineage,
+evidence, and actor bindings. The existing single-report APIs delegate through
+the same boundary while preserving their established error order.
+
 Creator begin, Human decision, and report use the bounded Core fsck boundary.
 One operation is limited to 10,000 Ref roots, 25,000 complete-inventory CAS
 objects, 4 GiB of inventoried raw bytes, 250,000 cumulative closure nodes,

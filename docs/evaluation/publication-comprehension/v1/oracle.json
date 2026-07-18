@@ -1,0 +1,177 @@
+{
+  "schema": {
+    "name": "org.synapsegit.publication-comprehension-oracle",
+    "version": 1
+  },
+  "corpus_version": 1,
+  "cases": {
+    "complete": {
+      "bundle": "bundles/complete",
+      "projection_sha256": "8a15c57e68b052a6c3351236be83e10b7a9c2d67cae4b7c4037cdc8ef090bd8d",
+      "answers": {
+        "C01": {
+          "value": "ai_proposal",
+          "critical": true,
+          "evidence": ["projection.json#/sessions/0/human_decision/selected_artifact"]
+        },
+        "C02": {
+          "value": "current",
+          "critical": true,
+          "evidence": ["projection.json#/sessions/2/human_decision/selected_artifact"]
+        },
+        "C03": {
+          "value": "current",
+          "critical": true,
+          "evidence": ["projection.json#/sessions/1/human_decision/selected_artifact"]
+        },
+        "C04": {
+          "value": true,
+          "critical": true,
+          "evidence": [
+            "projection.json#/sessions/1/proposal/retained_when_unselected",
+            "projection.json#/sessions/2/proposal/retained_when_unselected"
+          ]
+        },
+        "C05": {
+          "value": "workflow_attributed_model_invocation_unverified",
+          "critical": true,
+          "evidence": ["projection.json#/sessions/0/proposal/attribution_scope"]
+        },
+        "C06": {
+          "value": "ref_snapshot_and_reachable_cas_verified",
+          "critical": true,
+          "evidence": ["projection.json#/source/verification_scope"]
+        },
+        "P01": {
+          "value": 3,
+          "critical": false,
+          "evidence": ["projection.json#/completeness/complete_sessions_exported"]
+        },
+        "P02": {
+          "value": 0,
+          "critical": false,
+          "evidence": ["projection.json#/completeness/incomplete_sessions_retained"]
+        },
+        "P03": {
+          "value": false,
+          "critical": false,
+          "evidence": ["projection.json#/publication/network_operations"]
+        },
+        "P04": {
+          "value": false,
+          "critical": true,
+          "evidence": ["projection.json#/publication/raw_assets_included"]
+        },
+        "P05": {
+          "value": false,
+          "critical": true,
+          "evidence": ["projection.json#/publication/source_private_rationale_included"]
+        },
+        "P06": {
+          "value": false,
+          "critical": true,
+          "evidence": ["projection.json#/publication/training_use_policy"]
+        },
+        "P07": {
+          "value": "stored_byte_identity_only",
+          "critical": true,
+          "evidence": ["projection.json#/limitations/0/code"]
+        },
+        "P08": {
+          "value": false,
+          "critical": true,
+          "evidence": ["projection.json#/limitations/7/code"]
+        }
+      }
+    },
+    "incomplete-only": {
+      "bundle": "bundles/incomplete-only",
+      "projection_sha256": "2f7308aa1d338ccae08cf787943ff0e5b6b8219466c1af02344861f2f00c20b6",
+      "answers": {
+        "I01": {
+          "value": "incomplete",
+          "critical": false,
+          "evidence": ["projection.json#/incomplete_sessions/0/state"]
+        },
+        "I02": {
+          "value": true,
+          "critical": false,
+          "evidence": ["projection.json#/incomplete_sessions/0/proposal_present"]
+        },
+        "I03": {
+          "value": true,
+          "critical": false,
+          "evidence": ["projection.json#/incomplete_sessions/0/decision_present"]
+        },
+        "I04": {
+          "value": false,
+          "critical": true,
+          "evidence": [
+            "projection.json#/sessions",
+            "projection.json#/incomplete_sessions/0/state",
+            "projection.json#/incomplete_sessions/0/origin"
+          ]
+        },
+        "I05": {
+          "value": "incomplete_sessions_only",
+          "critical": true,
+          "evidence": [
+            "projection.json#/sessions",
+            "projection.json#/incomplete_sessions/0/session",
+            "projection.json#/incomplete_sessions/0/state"
+          ]
+        },
+        "I06": {
+          "value": false,
+          "critical": true,
+          "evidence": ["projection.json#/source/verification_scope"]
+        },
+        "I07": {
+          "value": false,
+          "critical": true,
+          "evidence": ["projection.json#/source/projection_source_fingerprint"]
+        },
+        "P01": {
+          "value": 0,
+          "critical": false,
+          "evidence": ["projection.json#/completeness/complete_sessions_exported"]
+        },
+        "P02": {
+          "value": 1,
+          "critical": false,
+          "evidence": ["projection.json#/completeness/incomplete_sessions_retained"]
+        },
+        "P03": {
+          "value": false,
+          "critical": false,
+          "evidence": ["projection.json#/publication/network_operations"]
+        },
+        "P04": {
+          "value": false,
+          "critical": true,
+          "evidence": ["projection.json#/publication/raw_assets_included"]
+        },
+        "P05": {
+          "value": false,
+          "critical": true,
+          "evidence": ["projection.json#/publication/source_private_rationale_included"]
+        },
+        "P06": {
+          "value": false,
+          "critical": true,
+          "evidence": ["projection.json#/publication/training_use_policy"]
+        },
+        "P07": {
+          "value": "stored_byte_identity_only",
+          "critical": true,
+          "evidence": ["projection.json#/limitations/0/code"]
+        },
+        "P08": {
+          "value": false,
+          "critical": true,
+          "evidence": ["projection.json#/limitations/7/code"]
+        }
+      }
+    }
+  }
+}

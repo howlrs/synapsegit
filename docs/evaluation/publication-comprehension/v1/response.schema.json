@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://synapsegit.example/spec/evaluation/publication-comprehension-response-v1.schema.json",
+  "title": "SynapseGit publication comprehension response v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "corpus_version", "case_id", "track", "evaluator_kind", "run_id", "input_artifact_sha256", "evaluator_metadata", "answers"],
+  "properties": {
+    "schema": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "version"],
+      "properties": {
+        "name": {"const": "org.synapsegit.publication-comprehension-response"},
+        "version": {"const": 1}
+      }
+    },
+    "corpus_version": {"const": 1},
+    "case_id": {"enum": ["complete", "incomplete-only"]},
+    "track": {"enum": ["json", "html"]},
+    "evaluator_kind": {"enum": ["zero_context_ai", "human"]},
+    "run_id": {"type": "string", "minLength": 1, "maxLength": 128},
+    "input_artifact_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "evaluator_metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "model_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "model_configuration": {"type": "string", "minLength": 1, "maxLength": 2000},
+        "browser_id": {"type": "string", "minLength": 1, "maxLength": 256},
+        "assistive_technology": {"type": "string", "minLength": 1, "maxLength": 256}
+      }
+    },
+    "answers": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "oneOf": [
+          {"type": "boolean"},
+          {"type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991},
+          {"type": "string", "minLength": 1, "maxLength": 256}
+        ]
+      }
+    },
+    "notes": {"type": "string", "maxLength": 4000}
+  },
+  "allOf": [
+    {
+      "if": {
+        "required": ["evaluator_kind"],
+        "properties": {"evaluator_kind": {"const": "human"}}
+      },
+      "then": {
+        "properties": {
+          "track": {"const": "html"},
+          "evaluator_metadata": {"required": ["browser_id"]}
+        }
+      },
+      "else": {
+        "properties": {
+          "evaluator_metadata": {"required": ["model_id", "model_configuration"]}
+        }
+      }
+    }
+  ]
+}
