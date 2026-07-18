@@ -1,0 +1,3 @@
+# Frozen publication bundles are checksum-covered byte artifacts. Preserve
+# their exact bytes on every checkout so verify_bundle remains portable.
+docs/evaluation/publication-comprehension/v1/bundles/** -text

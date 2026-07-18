@@ -1,0 +1,331 @@
+{
+  "schema": {
+    "name": "org.synapsegit.publication-comprehension-privacy-canaries",
+    "version": 1
+  },
+  "corpus_version": 1,
+  "cases": {
+    "complete": {
+      "must_be_absent": [
+        {
+          "label": "raw_original_bytes",
+          "value": "RAW_COMPLETE_ORIGINAL_CANARY_C18A",
+          "scan_base64": true
+        },
+        {
+          "label": "raw_current_bytes",
+          "value": "RAW_COMPLETE_CURRENT_CANARY_4F2D",
+          "scan_base64": true
+        },
+        {
+          "label": "raw_proposal_bytes",
+          "value": "RAW_COMPLETE_PROPOSAL_CANARY_A907",
+          "scan_base64": true
+        },
+        {
+          "label": "private_creator_name",
+          "value": "PRIVATE_COMPLETE_CREATOR_NAME_CANARY_3D8C",
+          "scan_base64": true
+        },
+        {
+          "label": "private_subject_label",
+          "value": "PRIVATE_COMPLETE_SUBJECT_CANARY_7A51",
+          "scan_base64": true
+        },
+        {
+          "label": "credential_like_token",
+          "value": "GH_TOKEN=PRIVATE_COMPLETE_CREDENTIAL_CANARY_5C14",
+          "scan_base64": true
+        },
+        {
+          "label": "private_temp_path_segment",
+          "value": "PRIVATE_COMPLETE_TEMP_PATH_CANARY_91E2",
+          "scan_base64": true
+        },
+        {
+          "label": "private_rationale_adopt-story",
+          "value": "PRIVATE_ADOPT_RATIONALE_CANARY_16E4",
+          "scan_base64": true
+        },
+        {
+          "label": "internal_creator_id_adopt-story",
+          "value": "urn:uuid:1e14809e-1125-4d6e-a856-8cda52389c0b",
+          "scan_base64": true
+        },
+        {
+          "label": "internal_agent_id_adopt-story",
+          "value": "urn:uuid:0b346fc3-0b87-4aa0-bf72-a3408c740663",
+          "scan_base64": true
+        },
+        {
+          "label": "private_rationale_reject-story",
+          "value": "PRIVATE_REJECT_RATIONALE_CANARY_B729",
+          "scan_base64": true
+        },
+        {
+          "label": "internal_creator_id_reject-story",
+          "value": "urn:uuid:af8f895c-2a26-4c2b-a515-00d84fe9f85e",
+          "scan_base64": true
+        },
+        {
+          "label": "internal_agent_id_reject-story",
+          "value": "urn:uuid:ea788640-633e-4884-a3f9-0d5ccc38b17b",
+          "scan_base64": true
+        },
+        {
+          "label": "private_rationale_defer-story",
+          "value": "PRIVATE_DEFER_RATIONALE_CANARY_4A0C",
+          "scan_base64": true
+        },
+        {
+          "label": "internal_creator_id_defer-story",
+          "value": "urn:uuid:2f635e6e-a0c0-4114-ab8c-65ae00d62aa6",
+          "scan_base64": true
+        },
+        {
+          "label": "internal_agent_id_defer-story",
+          "value": "urn:uuid:2ec9494f-0799-433b-9b9f-374532cbb87c",
+          "scan_base64": true
+        }
+      ],
+      "must_be_present": [
+        {
+          "label": "public_title",
+          "value": "Public Complete Corpus Title Canary 931A",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_summary",
+          "value": "Public Complete Corpus Summary Canary 2B6F",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_creator_display_name",
+          "value": "Public Complete Creator Canary 04D7",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_agent_display_name",
+          "value": "Public Complete Agent Canary C520",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_session_id_adopt-story",
+          "value": "adopt-story",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_decision_note_adopt-story",
+          "value": "Public Adopt Decision Note Canary A16D",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_session_title_adopt-story",
+          "value": "Public Adopt Session Title Canary 7F35",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_session_id_reject-story",
+          "value": "reject-story",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_decision_note_reject-story",
+          "value": "Public Reject Decision Note Canary D08B",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_session_title_reject-story",
+          "value": "Public Reject Session Title Canary 1C49",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_session_id_defer-story",
+          "value": "defer-story",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_decision_note_defer-story",
+          "value": "Public Defer Decision Note Canary 63E2",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_session_title_defer-story",
+          "value": "Public Defer Session Title Canary B704",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        }
+      ]
+    },
+    "incomplete-only": {
+      "must_be_absent": [
+        {
+          "label": "raw_original_bytes",
+          "value": "RAW_INCOMPLETE_ORIGINAL_CANARY_80B3",
+          "scan_base64": true
+        },
+        {
+          "label": "raw_current_bytes",
+          "value": "RAW_INCOMPLETE_CURRENT_CANARY_1E76",
+          "scan_base64": true
+        },
+        {
+          "label": "raw_proposal_bytes",
+          "value": "RAW_INCOMPLETE_PROPOSAL_CANARY_D942",
+          "scan_base64": true
+        },
+        {
+          "label": "private_creator_name",
+          "value": "PRIVATE_INCOMPLETE_CREATOR_NAME_CANARY_27C8",
+          "scan_base64": true
+        },
+        {
+          "label": "private_subject_label",
+          "value": "PRIVATE_INCOMPLETE_SUBJECT_CANARY_F613",
+          "scan_base64": true
+        },
+        {
+          "label": "credential_like_token",
+          "value": "GH_TOKEN=PRIVATE_INCOMPLETE_CREDENTIAL_CANARY_B045",
+          "scan_base64": true
+        },
+        {
+          "label": "private_unsubmitted_rationale",
+          "value": "PRIVATE_INCOMPLETE_UNSUBMITTED_RATIONALE_CANARY_62AF",
+          "scan_base64": true
+        },
+        {
+          "label": "internal_creator_id",
+          "value": "urn:uuid:899f87f4-acde-42e3-85ef-f45eb2d69176",
+          "scan_base64": true
+        },
+        {
+          "label": "internal_agent_id",
+          "value": "urn:uuid:bbebc247-4f8b-4698-ba01-ce5482fb74ba",
+          "scan_base64": true
+        },
+        {
+          "label": "private_temp_path_segment",
+          "value": "PRIVATE_INCOMPLETE_TEMP_PATH_CANARY_6B4D",
+          "scan_base64": true
+        }
+      ],
+      "must_be_present": [
+        {
+          "label": "public_title",
+          "value": "Public Incomplete Corpus Title Canary E317",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_summary",
+          "value": "Public Incomplete Corpus Summary Canary 58AC",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_creator_display_name",
+          "value": "Public Incomplete Creator Canary 90F2",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_agent_display_name",
+          "value": "Public Incomplete Agent Canary 2D61",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        },
+        {
+          "label": "public_pending_session_id",
+          "value": "pending-story",
+          "paths": [
+            "projection.json",
+            "story.md",
+            "index.html",
+            "target/public-projection.json"
+          ]
+        }
+      ]
+    }
+  }
+}

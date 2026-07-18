@@ -47,6 +47,13 @@ that prepared read context for each independently validated session report.
 Incomplete-only projections do not claim verified CAS lineage and do not build
 the report context.
 
+The repository includes a frozen
+[publication-comprehension corpus](../../docs/evaluation/publication-comprehension/v1/)
+with separate complete adopt/reject/defer and incomplete-only bundles. Its
+production-path verifier, semantic oracle, and privacy canaries are automated;
+Human, zero-context AI, axe, keyboard, zoom, and screen-reader evaluations
+remain explicitly `not_run` until performed.
+
 This crate does not change the SynapseGit Core protocol or the meaning of
 `synapse export`, which remains the verified restorable Core archive command.
 It does not publish to GitHub or a hosted Synapse service.

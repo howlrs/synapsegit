@@ -1,0 +1,28 @@
+{
+  "schema": {
+    "name": "org.synapsegit.publication-comprehension-result",
+    "version": 1
+  },
+  "corpus_version": 1,
+  "status": "not_run",
+  "cases": {
+    "complete": {
+      "zero_context_ai_json": [],
+      "zero_context_ai_html": [],
+      "human_html": []
+    },
+    "incomplete-only": {
+      "zero_context_ai_json": [],
+      "zero_context_ai_html": [],
+      "human_html": []
+    }
+  },
+  "accessibility": {
+    "status": "not_run",
+    "axe": null,
+    "keyboard": null,
+    "zoom_200_percent": null,
+    "viewport_320_css_px": null,
+    "screen_reader": null
+  }
+}

@@ -1,0 +1,186 @@
+{
+  "schema": {
+    "name": "org.synapsegit.publication-comprehension-questionnaire",
+    "version": 1
+  },
+  "corpus_version": 1,
+  "instructions": "Answer from the selected bundle only. Explanatory notes are optional and are not scored. Missing or schema-valid wrong-typed answers are incorrect; schema-invalid responses are invalid.",
+  "questions": [
+    {
+      "id": "P01",
+      "cases": ["complete", "incomplete-only"],
+      "tracks": ["json", "html"],
+      "answer_type": "integer",
+      "critical": false,
+      "prompt": "How many complete creator sessions are exported?"
+    },
+    {
+      "id": "P02",
+      "cases": ["complete", "incomplete-only"],
+      "tracks": ["json", "html"],
+      "answer_type": "integer",
+      "critical": false,
+      "prompt": "How many incomplete creator sessions are retained?"
+    },
+    {
+      "id": "P03",
+      "cases": ["complete", "incomplete-only"],
+      "tracks": ["json", "html"],
+      "answer_type": "boolean",
+      "critical": false,
+      "prompt": "Did creation of this bundle perform a remote or network publication?"
+    },
+    {
+      "id": "P04",
+      "cases": ["complete", "incomplete-only"],
+      "tracks": ["json", "html"],
+      "answer_type": "boolean",
+      "critical": true,
+      "prompt": "Does the bundle include raw original, current, or proposal asset bytes?"
+    },
+    {
+      "id": "P05",
+      "cases": ["complete", "incomplete-only"],
+      "tracks": ["json", "html"],
+      "answer_type": "boolean",
+      "critical": true,
+      "prompt": "Does the bundle include the source-private Human rationale?"
+    },
+    {
+      "id": "P06",
+      "cases": ["complete", "incomplete-only"],
+      "tracks": ["json", "html"],
+      "answer_type": "boolean",
+      "critical": true,
+      "prompt": "Does machine readability grant permission to train on the bundle?"
+    },
+    {
+      "id": "P07",
+      "cases": ["complete", "incomplete-only"],
+      "tracks": ["json", "html"],
+      "answer_type": "enum",
+      "accepted_values": ["stored_byte_identity_only", "authorship_or_truth"],
+      "critical": true,
+      "prompt": "What is the strongest assurance an OID provides in this view?"
+    },
+    {
+      "id": "P08",
+      "cases": ["complete", "incomplete-only"],
+      "tracks": ["json", "html"],
+      "answer_type": "boolean",
+      "critical": true,
+      "prompt": "Do bundle checksums prove the publisher's identity or act as a signature?"
+    },
+    {
+      "id": "C01",
+      "cases": ["complete"],
+      "tracks": ["json", "html"],
+      "answer_type": "enum",
+      "accepted_values": ["ai_proposal", "current", "original"],
+      "critical": true,
+      "prompt": "Which artifact did the Human select in adopt-story?"
+    },
+    {
+      "id": "C02",
+      "cases": ["complete"],
+      "tracks": ["json", "html"],
+      "answer_type": "enum",
+      "accepted_values": ["ai_proposal", "current", "original"],
+      "critical": true,
+      "prompt": "Which artifact did the Human select in reject-story?"
+    },
+    {
+      "id": "C03",
+      "cases": ["complete"],
+      "tracks": ["json", "html"],
+      "answer_type": "enum",
+      "accepted_values": ["ai_proposal", "current", "original"],
+      "critical": true,
+      "prompt": "Which artifact did the Human select in defer-story?"
+    },
+    {
+      "id": "C04",
+      "cases": ["complete"],
+      "tracks": ["json", "html"],
+      "answer_type": "boolean",
+      "critical": true,
+      "prompt": "Are rejected and deferred AI-attributed proposals retained in history?"
+    },
+    {
+      "id": "C05",
+      "cases": ["complete"],
+      "tracks": ["json", "html"],
+      "answer_type": "enum",
+      "accepted_values": ["workflow_attributed_model_invocation_unverified", "model_generation_verified"],
+      "critical": true,
+      "prompt": "How strong is the bundle's AI attribution claim?"
+    },
+    {
+      "id": "C06",
+      "cases": ["complete"],
+      "tracks": ["json", "html"],
+      "answer_type": "enum",
+      "accepted_values": ["ref_snapshot_and_reachable_cas_verified", "ref_shape_only_unverified"],
+      "critical": true,
+      "prompt": "What source verification scope applies to the complete bundle?"
+    },
+    {
+      "id": "I01",
+      "cases": ["incomplete-only"],
+      "tracks": ["json", "html"],
+      "answer_type": "enum",
+      "accepted_values": ["incomplete", "complete"],
+      "critical": false,
+      "prompt": "What is pending-story's state?"
+    },
+    {
+      "id": "I02",
+      "cases": ["incomplete-only"],
+      "tracks": ["json", "html"],
+      "answer_type": "boolean",
+      "critical": false,
+      "prompt": "Was a proposal Ref observed for pending-story?"
+    },
+    {
+      "id": "I03",
+      "cases": ["incomplete-only"],
+      "tracks": ["json", "html"],
+      "answer_type": "boolean",
+      "critical": false,
+      "prompt": "Was a Decision Ref observed for pending-story?"
+    },
+    {
+      "id": "I04",
+      "cases": ["incomplete-only"],
+      "tracks": ["json", "html"],
+      "answer_type": "boolean",
+      "critical": true,
+      "prompt": "Is pending-story exported in the complete sessions list?"
+    },
+    {
+      "id": "I05",
+      "cases": ["incomplete-only"],
+      "tracks": ["json", "html"],
+      "answer_type": "enum",
+      "accepted_values": ["incomplete_sessions_only", "complete_sessions"],
+      "critical": true,
+      "prompt": "Where is pending-story represented in this bundle?"
+    },
+    {
+      "id": "I06",
+      "cases": ["incomplete-only"],
+      "tracks": ["json"],
+      "answer_type": "boolean",
+      "critical": true,
+      "prompt": "Was the incomplete session's reachable CAS closure verified for this projection?"
+    },
+    {
+      "id": "I07",
+      "cases": ["incomplete-only"],
+      "tracks": ["json", "html"],
+      "answer_type": "boolean",
+      "critical": true,
+      "prompt": "Is a Projection source fingerprint available for the incomplete-only bundle?"
+    }
+  ]
+}

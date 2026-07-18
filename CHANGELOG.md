@@ -6,6 +6,15 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+### Added
+
+- A frozen publication-comprehension corpus with separate complete
+  adopt/reject/defer and incomplete-only bundles, a fixed questionnaire and
+  semantic oracle, privacy canaries, response/protocol contracts, candidate
+  generator, production-path bundle verification, and an executable exact
+  scorer. The corpus records external Human, AI, and accessibility evaluation
+  as `not_run` until those evaluations are actually completed.
+
 ### Changed
 
 - Multi-session publication now shares one snapshot-scoped bounded `fsck` and

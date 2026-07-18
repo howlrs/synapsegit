@@ -1,0 +1,96 @@
+{
+  "schema": {
+    "name": "org.synapsegit.publication-comprehension-protocol",
+    "version": 1
+  },
+  "corpus_version": 1,
+  "status": "not_run",
+  "case_isolation": {
+    "required": true,
+    "combine_case_scores": false,
+    "reason": "A complete report changes the projection-wide verification scope and would mask the incomplete-only boundary."
+  },
+  "context": {
+    "fresh_context_per_case_track_and_run": true,
+    "track_matrix": [
+      {"evaluator_kind": "zero_context_ai", "track": "json"},
+      {"evaluator_kind": "zero_context_ai", "track": "html"},
+      {"evaluator_kind": "human", "track": "html"}
+    ],
+    "question_filter": "Include a question only when both its cases and tracks arrays contain the selected case and track.",
+    "zero_context_ai_json_track_inputs": [
+      "exact selected-case projection.json bytes",
+      "applicable questionnaire entries"
+    ],
+    "zero_context_ai_html_track_inputs": [
+      "exact selected-case index.html bytes",
+      "applicable questionnaire entries",
+      "no linked file, browser retrieval, tool, or network access"
+    ],
+    "human_html_track_inputs": [
+      "selected-case index.html rendered locally in an isolated browser",
+      "applicable questionnaire entries"
+    ],
+    "html_link_rule": "Keep visible links and their labels in the presentation, but do not activate, fetch, crawl, or otherwise reveal linked files during a scored run.",
+    "input_artifact_sha256_required": true,
+    "excluded_inputs": [
+      "README.md",
+      "oracle.json",
+      "privacy-canaries.json",
+      "sibling bundle",
+      "previous responses"
+    ]
+  },
+  "scoring": {
+    "answer_comparison": "Strict JSON primitive type and value equality against the oracle; boolean false is not integer 0 and enum strings are case-sensitive.",
+    "unknown_question_id_invalidates_response": true,
+    "missing_or_schema_valid_wrong_typed_applicable_answer_is_incorrect": true,
+    "non_applicable_question_id_invalidates_response": true,
+    "assignable_invalid_response_invalidates_group": true,
+    "unassignable_invalid_response_invalidates_evaluation": true,
+    "status_rule": "A group is not_run until its minimum distinct runs are present, then pass or fail; validation errors make it invalid. Overall is invalid if any input or group is invalid, otherwise not_run while any required group is not_run, otherwise fail if any group fails, and pass only when every required group passes.",
+    "per_response_accuracy": "correct applicable answers divided by all applicable questions for that case and track",
+    "threshold_comparison": "Use integer cross multiplication: correct * 100 >= applicable * threshold_percent. Do not round percentages before comparison.",
+    "duplicate_run_id_invalidates_group": true,
+    "zero_context_ai_group": "A case and track pass only when at least the minimum number of distinct runs are present and every recorded run meets its track threshold and answers every applicable critical question correctly.",
+    "human_macro_accuracy": "For one case on the HTML track, take the unweighted mean of per-question accuracy across all distinct participants. Because every applicable question has the same participant denominator, compare total_correct * 100 >= participants * applicable_questions * minimum_macro_accuracy_percent.",
+    "human_critical_question_accuracy": "For every applicable critical question, compare participants_correct * 100 >= participants * minimum_accuracy_per_critical_question_percent.",
+    "current_json_threshold_note": "At the frozen v1 question counts, the 95 percent JSON threshold permits zero wrong answers; this is intentional."
+  },
+  "zero_context_ai": {
+    "minimum_runs_per_case_and_track": 3,
+    "json_track_minimum_accuracy_percent": 95,
+    "html_track_minimum_accuracy_percent": 90,
+    "all_critical_answers_must_be_correct": true,
+    "missing_or_schema_valid_wrong_typed_answer_is_incorrect": true
+  },
+  "human": {
+    "minimum_participants_per_case": 10,
+    "required_track": "html",
+    "prefer_one_case_per_participant": true,
+    "minimum_macro_accuracy_percent": 85,
+    "minimum_accuracy_per_critical_question_percent": 90,
+    "all_critical_questions_must_meet_threshold": true,
+    "unnecessary_personal_data_collection_prohibited": true
+  },
+  "accessibility": {
+    "automated_static_baseline_is_not_wcag_conformance": true,
+    "external_hard_gates": [
+      "pinned axe-core reports zero critical or serious violations",
+      "keyboard-only navigation and details disclosure",
+      "heading and landmark order",
+      "link purpose and relative-link resolution",
+      "200 percent zoom",
+      "320 CSS pixel viewport",
+      "at least one screen-reader pass",
+      "no external resource, active script, or form"
+    ]
+  },
+  "bundle_hard_gates": [
+    "production verify_bundle succeeds",
+    "pinned projection digest matches",
+    "semantic oracle matches projection",
+    "privacy canary leakage count is zero",
+    "provider-neutral and target projection copies are identical"
+  ]
+}
