@@ -142,6 +142,8 @@ impl Default for ArchiveExportLimits {
 
 #[derive(Debug)]
 pub enum RepositoryError {
+    /// A mutating operation was attempted through a read-only repository.
+    ReadOnly,
     Core(CoreError),
     Store(StoreError),
     RefStore(RefStoreError),
@@ -160,6 +162,7 @@ pub enum RepositoryError {
 impl RepositoryError {
     pub fn code(&self) -> &str {
         match self {
+            Self::ReadOnly => "read_only",
             Self::Core(error) => error.code().as_str(),
             Self::Store(error) => error.code().map_or("storage_error", ErrorCode::as_str),
             Self::RefStore(error) => error.code(),
@@ -183,6 +186,7 @@ impl RepositoryError {
 impl fmt::Display for RepositoryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ReadOnly => formatter.write_str("repository is read-only"),
             Self::Core(error) => error.fmt(formatter),
             Self::Store(error) => error.fmt(formatter),
             Self::RefStore(error) => error.fmt(formatter),
@@ -211,6 +215,7 @@ impl fmt::Display for RepositoryError {
 impl Error for RepositoryError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::ReadOnly => None,
             Self::Core(error) => Some(error),
             Self::Store(error) => Some(error),
             Self::RefStore(error) => Some(error),
@@ -253,11 +258,37 @@ pub struct Repository {
     refs: SqliteRefStore,
     graph_limits: GraphLimits,
     tombstone_scan_limits: TombstoneScanLimits,
+    read_only: bool,
 }
 
 impl Repository {
     pub fn open(root: impl AsRef<Path>) -> Result<Self> {
         Self::open_with_limits(root, StoreLimits::default(), GraphLimits::default())
+    }
+
+    /// Open an existing repository without creating or modifying source paths.
+    ///
+    /// The CAS is opened without layout creation or directory sync. A
+    /// checkpointed SQLite database is captured into a bounded private stable
+    /// copy using matching source digests; SQLite opens only that copy in
+    /// read-only `query_only` mode. Existing WAL/SHM sidecars or a changing
+    /// source fail closed. All repository, CAS, and RefStore mutation APIs on
+    /// the returned handle reject with their explicit read-only error variants.
+    pub fn open_existing_read_only(root: impl AsRef<Path>) -> Result<Self> {
+        let requested = root.as_ref();
+        let root = fs::canonicalize(requested).map_err(|error| {
+            RepositoryError::io("canonicalize existing repository", requested, error)
+        })?;
+        let objects = FileObjectStore::open_existing_read_only(root.join("cas"))?;
+        let refs = SqliteRefStore::open_existing_read_only(root.join("refs.sqlite3"))?;
+        Ok(Self {
+            root,
+            objects,
+            refs,
+            graph_limits: GraphLimits::default(),
+            tombstone_scan_limits: TombstoneScanLimits::default(),
+            read_only: true,
+        })
     }
 
     /// Open a repository with a service-owned bound for publication-time
@@ -308,6 +339,7 @@ impl Repository {
             refs,
             graph_limits,
             tombstone_scan_limits,
+            read_only: false,
         })
     }
 
@@ -324,15 +356,18 @@ impl Repository {
     }
 
     pub fn put_blob(&self, reader: impl Read) -> Result<PutResult> {
+        self.ensure_writable()?;
         Ok(self.objects.put_blob(reader)?)
     }
 
     pub fn put_blob_claimed(&self, claimed_oid: &str, reader: impl Read) -> Result<PutResult> {
+        self.ensure_writable()?;
         Ok(self.objects.put_blob_claimed(claimed_oid, reader)?)
     }
 
     /// Validate a concrete structured object before publishing canonical bytes.
     pub fn put_object(&self, input: &[u8]) -> Result<PutResult> {
+        self.ensure_writable()?;
         let validated = ingest(input)?;
         Ok(self
             .objects
@@ -341,6 +376,7 @@ impl Repository {
 
     /// As [`Self::put_object`], requiring one structured object family.
     pub fn put_object_as(&self, expected: ObjectKind, input: &[u8]) -> Result<PutResult> {
+        self.ensure_writable()?;
         if !expected.is_structured() {
             return Err(CoreError::new(
                 ErrorCode::SchemaInvalid,
@@ -368,6 +404,7 @@ impl Repository {
 
     /// Validate a concrete structured object and its transport-supplied OID.
     pub fn put_object_claimed(&self, claimed_oid: &str, input: &[u8]) -> Result<PutResult> {
+        self.ensure_writable()?;
         let validated = ingest_claimed(claimed_oid, input)?;
         Ok(self
             .objects
@@ -381,6 +418,7 @@ impl Repository {
         claimed_oid: &str,
         input: &[u8],
     ) -> Result<PutResult> {
+        self.ensure_writable()?;
         if !expected.is_structured() {
             return Err(CoreError::new(
                 ErrorCode::SchemaInvalid,
@@ -411,6 +449,7 @@ impl Repository {
     }
 
     pub fn update_ref(&mut self, update: RefUpdate<'_>) -> Result<ReflogEntry> {
+        self.ensure_writable()?;
         let objects = &self.objects;
         let limits = self.graph_limits;
         let tombstone_scan_limits = self.tombstone_scan_limits;
@@ -800,6 +839,7 @@ impl Repository {
     }
 
     pub fn restore_from(&mut self, archive: impl AsRef<Path>) -> Result<()> {
+        self.ensure_writable()?;
         if !self.refs.snapshot()?.is_empty() || !self.refs.reflog()?.is_empty() {
             return Err(RepositoryError::RepositoryNotEmpty);
         }
@@ -925,6 +965,14 @@ impl Repository {
         };
         self.refs.restore_archive(&ref_archive, &validator)?;
         Ok(())
+    }
+
+    fn ensure_writable(&self) -> Result<()> {
+        if self.read_only {
+            Err(RepositoryError::ReadOnly)
+        } else {
+            Ok(())
+        }
     }
 
     fn object_limit(&self, oid: &str) -> Result<u64> {

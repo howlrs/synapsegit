@@ -6,7 +6,7 @@ Decision date: 2026-07-11
 
 ## 結論
 
-Core実装言語は**Rust**とする。local repository pathに加え、ordered Observationのdeterministic byte-identity baselineを`synapse-observation`、process-localなauthenticated one-shot AI executionとnarrow Human Decision routeを`synapse-application`、Creative AIのpreflight／proposal publication admissionを`synapse-core::CreativeAiRuntime`、narrow Human Decision admissionを`HumanDecisionRuntime`としてRustに置く。ただし正本をSurrealDBへ閉じ込めず、Gitライクな不変objectをfilesystem/object storage上のCASに置く。ローカルのRef・reflogはSQLite、public共有serviceのRef／reflog authorityはPostgreSQLを採用するproduction targetとした。query用には`synapse-projection::SqliteProjectionStore` baselineを実装済みである。これはverified ObjectStoreとcaller-suppliedな一貫したRef snapshotから破棄・再構築する派生indexで、SurrealDB adapterと全8 query／benchmark比較は未実装である。
+Core実装言語は**Rust**とする。local repository pathに加え、ordered Observationのdeterministic byte-identity baselineを`synapse-observation`、process-localなauthenticated one-shot AI executionとnarrow Human Decision routeを`synapse-application`、Creative AIのpreflight／proposal publication admissionを`synapse-core::CreativeAiRuntime`、narrow Human Decision admissionを`HumanDecisionRuntime`としてRustに置く。ただし正本をSurrealDBへ閉じ込めず、Gitライクな不変objectをfilesystem/object storage上のCASに置く。ローカルのRef・reflogはSQLite、public共有serviceのRef／reflog authorityはPostgreSQLを採用するproduction targetとした。query用には`synapse-projection::SqliteProjectionStore` baselineを実装済みである。これはverified ObjectStoreとcaller-suppliedな一貫したRef snapshotから破棄・再構築する派生indexで、SurrealDB adapterと全8 query／benchmark比較は未実装である。作者外への表示は別の`synapse-publication`がexisting CASをread-onlyで扱い、Ref SQLiteのstable private copyからprovider-neutralなPublicProjectionとlocal bundleへ変換する。
 
 ```mermaid
 flowchart LR
@@ -31,6 +31,9 @@ flowchart LR
     DB --> ARCHIVE
     STORE --> PROJ["SQLite ProjectionStore<br/>explicit atomic rebuild"]
     DB -. consistent RefSnapshot .-> PROJ
+    STORE --> PRESENT["synapse-publication<br/>read-only public projection"]
+    DB -. one bounded RefSnapshot .-> PRESENT
+    PRESENT --> BUNDLE["Local PublicationBundle<br/>JSON / Markdown / static HTML"]
     PROJ -. optional adapter planned .-> SURREAL[(SurrealDB)]
 ```
 
@@ -332,6 +335,28 @@ decision snapshotがproposal snapshotに一致してselectedがtrue、reject／d
 `creator_session_incomplete`で拒否する。Decision publication後のfailureはcomplete sessionを残し得る。
 create-only Pilotはどちらも自動resume／cleanupやRef上書きを行わないため、callerが状態を診断する。
 
+## PublicProjectionとlocal PublicationBundle
+
+`synapse-publication`は内部query cacheの`synapse-projection`やCore archiveとは別の外向けpresentation
+layerである。existing CASはread-onlyで扱う。checkpoint済みで最大512 MiBのsource `refs.sqlite3`は
+SQLiteで直接openせず、private temporary fileへcopyしながら計算したSHA-256と、copy後にsourceを再読して
+計算したSHA-256の一致を確認してから、temporary copyだけをSQLite read-onlyでopenする。そこから取得した
+一つのbounded `RefSnapshot`でcreator reportを再構築し、versioned `PublicProjection`を作る。source sidecar
+またはdigest不一致は`read_only_source_busy`となり、size超過は拒否する。Core object、Ref、reflog、
+archive formatを変更せず、`synapse export`の意味もrestorable directory archiveのまま維持する。
+
+CLIはcomplete／incomplete合計最大100 creator sessionsを発見する。canonical `projection.json`を
+Human／Machine viewのsemantic sourceとし、escaped `story.md`、全textを
+escapeしたJavaScriptなし`index.html`、manifest、checksum、target固有copyを同時生成する。`synapse`と
+`github` targetは同じroot projection／story／HTMLを共有し、target directoryはdelivery layoutだけを持つ。
+GitHub targetもuploadやnetwork accessを行わない。
+
+publication policyはdefault-denyで、source-private rationale、internal Actor ID、repository path、raw assetを
+除外する。`presentation.toml`のtitle、summary、caption、display name、public decision noteだけを
+`author_supplied`として加え、verified sourceとのoriginを混同しない。machine readabilityはtraining permissionを
+意味せず、M0/M1は`prohibited`を固定する。outputはsource外のnon-symlink parentへstagingし、file／directoryを
+syncした後にatomic no-replaceで公開する。remote publication、credential、receiptは未実装である。
+
 ## 永続化の書込み境界
 
 local writeは次の順序に固定する。
@@ -413,6 +438,7 @@ crates/
   synapse-application local authenticated Creative AI + narrow Human Decision routes
   synapse-core        validated repository / AI proposal + Human Decision admission / archive
   synapse-creator     create-only local Creator Pilot orchestration / snapshot-bound report
+  synapse-publication read-only PublicProjection / deterministic local bundle / target renderer
   synapse-cli         put / trusted-operator update-ref / fsck / export / restore / creator-run / creator-report
   synapse-local-service transport-neutral localhost read + bounded creator facade / versioned DTO
   synapse-local-http  Axum + Askama loopback server / embedded assets
@@ -420,6 +446,7 @@ crates/
 
 `synapse-sqlite`が保存するのはRefsとreflogであり、query projectionではない。
 `synapse-projection`は別SQLite file／connectionに破棄可能な派生rowを保存する。
+`synapse-publication`は正本やquery cacheではなく、外部review用のbounded derived viewである。
 
 ## 未実装の候補構成
 
@@ -446,6 +473,6 @@ cloud package境界、GCP／AWS mapping、durable admitted-proposal blocker、ph
 従ってprovider adapter追加だけではproduction化できず、streaming object port、PostgreSQL unit of work、
 durable operation／admission contractへ分離する必要がある。
 
-最初の実装単位`put-object → verify OID → build tree → commit → CAS ref → fsck → export/restore`、`ordered Observation → deterministic primary Blob OID comparison → AnalysisResult`、`authenticate → exact project ACL → Core preflight → one-shot execution → reauth/fence → full proposal publication → admitted handle`、`authenticate human → registered admitted proposal/candidate → one-shot permit → full supported disposition/CAS`、`consistent RefSnapshot + CAS → atomic SQLite projection rebuild`、`3 opaque files → CaptureProfile／byte Analysis／Creator provenance → AI/Human publication → snapshot-bound report`はlocal Rust縦切りとして実装済みである。ただしbyte comparisonはphysical／visual change analysisではなく、application routeはAIとnarrow Human Decisionだけのprocess-local libraryで、Creator Pilotはその上に置くtrusted local orchestrationである。SurrealDB導入はこの正本経路から分離し、optional projection adapterとして並行検証する。
+最初の実装単位`put-object → verify OID → build tree → commit → CAS ref → fsck → export/restore`、`ordered Observation → deterministic primary Blob OID comparison → AnalysisResult`、`authenticate → exact project ACL → Core preflight → one-shot execution → reauth/fence → full proposal publication → admitted handle`、`authenticate human → registered admitted proposal/candidate → one-shot permit → full supported disposition/CAS`、`consistent RefSnapshot + CAS → atomic SQLite projection rebuild`、`3 opaque files → CaptureProfile／byte Analysis／Creator provenance → AI/Human publication → snapshot-bound report`、`stable private Ref SQLite copy → bounded RefSnapshot → PublicProjection → deterministic local Human/Machine bundle`はlocal Rust縦切りとして実装済みである。ただしbyte comparisonはphysical／visual change analysisではなく、application routeはAIとnarrow Human Decisionだけのprocess-local libraryで、Creator Pilotはその上に置くtrusted local orchestrationである。publication targetはlocal rendererだけでremote publishではない。SurrealDB導入はこの正本経路から分離し、optional projection adapterとして並行検証する。
 
 `build-tree`と`commit`は現在、利用者が用意したJSONをfamily指定でvalidate + putするCLIであり、directory走査やCommit bodyの自動生成は行わない。archiveは単一fileではなくchecksum付きdirectoryである。詳細は[Local directory archive profile](../spec/core/v0.1/archive-profile.md)を参照する。

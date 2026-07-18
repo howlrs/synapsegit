@@ -2,7 +2,7 @@
 
 Status: **Core v0.1 / Stage 0 draft**
 
-このガイドは、SynapseGit Coreの想定利用者、Pilotでの使い方、現在このリポジトリで実行できる範囲をまとめる。現時点ではproduction向け制作アプリやcapture clientを提供していないが、3画像から手書きJSONなしで一sessionを記録するboundedなlocal single-creator Pilotと、v0.2.0ではそのimport／reviewを行うloopback-only UIまで実装されている。利用フローの図は実装済み境界に加えて構想とPilot仮説を含む。
+このガイドは、SynapseGit Coreの想定利用者、Pilotでの使い方、現在このリポジトリで実行できる範囲をまとめる。現時点ではproduction向け制作アプリやcapture clientを提供していないが、3画像から手書きJSONなしで一sessionを記録するboundedなlocal single-creator Pilotと、v0.2.0ではそのimport／reviewを行うloopback-only UIまで実装されている。current sourceには作者外の人とAIへ履歴を説明するread-only local publication bundleもある。利用フローの図は実装済み境界に加えて構想とPilot仮説を含む。
 
 対象はSynapseGit Coreのみであり、Chrono-Engine、歴史的人物の思考再現、自動利益分配はこのガイドとCore v0.1の対象外である。
 
@@ -146,6 +146,14 @@ legacy-shaped sessionは`comparison=unavailable`と表示する。このshapeは
 reportは`fsck`がcleanでなければ拒否する。別commandの`export`／`restore`後にも同じOIDとreportを
 再構築できることをprocess testで検証している。
 
+current sourceの`synapse-present export`は、existing CASを変更せず、Ref SQLiteのdigest検証付きprivate
+stable copyからcanonical `projection.json`、`story.md`、JavaScriptなし`index.html`、manifest、checksum、
+target layoutへ翻訳する。
+Original／Current／AI-attributed proposal／Human Decision、adopt／reject／defer、未採用proposalを保持する
+便益、byte-identity-onlyの限界をHuman／Machine viewで一致させる。private rationale、internal Actor ID、
+repository path、raw assetは出力せず、公開説明は別の`presentation.toml`から`author_supplied`として加える。
+これはCore archiveではなく、正本でもauthorization入力でもない。GitHub targetもlocal fileを作るだけである。
+
 ## Creative AIを使う場合
 
 ```mermaid
@@ -267,7 +275,32 @@ complete sessionを残し得る。このPilotはどちらも自動resume／clean
 診断する。`reject`／`defer`でもAI outputとproposalは履歴に残り、reportの
 `reviewed_by_human`はreviewer、`selected`はproposalがdecision snapshotへ選ばれたかを示す。
 
-現在のRust実装は、strict JSONとOIDだけでなく、具象schema／local semantic validation、filesystem ObjectStore、Commit／Tree／Record closure、Tombstone availability、SQLite Ref CAS／reflog、process-local authenticated AI executionとadmitted-proposal-bound Human Decision application route、両Core admission、local creator orchestration、fsck、checksum付きdirectory export／restoreまでを実行できる。加えて`SqliteProjectionStore` libraryは、caller-suppliedな一貫したRef snapshotからcurrent reachable closureをatomic rebuildし、Ref-scoped Subject timeline、Observation dependency、typed AnalysisResult lineage、missing closure issue、tombstoned availability／countをqueryできる。Analysis replay readinessはinput／adapter implementation／configuration／transformのavailabilityだけを表し、exact replayを保証しない。production経路はschema検証後にcanonical bytesだけをObjectStoreへ渡す。低水準APIは検証前であることを示すため`*_unchecked`の名前を維持する。
+### 作者外へ説明するread-only publication bundle
+
+```bash
+cargo run -p synapse-publication --bin synapse-present -- \
+  export .synapse-creator public-view \
+  --session mural-1 \
+  --presentation presentation.toml \
+  --public \
+  --github
+
+cargo run -p synapse-publication --bin synapse-present -- \
+  preview public-view
+```
+
+target省略時は`synapse`、`--synapse`／`--github`は`--target`のaliasで、重複指定は拒否する。
+`--public`を省略すると`private_review` bundleになり、外部copy前のreviewが必要な状態をmanifestへ残す。
+いずれもnetwork operationsは0であり、uploadやremote publishを行わない。生成済みdestinationを上書きせず、
+source repository内への出力も拒否する。export前に`synapse-local`と全writerを停止する。checkpoint済みで
+最大512 MiBのsource SQLite main fileをprivate temporary fileへcopyしながらSHA-256を計算し、copy後に
+再読したsource SHA-256との一致を確認する。source SQLiteは直接openせず、temporary copyだけをopenする。
+`-wal`／`-shm`／`-journal` sidecarまたはdigest不一致は`read_only_source_busy`となり、512 MiB超過は拒否する。
+exportが発見するcomplete／incomplete creator sessionは合計最大100件である。output parentは既存のreal
+directory、destinationは不存在を要求する。raw asset renderingとremote uploadは対象外である。exact
+sidecar形式とbundle inventoryは[CLI reference](./cli_reference.md#synapse-present-companion-cli)を参照する。
+
+現在のRust実装は、strict JSONとOIDだけでなく、具象schema／local semantic validation、filesystem ObjectStore、Commit／Tree／Record closure、Tombstone availability、SQLite Ref CAS／reflog、process-local authenticated AI executionとadmitted-proposal-bound Human Decision application route、両Core admission、local creator orchestration、fsck、checksum付きdirectory export／restoreまでを実行できる。加えて`SqliteProjectionStore` libraryは、caller-suppliedな一貫したRef snapshotからcurrent reachable closureをatomic rebuildし、Ref-scoped Subject timeline、Observation dependency、typed AnalysisResult lineage、missing closure issue、tombstoned availability／countをqueryできる。外向けの別crate `synapse-publication`はstable private Ref SQLite copyから得た一つのbounded Ref snapshotでprovider-neutralなPublicProjectionとlocal bundleを生成する。Analysis replay readinessはinput／adapter implementation／configuration／transformのavailabilityだけを表し、exact replayを保証しない。production経路はschema検証後にcanonical bytesだけをObjectStoreへ渡す。低水準APIは検証前であることを示すため`*_unchecked`の名前を維持する。
 
 最小CLI経路は次のとおりである。
 
@@ -311,6 +344,7 @@ Stage 0のcreator／Observation Pilotとして残るもの:
 
 - concrete HTTP／JWT／MFA、credential database、durable／distributed ACL・permit、multi-process fence
 - creator-report以外のgeneral Projection authenticated application route
+- GitHub／Synapseへのremote publication adapter、credential、publication receipt
 - multi-project CAS membership／classification resolver
 - organization／quorum／MFA、release approval、modified／partial adoption workflow
 - AI ExecutorのOS sandbox／connector／egress制御、Grant revocation

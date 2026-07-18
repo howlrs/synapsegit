@@ -41,6 +41,8 @@ impl Default for StoreLimits {
 /// [`ErrorCode`] through [`StoreError::code`].
 #[derive(Debug)]
 pub enum StoreError {
+    /// A mutating operation was attempted through a read-only store handle.
+    ReadOnly,
     Core(CoreError),
     Io {
         operation: &'static str,
@@ -61,6 +63,7 @@ impl StoreError {
     /// Stable protocol code when this failure has one.
     pub fn code(&self) -> Option<ErrorCode> {
         match self {
+            Self::ReadOnly => None,
             Self::Core(error) => Some(error.code()),
             Self::CorruptObject { .. } => Some(ErrorCode::OidMismatch),
             Self::InvalidStoreLayout { .. } => Some(ErrorCode::SchemaInvalid),
@@ -87,6 +90,7 @@ impl StoreError {
 impl fmt::Display for StoreError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ReadOnly => formatter.write_str("filesystem object store is read-only"),
             Self::Core(error) => error.fmt(formatter),
             Self::Io {
                 operation,
@@ -106,6 +110,7 @@ impl fmt::Display for StoreError {
 impl Error for StoreError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::ReadOnly => None,
             Self::Core(error) => Some(error),
             Self::Io { source, .. } => Some(source),
             Self::CorruptObject { .. } | Self::InvalidStoreLayout { .. } => None,
@@ -236,6 +241,7 @@ pub struct FileObjectStore {
     root: PathBuf,
     limits: StoreLimits,
     next_temp: AtomicU64,
+    read_only: bool,
 }
 
 impl FileObjectStore {
@@ -272,6 +278,39 @@ impl FileObjectStore {
             root,
             limits,
             next_temp: AtomicU64::new(0),
+            read_only: false,
+        })
+    }
+
+    /// Open an existing filesystem CAS without creating or syncing any path.
+    ///
+    /// The root and the complete fixed directory layout must already exist.
+    /// Every mutation method on the returned handle fails with
+    /// [`StoreError::ReadOnly`] before consuming or validating write input.
+    pub fn open_existing_read_only(root: impl AsRef<Path>) -> Result<Self, StoreError> {
+        let limits = StoreLimits::default();
+        validate_limits(limits)?;
+        let requested_root = root.as_ref();
+        require_existing_real_directory(requested_root)?;
+        let root = fs::canonicalize(requested_root).map_err(|error| {
+            StoreError::io("canonicalize existing store root", requested_root, error)
+        })?;
+        require_existing_real_directory(&root.join(OBJECTS_DIRECTORY))?;
+        require_existing_real_directory(&root.join(TEMP_DIRECTORY))?;
+        for kind in [
+            ObjectKind::Blob,
+            ObjectKind::Record,
+            ObjectKind::Tree,
+            ObjectKind::Commit,
+        ] {
+            require_existing_real_directory(&root.join(OBJECTS_DIRECTORY).join(kind.prefix()))?;
+        }
+
+        Ok(Self {
+            root,
+            limits,
+            next_temp: AtomicU64::new(0),
+            read_only: true,
         })
     }
 
@@ -282,6 +321,7 @@ impl FileObjectStore {
     /// Stream a Blob through a bounded buffer, calculating SHA-256 while the
     /// original bytes are staged on the target filesystem.
     pub fn put_blob(&self, reader: impl Read) -> Result<PutResult, StoreError> {
+        self.ensure_writable()?;
         self.put_blob_inner(None, reader)
     }
 
@@ -291,6 +331,7 @@ impl FileObjectStore {
         claimed_oid: &str,
         reader: impl Read,
     ) -> Result<PutResult, StoreError> {
+        self.ensure_writable()?;
         let kind = parse_oid(claimed_oid)?;
         if kind != ObjectKind::Blob {
             return Err(CoreError::new(
@@ -306,6 +347,7 @@ impl FileObjectStore {
     /// canonical bytes. Concrete schema and semantic validation remain a caller
     /// precondition, matching `synapse-canonical`'s `*_unchecked` boundary.
     pub fn put_structured_unchecked(&self, input: &[u8]) -> Result<PutResult, StoreError> {
+        self.ensure_writable()?;
         self.put_structured_inner(None, input, false)
     }
 
@@ -316,6 +358,7 @@ impl FileObjectStore {
         claimed_oid: &str,
         input: &[u8],
     ) -> Result<PutResult, StoreError> {
+        self.ensure_writable()?;
         parse_oid(claimed_oid)?;
         self.put_structured_inner(Some(claimed_oid), input, false)
     }
@@ -328,6 +371,7 @@ impl FileObjectStore {
         claimed_oid: &str,
         bytes: &[u8],
     ) -> Result<PutResult, StoreError> {
+        self.ensure_writable()?;
         match parse_oid(claimed_oid)? {
             ObjectKind::Blob => self.put_blob_claimed(claimed_oid, bytes),
             _ => self.put_structured_inner(Some(claimed_oid), bytes, true),
@@ -484,6 +528,7 @@ impl FileObjectStore {
         claimed_oid: Option<&str>,
         mut reader: impl Read,
     ) -> Result<PutResult, StoreError> {
+        self.ensure_writable()?;
         let mut staged = self.create_staged_file()?;
         let mut digest = Sha256::new();
         let mut byte_len = 0_u64;
@@ -539,6 +584,7 @@ impl FileObjectStore {
         input: &[u8],
         require_canonical_input: bool,
     ) -> Result<PutResult, StoreError> {
+        self.ensure_writable()?;
         let value = parse_strict_with_limits(input, self.limits.structured)?;
         let canonical = canonical_bytes_with_limits(&value, self.limits.structured)?;
         if require_canonical_input && input != canonical {
@@ -584,6 +630,7 @@ impl FileObjectStore {
         kind: ObjectKind,
         byte_len: u64,
     ) -> Result<PutResult, StoreError> {
+        self.ensure_writable()?;
         let target = self.object_path_for_valid_oid(&oid, kind);
         let parent = target
             .parent()
@@ -611,6 +658,7 @@ impl FileObjectStore {
     }
 
     fn create_staged_file(&self) -> Result<StagedFile, StoreError> {
+        self.ensure_writable()?;
         let directory = self.root.join(TEMP_DIRECTORY);
         for _ in 0..1024 {
             let counter = self.next_temp.fetch_add(1, Ordering::Relaxed);
@@ -668,6 +716,14 @@ impl FileObjectStore {
         }
         verify_claimed_oid_unchecked_with_limits(oid, &value, self.limits.structured)?;
         Ok(Some(value))
+    }
+
+    fn ensure_writable(&self) -> Result<(), StoreError> {
+        if self.read_only {
+            Err(StoreError::ReadOnly)
+        } else {
+            Ok(())
+        }
     }
 
     pub(crate) fn inventory(&self) -> Result<StoreInventory, StoreError> {
@@ -1166,6 +1222,23 @@ fn ensure_real_directory(path: &Path) -> Result<(), StoreError> {
             Err(error) => Err(StoreError::io("create directory", path, error)),
         },
         Err(error) => Err(StoreError::io("inspect directory", path, error)),
+    }
+}
+
+fn require_existing_real_directory(path: &Path) -> Result<(), StoreError> {
+    match fs::symlink_metadata(path) {
+        Ok(metadata) if !metadata.file_type().is_symlink() && metadata.is_dir() => Ok(()),
+        Ok(_) => Err(StoreError::InvalidStoreLayout {
+            path: path.to_path_buf(),
+            detail: "expected an existing real directory, not a file or symlink".to_owned(),
+        }),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            Err(StoreError::InvalidStoreLayout {
+                path: path.to_path_buf(),
+                detail: "required directory is missing".to_owned(),
+            })
+        }
+        Err(error) => Err(StoreError::io("inspect existing directory", path, error)),
     }
 }
 

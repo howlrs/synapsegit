@@ -118,6 +118,7 @@ cleans up, or rewrites a creator session. See the
 | Local browser interface | Read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, and confirmed background `fsck`; archive maintenance remains CLI-only |
 | Content-addressed objects, typed closure, Ref CAS, and reflog | Implemented and covered by repository tests |
 | `fsck`, checksum-bound directory export, and verified restore | Implemented for the local repository format |
+| Read-only history presentation for people and AI | Implemented in current source as a deterministic local bundle: canonical JSON, Markdown, no-JavaScript HTML, manifest, checksums, and Synapse/GitHub target layouts; no upload or network access |
 | Public multi-user service | Architecture only; not implemented |
 | Pixel registration or visual/physical difference analysis | Not implemented |
 
@@ -130,6 +131,18 @@ slice, but not the dedicated diagnostics or bounded browser `fsck` additions now
 available in current source. Review authority and maintenance job state are
 process-local and cannot be resumed after restart.
 
+Current source also provides the separate `synapse-present` companion. It reads
+the existing CAS without mutation and copies checkpointed Ref SQLite (up to
+512 MiB) into a private temporary file, requiring the copy-time and post-copy
+source SHA-256 to match; SQLite never opens the source database directly.
+Sidecars or a changing source fail with
+`read_only_source_busy`. It discovers at most 100 creator sessions and can
+prepare a local GitHub-ready view, but it is not included in the published
+v0.2.0 archive and does not upload, publish, or contact GitHub. Private
+rationale, internal Actor IDs, repository paths, and raw assets stay omitted;
+raw-asset rendering is not implemented, and a public note is separate
+author-supplied text. See the [CLI reference](./docs/cli_reference.md).
+
 ## How it works
 
 ```mermaid
@@ -140,6 +153,7 @@ flowchart LR
     H --> C["Commit + mutable Ref"]
     C --> R["Report / local application"]
     C --> A["Verified export / restore"]
+    C --> V["Read-only publication bundle\nJSON / Markdown / static HTML"]
 ```
 
 The normative draft and its JSON Schemas live under
@@ -157,6 +171,7 @@ local application routes, and archive verification. Read the
 | Understand creator and AI-assisted use cases | [Usage guide](./docs/usage_guide.md) |
 | Run the loopback-only application | [Local application runbook](./deploy/local/README.md) |
 | Look up commands and errors | [CLI reference](./docs/cli_reference.md) |
+| Generate a read-only local publication bundle | [CLI reference](./docs/cli_reference.md#synapse-present-companion-cli) |
 | Evaluate current maturity and next work | [Project status](./docs/project_status.md) |
 | Review trust, privacy, and security limits | [Security model](./docs/security_model.md) |
 | Implement the protocol | [Core Protocol v0.1](./spec/core/v0.1/README.md) |

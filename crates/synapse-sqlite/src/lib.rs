@@ -6,11 +6,15 @@
 
 #![forbid(unsafe_code)]
 
-use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params};
+use rusqlite::{Connection, OpenFlags, OptionalExtension, TransactionBehavior, params};
+use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt;
-use std::path::Path;
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Read, Write};
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 /// On-disk schema version owned by this crate.
@@ -20,10 +24,14 @@ pub const DEFAULT_MAX_REF_ARCHIVE_REFLOG_ENTRIES: usize = 100_000;
 pub const DEFAULT_MAX_REF_ARCHIVE_TEXT_BYTES: u64 = 64 * 1024 * 1024;
 pub const MAX_REFLOG_PAGE_ENTRIES: usize = 500;
 pub const MAX_REF_SNAPSHOT_ENTRIES: usize = 100_000;
+pub const MAX_READ_ONLY_SNAPSHOT_BYTES: u64 = 512 * 1024 * 1024;
 
 const MAX_ACTOR_BYTES: usize = 1_024;
 const MAX_MESSAGE_BYTES: usize = 16 * 1_024;
 const COMMIT_OID_PREFIX: &str = "commit:sg-oid-v1:sha256:";
+const SNAPSHOT_COPY_BUFFER_BYTES: usize = 64 * 1024;
+
+static NEXT_READ_ONLY_SNAPSHOT: AtomicU64 = AtomicU64::new(0);
 
 /// A Ref at one consistent snapshot.
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -219,6 +227,24 @@ fn allow_transaction() -> std::result::Result<(), ValidationError> {
 /// Failures at the RefStore boundary.
 #[derive(Debug)]
 pub enum RefStoreError {
+    /// A mutating operation was attempted through a read-only RefStore handle.
+    ReadOnly,
+    /// Read-only open found SQLite sidecars and cannot prove a current view.
+    ReadOnlySourceBusy {
+        path: PathBuf,
+    },
+    /// The SQLite source changed while its private read snapshot was captured.
+    ReadOnlySourceChanged,
+    /// The SQLite source exceeds the bounded read-snapshot profile.
+    ReadOnlySourceTooLarge {
+        max_bytes: u64,
+    },
+    /// An I/O failure occurred while capturing the private read snapshot.
+    ReadOnlySnapshotIo {
+        operation: &'static str,
+        path: PathBuf,
+        source: io::Error,
+    },
     InvalidRefName {
         value: String,
     },
@@ -253,6 +279,12 @@ impl RefStoreError {
     /// A stable protocol-facing code where one exists.
     pub fn code(&self) -> &str {
         match self {
+            Self::ReadOnly => "read_only",
+            Self::ReadOnlySourceBusy { .. } | Self::ReadOnlySourceChanged => {
+                "read_only_source_busy"
+            }
+            Self::ReadOnlySourceTooLarge { .. } => "resource_limit",
+            Self::ReadOnlySnapshotIo { .. } => "storage_error",
             Self::InvalidRefName { .. } => "path_segment_invalid",
             Self::InvalidCommitOid { .. } => "oid_mismatch",
             Self::InvalidMetadata { .. } => "schema_invalid",
@@ -267,6 +299,24 @@ impl RefStoreError {
 impl fmt::Display for RefStoreError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ReadOnly => formatter.write_str("SQLite RefStore is read-only"),
+            Self::ReadOnlySourceBusy { path } => write!(
+                formatter,
+                "read-only RefStore requires a checkpointed database; SQLite sidecar exists: {}",
+                path.display()
+            ),
+            Self::ReadOnlySourceChanged => formatter.write_str(
+                "read-only RefStore source changed while its stable snapshot was captured",
+            ),
+            Self::ReadOnlySourceTooLarge { max_bytes } => write!(
+                formatter,
+                "read-only RefStore source exceeds the {max_bytes} byte snapshot limit"
+            ),
+            Self::ReadOnlySnapshotIo {
+                operation,
+                path,
+                source,
+            } => write!(formatter, "{operation} {}: {source}", path.display()),
             Self::InvalidRefName { value } => write!(formatter, "invalid Ref name: {value:?}"),
             Self::InvalidCommitOid { value } => write!(formatter, "invalid Commit OID: {value:?}"),
             Self::InvalidMetadata { message } => formatter.write_str(message),
@@ -302,6 +352,11 @@ impl fmt::Display for RefStoreError {
 impl Error for RefStoreError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::ReadOnly
+            | Self::ReadOnlySourceBusy { .. }
+            | Self::ReadOnlySourceChanged
+            | Self::ReadOnlySourceTooLarge { .. } => None,
+            Self::ReadOnlySnapshotIo { source, .. } => Some(source),
             Self::Validation(error) => Some(error),
             Self::Storage(error) => Some(error),
             _ => None,
@@ -322,13 +377,69 @@ pub type Result<T> = std::result::Result<T, RefStoreError>;
 /// Open a separate instance per writer thread/process. SQLite's immediate
 /// transactions serialize competing CAS operations across those connections.
 pub struct SqliteRefStore {
+    // Keep the connection before the snapshot guard: Rust drops fields in
+    // declaration order, so SQLite releases the private file before cleanup.
     connection: Connection,
+    read_only: bool,
+    _read_snapshot: Option<ReadSnapshotFile>,
 }
 
 impl SqliteRefStore {
     pub fn open(path: impl AsRef<Path>) -> Result<Self> {
         let connection = Connection::open(path)?;
         Self::initialize(connection)
+    }
+
+    /// Open an existing RefStore through a stable private read snapshot.
+    ///
+    /// This path never initializes or migrates schema and does not create a
+    /// missing database. Mutation APIs fail with [`RefStoreError::ReadOnly`]
+    /// before validating their write input. The caller must ensure the source
+    /// database is checkpointed. Existing WAL/SHM/rollback-journal sidecars fail with
+    /// [`RefStoreError::ReadOnlySourceBusy`]. The main database is copied into
+    /// a bounded private temporary file, and source digests before/after the
+    /// copy must match. SQLite may create its normal read sidecars only beside
+    /// that private copy, never in the source repository.
+    pub fn open_existing_read_only(path: impl AsRef<Path>) -> Result<Self> {
+        let requested = path.as_ref();
+        let metadata = std::fs::symlink_metadata(requested)
+            .map_err(|_| rusqlite::Error::InvalidPath(requested.to_path_buf()))?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(rusqlite::Error::InvalidPath(requested.to_path_buf()).into());
+        }
+        let path = std::fs::canonicalize(requested)
+            .map_err(|_| rusqlite::Error::InvalidPath(requested.to_path_buf()))?;
+        reject_read_only_sidecars(&path)?;
+        let read_snapshot = capture_read_snapshot(&path)?;
+        reject_read_only_sidecars(&path)?;
+        let connection =
+            Connection::open_with_flags(read_snapshot.path(), OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        connection.busy_timeout(Duration::from_secs(10))?;
+        connection.pragma_update(None, "query_only", "ON")?;
+
+        let found = connection.query_row(
+            "SELECT value FROM synapse_ref_meta WHERE key = 'schema_version'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )?;
+        if found != REF_STORE_SCHEMA_VERSION {
+            return Err(RefStoreError::UnsupportedSchemaVersion { found });
+        }
+        // Prepare a query over every required table so a partial database fails
+        // during open without issuing schema-changing statements.
+        connection.prepare(
+            "SELECT r.name, r.head, r.updated_event_id,
+                    e.ref_name, e.old_head, e.new_head, e.occurred_at_unix_nanos,
+                    e.actor, e.message
+             FROM refs r LEFT JOIN ref_events e ON e.id = r.updated_event_id
+             LIMIT 0",
+        )?;
+
+        Ok(Self {
+            connection,
+            read_only: true,
+            _read_snapshot: Some(read_snapshot),
+        })
     }
 
     pub fn open_in_memory() -> Result<Self> {
@@ -409,7 +520,11 @@ impl SqliteRefStore {
         )?;
         transaction.commit()?;
 
-        Ok(Self { connection })
+        Ok(Self {
+            connection,
+            read_only: false,
+            _read_snapshot: None,
+        })
     }
 
     /// Return one Ref, validating the requested name before querying SQLite.
@@ -625,6 +740,7 @@ impl SqliteRefStore {
         V: RefTargetValidator + ?Sized,
         G: RefTransactionGuard + ?Sized,
     {
+        self.ensure_writable()?;
         validate_ref_name(update.ref_name)?;
         if let Some(expected_head) = update.expected_head {
             validate_commit_oid(expected_head)?;
@@ -730,6 +846,7 @@ impl SqliteRefStore {
     where
         V: RefTargetValidator + ?Sized,
     {
+        self.ensure_writable()?;
         let prepared = prepare_archive(archive)?;
         for head in &prepared.heads {
             validator
@@ -774,6 +891,190 @@ impl SqliteRefStore {
         transaction.commit()?;
         Ok(())
     }
+
+    fn ensure_writable(&self) -> Result<()> {
+        if self.read_only {
+            Err(RefStoreError::ReadOnly)
+        } else {
+            Ok(())
+        }
+    }
+}
+
+fn reject_read_only_sidecars(path: &Path) -> Result<()> {
+    for suffix in ["-wal", "-shm", "-journal"] {
+        let sidecar = sqlite_sidecar_path(path, suffix);
+        match std::fs::symlink_metadata(&sidecar) {
+            Ok(_) => return Err(RefStoreError::ReadOnlySourceBusy { path: sidecar }),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(_) => return Err(rusqlite::Error::InvalidPath(sidecar).into()),
+        }
+    }
+    Ok(())
+}
+
+struct ReadSnapshotFile {
+    path: PathBuf,
+}
+
+impl ReadSnapshotFile {
+    fn path(&self) -> &Path {
+        &self.path
+    }
+}
+
+impl Drop for ReadSnapshotFile {
+    fn drop(&mut self) {
+        for suffix in ["-wal", "-shm", "-journal"] {
+            let _ = fs::remove_file(sqlite_sidecar_path(&self.path, suffix));
+        }
+        let _ = fs::remove_file(&self.path);
+    }
+}
+
+fn capture_read_snapshot(source: &Path) -> Result<ReadSnapshotFile> {
+    let metadata = fs::symlink_metadata(source)
+        .map_err(|error| read_snapshot_io("inspect RefStore source", source, error))?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(rusqlite::Error::InvalidPath(source.to_path_buf()).into());
+    }
+    if metadata.len() > MAX_READ_ONLY_SNAPSHOT_BYTES {
+        return Err(RefStoreError::ReadOnlySourceTooLarge {
+            max_bytes: MAX_READ_ONLY_SNAPSHOT_BYTES,
+        });
+    }
+    let (snapshot, mut destination) = create_read_snapshot_file()?;
+    let copied_digest = copy_database_with_digest(source, snapshot.path(), &mut destination)?;
+    destination.flush().map_err(|error| {
+        read_snapshot_io("flush private RefStore snapshot", snapshot.path(), error)
+    })?;
+    drop(destination);
+
+    reject_read_only_sidecars(source)?;
+    let current_digest = digest_database(source)?;
+    reject_read_only_sidecars(source)?;
+    if copied_digest != current_digest {
+        return Err(RefStoreError::ReadOnlySourceChanged);
+    }
+    Ok(snapshot)
+}
+
+fn create_read_snapshot_file() -> Result<(ReadSnapshotFile, File)> {
+    let directory = std::env::temp_dir();
+    for _ in 0..1_024 {
+        let sequence = NEXT_READ_ONLY_SNAPSHOT.fetch_add(1, Ordering::Relaxed);
+        let path = directory.join(format!(
+            "synapse-ref-read-{}-{sequence}.sqlite3",
+            std::process::id()
+        ));
+        let mut options = OpenOptions::new();
+        options.create_new(true).write(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        match options.open(&path) {
+            Ok(file) => return Ok((ReadSnapshotFile { path }, file)),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(read_snapshot_io(
+                    "create private RefStore snapshot",
+                    path,
+                    error,
+                ));
+            }
+        }
+    }
+    Err(read_snapshot_io(
+        "create private RefStore snapshot",
+        directory,
+        io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "exhausted private RefStore snapshot names",
+        ),
+    ))
+}
+
+fn copy_database_with_digest(
+    source: &Path,
+    destination_path: &Path,
+    destination: &mut File,
+) -> Result<[u8; 32]> {
+    let mut source_file = File::open(source)
+        .map_err(|error| read_snapshot_io("open RefStore source", source, error))?;
+    let mut digest = Sha256::new();
+    let mut total = 0_u64;
+    let mut buffer = [0_u8; SNAPSHOT_COPY_BUFFER_BYTES];
+    loop {
+        let count = source_file
+            .read(&mut buffer)
+            .map_err(|error| read_snapshot_io("read RefStore source", source, error))?;
+        if count == 0 {
+            break;
+        }
+        total = total
+            .checked_add(count as u64)
+            .ok_or(RefStoreError::ReadOnlySourceTooLarge {
+                max_bytes: MAX_READ_ONLY_SNAPSHOT_BYTES,
+            })?;
+        if total > MAX_READ_ONLY_SNAPSHOT_BYTES {
+            return Err(RefStoreError::ReadOnlySourceTooLarge {
+                max_bytes: MAX_READ_ONLY_SNAPSHOT_BYTES,
+            });
+        }
+        digest.update(&buffer[..count]);
+        destination.write_all(&buffer[..count]).map_err(|error| {
+            read_snapshot_io("write private RefStore snapshot", destination_path, error)
+        })?;
+    }
+    Ok(digest.finalize().into())
+}
+
+fn digest_database(source: &Path) -> Result<[u8; 32]> {
+    let mut source_file = File::open(source)
+        .map_err(|error| read_snapshot_io("reopen RefStore source", source, error))?;
+    let mut digest = Sha256::new();
+    let mut total = 0_u64;
+    let mut buffer = [0_u8; SNAPSHOT_COPY_BUFFER_BYTES];
+    loop {
+        let count = source_file
+            .read(&mut buffer)
+            .map_err(|error| read_snapshot_io("verify RefStore source", source, error))?;
+        if count == 0 {
+            break;
+        }
+        total = total
+            .checked_add(count as u64)
+            .ok_or(RefStoreError::ReadOnlySourceTooLarge {
+                max_bytes: MAX_READ_ONLY_SNAPSHOT_BYTES,
+            })?;
+        if total > MAX_READ_ONLY_SNAPSHOT_BYTES {
+            return Err(RefStoreError::ReadOnlySourceTooLarge {
+                max_bytes: MAX_READ_ONLY_SNAPSHOT_BYTES,
+            });
+        }
+        digest.update(&buffer[..count]);
+    }
+    Ok(digest.finalize().into())
+}
+
+fn read_snapshot_io(
+    operation: &'static str,
+    path: impl Into<PathBuf>,
+    source: io::Error,
+) -> RefStoreError {
+    RefStoreError::ReadOnlySnapshotIo {
+        operation,
+        path: path.into(),
+        source,
+    }
+}
+
+fn sqlite_sidecar_path(path: &Path, suffix: &str) -> PathBuf {
+    let mut value = path.as_os_str().to_os_string();
+    value.push(suffix);
+    PathBuf::from(value)
 }
 
 fn ref_record_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RefRecord> {
@@ -1203,6 +1504,32 @@ mod read_transaction_tests {
 
     fn commit_oid(digit: char) -> String {
         format!("commit:sg-oid-v1:sha256:{}", digit.to_string().repeat(64))
+    }
+
+    #[test]
+    fn private_read_snapshot_and_sqlite_sidecars_are_removed_on_drop() {
+        let (snapshot, file) = create_read_snapshot_file().unwrap();
+        let path = snapshot.path().to_path_buf();
+        drop(file);
+        assert!(path.is_file());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
+        let sidecars =
+            ["-wal", "-shm", "-journal"].map(|suffix| sqlite_sidecar_path(&path, suffix));
+        for sidecar in &sidecars {
+            fs::write(sidecar, b"temporary").unwrap();
+        }
+
+        drop(snapshot);
+
+        assert!(!path.exists());
+        assert!(sidecars.iter().all(|sidecar| !sidecar.exists()));
     }
 
     #[test]

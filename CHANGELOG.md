@@ -8,6 +8,18 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ### Added
 
+- A read-only `synapse-publication` presentation layer and `synapse-present`
+  companion CLI for deterministic local publication bundles. Current-source
+  exports contain canonical JSON, escaped Markdown, JavaScript-free HTML,
+  manifests, checksums, and target layouts for Synapse or GitHub without
+  uploading or performing network operations. Private rationale, internal Actor
+  IDs, repository paths, and raw assets remain omitted; separately supplied
+  public presentation notes are labelled as author-supplied. Ref SQLite is
+  captured from a checkpointed database of at most 512 MiB into a private
+  temporary copy, with copy-time and post-copy source SHA-256 required to match;
+  sidecars or concurrent source changes fail as `read_only_source_busy`. The CLI
+  discovers at most 100 creator sessions, and remote upload and raw-asset
+  rendering remain out of scope.
 - A dedicated read-only localhost creator-session diagnostics service/API/UI
   that reports the current Ref/head shape and a safe recommended action without
   reconstructing review authority, resuming, cleaning up, or rewriting history.
@@ -26,6 +38,8 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 - Documentation now distinguishes current-source browser diagnostics/`fsck`,
   tagged v0.2.0 behavior, CLI-only archive export/restore, and planned archive
   inspection/listing.
+- Release packaging is prepared to include `synapse-present` in the next tagged
+  archive; the already-published v0.2.0 archive remains unchanged.
 
 ## [0.2.0] - 2026-07-15
 

@@ -66,6 +66,30 @@ fn object_path(root: &Path, oid: &str) -> PathBuf {
         .join(&digest[2..])
 }
 
+fn filesystem_snapshot(root: &Path) -> Vec<(PathBuf, Option<Vec<u8>>)> {
+    fn visit(root: &Path, path: &Path, entries: &mut Vec<(PathBuf, Option<Vec<u8>>)>) {
+        let mut children = fs::read_dir(path)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .collect::<Vec<_>>();
+        children.sort();
+        for child in children {
+            let relative = child.strip_prefix(root).unwrap().to_path_buf();
+            let metadata = fs::symlink_metadata(&child).unwrap();
+            if metadata.is_dir() {
+                entries.push((relative, None));
+                visit(root, &child, entries);
+            } else {
+                entries.push((relative, Some(fs::read(&child).unwrap())));
+            }
+        }
+    }
+
+    let mut entries = Vec::new();
+    visit(root, root, &mut entries);
+    entries
+}
+
 fn assert_error_code(error: &StoreError, expected: ErrorCode) {
     assert_eq!(error.code(), Some(expected), "unexpected error: {error}");
 }
@@ -205,6 +229,60 @@ fn blob_and_structured_puts_are_idempotent_and_store_canonical_bytes() {
     );
     assert!(listed.contains(&first_blob.oid));
     assert!(listed.contains(&first_record.oid));
+}
+
+#[test]
+fn existing_read_only_store_preserves_source_and_rejects_every_put_api() {
+    let (temporary, store) = open_store("existing-read-only");
+    let blob = store.put_blob(b"retained blob".as_slice()).unwrap();
+    let record = store
+        .put_structured_unchecked(br#"{"object_type":"record","value":"retained"}"#)
+        .unwrap();
+    let expected_oids = store.list_oids().unwrap();
+    drop(store);
+
+    let before = filesystem_snapshot(temporary.path());
+    let read_only = FileObjectStore::open_existing_read_only(temporary.path()).unwrap();
+    assert_eq!(read_only.list_oids().unwrap(), expected_oids);
+    assert_eq!(
+        read_only.read_raw(&blob.oid).unwrap().unwrap(),
+        b"retained blob"
+    );
+    assert_eq!(
+        read_only.read_raw(&record.oid).unwrap().unwrap(),
+        br#"{"object_type":"record","value":"retained"}"#
+    );
+
+    let errors = [
+        read_only.put_blob(b"new".as_slice()).unwrap_err(),
+        read_only
+            .put_blob_claimed("not-an-oid", b"new".as_slice())
+            .unwrap_err(),
+        read_only.put_structured_unchecked(b"not-json").unwrap_err(),
+        read_only
+            .put_structured_claimed_unchecked("not-an-oid", b"not-json")
+            .unwrap_err(),
+        read_only
+            .put_verified_raw("not-an-oid", b"not-json")
+            .unwrap_err(),
+    ];
+    assert!(
+        errors
+            .iter()
+            .all(|error| matches!(error, StoreError::ReadOnly))
+    );
+    drop(read_only);
+
+    assert_eq!(filesystem_snapshot(temporary.path()), before);
+}
+
+#[test]
+fn read_only_open_does_not_create_a_missing_store() {
+    let temporary = TempDirectory::new("missing-read-only");
+    let missing = temporary.path().join("missing");
+    FileObjectStore::open_existing_read_only(&missing)
+        .expect_err("read-only open must require an existing store");
+    assert!(!missing.exists());
 }
 
 #[test]

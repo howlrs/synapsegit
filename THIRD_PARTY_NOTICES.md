@@ -82,6 +82,7 @@ linked into every distributed binary.
 | icu_provider | 2.2.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | idna_adapter | 1.2.2 | Apache-2.0 OR MIT | https://github.com/hsivonen/idna_adapter |
 | idna | 1.1.0 | MIT OR Apache-2.0 | https://github.com/servo/rust-url/ |
+| indexmap | 2.14.0 | Apache-2.0 OR MIT | https://github.com/indexmap-rs/indexmap |
 | itoa | 1.0.18 | MIT OR Apache-2.0 | https://github.com/dtolnay/itoa |
 | js-sys | 0.3.103 | MIT OR Apache-2.0 | https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys |
 | jsonschema-regex | 0.47.0 | MIT | https://github.com/Stranger6667/jsonschema |
@@ -137,6 +138,7 @@ linked into every distributed binary.
 | serde_derive | 1.0.228 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
 | serde_json | 1.0.150 | MIT OR Apache-2.0 | https://github.com/serde-rs/json |
 | serde_path_to_error | 0.1.20 | MIT OR Apache-2.0 | https://github.com/dtolnay/path-to-error |
+| serde_spanned | 1.1.1 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
 | serde_urlencoded | 0.7.1 | MIT/Apache-2.0 | https://github.com/nox/serde_urlencoded |
 | serde | 1.0.228 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
 | sha2 | 0.11.0 | MIT OR Apache-2.0 | https://github.com/RustCrypto/hashes |
@@ -158,6 +160,10 @@ linked into every distributed binary.
 | tinyvec | 1.12.0 | Zlib OR Apache-2.0 OR MIT | https://github.com/Lokathor/tinyvec |
 | tokio-macros | 2.7.0 | MIT | https://github.com/tokio-rs/tokio |
 | tokio | 1.52.3 | MIT | https://github.com/tokio-rs/tokio |
+| toml_datetime | 1.1.1+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
+| toml_parser | 1.1.2+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
+| toml_writer | 1.1.2+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
+| toml | 1.1.3+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
 | tower-layer | 0.3.3 | MIT | https://github.com/tower-rs/tower |
 | tower-service | 0.3.3 | MIT | https://github.com/tower-rs/tower |
 | tower | 0.5.3 | MIT | https://github.com/tower-rs/tower |
@@ -222,6 +228,7 @@ Applies to:
 - httparse 1.10.1 — LICENSE-APACHE
 - idna 1.1.0 — LICENSE-APACHE
 - idna_adapter 1.2.2 — LICENSE-APACHE
+- indexmap 2.14.0 — LICENSE-APACHE
 - js-sys 0.3.103 — LICENSE-APACHE
 - lazy_static 1.5.0 — LICENSE-APACHE
 - linux-raw-sys 0.12.1 — LICENSE-APACHE
@@ -1664,6 +1671,11 @@ Applies to:
 - bytecount 0.6.9 — LICENSE.Apache2
 - fallible-iterator 0.3.0 — LICENSE-APACHE
 - fallible-streaming-iterator 0.1.9 — LICENSE-APACHE
+- serde_spanned 1.1.1 — LICENSE-APACHE
+- toml 1.1.3+spec-1.1.0 — LICENSE-APACHE
+- toml_datetime 1.1.1+spec-1.1.0 — LICENSE-APACHE
+- toml_parser 1.1.2+spec-1.1.0 — LICENSE-APACHE
+- toml_writer 1.1.2+spec-1.1.0 — LICENSE-APACHE
 - unicode-general-category 1.1.0 — LICENSE
 
 SHA-256: `b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1`
@@ -4126,6 +4138,40 @@ SHA-256: `8b43ce8accd61e9d370b5ca9e9c4f953279b5c239926c62315b40e24df51b726`
     IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
     DEALINGS IN THE SOFTWARE.
 
+### Notice ecc269ef87fd
+
+Applies to:
+
+- indexmap 2.14.0 — LICENSE-MIT
+
+SHA-256: `ecc269ef87fd38a1d98e30bfac9ba964a9dbd9315c3770fed98d4d7cb5882055`
+
+    Copyright (c) 2016--2017
+
+    Permission is hereby granted, free of charge, to any
+    person obtaining a copy of this software and associated
+    documentation files (the "Software"), to deal in the
+    Software without restriction, including without
+    limitation the rights to use, copy, modify, merge,
+    publish, distribute, sublicense, and/or sell copies of
+    the Software, and to permit persons to whom the Software
+    is furnished to do so, subject to the following
+    conditions:
+
+    The above copyright notice and this permission notice
+    shall be included in all copies or substantial portions
+    of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+    ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+    TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+    PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+    SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+    OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+    IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
 ### Notice 117829c3ca21
 
 Applies to:
@@ -5790,6 +5836,38 @@ SHA-256: `fb77f0a9c53e473abe5103c8632ef9f0f2874d4fb3f17cb2d8c661aab9cee9d7`
     OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
     IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
     DEALINGS IN THE SOFTWARE.
+
+### Notice 6efb0476a1cc
+
+Applies to:
+
+- serde_spanned 1.1.1 — LICENSE-MIT
+- toml 1.1.3+spec-1.1.0 — LICENSE-MIT
+- toml_datetime 1.1.1+spec-1.1.0 — LICENSE-MIT
+- toml_parser 1.1.2+spec-1.1.0 — LICENSE-MIT
+- toml_writer 1.1.2+spec-1.1.0 — LICENSE-MIT
+
+SHA-256: `6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6`
+
+    Copyright (c) Individual contributors
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
 
 ### Notice b9eb26629432
 
