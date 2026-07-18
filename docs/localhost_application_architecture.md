@@ -1,20 +1,20 @@
 # SynapseGit localhost application architecture
 
-Status: approved implementation design; slices 1-4/6, the fsck/job part of slice 7, and the read-only diagnostics part of slice 8 implemented in current source
+Status: approved implementation design; slices 1-4/6, the fsck/job part of slice 7, and the read-only diagnostics part of slice 8 implemented in v0.3.0
 
 Decision date: 2026-07-14
 
 Implementation status: slices 1-4 and 6, the bounded `fsck`/job foundation of
 slice 7, and the read-only diagnostics portion of slice 8 are implemented in
-current source. `synapse-local-service` and `synapse-local-http` provide the exact
+v0.3.0. `synapse-local-service` and `synapse-local-http` provide the exact
 project catalog, bounded read facade, loopback HTTP boundary, server-rendered
 project/session views, bounded three-file staging, process-local pending
 authority, Human `adopt` / `reject` / `defer`, a dedicated read-only diagnosis,
 and an explicitly confirmed background `fsck` with pollable process-local state.
 The third file remains caller-supplied; no model is invoked. Archive list, export,
 and restore remain unimplemented in the browser application. The diagnostics and
-browser `fsck` additions are current-source-only and are not included in the
-tagged v0.2.0 binary. Core v0.1 remains a Stage 0 draft; this application slice is
+browser `fsck` additions are included in the tagged v0.3.0 binary. Core v0.1
+remains a Stage 0 draft; this application slice is
 not the formal Core roadmap's Stage 1.
 
 This document defines an application-level contract. It does not change the
@@ -34,7 +34,7 @@ The application has two Rust packages:
   the existing Core, Creator, Application, Observation, and Projection crates;
 - `synapse-local-http`: the Axum HTTP/static-asset binary, depending on
   `synapse-local-service` but not directly on `synapse-core` or
-  `synapse-sqlite`. [Askama 0.14.0](https://docs.rs/askama/0.14.0/askama/)
+  `synapse-sqlite`. [Askama 0.16.0](https://docs.rs/askama/0.16.0/askama/)
   renders type-checked HTML templates while
   preserving the workspace's Rust 1.88 MSRV.
 
@@ -173,9 +173,9 @@ an implemented one.
 | 2 | `GET .../creator-sessions`, session detail, session images | complete/incomplete discovery, report, timeline, evidence, bounded media |
 | 4 | `POST .../creator-sessions` | stream the three files and publish through the creator proposal boundary |
 | 6 | `POST .../creator-sessions/{session}/decisions` | Human `adopt` / `reject` / `defer` through the admitted proposal route |
-| 7 | `POST .../operations/fsck`; `GET .../operations/{id}` | implemented in current source: explicit, confirmed bounded fsck job and process-local polling |
+| 7 | `POST .../operations/fsck`; `GET .../operations/{id}` | implemented in v0.3.0: explicit, confirmed bounded fsck job and process-local polling |
 | 7 | `POST .../archive-exports`, `archive-restores`; `GET /archives` | planned: archive jobs and inspected archive summaries |
-| 8 | `GET .../creator-sessions/{session}/diagnostics` | implemented in current source: incomplete-session diagnosis without automatic mutation |
+| 8 | `GET .../creator-sessions/{session}/diagnostics` | implemented in v0.3.0: incomplete-session diagnosis without automatic mutation |
 
 There is intentionally no generic object PUT/GET, no generic Commit route, no
 `update-ref`, no profile/ACL/permit administration, and no arbitrary projection
@@ -431,7 +431,7 @@ still local/session-scoped.
 
 ## Maintenance operations
 
-Current source implements this contract for `fsck`; export and restore remain
+v0.3.0 implements this contract for `fsck`; export and restore remain
 planned. Maintenance POST operations use project-scoped concurrency gates and
 confirmation values. A POST validates and reserves the operation, starts the
 synchronous Core method through a bounded blocking worker, and returns
@@ -453,7 +453,7 @@ operation after disconnect or restart.
 
 The compatibility `Repository::fsck` still inventories the whole CAS without
 an operation-wide inventory/byte limit. Core now also provides bounded current-
-and exact-snapshot fsck entry points. Current source calls only
+and exact-snapshot fsck entry points. v0.3.0 calls only
 `fsck_with_limits` for maintenance and pins a server-owned profile equal to the
 current Core defaults: 100,000 Ref roots, 100,000 CAS objects, 1 TiB of raw
 object bytes, 1,000,000 cumulative closure nodes, 10,000,000 cumulative closure
@@ -507,14 +507,14 @@ sequencing and does not advance the formal Core stage.
 5. **Planned:** expanded Image and Observation/evidence views with explicit byte-identity limits.
 6. **Implemented:** pending proposal review and Human `adopt` / `reject` / `defer` through the
    exact admitted application route, including exclusive decision state and fail-closed ambiguity.
-7. **Partially implemented:** current source implements exact project confirmation, server-fixed
+7. **Partially implemented:** v0.3.0 implements exact project confirmation, server-fixed
    bounded `fsck`, a finite process-local operation registry/poll route, `last_fsck`, and the
    confirmation/poll/result UI. Archive inspection/listing, export, and empty-target restore remain
-   planned. The browser `fsck` addition is not in the tagged v0.2.0 binary.
+   planned. The browser `fsck` addition is included in the tagged v0.3.0 binary.
 8. **Partially implemented:** tagged Linux x86_64 packaging, checksum publication, and release
-   documentation are implemented. Current source also implements the dedicated read-only
+   documentation are implemented. v0.3.0 also implements the dedicated read-only
    incomplete-session diagnostics service DTO/method, GET route, and server-rendered
-   Ref/head/recommended-action view; this diagnostics addition is not in the tagged v0.2.0 binary.
+   Ref/head/recommended-action view; this diagnostics addition is included in the tagged v0.3.0 binary.
    Complete browser end-to-end coverage remains planned.
 
 ## Verification and acceptance

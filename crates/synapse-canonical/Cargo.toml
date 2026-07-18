@@ -1,6 +1,6 @@
 [package]
 name = "synapse-canonical"
-version = "0.2.0"
+version = "0.3.0"
 description = "Strict JSON, canonical bytes, and content identifiers for SynapseGit Core"
 edition.workspace = true
 repository.workspace = true

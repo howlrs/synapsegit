@@ -2,8 +2,8 @@
 
 Audience: maintainer、release担当、公開文書を更新するcontributor
 Status: Stage 0運用runbook
-Applies to: v0.2.x
-Last verified: 2026-07-15
+Applies to: v0.3.x
+Last verified: 2026-07-18
 
 この文書は、SynapseGitを「GitHub上で見つける」「現在の用途を判断する」「安全に試す」までの
 公開導線とrelease手順を定義する。protocolの規範仕様ではない。
@@ -13,10 +13,11 @@ Last verified: 2026-07-15
 現在のprimary audienceは、Linux CLIを扱えるtechnical creator、creative provenance／
 human-in-the-loop AIを評価する研究者・tool builder、Rust developerである。画家、建築家、
 施工・修復担当、デザイナーは将来の対象だが、capture、visual diff、restart-durable review、
-production serviceが必要な一般導入にはまだ適さない。v0.2.0のlocalhost UIはboundedな
-三file importとsame-process Human reviewに限ってwrite-capableである。
+production serviceが必要な一般導入にはまだ適さない。v0.3.0のlocalhost UIはboundedな
+三file import、same-process Human review、read-only diagnostics、確認付きbackground `fsck`に
+限ってwrite-capable／maintenance-capableである。
 
-公開文面では、将来の利用構想とv0.2で実行できる能力を同じものとして表示しない。
+公開文面では、将来の利用構想とv0.3で実行できる能力を同じものとして表示しない。
 
 ## 公開surface
 
@@ -91,9 +92,9 @@ GitHub SettingsのSocial previewへ明示的にuploadしない限り、repositor
 
 ## Release asset構成
 
-公開済みv0.2.0 archiveは`synapse`と`synapse-local`の二binaryを含み、後から内容を変更しない。
-current sourceのpackaging scriptとtag workflowは、次のrelease archiveへ`synapse-present`を追加する準備を
-行う。公開済みv0.1.0 archiveは`SECURITY.md`と`CHANGELOG.md`追加前に作られたため、binary二つと
+v0.3.0 archiveは`synapse`、`synapse-local`、`synapse-present`の三binaryを含む。
+公開済みv0.2.0 archiveは`synapse`と`synapse-local`の二binaryだけを含み、後から内容を変更しない。
+公開済みv0.1.0 archiveは`SECURITY.md`と`CHANGELOG.md`追加前に作られたため、binary二つと
 release notesの`README.md`だけを含む。
 
 ```text
@@ -184,7 +185,7 @@ license変更時は少なくとも次を同じPull Requestで更新する。
 
 - [Installation](./install.md)
 - [Project status](./project_status.md)
-- [Release notes](./releases/v0.2.0.md)
+- [Release notes](./releases/v0.3.0.md)
 - [Security model](./security_model.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Documentation index](./README.md)

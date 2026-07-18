@@ -17,8 +17,7 @@ only `fsck_with_limits` with a server-fixed Core-default-equivalent maintenance
 profile, and retains the latest clean or dirty aggregate result in process-local
 `last_fsck`. Archive inspection/listing, export, restore, restart-durable review, and automatic
 incomplete-session recovery are not implemented here. The diagnostics and
-maintenance `fsck` additions are available in current source and are not part of
-the tagged v0.2.0 binary.
+maintenance `fsck` additions are included in the tagged v0.3.0 binary.
 
 Run its tests with:
 

@@ -2,7 +2,7 @@
 
 Status: **Core v0.1 / Stage 0 draft**
 
-このガイドは、SynapseGit Coreの想定利用者、Pilotでの使い方、現在このリポジトリで実行できる範囲をまとめる。現時点ではproduction向け制作アプリやcapture clientを提供していないが、3画像から手書きJSONなしで一sessionを記録するboundedなlocal single-creator Pilotと、v0.2.0ではそのimport／reviewを行うloopback-only UIまで実装されている。current sourceには作者外の人とAIへ履歴を説明するread-only local publication bundleもある。利用フローの図は実装済み境界に加えて構想とPilot仮説を含む。
+このガイドは、SynapseGit Coreの想定利用者、Pilotでの使い方、現在このリポジトリで実行できる範囲をまとめる。現時点ではproduction向け制作アプリやcapture clientを提供していないが、3画像から手書きJSONなしで一sessionを記録するboundedなlocal single-creator Pilotと、v0.3.0ではそのimport／review／diagnostics／bounded `fsck`を行うloopback-only UI、作者外の人とAIへ履歴を説明するread-only local publication bundleまで実装されている。利用フローの図は実装済み境界に加えて構想とPilot仮説を含む。
 
 対象はSynapseGit Coreのみであり、Chrono-Engine、歴史的人物の思考再現、自動利益分配はこのガイドとCore v0.1の対象外である。
 
@@ -33,14 +33,14 @@ mkdir -p "$HOME/SynapseGit/demo"
 
 terminalに表示された`http://127.0.0.1:8787`をbrowserで開き、終了時はCtrl-Cを押す。hostは
 `127.0.0.1`固定で、network共有用のoverrideはない。複数projectは`--project KEY=PATH`を繰り返して登録する。
-空directoryは空repositoryとして開かれる。v0.2.0はproject画面からsessionを作成でき、
+空directoryは空repositoryとして開かれる。v0.3.0はproject画面からsessionを作成でき、
 後述の`creator-run`で同じpathへ作成したsessionも表示できる。
 
 UIで現在読めるのはproject status、Refs／reflog、creator sessionのreport／timeline／evidence／画像である。
-v0.2.0ではoriginal／current／caller-supplied AI outputの三fileをbounded stagingへuploadし、proposalを
+v0.3.0ではoriginal／current／caller-supplied AI outputの三fileをbounded stagingへuploadし、proposalを
 同じprocess内でHuman `adopt`／`reject`／`defer`できる。review前にprocessを終了するとauthorityは復元できず、
-sessionはincompleteになる。current sourceはread-only incomplete diagnosticsと、exact project確認付きの
-server-bounded background `fsck`／poll UIも実装するが、tagged v0.2.0の`synapse-local`にはこの二つを含まない。
+sessionはincompleteになる。read-only incomplete diagnosticsと、exact project確認付きの
+server-bounded background `fsck`／poll UIもtagged v0.3.0の`synapse-local`に含まれる。
 archive export／restoreとautomatic recoveryのUIは未実装なので、archive操作は対応するCLIを使う。詳しいoption、limit、
 localhost security boundary、GCP CLI smokeとの違いは[native localhost runbook](../deploy/local/README.md)を参照する。
 
@@ -146,7 +146,7 @@ legacy-shaped sessionは`comparison=unavailable`と表示する。このshapeは
 reportは`fsck`がcleanでなければ拒否する。別commandの`export`／`restore`後にも同じOIDとreportを
 再構築できることをprocess testで検証している。
 
-current sourceの`synapse-present export`は、existing CASを変更せず、Ref SQLiteのdigest検証付きprivate
+v0.3.0の`synapse-present export`は、existing CASを変更せず、Ref SQLiteのdigest検証付きprivate
 stable copyからcanonical `projection.json`、`story.md`、JavaScriptなし`index.html`、manifest、checksum、
 target layoutへ翻訳する。
 Original／Current／AI-attributed proposal／Human Decision、adopt／reject／defer、未採用proposalを保持する
