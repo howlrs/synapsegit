@@ -12,8 +12,8 @@ body:
     id: version
     attributes:
       label: SynapseGit version
-      description: Paste `synapse --version`, `synapse-local --version`, or the commit SHA.
-      placeholder: synapse 0.1.0
+      description: Paste `synapse --version`, `synapse-local --version`, `synapse-present --version`, or the commit SHA.
+      placeholder: synapse 0.3.0
     validations:
       required: true
 
@@ -33,6 +33,7 @@ body:
       options:
         - creator-run or creator-report
         - synapse-local viewer
+        - synapse-present publication bundle
         - Core repository, fsck, export, or restore
         - Schema, OID, or protocol fixture
         - Documentation or release packaging

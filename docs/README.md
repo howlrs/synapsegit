@@ -10,19 +10,19 @@ process-localなauthenticated one-shot AI execution routeとadmitted-proposal-bo
 narrow `decision/*` admissionはRust library境界まで実装されている。
 verified ObjectStoreとcaller-supplied Ref snapshotから作るdisposable SQLite query projectionも
 Rust library境界まで実装されている。
-current sourceの`synapse-publication`／`synapse-present`は、existing CASをread-onlyで扱い、checkpoint済みで
+v0.3.0の`synapse-publication`／`synapse-present`は、existing CASをread-onlyで扱い、checkpoint済みで
 最大512 MiBのRef SQLiteをprivate temporary copyへ取り込み、copy時とcopy後sourceのSHA-256一致を確認してから、
 作者外の人とAI向けにcanonical `projection.json`、Markdown、JavaScriptなしHTML、manifest、checksum、Synapse／GitHub target
 layoutを最大100 creator sessionsからlocal生成する。source SQLiteを直接openしない。private rationale、
 internal Actor ID、repository path、raw assetは除外し、raw asset rendering、upload、network accessは行わない。
-このbinaryは公開済みv0.2.0 archiveには含まれない。
+このbinaryはv0.3.0 archiveに含まれる。
 single-user／loopback-onlyのcreator-facing image applicationはarchitectureとversioned HTTP contractに加え、
 slices 1-4/6、slice 7のbounded `fsck`／job基盤、slice 8のread-only diagnostics部分のsafe facade、
 server、route、UIまで実装されている。project status、Refs／reflog、creator sessionの
 report／timeline／evidence／画像を閲覧でき、boundedな三file import、same-process Human review、project keyの
 明示確認を伴うbackground `fsck`を実行できる。incomplete sessionではcurrent creator Ref／headと推奨actionを
 表示するが、resume、cleanup、history書換えは行わない。archive list／export／restoreのAPI／UIは未実装である。
-diagnosticsとbrowser `fsck`はcurrent sourceだけに含まれ、tagged v0.2.0 binaryには含まれない。この
+diagnosticsとbrowser `fsck`はtagged v0.3.0 binaryに含まれる。この
 application sliceはformal Core Stage 1ではなく、Core v0.1は引き続きStage 0 draftである。
 public multi-tenant serviceについては、Google Cloudを主系、AWSをportability profileとする
 [Cloud service architecture](./cloud_service_architecture.md)を決定した。これはCloud Run／Cloud SQL／Cloud Storageと
@@ -105,7 +105,7 @@ flowchart LR
 | validated ingest、directory export / restore | 実装済み | `synapse-core` |
 | low-level local Core repository round-trip CLI（structured JSONはcaller-supplied） | 実装済み | `synapse-cli`、[Quickstart](./quickstart.md) |
 | local single-creator Pilot（3 opaque画像、imported CaptureProfile、byte-identity Analysis、AI／Human route、adopt／reject／defer、timeline／report） | 実装済み / production integration対象外 | `synapse-creator`、`synapse-cli creator-run`／`creator-report`、creator／CLI process tests |
-| provider-neutral PublicProjection／PublicationBundle（canonical JSON、Markdown、JavaScriptなしHTML、manifest、checksum、Synapse／GitHub local target） | current sourceで実装済み / remote publish対象外 | `synapse-publication`、`synapse-present export`／`preview`、publication integration tests、[CLI reference](./cli_reference.md#synapse-present-companion-cli) |
+| provider-neutral PublicProjection／PublicationBundle（canonical JSON、Markdown、JavaScriptなしHTML、manifest、checksum、Synapse／GitHub local target） | v0.3.0に収録 / remote publish対象外 | `synapse-publication`、`synapse-present export`／`preview`、publication integration tests、[CLI reference](./cli_reference.md#synapse-present-companion-cli) |
 | single-user localhost image application（safe facade、loopback HTTP、server-rendered UI） | slices 1-4/6、slice 7のbounded fsck／job基盤、slice 8のread-only diagnostics部分を実装済み。archive API／UIは未実装 | [Localhost runbook](../deploy/local/README.md)、[Localhost application architecture](./localhost_application_architecture.md)、[OpenAPI contract](../api/local/v1/openapi.json) |
 | public multi-tenant cloud service（GCP主系、AWS portability profile） | production architecture完了、実装未着手 | [Cloud service architecture](./cloud_service_architecture.md) |
 | private non-production GCP CLI packaging smoke（one-shot Cloud Run Job） | OCI build／Terraform／digest-pinned実行を検証済み、public endpoint／永続化なし | [GCP CLI smoke deployment](../deploy/gcp/README.md) |

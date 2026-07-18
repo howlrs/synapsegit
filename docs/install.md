@@ -2,8 +2,8 @@
 
 Audience: preview users and evaluators
 Status: Stage 0 prerelease
-Applies to: v0.2.0
-Last verified: 2026-07-15
+Applies to: v0.3.0
+Last verified: 2026-07-18
 
 SynapseGit currently has one prebuilt distribution and one source-install path.
 It is not published to crates.io, Homebrew, a Linux package repository, or a
@@ -11,7 +11,7 @@ container registry.
 
 | Route | Requirements | Installs | Recommended for |
 |---|---|---|---|
-| GitHub Release archive | Linux x86_64, glibc 2.34+ | `synapse`, `synapse-local` | Fastest preview evaluation |
+| GitHub Release archive | Linux x86_64, glibc 2.34+ | `synapse`, `synapse-local`, `synapse-present` | Fastest preview evaluation |
 | Tagged source build | Rust 1.88+, supported Unix-like host | The selected binary | Other platforms and source review |
 
 Windows is not currently supported by the archive publication path. macOS and
@@ -21,28 +21,30 @@ not an end-user SynapseGit image.
 
 ## Install the Linux x86-64 release
 
-Download the archive and checksum from the fixed v0.2.0 release URL:
+Download the archive and checksum from the fixed v0.3.0 release URL:
 
 ```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.2.0/synapsegit-v0.2.0-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.2.0/SHA256SUMS
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.3.0/synapsegit-v0.3.0-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.3.0/SHA256SUMS
 sha256sum --check SHA256SUMS
-tar -xzf synapsegit-v0.2.0-x86_64-unknown-linux-gnu.tar.gz
+tar -xzf synapsegit-v0.3.0-x86_64-unknown-linux-gnu.tar.gz
 ```
 
-Inspect the extracted release notes before installing. Then copy both binaries
+Inspect the extracted release notes before installing. Then copy all three binaries
 to a user-owned directory:
 
 ```bash
-less synapsegit-v0.2.0-x86_64-unknown-linux-gnu/README.md
+less synapsegit-v0.3.0-x86_64-unknown-linux-gnu/README.md
 
 mkdir -p "$HOME/.local/bin"
-install -m 0755 synapsegit-v0.2.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
-install -m 0755 synapsegit-v0.2.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
+install -m 0755 synapsegit-v0.3.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
+install -m 0755 synapsegit-v0.3.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
+install -m 0755 synapsegit-v0.3.0-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
 export PATH="$HOME/.local/bin:$PATH"
 
 synapse --version
 synapse-local --version
+synapse-present --version
 ```
 
 If `synapse` is not found in a new terminal, add this line to the shell profile
@@ -54,13 +56,13 @@ export PATH="$HOME/.local/bin:$PATH"
 
 `SHA256SUMS` detects accidental or malicious byte changes relative to the file
 published on the same Release. It does not authenticate the project owner by
-itself. Verify the v0.2.0 archive's build provenance with GitHub CLI as well:
+itself. Verify the v0.3.0 archive's build provenance with GitHub CLI as well:
 
 ```bash
-gh attestation verify synapsegit-v0.2.0-x86_64-unknown-linux-gnu.tar.gz \
+gh attestation verify synapsegit-v0.3.0-x86_64-unknown-linux-gnu.tar.gz \
   --repo howlrs/synapsegit \
   --signer-workflow howlrs/synapsegit/.github/workflows/release.yml \
-  --source-ref refs/tags/v0.2.0 \
+  --source-ref refs/tags/v0.3.0 \
   --deny-self-hosted-runners
 ```
 
@@ -70,23 +72,30 @@ that the software is vulnerability-free.
 ## Build from a tagged source release
 
 Install Rust 1.88 or newer, a C toolchain, and SQLite build prerequisites for
-the host. Install directly from the immutable v0.2.0 tag:
+the host. Install directly from the immutable v0.3.0 tag:
 
 ```bash
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.2.0 \
+  --tag v0.3.0 \
   --locked \
   synapse-cli
 
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.2.0 \
+  --tag v0.3.0 \
   --locked \
   synapse-local-http
 
+cargo install \
+  --git https://github.com/howlrs/synapsegit \
+  --tag v0.3.0 \
+  --locked \
+  synapse-publication
+
 synapse --version
 synapse-local --version
+synapse-present --version
 ```
 
 `--locked` uses the dependency versions recorded by the tag. Use a release tag,
@@ -95,11 +104,12 @@ not a moving branch, when installing software you plan to evaluate or retain.
 To inspect and test the source before installing:
 
 ```bash
-git clone --branch v0.2.0 --depth 1 https://github.com/howlrs/synapsegit.git
+git clone --branch v0.3.0 --depth 1 https://github.com/howlrs/synapsegit.git
 cd synapsegit
 cargo test --workspace --all-targets --locked
 cargo install --path crates/synapse-cli --locked
 cargo install --path crates/synapse-local-http --locked
+cargo install --path crates/synapse-publication --locked
 ```
 
 The workspace crates are intentionally marked `publish = false` during Stage
@@ -113,15 +123,21 @@ The workspace crates are intentionally marked `publish = false` during Stage
 ```bash
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.2.0 \
+  --tag v0.3.0 \
   --locked \
   synapse-cli
 
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.2.0 \
+  --tag v0.3.0 \
   --locked \
   synapse-local-http
+
+cargo install \
+  --git https://github.com/howlrs/synapsegit \
+  --tag v0.3.0 \
+  --locked \
+  synapse-publication
 ```
 
 `--locked`はtagに記録されたdependency versionを使います。Stage 0のworkspace crateは
@@ -145,7 +161,8 @@ There is no automatic updater.
 If the binaries were copied to the recommended per-user location:
 
 ```bash
-rm "$HOME/.local/bin/synapse" "$HOME/.local/bin/synapse-local"
+rm "$HOME/.local/bin/synapse" "$HOME/.local/bin/synapse-local" \
+  "$HOME/.local/bin/synapse-present"
 ```
 
 Uninstalling does not remove repositories under `$HOME/SynapseGit` or any other

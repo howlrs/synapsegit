@@ -1,6 +1,6 @@
 [package]
 name = "synapse-cas"
-version = "0.2.0"
+version = "0.3.0"
 description = "Filesystem content-addressed storage and graph integrity checks for SynapseGit Core"
 edition.workspace = true
 repository.workspace = true

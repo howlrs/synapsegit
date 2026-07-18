@@ -26,7 +26,7 @@ It is not a hosted or multi-user service._
 
 ## Who can use this preview
 
-The current v0.2.0 preview is most useful to:
+The current v0.3.0 preview is most useful to:
 
 - technical creators who are comfortable with a local command-line workflow;
 - researchers and tool builders evaluating creative provenance,
@@ -48,18 +48,20 @@ Ubuntu 22.04 and requires glibc 2.34 or newer. Other platforms can use the
 ### 1. Install the preview
 
 ```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.2.0/synapsegit-v0.2.0-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.2.0/SHA256SUMS
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.3.0/synapsegit-v0.3.0-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.3.0/SHA256SUMS
 sha256sum --check SHA256SUMS
-tar -xzf synapsegit-v0.2.0-x86_64-unknown-linux-gnu.tar.gz
+tar -xzf synapsegit-v0.3.0-x86_64-unknown-linux-gnu.tar.gz
 
 mkdir -p "$HOME/.local/bin"
-install -m 0755 synapsegit-v0.2.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
-install -m 0755 synapsegit-v0.2.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
+install -m 0755 synapsegit-v0.3.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
+install -m 0755 synapsegit-v0.3.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
+install -m 0755 synapsegit-v0.3.0-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
 export PATH="$HOME/.local/bin:$PATH"
 
 synapse --version
 synapse-local --version
+synapse-present --version
 ```
 
 ### 2. Record one local decision
@@ -96,14 +98,12 @@ synapse-local \
   --label "demo=My first SynapseGit project"
 ```
 
-Open the exact `http://127.0.0.1:...` URL printed by the process. The v0.2.0
-binary supports bounded three-file import and same-process Human review in the
-browser. Its `fsck`, export, and restore operations remain CLI-only, and it does
-not include the dedicated incomplete-session diagnostics route. Current source
-builds additionally show a read-only diagnosis with the current creator Ref/head
-shape and provide an explicitly confirmed, server-bounded background `fsck` with
-pollable results. Export and restore remain CLI-only. Neither addition resumes,
-cleans up, or rewrites a creator session. See the
+Open the exact `http://127.0.0.1:...` URL printed by the process. The v0.3.0
+binary supports bounded three-file import, same-process Human review, read-only
+incomplete-session diagnostics, and an explicitly confirmed, server-bounded
+background `fsck` with pollable results. Export and restore remain CLI-only.
+Diagnostics and maintenance do not resume, clean up, or rewrite a creator
+session. See the
 [local application runbook](./deploy/local/README.md), the
 [installation guide](./docs/install.md), or the
 [source Quickstart](./docs/quickstart.md).
@@ -118,7 +118,7 @@ cleans up, or rewrites a creator session. See the
 | Local browser interface | Read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, and confirmed background `fsck`; archive maintenance remains CLI-only |
 | Content-addressed objects, typed closure, Ref CAS, and reflog | Implemented and covered by repository tests |
 | `fsck`, checksum-bound directory export, and verified restore | Implemented for the local repository format |
-| Read-only history presentation for people and AI | Implemented in current source as a deterministic local bundle: canonical JSON, Markdown, no-JavaScript HTML, manifest, checksums, and Synapse/GitHub target layouts; no upload or network access |
+| Read-only history presentation for people and AI | Included in v0.3.0 as a deterministic local bundle: canonical JSON, Markdown, no-JavaScript HTML, manifest, checksums, and Synapse/GitHub target layouts; no upload or network access |
 | Public multi-user service | Architecture only; not implemented |
 | Pixel registration or visual/physical difference analysis | Not implemented |
 
@@ -126,19 +126,18 @@ cleans up, or rewrites a creator session. See the
 real-user authentication, network transport, production operations, or a
 general creator-facing application is ready.
 
-The tagged v0.2.0 `synapse-local` binary includes the browser import/review
-slice, but not the dedicated diagnostics or bounded browser `fsck` additions now
-available in current source. Review authority and maintenance job state are
-process-local and cannot be resumed after restart.
+The tagged v0.3.0 `synapse-local` binary includes browser import/review,
+dedicated diagnostics, and bounded browser `fsck`. Review authority and
+maintenance job state are process-local and cannot be resumed after restart.
 
-Current source also provides the separate `synapse-present` companion. It reads
+The v0.3.0 archive also provides the separate `synapse-present` companion. It reads
 the existing CAS without mutation and copies checkpointed Ref SQLite (up to
 512 MiB) into a private temporary file, requiring the copy-time and post-copy
 source SHA-256 to match; SQLite never opens the source database directly.
 Sidecars or a changing source fail with
 `read_only_source_busy`. It discovers at most 100 creator sessions and can
-prepare a local GitHub-ready view, but it is not included in the published
-v0.2.0 archive and does not upload, publish, or contact GitHub. Private
+prepare a local GitHub-ready view, but it does not upload, publish, or contact
+GitHub. Private
 rationale, internal Actor IDs, repository paths, and raw assets stay omitted;
 raw-asset rendering is not implemented, and a public note is separate
 author-supplied text. See the [CLI reference](./docs/cli_reference.md).
@@ -181,18 +180,18 @@ local application routes, and archive verification. Read the
 
 ## Distribution status
 
-- [`v0.2.0`](https://github.com/howlrs/synapsegit/releases/tag/v0.2.0) is a
+- [`v0.3.0`](https://github.com/howlrs/synapsegit/releases/tag/v0.3.0) is a
   prerelease, not a production release.
 - The supported prebuilt artifact is Linux x86_64 GNU. Tagged source builds are
   the current path for other supported Unix-like environments.
 - crates.io and GHCR are intentionally not distribution channels for Stage 0.
-- Release assets have SHA-256 checksums. The v0.2.0 archive also receives a
+- Release assets have SHA-256 checksums. The v0.3.0 archive also receives a
   GitHub build-provenance attestation.
 - The object, archive, and OID formats remain draft and may change before a
   stable release.
 
 See the [changelog](./CHANGELOG.md) and the
-[v0.2.0 release notes](./docs/releases/v0.2.0.md) before evaluating the
+[v0.3.0 release notes](./docs/releases/v0.3.0.md) before evaluating the
 preview with important data.
 
 ## Security, support, and license

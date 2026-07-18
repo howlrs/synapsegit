@@ -2,8 +2,8 @@
   "openapi": "3.1.1",
   "info": {
     "title": "SynapseGit localhost application API",
-    "version": "0.2.0-draft",
-    "description": "Single-user, loopback-only application contract. Read routes, creator import, same-process Human review, read-only creator-session diagnostics, and confirmed bounded fsck with process-local operation polling are implemented in current source; the tagged v0.2.0 binary does not include the diagnostics or browser fsck additions. Archive list, export, and restore operations remain planned. This is not the public Core protocol."
+    "version": "0.3.0-draft",
+    "description": "Single-user, loopback-only application contract. Read routes, creator import, same-process Human review, read-only creator-session diagnostics, and confirmed bounded fsck with process-local operation polling are included in the tagged v0.3.0 binary. Archive list, export, and restore operations remain planned. This is not the public Core protocol."
   },
   "servers": [
     {
@@ -11,7 +11,7 @@
       "description": "The exact loopback origin printed by the local process",
       "variables": {
         "port": {
-          "default": "3417",
+          "default": "8787",
           "description": "The bound loopback port"
         }
       }
