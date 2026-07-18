@@ -60,6 +60,9 @@ flowchart TB
     Creator --> CAS
     Creator --> SQLite
     Creator --> Canon
+    Publication[synapse-publication] --> Creator
+    Publication --> Core
+    Publication --> Canon
     Application[synapse-application] --> Core
     Observation[synapse-observation] --> Core
     Observation --> Schema
@@ -91,6 +94,7 @@ flowchart TB
 | `synapse-application` | process-local authenticated Creative AI／narrow Human Decision route、one-shot permit、publication fence |
 | `synapse-observation` | ordered Observationと全media Blobを検証し、primary Blob OIDのbyte identityだけを`partial`なAnalysisResultとして記録する保守的adapter |
 | `synapse-creator` | 3つのopaque fileからimported CaptureProfile、session-local provenance、byte-identity analysis、AI proposal、Human Decision、Projection lineageを検証するsnapshot-bound reportを組み立てるcreate-only local Pilot orchestration |
+| `synapse-publication` | existing read-only CASと、checkpoint済みRef SQLiteのdigest検証付きprivate stable copyから、provider-neutral PublicProjection、Human／Machine view、manifest／checksum、local target layoutを生成・検証するpresentation layer |
 | `synapse-core` | validated ingest、repository boundary、AI proposal／Human Decision admission、directory export / restore |
 | `synapse-cli` | Coreのlocal commandと`creator-run`／`creator-report`を公開するStage 0 command-line interface |
 
@@ -100,11 +104,13 @@ disposable SQLite query indexは別の`synapse-projection`に置き、正本やa
 `synapse-observation`はCore／Schema／Canonicalの上位adapterであり、Refを更新しない。
 `synapse-creator`はApplication／Core／Observation／Projectionを組み合わせる上位orchestrationであり、
 これらの下位crateからCreatorやCLIへ依存させない。
+`synapse-publication`はCreator／Coreのread boundaryより上に置き、Core object／Refを書き換えず、
+`synapse-projection`の内部query schemaやGitHub固有delivery metadataをcanonical PublicProjectionへ混ぜない。
 
 ## 最初の動作確認
 
 [Quickstart](docs/quickstart.md) は実 fixture の put → Ref update → fsck → export → restoreに加え、
-3-file creator Pilotとbyte-identity reportを確認する。archive／restore後のcreator reportを含む利用手順は
+3-file creator Pilot、byte-identity report、read-only local publication bundleを確認する。archive／restore後のcreator reportを含む利用手順は
 [使用ガイド](docs/usage_guide.md)を参照する。command の引数と出力は
 [CLI reference](docs/cli_reference.md)を参照する。
 

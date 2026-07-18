@@ -70,9 +70,11 @@ const crateManifests = fs.existsSync(cratesDirectory)
       .sort()
   : [];
 
-if (crateManifests.length !== 12) {
+// The workspace intentionally uses crates/*; validate every discovered manifest
+// without making routine crate additions update a hard-coded count.
+if (crateManifests.length === 0) {
   failures.push(
-    `crates: expected 12 crate manifests, found ${crateManifests.length}`,
+    "crates: expected at least one crate manifest under crates/",
   );
 }
 for (const relativePath of crateManifests) {

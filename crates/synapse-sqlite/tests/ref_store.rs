@@ -1,5 +1,6 @@
 use std::collections::BTreeSet;
 use std::fs;
+use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Barrier, Mutex};
@@ -8,9 +9,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
 use synapse_sqlite::{
-    MAX_REFLOG_PAGE_ENTRIES, RefArchive, RefArchiveExportLimits, RefPrecondition, RefSnapshot,
-    RefStoreError, RefUpdate, ReflogEntry, ReflogMetadata, SqliteRefStore, ValidationError,
-    validate_commit_oid, validate_ref_name,
+    MAX_READ_ONLY_SNAPSHOT_BYTES, MAX_REFLOG_PAGE_ENTRIES, RefArchive, RefArchiveExportLimits,
+    RefPrecondition, RefSnapshot, RefStoreError, RefUpdate, ReflogEntry, ReflogMetadata,
+    SqliteRefStore, ValidationError, validate_commit_oid, validate_ref_name,
 };
 
 static NEXT_TEMP_DIRECTORY: AtomicU64 = AtomicU64::new(0);
@@ -51,6 +52,20 @@ impl Drop for TestDirectory {
             );
         }
     }
+}
+
+fn filesystem_snapshot(root: &std::path::Path) -> Vec<(PathBuf, Vec<u8>)> {
+    let mut files = fs::read_dir(root)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .filter(|path| path.is_file())
+        .map(|path| {
+            let name = path.strip_prefix(root).unwrap().to_path_buf();
+            (name, fs::read(path).unwrap())
+        })
+        .collect::<Vec<_>>();
+    files.sort_by(|left, right| left.0.cmp(&right.0));
+    files
 }
 
 fn commit_oid(digit: char) -> String {
@@ -108,6 +123,166 @@ fn create_sample_archive() -> RefArchive {
         .unwrap();
 
     store.export_archive().unwrap()
+}
+
+#[test]
+fn existing_read_only_store_matches_normal_reads_without_touching_source() {
+    let temporary = TestDirectory::new("existing-read-only");
+    let path = temporary.database_path();
+    let head = commit_oid('a');
+    let mut writable = SqliteRefStore::open(&path).unwrap();
+    writable
+        .compare_and_swap(update("decision/read-only", None, &head, 10), &allow_all)
+        .unwrap();
+    let expected_snapshot = writable.snapshot().unwrap();
+    let expected_reflog = writable.reflog().unwrap();
+    drop(writable);
+
+    let before = filesystem_snapshot(&temporary.path);
+    let mut read_only = SqliteRefStore::open_existing_read_only(&path).unwrap();
+    assert_eq!(read_only.snapshot().unwrap(), expected_snapshot);
+    assert_eq!(read_only.reflog().unwrap(), expected_reflog);
+    let exported = read_only.export_archive().unwrap();
+    assert_eq!(exported.snapshot, expected_snapshot);
+    assert_eq!(exported.reflog, expected_reflog);
+
+    let compare_error = read_only
+        .compare_and_swap(update("not a ref", None, "not-an-oid", 20), &allow_all)
+        .expect_err("read-only compare-and-swap must fail before input validation");
+    assert!(matches!(compare_error, RefStoreError::ReadOnly));
+    let restore_error = read_only
+        .restore_archive(&RefArchive::default(), &allow_all)
+        .expect_err("read-only restore must fail explicitly");
+    assert!(matches!(restore_error, RefStoreError::ReadOnly));
+    drop(read_only);
+
+    assert_eq!(filesystem_snapshot(&temporary.path), before);
+}
+
+#[test]
+fn read_only_store_rejects_an_uncheckpointed_wal_without_touching_it() {
+    let temporary = TestDirectory::new("read-only-existing-wal");
+    let path = temporary.database_path();
+    let head = commit_oid('b');
+    let mut writable = SqliteRefStore::open(&path).unwrap();
+    writable
+        .compare_and_swap(update("decision/existing-wal", None, &head, 10), &allow_all)
+        .unwrap();
+    let before = filesystem_snapshot(&temporary.path);
+    assert!(
+        before
+            .iter()
+            .any(|(name, _)| name == std::path::Path::new("refs.sqlite3-wal")),
+        "the writable fixture must retain a WAL while its connection is open"
+    );
+
+    let error = SqliteRefStore::open_existing_read_only(&path)
+        .err()
+        .expect("read-only open must reject an existing WAL");
+    assert!(matches!(error, RefStoreError::ReadOnlySourceBusy { .. }));
+    assert_eq!(filesystem_snapshot(&temporary.path), before);
+    drop(writable);
+}
+
+#[test]
+fn read_only_store_rejects_a_rollback_journal_without_touching_it() {
+    let temporary = TestDirectory::new("read-only-existing-journal");
+    let path = temporary.database_path();
+    drop(SqliteRefStore::open(&path).unwrap());
+    let journal = path.with_file_name("refs.sqlite3-journal");
+    fs::write(&journal, b"UNTOUCHED_ROLLBACK_JOURNAL_CANARY").unwrap();
+    let before = filesystem_snapshot(&temporary.path);
+
+    let error = SqliteRefStore::open_existing_read_only(&path)
+        .err()
+        .expect("read-only open must reject an existing rollback journal");
+
+    match &error {
+        RefStoreError::ReadOnlySourceBusy { path } => assert_eq!(path, &journal),
+        other => panic!("unexpected rollback-journal error: {other}"),
+    }
+    assert_eq!(error.code(), "read_only_source_busy");
+    assert_eq!(filesystem_snapshot(&temporary.path), before);
+}
+
+#[test]
+fn read_only_open_does_not_create_a_missing_database() {
+    let temporary = TestDirectory::new("missing-read-only");
+    let path = temporary.database_path();
+    assert!(
+        SqliteRefStore::open_existing_read_only(&path).is_err(),
+        "read-only open must require an existing database"
+    );
+    assert!(!path.exists());
+}
+
+#[test]
+fn read_only_open_rejects_source_one_byte_over_snapshot_limit_without_touching_it() {
+    let temporary = TestDirectory::new("oversized-read-only");
+    let path = temporary.database_path();
+    let oversized_len = MAX_READ_ONLY_SNAPSHOT_BYTES
+        .checked_add(1)
+        .expect("snapshot byte limit must leave room for the boundary test");
+    let prefix = b"OVERSIZED_SQLITE_PREFIX";
+    let suffix = b"OVERSIZED_SQLITE_SUFFIX";
+
+    let mut source = fs::File::create(&path).unwrap();
+    source.write_all(prefix).unwrap();
+    source.set_len(oversized_len).unwrap();
+    source
+        .seek(SeekFrom::Start(oversized_len - suffix.len() as u64))
+        .unwrap();
+    source.write_all(suffix).unwrap();
+    source.sync_all().unwrap();
+    drop(source);
+
+    let sampled_bytes = |path: &std::path::Path| {
+        let mut source = fs::File::open(path).unwrap();
+        let mut prefix_sample = vec![0; prefix.len()];
+        source.read_exact(&mut prefix_sample).unwrap();
+        source.seek(SeekFrom::Start(oversized_len / 2)).unwrap();
+        let mut middle_sample = vec![0; 32];
+        source.read_exact(&mut middle_sample).unwrap();
+        source
+            .seek(SeekFrom::Start(oversized_len - suffix.len() as u64))
+            .unwrap();
+        let mut suffix_sample = vec![0; suffix.len()];
+        source.read_exact(&mut suffix_sample).unwrap();
+        (prefix_sample, middle_sample, suffix_sample)
+    };
+    let directory_entries = || {
+        fs::read_dir(&temporary.path)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect::<BTreeSet<_>>()
+    };
+
+    let canonical_path_before = fs::canonicalize(&path).unwrap();
+    let metadata_before = fs::metadata(&path).unwrap();
+    let modified_before = metadata_before.modified().ok();
+    let samples_before = sampled_bytes(&path);
+    let entries_before = directory_entries();
+
+    let error = SqliteRefStore::open_existing_read_only(&path)
+        .err()
+        .expect("one byte beyond the snapshot limit must be rejected");
+    assert!(matches!(
+        error,
+        RefStoreError::ReadOnlySourceTooLarge { max_bytes }
+            if max_bytes == MAX_READ_ONLY_SNAPSHOT_BYTES
+    ));
+    assert_eq!(error.code(), "resource_limit");
+
+    let metadata_after = fs::metadata(&path).unwrap();
+    assert_eq!(fs::canonicalize(&path).unwrap(), canonical_path_before);
+    assert_eq!(metadata_after.len(), oversized_len);
+    assert_eq!(metadata_after.modified().ok(), modified_before);
+    assert_eq!(sampled_bytes(&path), samples_before);
+    assert_eq!(directory_entries(), entries_before);
+
+    // Private snapshots use process-global temporary names. Inspecting that
+    // directory here would race other parallel read-only tests; the unchanged
+    // source directory still proves that no source-local sidecar was left.
 }
 
 #[test]

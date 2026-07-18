@@ -1,4 +1,4 @@
-# SynapseGit Core CLI reference
+# SynapseGit CLI reference
 
 `synapse` is a local Stage 0 interface for object ingestion, Ref updates, integrity checks, directory archive round trips,
 and one bounded single-creator Pilot. It is not a network client or production authorization boundary. The Rust
@@ -8,6 +8,8 @@ in `synapse-application`, plus `synapse-core::CreativeAiRuntime` and `HumanDecis
 caller-supplied AI output; it is not a general proposal／decision publication API or real-user authentication.
 The workspace also provides `synapse-projection::SqliteProjectionStore`. `creator-report` uses it for one
 bounded session timeline and byte-identity lineage, but the CLI has no general projection rebuild or query command.
+The separate `synapse-present` companion reads completed creator history and generates a local, derived publication
+bundle. It does not change any `synapse` command or turn the Core archive command into a presentation export.
 
 Status: **implemented at Core v0.1 / Stage 0 draft**
 
@@ -28,6 +30,108 @@ cargo run -p synapse-cli -- --help
 成功は exit code 0、全 error は現在 exit code 1。error は stderr の先頭に `<code>:` を付ける。
 usage error の場合は usage 全文も stderr に出す。
 `--version`、`-V`、`version` は `synapse <package-version>` を stdout に出して exit code 0 で終了する。
+
+## `synapse-present` companion CLI
+
+`synapse-present`は既存CASをread-onlyで扱い、Ref SQLiteのstable private copyから取得した一つの
+bounded Ref snapshotを使って、人向けとmachine向けのlocal publication bundleを同時に生成する。
+Coreの`init`、`creator-report`、`export`を含む既存command、stdout／stderr、exit code、archive formatは
+変更しない。
+
+```bash
+cargo build -p synapse-publication --bin synapse-present --locked
+target/debug/synapse-present --help
+target/debug/synapse-present --version
+```
+
+```text
+synapse-present export <repo> <output-dir> [--session <id>]
+  [--presentation <presentation.toml>] [--public]
+  [--target <synapse|github> | --synapse | --github]
+
+synapse-present preview <bundle-dir>
+```
+
+### `export <repo> <output-dir> [options]`
+
+source repositoryを作成せず、CAS、Refs、reflogへ書き込まずにbundleを新規生成する。export前に
+`synapse-local`と同repositoryへ書く全CLI／processを停止する。Ref databaseはcheckpoint済みの
+`refs.sqlite3` main fileで、最大512 MiBでなければならない。openerはsource SQLite connectionやread lockを
+取得せず、source pathをSQLiteへ渡さない。main fileをprivate temporary fileへcopyしながらSHA-256を計算し、
+copy後にsourceを再読して計算したSHA-256との一致を確認して、temporary copyだけをSQLiteでopenする。
+`refs.sqlite3-wal`／`refs.sqlite3-shm`／`refs.sqlite3-journal`の存在、またはcopy中のsource変更によるdigest不一致は
+`read_only_source_busy`でfail closedし、512 MiB超過は拒否する。SQLiteがread用sidecarを
+必要とする場合もtemporary copyの隣だけに作り、source repositoryには作らない。destinationはsource
+repository自身またはその子directoryにできず、parentは既存のreal directory、destination自身は不存在で
+なければならない。生成fileを同じparent内のstaging directoryへ書込み・syncした後、対応platformでは
+atomic no-replaceで公開する。
+
+- CLIが発見するcomplete／incomplete creator sessionは合計最大100件で、超過は拒否する。
+  `--session <id>`を指定しても、このrepository-wide discovery boundは緩和しない。
+- `--session <id>`は一sessionだけを選ぶ。省略時はboundedに発見したcomplete sessionを対象にし、
+  incomplete sessionはcomplete storyへ昇格させず状態だけを記録する。
+- target省略時は`--target synapse`。`--synapse`はそのaliasである。
+- `--github`は`--target github`のaliasで、localの`target/README.md`等を作るだけである。
+  GitHubへのupload、Git command、API call、network requestは行わない。
+- target selectorは相互排他で、一つでも重複すれば`usage_error`になる。
+- `--public`はbundleのvisibilityを`public`として明示選択するだけで、外部へcopyしない。省略時は
+  `private_review`で、manifestは外部copy前のreviewが必要であることを保持する。
+- `--presentation`はauthor-suppliedなpublic-facing textを追加する。source historyの検証済み事実へ
+  昇格せず、`projection.json`では`author_supplied`として区別する。
+
+最小の`presentation.toml`例:
+
+```toml
+title = "North wall conservation history"
+summary = "A public explanation of the recorded alternatives and Human decision."
+creator_display_name = "Conservation team"
+proposal_agent_display_name = "Caller-supplied AI-attributed proposal"
+
+[sessions.wall-1]
+title = "First review"
+public_decision_note = "We retained this direction for a later material test."
+original_caption = "First recorded state"
+current_caption = "State at review"
+proposal_caption = "Alternative retained in history"
+```
+
+sidecarは64 KiB以下のregular UTF-8 fileに限定し、symlinkとunknown fieldを拒否する。stored Human
+rationale、internal Actor ID、repository path、raw asset bytesはsidecarや`--public`の有無にかかわらず
+出力しない。`public_decision_note`はsource rationaleの公開化ではなく、別途authorが供給した公開文である。
+
+bundle rootは次を含む。
+
+```text
+<output-dir>/
+├── projection.json   canonical machine-readable semantics
+├── story.md          escaped Human story
+├── index.html        escaped, JavaScript-free static view
+├── manifest.json     schema, target, visibility, source fingerprint
+├── checksums.json    fixed inventory and SHA-256 digests
+└── target/           target-specific layout; canonical semanticsを持たない
+```
+
+両targetのroot `projection.json`、`story.md`、`index.html`は同じ意味を持つ。`synapse` targetは
+`target/public-projection.json`、`github` targetは`target/README.md`、`target/index.html`、
+`target/projection.json`を追加する。raw imageやthumbnailはM0/M1 profileでは含めない。
+machine-readableであることは学習許可を意味せず、training useは`prohibited`である。
+
+成功時はdestination、target、visibility、projection digest、complete／incomplete session件数を
+stdoutへ出す。`synapse-present --version`は`synapse-present <package-version>`を出力する。
+
+### `preview <bundle-dir>`
+
+既存bundleの固定inventory、checksum、schema、canonical `projection.json`、manifestとのsemantic link、
+target-specific copyを検証する。成功時はtarget、visibility、projection digestとlocal `index.html` pathを
+表示するだけで、browser起動、source repository access、外部通信は行わない。
+
+```bash
+synapse-present preview public-view
+```
+
+主なcompanion error codeは`usage_error`、`destination_exists`、`unsafe_path`、
+`read_only_source_busy`、`repository_error`、`creator_report_error`、`projection_invalid`、
+`bundle_invalid`、`storage_error`である。
 
 ## Repository layout
 

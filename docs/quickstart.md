@@ -1,7 +1,8 @@
 # SynapseGit Core Quickstart
 
 この手順では、Stage 0 fixture を使って local repository を作り、Commit を Ref へ公開し、
-`fsck`、directory export、別 repository への restore までを実行する。
+`fsck`、directory export、別 repository への restoreまでを実行する。後半ではcreator historyから
+read-onlyなlocal publication bundleも生成する。
 
 Status: **実装済みの local CLI を対象**<br>
 Audience: 利用を試す人、実装へ参加する人<br>
@@ -23,10 +24,11 @@ orchestrationとして内部利用する。
 ## 1. build する
 
 ```bash
-cargo build -p synapse-cli --locked
+cargo build -p synapse-cli -p synapse-publication --locked
 ```
 
-CLI binary は `target/debug/synapse` に生成される。protocol fixture 自体も検証する場合は次を実行する。
+Core CLIは`target/debug/synapse`、presentation companionは`target/debug/synapse-present`に生成される。
+protocol fixture 自体も検証する場合は次を実行する。
 
 ```bash
 node scripts/verify_core_fixtures.mjs
@@ -38,6 +40,7 @@ node scripts/verify_core_fixtures.mjs
 
 ```bash
 SG=target/debug/synapse
+SP=target/debug/synapse-present
 DEMO=\"$(mktemp -d)\"
 REPO=\"$DEMO/repository\"
 ARCHIVE=\"$DEMO/archive\"
@@ -108,6 +111,42 @@ printf 'caller supplied proposal bytes\n' > "$DEMO/proposal.bin"
 `byte_identity=identical`になるが、これは物理的対象が不変だったという意味ではない。異なるbytesも
 視覚・物理変化を証明しない。adapterはpixel、EXIF、media formatをdecodeせず、registrationを行わない。
 
+## 4. 作者外へ説明するlocal bundleを生成する
+
+sourceのprivate rationaleを公開へ昇格させず、別途author-suppliedな公開文をsidecarへ記述する。
+
+```bash
+PRESENTATION="$DEMO/presentation.toml"
+PUBLIC_VIEW="$DEMO/public-view"
+
+printf '%s\n' \
+  'title = "North wall history"' \
+  'summary = "A reviewable account of the proposal and Human decision."' \
+  '' \
+  '[sessions.wall-1]' \
+  'public_decision_note = "This proposal was selected for the recorded next state."' \
+  > "$PRESENTATION"
+
+"$SP" export "$CREATOR_REPO" "$PUBLIC_VIEW" \
+  --session wall-1 \
+  --presentation "$PRESENTATION" \
+  --public \
+  --github
+
+"$SP" preview "$PUBLIC_VIEW"
+```
+
+`--github`はGitHub-readyな`target/README.md`等をlocal生成するだけで、upload、Git operation、
+network requestを行わない。rootの`projection.json`、`story.md`、JavaScriptなし`index.html`は同じ
+provider-neutral semanticsから生成される。`manifest.json`と`checksums.json`はtarget、visibility、
+source fingerprint、fixed inventoryを検証可能にする。existing CASはread-onlyで、raw assets、private
+rationale、internal Actor ID、repository pathをbundleへcopyせず、raw asset renderingも行わない。
+実案件では先に`synapse-local`と同repositoryのwriterを全て停止する。source SQLiteは直接openせず、
+checkpoint済みで最大512 MiBのmain fileをSHA-256付きでprivate temporary fileへcopyし、copy後のsource
+SHA-256との一致を確認してtemporary copyだけをopenする。`-wal`／`-shm`／`-journal` sidecarまたはdigest不一致は
+`read_only_source_busy`となり、512 MiB超過は拒否する。exportは最大100 creator sessionsを扱う。
+output parentは既存のreal directory、destinationは不存在でなければならない。
+
 ## この demo で起きること
 
 ```mermaid
@@ -168,6 +207,7 @@ cargo test -p synapse-application --locked
 automatic refreshは未実装である。caller-suppliedなconsistent Ref snapshotから明示的にrebuildする
 派生indexであり、Subject timeline、Observation dependency、Analysis lineage等をqueryできる。
 `RefScope`はACLではなく、authorization、RefStore、archive、recoveryの代わりにはならない。
+`synapse-present`の`PublicProjection`は作者外への表示用contractであり、この内部query indexとは別物である。
 詳細は [Security model](./security_model.md) を参照する。
 
 ## command 一覧
@@ -186,6 +226,9 @@ synapse export <repo> <archive-dir>
 synapse restore <archive-dir> <repo>
 synapse creator-run <repo> <session> <original> <current> <ai-output> --subject <label> --creator <name> --decision <adopt|reject|defer> [--rationale <text>]
 synapse creator-report <repo> <session>
+
+synapse-present export <repo> <output-dir> [--session <id>] [--presentation <presentation.toml>] [--public] [--target <synapse|github> | --synapse | --github]
+synapse-present preview <bundle-dir>
 ```
 
 `cargo run` を使う場合は Cargo と CLI 引数の間に `--` が必要である。

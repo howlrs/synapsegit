@@ -68,14 +68,34 @@ jobs:
         run: |
           cargo build --release --locked -p synapse-cli --bin synapse
           cargo build --release --locked -p synapse-local-http --bin synapse-local
+          cargo build --release --locked -p synapse-publication --bin synapse-present
 
       - name: Smoke-test release binaries
         run: |
           version="${GITHUB_REF_NAME#v}"
           test "$(target/release/synapse --version)" = "synapse $version"
           test "$(target/release/synapse-local --version)" = "synapse-local $version"
+          test "$(target/release/synapse-present --version)" = "synapse-present $version"
           target/release/synapse --help >/dev/null
           target/release/synapse-local --help >/dev/null
+          target/release/synapse-present --help >/dev/null
+          smoke="$(mktemp -d)"
+          trap 'rm -rf "$smoke"' EXIT
+          printf 'original\n' > "$smoke/original.bin"
+          printf 'current\n' > "$smoke/current.bin"
+          printf 'candidate\n' > "$smoke/candidate.bin"
+          target/release/synapse creator-run "$smoke/repo" release-smoke \
+            "$smoke/original.bin" "$smoke/current.bin" "$smoke/candidate.bin" \
+            --subject "Release publication smoke" \
+            --creator "Release workflow" \
+            --decision defer \
+            --rationale "Private smoke rationale" >/dev/null
+          target/release/synapse-present export "$smoke/repo" "$smoke/view" \
+            --session release-smoke --public --github >/dev/null
+          target/release/synapse-present preview "$smoke/view" >/dev/null
+          for file in projection.json story.md index.html manifest.json checksums.json target/README.md; do
+            test -s "$smoke/view/$file"
+          done
 
       - name: Package release archive
         run: |
@@ -94,8 +114,22 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           test "$("$unpacked/$bundle/synapse" --version)" = "synapse $version"
           test "$("$unpacked/$bundle/synapse-local" --version)" = "synapse-local $version"
+          test "$("$unpacked/$bundle/synapse-present" --version)" = "synapse-present $version"
           "$unpacked/$bundle/synapse" --help >/dev/null
           "$unpacked/$bundle/synapse-local" --help >/dev/null
+          "$unpacked/$bundle/synapse-present" --help >/dev/null
+          printf 'original\n' > "$unpacked/original.bin"
+          printf 'current\n' > "$unpacked/current.bin"
+          printf 'candidate\n' > "$unpacked/candidate.bin"
+          "$unpacked/$bundle/synapse" creator-run "$unpacked/repo" packaged-smoke \
+            "$unpacked/original.bin" "$unpacked/current.bin" "$unpacked/candidate.bin" \
+            --subject "Packaged publication smoke" \
+            --creator "Release workflow" \
+            --decision reject \
+            --rationale "Private packaged smoke rationale" >/dev/null
+          "$unpacked/$bundle/synapse-present" export "$unpacked/repo" "$unpacked/view" \
+            --session packaged-smoke --public --github >/dev/null
+          "$unpacked/$bundle/synapse-present" preview "$unpacked/view" >/dev/null
 
       - name: Attest the release archive
         uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4

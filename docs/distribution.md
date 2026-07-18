@@ -26,12 +26,14 @@ production serviceが必要な一般導入にはまだ適さない。v0.2.0のlo
 | Root README | 60秒で対象・価値・試し方・限界を判断する | [`README.md`](../README.md) |
 | 日本語README | 日本語利用者の同等入口 | [`README.ja.md`](../README.ja.md) |
 | GitHub Release | 固定versionのbinary、checksum、release notes | `docs/releases/vX.Y.Z.md`とtag workflow |
+| Local PublicationBundle | 作者外の人／AIが読むderived JSON、Markdown、static HTML | `synapse-publication`のcanonical projectionとlocal generator |
 | Documentation index | 評価・実装・運用資料を探す | [`docs/README.md`](./README.md) |
 | Security / Support | 非公開報告と通常問い合わせを分離する | [`SECURITY.md`](../SECURITY.md)、[`SUPPORT.md`](../SUPPORT.md) |
 | Issues / Pull requests | 再現可能なfeedbackと変更を受ける | `.github` templates |
 
 Stage 0ではcrates.io、GHCR、Homebrew、OS package repositoryを配布channelにしない。現行
-Dockerfileはprivate GCP CLI smoke専用であり、end-user imageとして紹介しない。
+Dockerfileはprivate GCP Core CLI smoke専用であり、end-user imageとして紹介しない。今回の
+`synapse-present`追加でもDocker imageは変更せず、publication bundleやremote publishの配布経路にしない。
 
 ## GitHub About metadata
 
@@ -89,14 +91,16 @@ GitHub SettingsのSocial previewへ明示的にuploadしない限り、repositor
 
 ## Release asset構成
 
-v0.2.0以降のpackaging scriptで作るbinary archiveは次を含む。公開済みv0.1.0
-archiveは`SECURITY.md`と`CHANGELOG.md`追加前に作られたため、binary二つとrelease notesの
-`README.md`だけを含む。
+公開済みv0.2.0 archiveは`synapse`と`synapse-local`の二binaryを含み、後から内容を変更しない。
+current sourceのpackaging scriptとtag workflowは、次のrelease archiveへ`synapse-present`を追加する準備を
+行う。公開済みv0.1.0 archiveは`SECURITY.md`と`CHANGELOG.md`追加前に作られたため、binary二つと
+release notesの`README.md`だけを含む。
 
 ```text
 synapsegit-vX.Y.Z-TARGET/
   synapse
   synapse-local
+  synapse-present
   README.md
   SECURITY.md
   CHANGELOG.md
@@ -136,7 +140,8 @@ git diff --check
 
 6. release tagはversion commitを指すannotated tagとして作る。署名運用を導入した後はsigned tagを必須にする。
 7. tag workflowがdraft prereleaseを作り、asset upload、checksum、attestation、公開まで成功したことを確認する。
-8. 別directoryへassetをdownloadし、checksum、attestation、展開後の`--version`、3-file Pilotを確認する。
+8. 別directoryへassetをdownloadし、checksum、attestation、三binaryの`--version`／`--help`、3-file Pilot、
+   read-only local publication bundleのexport／previewを確認する。
 
 ## 公開後check
 

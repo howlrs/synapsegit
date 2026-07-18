@@ -3,7 +3,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_canonical::blob_oid;
 use synapse_cas::{
-    ClosureNodeState, GraphLimits, StoreLimits, TombstoneScanLimits, verify_closure,
+    ClosureNodeState, GraphLimits, ObjectKind, StoreError, StoreLimits, TombstoneScanLimits,
+    verify_closure,
 };
 use synapse_core::{
     ArchiveExportLimits, FsckLimits, RefArchiveExportLimits, Repository, RepositoryError,
@@ -83,6 +84,48 @@ fn object_path(repository: &Path, oid: &str) -> PathBuf {
         .join(&digest[2..])
 }
 
+fn filesystem_snapshot(root: &Path) -> Vec<(PathBuf, Option<Vec<u8>>)> {
+    fn visit(root: &Path, path: &Path, entries: &mut Vec<(PathBuf, Option<Vec<u8>>)>) {
+        let mut children = fs::read_dir(path)
+            .unwrap()
+            .map(|entry| entry.unwrap().path())
+            .collect::<Vec<_>>();
+        children.sort();
+        for child in children {
+            let relative = child.strip_prefix(root).unwrap().to_path_buf();
+            let metadata = fs::symlink_metadata(&child).unwrap();
+            if metadata.is_dir() {
+                entries.push((relative, None));
+                visit(root, &child, entries);
+            } else {
+                entries.push((relative, Some(fs::read(&child).unwrap())));
+            }
+        }
+    }
+
+    let mut entries = Vec::new();
+    visit(root, root, &mut entries);
+    entries
+}
+
+fn assert_filesystem_unchanged(
+    before: &[(PathBuf, Option<Vec<u8>>)],
+    after: &[(PathBuf, Option<Vec<u8>>)],
+) {
+    let before_names = before.iter().map(|entry| &entry.0).collect::<Vec<_>>();
+    let after_names = after.iter().map(|entry| &entry.0).collect::<Vec<_>>();
+    assert_eq!(after_names, before_names, "source path names changed");
+    for ((path, before_bytes), (_, after_bytes)) in before.iter().zip(after) {
+        assert!(
+            before_bytes == after_bytes,
+            "source path {} changed content (before {} bytes, after {} bytes)",
+            path.display(),
+            before_bytes.as_ref().map_or(0, Vec::len),
+            after_bytes.as_ref().map_or(0, Vec::len),
+        );
+    }
+}
+
 fn assert_no_archive_staging(temporary: &TempDirectory, destination_name: &str) {
     let prefix = format!(".{destination_name}.tmp-");
     let remaining = fs::read_dir(&temporary.0)
@@ -132,6 +175,92 @@ fn validated_store_ref_fsck_export_and_empty_restore_round_trip() {
     assert_eq!(restored.refs().snapshot().unwrap(), before_refs);
     assert_eq!(restored.refs().reflog().unwrap(), before_reflog);
     assert!(restored.fsck().unwrap().is_clean());
+}
+
+#[test]
+fn existing_read_only_repository_matches_normal_reads_and_preserves_source() {
+    let temporary = TempDirectory::new("existing-read-only");
+    let repository_path = temporary.join("source");
+    let archive_path = temporary.join("read-only-export");
+    let mut writable = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&writable);
+    let proposal = oid("proposal-commit.json");
+    writable
+        .update_ref(RefUpdate {
+            ref_name: "proposal/read-only",
+            expected_head: None,
+            new_head: &proposal,
+            metadata: ReflogMetadata::at(10),
+        })
+        .unwrap();
+    let expected_oids = writable.objects().list_oids().unwrap();
+    let expected_snapshot = writable.refs().snapshot().unwrap();
+    let expected_reflog = writable.refs().reflog().unwrap();
+    assert!(writable.fsck().unwrap().is_clean());
+    drop(writable);
+
+    let before = filesystem_snapshot(&repository_path);
+    let mut read_only = Repository::open_existing_read_only(&repository_path).unwrap();
+    assert_eq!(read_only.objects().list_oids().unwrap(), expected_oids);
+    assert_eq!(read_only.refs().snapshot().unwrap(), expected_snapshot);
+    assert_eq!(read_only.refs().reflog().unwrap(), expected_reflog);
+    assert!(read_only.fsck().unwrap().is_clean());
+
+    let errors = [
+        read_only.put_blob(b"new".as_slice()).unwrap_err(),
+        read_only
+            .put_blob_claimed("not-an-oid", b"new".as_slice())
+            .unwrap_err(),
+        read_only.put_object(b"not-json").unwrap_err(),
+        read_only
+            .put_object_as(ObjectKind::Blob, b"not-json")
+            .unwrap_err(),
+        read_only
+            .put_object_claimed("not-an-oid", b"not-json")
+            .unwrap_err(),
+        read_only
+            .put_object_claimed_as(ObjectKind::Blob, "not-an-oid", b"not-json")
+            .unwrap_err(),
+    ];
+    assert!(
+        errors
+            .iter()
+            .all(|error| matches!(error, RepositoryError::ReadOnly))
+    );
+    let update_error = read_only
+        .update_ref(RefUpdate {
+            ref_name: "not a ref",
+            expected_head: None,
+            new_head: "not-an-oid",
+            metadata: ReflogMetadata::at(20),
+        })
+        .expect_err("read-only update must fail before validation");
+    assert!(matches!(update_error, RepositoryError::ReadOnly));
+    let restore_error = read_only
+        .restore_from(temporary.join("missing-archive"))
+        .expect_err("read-only restore must fail before archive access");
+    assert!(matches!(restore_error, RepositoryError::ReadOnly));
+    let direct_store_error = read_only
+        .objects()
+        .put_blob(b"direct".as_slice())
+        .expect_err("the exposed CAS handle must remain read-only");
+    assert!(matches!(direct_store_error, StoreError::ReadOnly));
+
+    read_only.export_archive(&archive_path).unwrap();
+    drop(read_only);
+    let after = filesystem_snapshot(&repository_path);
+    assert_filesystem_unchanged(&before, &after);
+}
+
+#[test]
+fn read_only_open_does_not_create_a_missing_repository() {
+    let temporary = TempDirectory::new("missing-read-only");
+    let missing = temporary.join("missing");
+    assert!(
+        Repository::open_existing_read_only(&missing).is_err(),
+        "read-only open must require an existing repository"
+    );
+    assert!(!missing.exists());
 }
 
 #[test]

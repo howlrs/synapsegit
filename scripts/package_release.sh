@@ -26,7 +26,8 @@ if [[ "$host" != "$target" ]]; then
 fi
 
 release_directory="${CARGO_TARGET_DIR:-target}/release"
-for binary in synapse synapse-local; do
+release_binaries=(synapse synapse-local synapse-present)
+for binary in "${release_binaries[@]}"; do
   if [[ ! -x "$release_directory/$binary" ]]; then
     echo "release_error: missing executable $release_directory/$binary" >&2
     exit 1
@@ -45,8 +46,9 @@ for path in "$bundle_directory" "$archive" "$checksums"; do
 done
 
 mkdir -p "$bundle_directory"
-install -m 0755 "$release_directory/synapse" "$bundle_directory/synapse"
-install -m 0755 "$release_directory/synapse-local" "$bundle_directory/synapse-local"
+for binary in "${release_binaries[@]}"; do
+  install -m 0755 "$release_directory/$binary" "$bundle_directory/$binary"
+done
 install -m 0644 "docs/releases/$tag.md" "$bundle_directory/README.md"
 install -m 0644 SECURITY.md "$bundle_directory/SECURITY.md"
 install -m 0644 CHANGELOG.md "$bundle_directory/CHANGELOG.md"
