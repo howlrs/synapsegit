@@ -2,13 +2,14 @@
 
 Status: **Core v0.1 / Stage 0 draft**
 
-このガイドは、SynapseGit Coreの想定利用者、Pilotでの使い方、現在このリポジトリで実行できる範囲をまとめる。現時点ではproduction向け制作アプリやcapture clientを提供していないが、3画像から手書きJSONなしで一sessionを記録するboundedなlocal single-creator Pilotと、v0.3.0ではそのimport／review／diagnostics／bounded `fsck`を行うloopback-only UI、作者外の人とAIへ履歴を説明するread-only local publication bundleまで実装されている。利用フローの図は実装済み境界に加えて構想とPilot仮説を含む。
+このガイドは、SynapseGit Coreの想定利用者、Pilotでの使い方、現在このリポジトリで実行できる範囲をまとめる。現時点ではproduction向け制作アプリやcapture clientを提供していないが、3画像から手書きJSONなしで一sessionを記録するboundedなlocal single-creator Pilotと、v0.3.0で導入されv0.4.0にも収録されるimport／review／diagnostics／bounded `fsck`のloopback-only UI、作者外の人とAIへ履歴を説明するread-only local publication bundleまで実装されている。利用フローの図は実装済み境界に加えて構想とPilot仮説を含む。
 
 対象はSynapseGit Coreのみであり、Chrono-Engine、歴史的人物の思考再現、自動利益分配はこのガイドとCore v0.1の対象外である。
 
 ## 関連資料
 
 - [Documentation index](./README.md)
+- [v0.4.0 release notes](./releases/v0.4.0.md)
 - [5分Quickstart](./quickstart.md)
 - [Native localhost application起動手順](../deploy/local/README.md)
 - [想定利用者別シナリオ（PPTX・日本語）](./presentations/synapsegit_user_scenarios_ja.pptx)
@@ -33,14 +34,14 @@ mkdir -p "$HOME/SynapseGit/demo"
 
 terminalに表示された`http://127.0.0.1:8787`をbrowserで開き、終了時はCtrl-Cを押す。hostは
 `127.0.0.1`固定で、network共有用のoverrideはない。複数projectは`--project KEY=PATH`を繰り返して登録する。
-空directoryは空repositoryとして開かれる。v0.3.0はproject画面からsessionを作成でき、
+空directoryは空repositoryとして開かれる。v0.4.0はproject画面からsessionを作成でき、
 後述の`creator-run`で同じpathへ作成したsessionも表示できる。
 
 UIで現在読めるのはproject status、Refs／reflog、creator sessionのreport／timeline／evidence／画像である。
-v0.3.0ではoriginal／current／caller-supplied AI outputの三fileをbounded stagingへuploadし、proposalを
+v0.4.0ではoriginal／current／caller-supplied AI outputの三fileをbounded stagingへuploadし、proposalを
 同じprocess内でHuman `adopt`／`reject`／`defer`できる。review前にprocessを終了するとauthorityは復元できず、
 sessionはincompleteになる。read-only incomplete diagnosticsと、exact project確認付きの
-server-bounded background `fsck`／poll UIもtagged v0.3.0の`synapse-local`に含まれる。
+server-bounded background `fsck`／poll UIもtagged v0.4.0の`synapse-local`に含まれる。
 archive export／restoreとautomatic recoveryのUIは未実装なので、archive操作は対応するCLIを使う。詳しいoption、limit、
 localhost security boundary、GCP CLI smokeとの違いは[native localhost runbook](../deploy/local/README.md)を参照する。
 
@@ -146,7 +147,7 @@ legacy-shaped sessionは`comparison=unavailable`と表示する。このshapeは
 reportは`fsck`がcleanでなければ拒否する。別commandの`export`／`restore`後にも同じOIDとreportを
 再構築できることをprocess testで検証している。
 
-v0.3.0の`synapse-present export`は、existing CASを変更せず、Ref SQLiteのdigest検証付きprivate
+v0.3.0で導入されv0.4.0にも収録される`synapse-present export`は、existing CASを変更せず、Ref SQLiteのdigest検証付きprivate
 stable copyからcanonical `projection.json`、`story.md`、JavaScriptなし`index.html`、manifest、checksum、
 target layoutへ翻訳する。
 Original／Current／AI-attributed proposal／Human Decision、adopt／reject／defer、未採用proposalを保持する
@@ -237,6 +238,19 @@ flowchart LR
 node scripts/verify_core_fixtures.mjs
 cargo test --workspace --locked
 ```
+
+### v0.4.0 tagged sourceのgeneric-artifact library
+
+v0.4.0 tagのworkspace sourceには、bounded regular-file mapper、固定generic-artifact v1 contract、
+sequential Proposal／Decision、host-authenticated approval、別SQLite journalを使うexplicit restart
+reconciliation、bounded checkout、versioned local public projectionが含まれる。これはembedding application向けの
+Rust library境界である。利用時は[generic-artifact v1 contract](../spec/application/generic-artifact/v1/README.md)と
+[runtime architecture](./runtime_architecture.md#generic-artifact-application-boundary)を正本として、workspace testsと
+ともに固定tagから組み込む。
+
+v0.4.0 release archiveは`synapse`、`synapse-local`、`synapse-present`の三binaryだけである。このlibraryに対する
+HTTP／CLI／browser UI、新binary、model invocation、automatic worker、remote publishは提供しない。以下の
+creator Pilot／publication commandもgeneric-artifact transportではなく、v0.3.0から継続する三画像向けsurfaceである。
 
 ### 手書きJSONなしのlocal creator Pilot
 

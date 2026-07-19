@@ -2,6 +2,8 @@
 
 Status: Stage 0 decision draft
 
+Applies to: tagged v0.4.0 source/workspace libraries
+
 Decision date: 2026-07-11
 
 ## 結論
@@ -310,10 +312,12 @@ Core proofとして扱わない。binding／journal／trusted configは改竄さ
 特定processのruntime capability intersectionを通過したことを暗号学的に証明しない。process ACL／profile／permit／
 FairGateもrestartを越えて保存されず、multi-process linearizabilityは提供しない。
 
-このC1 boundaryはsource-level Rust libraryであり、HTTP／CLI、generic browser UI、model provider invocation、
-automatic background worker、durable identity／ACL、multi-process linearizability、production deployment、tagged
-binary、新たな配布許可を提供しない。v0.3.0 Creator Pilotとlocalhost UIは画像専用のままで、同じprocessに保持した
-pending authorityをrestart後にresumeしない。
+このC1 boundaryはtagged v0.4.0 sourceに含まれるworkspace Rust libraryである。release archiveは
+`synapse`、`synapse-local`、`synapse-present`の三binaryだけを維持し、このboundary向けのHTTP／CLI、
+generic browser UI、新binary、model provider invocation、automatic background worker、durable identity／ACL、
+multi-process linearizability、remote publish、production deployment、新たな配布許可を提供しない。
+v0.3.0で導入されたCreator Pilotとlocalhost UIはv0.4.0でも画像専用のままで、同じprocessに保持したpending
+authorityをrestart後にresumeしない。
 
 `checkout_artifact_decision`はtrusted completed-Decision bindingだけを入力に、repositoryをread-onlyでopenし、一つの
 bounded `RefSnapshot`からProposal／Decision headを解決する。Decision、feedback、Proposal、ContextPack、Activity、

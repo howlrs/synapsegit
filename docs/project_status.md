@@ -2,20 +2,20 @@
 
 Audience: preview evaluators、contributors、maintainers
 Status: public project snapshot
-Applies to: current main and tagged v0.3.0
+Applies to: current main and tagged v0.4.0
 Last verified: 2026-07-20
 
-SynapseGit Coreは**Stage 0 draft**である。v0.3.0は、local repository、bounded creator
-Pilot、localhost import／review／diagnostics／`fsck`、read-only publication bundleを
-評価するためのprereleaseであり、production-readyなcreator applicationやmulti-user
-serviceではない。
+SynapseGit Coreは**Stage 0 draft**である。v0.4.0は、v0.3.0で配布したlocal repository、bounded
+creator Pilot、localhost import／review／diagnostics／`fsck`、read-only publication bundleの三binary
+surfaceを維持しつつ、generic regular-file application boundaryをtagged sourceで評価するprereleaseである。
+production-readyなcreator applicationやmulti-user serviceではない。
 
-current `main`にはtagged v0.3.0とは別に、generic regular-file application向けの
-source-level C1 boundaryが加わった。これはdeterministic mapper／bounded checkout、固定v1 JSON contract、
-sequential Proposal／Decision workflow、host-authenticated one-shot approval、Proposal／Decision CAS前後を
-別SQLite journalへ結ぶ明示的なrestart recovery／reconciliation orchestration、local public projectionである。
-HTTP／CLI／browser UI、model invocation、durable identity／ACL、multi-process linearizability、production
-service、配布物ではない。
+tagged v0.4.0 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
+boundaryが含まれる。これはdeterministic mapper／bounded checkout、固定v1 JSON contract、sequential
+Proposal／Decision workflow、host-authenticated one-shot approval、Proposal／Decision CAS前後を別SQLite
+journalへ結ぶ明示的なrestart recovery／reconciliation orchestration、local public projectionである。
+release archiveは従来どおり三binaryだけで、このboundaryのHTTP／CLI／browser UI、新binary、model
+invocation、remote publish、durable identity／ACL、multi-process linearizability、production serviceを提供しない。
 
 ## 現在の成果
 
@@ -55,7 +55,7 @@ service、配布物ではない。
   除いたversioned generic-artifact canonical JSON／Markdown／script-free HTML／local target bundle
 - complete adopt／reject／deferとincomplete-onlyを混ぜずに固定したpublication理解度評価コーパス、
   machine-readable質問／oracle、privacy canary、静的accessibility baseline
-- Linux x86_64 GNU向けv0.3.0 prerelease archive、checksum、build attestation
+- Linux x86_64 GNU向けv0.4.0 prerelease archive、checksum、build attestation
 
 実装範囲の詳細と根拠は[documentation index](./README.md#現在地)を参照する。
 
@@ -63,8 +63,8 @@ service、配布物ではない。
 
 今すぐの評価対象は、CLIを扱えるtechnical creator、provenance／human-in-the-loop AIの
 researcher・tool builder、Rust developerである。一般の画家、建築家、施工・修復担当、
-デザイナーへそのまま提供できるcapture／継続編集UXにはまだ達していない。v0.3.0の
-localhost UIは三file importと単一proposalのreviewを行えるが、AI outputはcaller-suppliedで、
+デザイナーへそのまま提供できるcapture／継続編集UXにはまだ達していない。v0.3.0で導入され
+v0.4.0にも収録されるlocalhost UIは三file importと単一proposalのreviewを行えるが、AI outputはcaller-suppliedで、
 pending reviewはprocess restartを越えて復元できない。restart後等のincomplete sessionを
 read-onlyで診断し、明示確認したbounded `fsck`をbackground jobとしてpollできる。表示したRef／headから
 authorityを再構築せず、自動resume／cleanupも行わない。job stateと`last_fsck`はprocess-localである。
@@ -107,22 +107,23 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 | Item | Status |
 |---|---|
 | Public repository | Available |
-| v0.3.0 GitHub prerelease | Available |
+| v0.4.0 GitHub prerelease | Available |
 | Linux x86_64 GNU binary | Available; glibc 2.34+ |
 | Source build from fixed tag | Available; Rust 1.88+ |
 | SHA-256 release checksum | Available |
-| Build provenance attestation | Available for the v0.3.0 archive |
-| `synapse-present` binary | Included in v0.3.0; local generation only, with no remote publish |
-| Generic artifact v1 Rust sequential/durable workflow and application contract | Current-main source only; explicit local journal/recovery API, not included as an HTTP/CLI/UI feature or tagged binary |
+| Build provenance attestation | Available for the v0.4.0 archive |
+| `synapse-present` binary | Included in v0.4.0; local generation only, with no remote publish |
+| Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v0.4.0 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
 | crates.io / GHCR / OS packages | Intentionally unavailable in Stage 0 |
 | Source use, Fork, and redistribution terms | Custom source-available license available; not open source |
 
-`v0.3.0`の`SynapseGit Local` binaryは上記の三file import／review、dedicated read-only
+`v0.3.0`で導入され`v0.4.0`にも収録される`SynapseGit Local` binaryは、上記の三file import／review、dedicated read-only
 incomplete-session diagnostics、bounded browser `fsck`を含む。review authorityとmaintenance
 job stateはprocess-localであり、process restartを越えて再開できない。`synapse-present`も
-v0.3.0 archiveに含まれるが、生成物のremote upload／publishは行わない。
-generic artifact C1 library／schemaはcurrent `main`のsourceであり、v0.3.0 archiveのcapabilityを
-変更しない。source-available licenseのproduction／distribution／brand制限も変更しない。
+v0.3.0で導入された三binary構成をv0.4.0 archiveで維持するが、生成物のremote upload／publishは行わない。
+generic artifact C1 library／schema／local projectionはv0.4.0 tagged sourceのworkspace libraryであり、
+archiveのbinary数や既存binaryのHTTP／CLI／UI capabilityを変更しない。source-available licenseの
+production／distribution／brand制限も変更しない。
 
 ## 次の優先順位
 

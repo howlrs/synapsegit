@@ -13,7 +13,7 @@ body:
     attributes:
       label: SynapseGit version
       description: Paste `synapse --version`, `synapse-local --version`, `synapse-present --version`, or the commit SHA.
-      placeholder: synapse 0.3.0
+      placeholder: synapse 0.4.0
     validations:
       required: true
 

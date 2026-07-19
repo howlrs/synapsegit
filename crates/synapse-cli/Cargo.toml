@@ -1,6 +1,6 @@
 [package]
 name = "synapse-cli"
-version = "0.3.0"
+version = "0.4.0"
 description = "Stage 0 command-line interface for SynapseGit Core"
 edition.workspace = true
 repository.workspace = true

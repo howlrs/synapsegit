@@ -7,7 +7,7 @@ deployment, or a Docker workload.
 
 ## Current implementation boundary
 
-The v0.3.0 implementation provides:
+The v0.4.0 implementation provides:
 
 - a startup-owned catalog of local repositories;
 - project status, current Refs, and bounded reflog pages;
@@ -24,6 +24,13 @@ The v0.3.0 implementation provides:
 - server-rendered HTML with same-origin CSS and JavaScript compiled into the
   Rust binary.
 
+The import, review, diagnostics, and browser `fsck` slices were introduced as
+the v0.3.0 localhost milestone and remain the same image-specific application
+surface in v0.4.0. The generic-artifact workflow included in the v0.4.0 tagged
+source is not connected to this service or UI. The release archive remains
+`synapse`, `synapse-local`, and `synapse-present`; it adds no generic-artifact
+HTTP/CLI/UI, new binary, or remote publish path.
+
 Each imported file is limited to 64 MiB and the three files to 192 MiB in
 aggregate. At most two uploads stage concurrently, eight pending reviews are
 retained per project, and 64 per process. The browser must finish a review in
@@ -34,12 +41,12 @@ Creator begin and decision mutations are serialized per catalog project inside
 that process. Do not run another service instance, the CLI, or a direct
 Repository writer against the same repository while this service owns it.
 
-The v0.3.0 UI does **not** yet provide archive list/export/restore,
+The v0.4.0 UI does **not** yet provide archive list/export/restore,
 automatic resume, or cleanup. Archive export/restore remain CLI/library-only;
 archive inspection/listing is still planned.
 The dedicated diagnostics route and server-rendered view are read-only: displayed
 Ref/head values are never accepted back as review authority and history is not
-rewritten. The v0.3.0 project page also runs read-only `fsck` only after
+rewritten. The v0.4.0 project page also runs read-only `fsck` only after
 the user types the exact project key. It returns `202 Accepted`, polls a random
 process-local operation ID, and displays clean/dirty aggregate counts. A dirty
 repository is a completed result with `clean=false`, not a failed job.
@@ -52,7 +59,7 @@ capacity; unknown, evicted, or post-restart IDs return `operation_state_lost`.
 A browser disconnect does not cancel or retry the job, and `last_fsck` is also
 process-local.
 
-The tagged v0.3.0 binary includes the diagnostics and browser `fsck` additions
+The tagged v0.4.0 binary includes the diagnostics and browser `fsck` additions
 alongside three-file import/same-process review. JavaScript is
 required for write and maintenance POST actions because unsafe API requests
 require the process-local custom token header; server-rendered read and
@@ -64,10 +71,10 @@ diagnostics views remain available without it.
 
 ## Build and start
 
-Linux x86_64では、[`v0.3.0` preview release](../../docs/releases/v0.3.0.md)に
+Linux x86_64では、[`v0.4.0` preview release](../../docs/releases/v0.4.0.md)に
 `synapse-local`を含む検証済みbinary archiveがある。downloadとchecksum検証は
 [Installation guide](../../docs/install.md#install-the-linux-x86-64-release)を参照する。その他のplatformでは、
-下記のsource buildを使用する。v0.3.0の配布済みbinaryには、三file import／same-process
+下記のsource buildを使用する。v0.4.0の配布済みbinaryには、三file import／same-process
 Human review、dedicated read-only diagnostics、bounded browser `fsck`が含まれる。
 
 Use a Rust toolchain compatible with the workspace MSRV, then run these
@@ -86,7 +93,7 @@ binary versionは`./target/release/synapse-local --version`で確認できる。
 
 The repository directory must exist before startup. It may be an existing
 SynapseGit repository or an empty directory; opening an empty directory creates
-the local repository layout. The v0.3.0 binary and a current source build can
+the local repository layout. The v0.4.0 binary and a current source build can
 create a session from the project page. The CLI can use the same repository
 path before starting the application or after stopping it; run
 [`creator-run`](../../docs/usage_guide.md#手書きjsonなしのlocal-creator-pilot)

@@ -15,7 +15,8 @@ review authority, resume, clean up, or rewrite history. Confirmed maintenance
 registry, pollable states, and project-page result display; dirty is a succeeded
 result with `clean=false`. Archive list/export/restore UI/routes are not yet
 implemented. The diagnostics and browser `fsck` additions are included in the
-tagged v0.3.0 binary.
+tagged v0.4.0 binary. The generic-artifact libraries present in the v0.4.0
+tagged source do not add routes, DTOs, UI, or a new binary here.
 
 Write forms require the embedded JavaScript module. Native HTML form submission
 cannot attach the process-local custom token or normalize each multipart part

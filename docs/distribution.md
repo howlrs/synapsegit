@@ -2,8 +2,8 @@
 
 Audience: maintainer、release担当、公開文書を更新するcontributor
 Status: Stage 0運用runbook
-Applies to: v0.3.x
-Last verified: 2026-07-18
+Applies to: v0.4.x
+Last verified: 2026-07-20
 
 この文書は、SynapseGitを「GitHub上で見つける」「現在の用途を判断する」「安全に試す」までの
 公開導線とrelease手順を定義する。protocolの規範仕様ではない。
@@ -13,11 +13,15 @@ Last verified: 2026-07-18
 現在のprimary audienceは、Linux CLIを扱えるtechnical creator、creative provenance／
 human-in-the-loop AIを評価する研究者・tool builder、Rust developerである。画家、建築家、
 施工・修復担当、デザイナーは将来の対象だが、capture、visual diff、restart-durable review、
-production serviceが必要な一般導入にはまだ適さない。v0.3.0のlocalhost UIはboundedな
-三file import、same-process Human review、read-only diagnostics、確認付きbackground `fsck`に
-限ってwrite-capable／maintenance-capableである。
+production serviceが必要な一般導入にはまだ適さない。v0.3.0で導入されたlocalhost UIの
+boundedな三file import、same-process Human review、read-only diagnostics、確認付きbackground
+`fsck`はv0.4.0にも収録される。この範囲に限ってwrite-capable／maintenance-capableである。
 
-公開文面では、将来の利用構想とv0.3で実行できる能力を同じものとして表示しない。
+v0.4.0でgeneric-artifact v1 workflow／schema／local projectionはtagged sourceのworkspace
+libraryとして固定されるが、release archiveの利用者向けsurfaceには追加しない。generic-artifact用の
+HTTP／CLI／browser UI、新binary、remote publish adapterは提供しない。
+
+公開文面では、将来の利用構想とv0.4で実行できる能力を同じものとして表示しない。
 
 ## 公開surface
 
@@ -33,8 +37,8 @@ production serviceが必要な一般導入にはまだ適さない。v0.3.0のlo
 | Issues / Pull requests | 再現可能なfeedbackと変更を受ける | `.github` templates |
 
 Stage 0ではcrates.io、GHCR、Homebrew、OS package repositoryを配布channelにしない。現行
-Dockerfileはprivate GCP Core CLI smoke専用であり、end-user imageとして紹介しない。今回の
-`synapse-present`追加でもDocker imageは変更せず、publication bundleやremote publishの配布経路にしない。
+Dockerfileはprivate GCP Core CLI smoke専用であり、end-user imageとして紹介しない。Docker imageを
+publication bundleやgeneric-artifact workflow、remote publishの配布経路にしない。
 
 ## GitHub About metadata
 
@@ -92,7 +96,10 @@ GitHub SettingsのSocial previewへ明示的にuploadしない限り、repositor
 
 ## Release asset構成
 
-v0.3.0 archiveは`synapse`、`synapse-local`、`synapse-present`の三binaryを含む。
+v0.4.0 archiveは`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
+generic-artifact v1のworkflow／schema／local projectionはtagged sourceに含まれるworkspace libraryであり、
+archiveへ第四のbinaryや既存binaryのgeneric HTTP／CLI／UI surfaceを追加しない。
+v0.3.0 archiveは`synapse-present`を初めて追加した三binary構成であり、後から内容を変更しない。
 公開済みv0.2.0 archiveは`synapse`と`synapse-local`の二binaryだけを含み、後から内容を変更しない。
 公開済みv0.1.0 archiveは`SECURITY.md`と`CHANGELOG.md`追加前に作られたため、binary二つと
 release notesの`README.md`だけを含む。
@@ -143,7 +150,8 @@ git diff --check
 6. release tagはversion commitを指すannotated tagとして作る。署名運用を導入した後はsigned tagを必須にする。
 7. tag workflowがdraft prereleaseを作り、asset upload、checksum、attestation、公開まで成功したことを確認する。
 8. 別directoryへassetをdownloadし、checksum、attestation、三binaryの`--version`／`--help`、3-file Pilot、
-   read-only local publication bundleのexport／previewを確認する。
+   read-only local publication bundleのexport／previewを確認する。archiveに第四のbinaryや
+   generic-artifact HTTP／CLI／UI surfaceが紛れ込んでいないことも確認する。
 
 ## 公開後check
 
@@ -186,7 +194,7 @@ license変更時は少なくとも次を同じPull Requestで更新する。
 
 - [Installation](./install.md)
 - [Project status](./project_status.md)
-- [Release notes](./releases/v0.3.0.md)
+- [Release notes](./releases/v0.4.0.md)
 - [Security model](./security_model.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Documentation index](./README.md)

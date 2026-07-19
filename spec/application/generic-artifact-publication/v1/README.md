@@ -27,6 +27,13 @@ name/version pairs select the v1 validator and deterministic renderer. This
 keeps bundles from an older safe generator version verifiable without treating
 an unknown renderer profile as compatible.
 
+`golden-vectors.json` records the exact `synapse-publication` `0.3.0`
+generator identity that emitted the frozen v1 bytes. Later package releases
+retain those vectors and digests as a compatibility fixture while separately
+checking that newly built projections and manifests carry the current package
+version. The pinned generator metadata is fixture provenance, not a renderer
+dispatch key and not permission to relabel a newly generated bundle.
+
 ## Inputs and trust
 
 A complete projection can be built only from a
@@ -114,4 +121,6 @@ enforces the correlations and fixed safety statements above.
 escaped `story.md`, and script-free `index.html` for complete, pending, and
 incomplete outcomes. Any intentional byte change requires a new version or a
 documented compatibility decision; it must not silently rewrite the existing
-creator publication v1 corpus.
+creator publication v1 corpus. Keeping the original `0.3.0` generator identity
+while validating later generators independently is that documented
+compatibility decision.

@@ -1,6 +1,6 @@
 [package]
 name = "synapse-projection"
-version = "0.3.0"
+version = "0.4.0"
 description = "Rebuildable SQLite query projection for SynapseGit Core"
 edition.workspace = true
 repository.workspace = true

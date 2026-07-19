@@ -26,7 +26,7 @@ It is not a hosted or multi-user service._
 
 ## Who can use this preview
 
-The current v0.3.0 preview is most useful to:
+The current v0.4.0 preview is most useful to:
 
 - technical creators who are comfortable with a local command-line workflow;
 - researchers and tool builders evaluating creative provenance,
@@ -48,15 +48,22 @@ Ubuntu 22.04 and requires glibc 2.34 or newer. Other platforms can use the
 ### 1. Install the preview
 
 ```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.3.0/synapsegit-v0.3.0-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.3.0/SHA256SUMS
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.4.0/synapsegit-v0.4.0-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.4.0/SHA256SUMS
 sha256sum --check SHA256SUMS
-tar -xzf synapsegit-v0.3.0-x86_64-unknown-linux-gnu.tar.gz
+```
+
+Stop if checksum verification fails. Do not extract or install an unverified
+archive; the [installation guide](./docs/install.md#install-the-linux-x86-64-release)
+also shows build-provenance verification.
+
+```bash
+tar -xzf synapsegit-v0.4.0-x86_64-unknown-linux-gnu.tar.gz
 
 mkdir -p "$HOME/.local/bin"
-install -m 0755 synapsegit-v0.3.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
-install -m 0755 synapsegit-v0.3.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
-install -m 0755 synapsegit-v0.3.0-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
+install -m 0755 synapsegit-v0.4.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
+install -m 0755 synapsegit-v0.4.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
+install -m 0755 synapsegit-v0.4.0-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
 export PATH="$HOME/.local/bin:$PATH"
 
 synapse --version
@@ -98,7 +105,7 @@ synapse-local \
   --label "demo=My first SynapseGit project"
 ```
 
-Open the exact `http://127.0.0.1:...` URL printed by the process. The v0.3.0
+Open the exact `http://127.0.0.1:...` URL printed by the process. The v0.4.0
 binary supports bounded three-file import, same-process Human review, read-only
 incomplete-session diagnostics, and an explicitly confirmed, server-bounded
 background `fsck` with pollable results. Export and restore remain CLI-only.
@@ -110,31 +117,31 @@ session. See the
 
 ## What works now
 
-| Capability | Current `main` status |
+| Capability | v0.4.0 release status |
 |---|---|
 | Three-file creator Pilot with `adopt`, `reject`, and `defer` | Implemented as a bounded local CLI flow |
 | Human/AI-attributed provenance and a comparison-aware report | Implemented; AI output remains caller-supplied |
 | Original/current comparison | Primary blob byte identity only; always partial comparability |
 | Local browser interface | Read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, and confirmed background `fsck`; archive maintenance remains CLI-only |
-| Generic regular-file artifact building blocks | Current-`main` Rust libraries provide a bounded deterministic mapper and checkout, sequential Proposal/Decision workflow, host-authenticated one-shot approval, a SQLite journal-integrated restart/reconciliation boundary, a frozen v1 public-safe contract, and a separate local public projection; there is no HTTP, CLI, browser UI, model invocation, multi-process control plane, or production service |
+| Generic regular-file artifact building blocks | Tagged v0.4.0 source/workspace libraries include a bounded deterministic mapper and checkout, sequential Proposal/Decision workflow, host-authenticated one-shot approval, a SQLite journal-integrated restart/reconciliation boundary, a frozen v1 public-safe contract, and a separate local public projection. The packaged three binaries do not expose these capabilities through HTTP, CLI, or browser UI; no model invocation, multi-process control plane, or production service is provided |
 | Content-addressed objects, typed closure, Ref CAS, and reflog | Implemented and covered by repository tests |
 | `fsck`, checksum-bound directory export, and verified restore | Implemented for the local repository format |
-| Read-only history presentation for people and AI | Included in v0.3.0 as a deterministic local bundle: canonical JSON, Markdown, no-JavaScript HTML, manifest, checksums, and Synapse/GitHub target layouts; no upload or network access |
+| Read-only history presentation for people and AI | Included in v0.4.0 as a deterministic local bundle: canonical JSON, Markdown, no-JavaScript HTML, manifest, checksums, and Synapse/GitHub target layouts; no upload or network access |
 | Public multi-user service | Architecture only; not implemented |
 | Pixel registration or visual/physical difference analysis | Not implemented |
 
-“Implemented” means covered by this repository's tests. Rows explicitly marked
-as current-`main` source/API-contract boundaries describe untagged source and
-schema surfaces, not a tested transport integration. Neither label means that
-real-user authentication, network transport, production operations, or a
-general creator-facing application is ready.
+“Implemented” means covered by this repository's tests. The generic-artifact
+row describes library and schema surfaces included in the tagged v0.4.0
+source, not a tested transport integration or a packaged binary feature.
+Neither label means that real-user authentication, network transport,
+production operations, or a general creator-facing application is ready.
 
-Current `main` includes evaluation-only building blocks for sibling
-applications implementing generic regular-file review. `synapse-artifact`
-validates a complete regular-file manifest and deterministically maps it to a
-nested site Tree without advancing a Ref. Its trusted
-workflow initializes a profile-owned repository, publishes at most one active
-Proposal from each exact canonical Decision head, and records one
+The tagged v0.4.0 source/workspace libraries include evaluation-only building
+blocks for sibling applications implementing generic regular-file review.
+`synapse-artifact` validates a complete regular-file manifest and
+deterministically maps it to a nested site Tree without advancing a Ref. Its
+trusted workflow initializes a profile-owned repository, publishes at most one
+active Proposal from each exact canonical Decision head, and records one
 `adopted_unchanged`, `rejected`, or `deferred` Decision through
 `synapse-application` and Core. A completed Decision can become the verified
 accepted base for the next Proposal; each attempt has a fresh deterministic Ref
@@ -172,20 +179,21 @@ transactions are separate, so crash windows are resolved by explicit bounded
 reconciliation rather than by claiming cross-database atomicity. Rust trusted
 workflow values are getter-only process values, not browser-supplied authority.
 
-These are source-level Rust/application-contract capabilities on current
-`main`, not features of the tagged v0.3.0 binaries. They do not provide a
-background service that resumes work automatically, an HTTP/CLI route, model
-invocation, a generic browser editor, durable identity or ACL storage,
-multi-process linearizability, production use, or a distribution permission.
-The v0.3.0
-Creator Pilot and localhost UI remain image-specific; their pending review
-authority is still same-process and non-resumable.
+These capabilities are included in the tagged v0.4.0 source/workspace
+libraries. They are not exposed by any of the three packaged binaries
+(`synapse`, `synapse-local`, or `synapse-present`), including through HTTP,
+CLI, or browser UI. They also do not provide a background service that resumes
+work automatically, model invocation, a generic browser editor, durable
+identity or ACL storage, multi-process linearizability, production use, or a
+distribution permission. The packaged v0.4.0 Creator Pilot and localhost UI
+remain image-specific; their pending review authority is still same-process
+and non-resumable.
 
-The tagged v0.3.0 `synapse-local` binary includes browser import/review,
+The tagged v0.4.0 `synapse-local` binary includes browser import/review,
 dedicated diagnostics, and bounded browser `fsck`. Review authority and
 maintenance job state are process-local and cannot be resumed after restart.
 
-The v0.3.0 archive also provides the separate `synapse-present` companion. It reads
+The v0.4.0 archive also provides the separate `synapse-present` companion. It reads
 the existing CAS without mutation and copies checkpointed Ref SQLite (up to
 512 MiB) into a private temporary file, requiring the copy-time and post-copy
 source SHA-256 to match; SQLite never opens the source database directly.
@@ -197,14 +205,16 @@ rationale, internal Actor IDs, repository paths, and raw assets stay omitted;
 raw-asset rendering is not implemented, and a public note is separate
 author-supplied text. See the [CLI reference](./docs/cli_reference.md).
 
-Separately, current `main` exposes a versioned generic-artifact projection and
-local bundle API. A complete projection is built only through the bounded
-Decision checkout above; pending/incomplete projections carry no repository or
-authority identifiers. Canonical JSON, escaped Markdown, script-free HTML,
-manifest, checksums, and local Synapse/GitHub layouts are generated without Git
-or network access. Remote Synapse/GitHub adapters, Git import and provenance,
-identity mapping, a GitHub App, and a hosted service remain distinct roadmap
-work; this source-only slice does not complete [#17](https://github.com/howlrs/synapsegit/issues/17).
+Separately, the tagged v0.4.0 source/workspace libraries include a versioned
+generic-artifact projection and local bundle API. This API is not exposed by
+the packaged binaries, HTTP, CLI, or browser UI. A complete projection is
+built only through the bounded Decision checkout above; pending/incomplete
+projections carry no repository or authority identifiers. Canonical JSON,
+escaped Markdown, script-free HTML, manifest, checksums, and local
+Synapse/GitHub layouts are generated without Git or network access. Remote
+Synapse/GitHub adapters, Git import and provenance, identity mapping, a GitHub
+App, and a hosted service remain distinct roadmap work; this source-only slice
+does not complete [#17](https://github.com/howlrs/synapsegit/issues/17).
 
 ## How it works
 
@@ -247,18 +257,18 @@ local application routes, and archive verification. Read the
 
 ## Distribution status
 
-- [`v0.3.0`](https://github.com/howlrs/synapsegit/releases/tag/v0.3.0) is a
+- [`v0.4.0`](https://github.com/howlrs/synapsegit/releases/tag/v0.4.0) is a
   prerelease, not a production release.
 - The supported prebuilt artifact is Linux x86_64 GNU. Tagged source builds are
   the current path for other supported Unix-like environments.
 - crates.io and GHCR are intentionally not distribution channels for Stage 0.
-- Release assets have SHA-256 checksums. The v0.3.0 archive also receives a
+- Release assets have SHA-256 checksums. The v0.4.0 archive also receives a
   GitHub build-provenance attestation.
 - The object, archive, and OID formats remain draft and may change before a
   stable release.
 
 See the [changelog](./CHANGELOG.md) and the
-[v0.3.0 release notes](./docs/releases/v0.3.0.md) before evaluating the
+[v0.4.0 release notes](./docs/releases/v0.4.0.md) before evaluating the
 preview with important data.
 
 ## Security, support, and license
