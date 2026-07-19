@@ -30,8 +30,9 @@ update Refs.
 
 The `relative-nfc-portable-v1` path profile requires non-empty relative NFC
 paths separated by `/`. It rejects empty, dot, traversal, mixed-separator,
-duplicate, Unicode-lowercase, file/directory, Windows reserved-name,
-reserved-character, trailing-dot/space, and bidi-control collisions. Hosts may
+duplicate, Unicode-lowercase, file/directory, Windows reserved-name (including
+`COM¹`/`COM²`/`COM³` and `LPT¹`/`LPT²`/`LPT³`), reserved-character,
+trailing-dot/space, and bidi-control collisions. Hosts may
 apply a stricter application profile but must not weaken these checks.
 
 ## Public payloads

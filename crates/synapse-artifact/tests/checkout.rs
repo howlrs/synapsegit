@@ -197,6 +197,7 @@ enum MalformedSite {
     UnsupportedRecord,
     MissingBlob,
     Traversal,
+    ReservedDeviceSuperscript,
     NonNfc,
     Collision,
     ExtraEntryField,
@@ -247,6 +248,9 @@ fn replace_selected_site(
         }),
         MalformedSite::Traversal => json!({
             "..": {"entry_kind":"blob", "oid":regular_blob}
+        }),
+        MalformedSite::ReservedDeviceSuperscript => json!({
+            "COM¹.txt": {"entry_kind":"blob", "oid":regular_blob}
         }),
         // Synapse Canonical JSON rejects non-NFC keys before they can receive
         // an OID. Store an NFC placeholder, then corrupt its CAS bytes below
@@ -769,6 +773,11 @@ fn malformed_site_kinds_paths_collisions_and_missing_objects_fail_closed() {
         (
             "traversal",
             MalformedSite::Traversal,
+            "artifact_path_invalid",
+        ),
+        (
+            "reserved-device-superscript",
+            MalformedSite::ReservedDeviceSuperscript,
             "artifact_path_invalid",
         ),
         ("non-nfc", MalformedSite::NonNfc, "oid_mismatch"),

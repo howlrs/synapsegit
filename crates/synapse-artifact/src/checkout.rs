@@ -1193,7 +1193,7 @@ fn validate_segment(segment: &str) -> CheckoutResult<()> {
             .bytes()
             .any(|byte| byte == 0 || byte.is_ascii_control())
         || segment.nfc().collect::<String>() != segment
-        || !portable_component(segment)
+        || !crate::portable_component(segment)
     {
         return Err(ArtifactCheckoutError::new(
             "artifact_path_invalid",
@@ -1218,35 +1218,6 @@ fn join_path(prefix: &str, segment: &str, max_path_bytes: usize) -> CheckoutResu
     } else {
         Ok(format!("{prefix}/{segment}"))
     }
-}
-
-fn portable_component(component: &str) -> bool {
-    if component.ends_with(['.', ' '])
-        || component
-            .chars()
-            .any(|character| matches!(character, '<' | '>' | ':' | '"' | '|' | '?' | '*'))
-        || component.chars().any(is_bidi_control)
-    {
-        return false;
-    }
-    let stem = component.split('.').next().unwrap_or(component);
-    let uppercase = stem.to_ascii_uppercase();
-    !matches!(uppercase.as_str(), "CON" | "PRN" | "AUX" | "NUL")
-        && !matches!(
-            uppercase.as_bytes(),
-            [b'C', b'O', b'M', b'1'..=b'9'] | [b'L', b'P', b'T', b'1'..=b'9']
-        )
-}
-
-fn is_bidi_control(character: char) -> bool {
-    matches!(
-        character,
-        '\u{061c}'
-            | '\u{200e}'
-            | '\u{200f}'
-            | '\u{202a}'..='\u{202e}'
-            | '\u{2066}'..='\u{2069}'
-    )
 }
 
 fn lowercase_key(value: &str) -> String {

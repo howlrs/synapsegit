@@ -172,6 +172,12 @@ fn rejects_unsafe_and_non_normalized_paths() {
         "assets/CON",
         "assets/com1.txt",
         "assets/Lpt9.log",
+        "assets/COM¹",
+        "assets/com².txt",
+        "assets/Com³.tar.gz",
+        "assets/LPT¹",
+        "assets/lpt².log",
+        "assets/Lpt³.data",
         "assets/bidi\u{202e}spoof.txt",
     ] {
         let error =

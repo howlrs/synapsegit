@@ -597,6 +597,10 @@ fn portable_component(component: &str) -> bool {
             uppercase.as_bytes(),
             [b'C', b'O', b'M', b'1'..=b'9'] | [b'L', b'P', b'T', b'1'..=b'9']
         )
+        && !matches!(
+            uppercase.as_str(),
+            "COM¹" | "COM²" | "COM³" | "LPT¹" | "LPT²" | "LPT³"
+        )
 }
 
 fn is_bidi_control(character: char) -> bool {
