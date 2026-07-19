@@ -11,6 +11,10 @@
     "name": "org.synapsegit.generic-artifact-publication-renderer",
     "version": 1
   },
+  "generator": {
+    "name": "synapse-publication",
+    "version": "0.3.0"
+  },
   "cases": [
     {
       "name": "complete_adopted",

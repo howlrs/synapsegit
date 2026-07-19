@@ -21,10 +21,10 @@ use synapse_publication::{
     GENERIC_ARTIFACT_PUBLICATION_PROFILE, GENERIC_ARTIFACT_PUBLICATION_PROFILE_VERSION,
     GENERIC_ARTIFACT_RENDERER_PROFILE, GENERIC_ARTIFACT_RENDERER_PROFILE_VERSION,
     GenericArtifactBundleManifestV1, GenericArtifactBundleOptions, GenericArtifactChecksumsV1,
-    GenericArtifactHumanDisposition, GenericArtifactOutcomeState, GenericArtifactOutputTarget,
-    GenericArtifactPublicationError, GenericArtifactSelectedSnapshot, GenericArtifactStatusReason,
-    GenericArtifactVisibility, PublicTargetCaptureSourceV1, PublicTargetKindV1,
-    ReviewedPublicTargetV1, TrustedGenericArtifactStatus,
+    GenericArtifactGeneratorIdentity, GenericArtifactHumanDisposition, GenericArtifactOutcomeState,
+    GenericArtifactOutputTarget, GenericArtifactPublicationError, GenericArtifactSelectedSnapshot,
+    GenericArtifactStatusReason, GenericArtifactVisibility, PublicTargetCaptureSourceV1,
+    PublicTargetKindV1, ReviewedPublicTargetV1, TrustedGenericArtifactStatus,
     build_generic_artifact_complete_projection, build_generic_artifact_status_projection,
     export_generic_artifact_bundle, parse_reviewed_public_target_v1,
     validate_generic_artifact_projection, verify_generic_artifact_bundle,
@@ -823,6 +823,16 @@ fn malformed_complete_projection_is_rejected_before_export() {
 
 #[test]
 fn generic_artifact_golden_vectors_are_frozen() {
+    let expected: JsonValue = serde_json::from_slice(
+        &fs::read(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("../../spec/application/generic-artifact-publication/v1/golden-vectors.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    let frozen_generator: GenericArtifactGeneratorIdentity =
+        serde_json::from_value(expected["generator"].clone()).unwrap();
     let temporary = TempDirectory::new("golden-vectors");
     let target = public_target("Golden target");
     let binding = complete_binding(
@@ -857,16 +867,25 @@ fn generic_artifact_golden_vectors_are_frozen() {
         ("incomplete_outcome_unknown", incomplete),
     ];
     let mut actual_cases = Vec::new();
-    for (index, (name, projection)) in cases.into_iter().enumerate() {
+    for (index, (name, mut projection)) in cases.into_iter().enumerate() {
+        assert_eq!(projection.generator.name, "synapse-publication");
+        assert_eq!(projection.generator.version, env!("CARGO_PKG_VERSION"));
         let bundle = export_projection(
             &temporary,
             &format!("golden-{index}"),
             &projection,
             GenericArtifactOutputTarget::Synapse,
         );
+        let projection_bytes = fs::read(bundle.join("projection.json")).unwrap();
+        assert_eq!(projection_bytes, canonical_json(&projection));
+        let manifest: GenericArtifactBundleManifestV1 =
+            serde_json::from_slice(&fs::read(bundle.join("manifest.json")).unwrap()).unwrap();
+        assert_eq!(manifest.generator, projection.generator);
+        assert_eq!(manifest.projection_sha256, sha256(&projection_bytes));
+        projection.generator = frozen_generator.clone();
         actual_cases.push(json!({
             "name": name,
-            "projection_sha256": sha256(&fs::read(bundle.join("projection.json")).unwrap()),
+            "projection_sha256": sha256(&canonical_json(&projection)),
             "story_sha256": sha256(&fs::read(bundle.join("story.md")).unwrap()),
             "html_sha256": sha256(&fs::read(bundle.join("index.html")).unwrap())
         }));
@@ -884,15 +903,8 @@ fn generic_artifact_golden_vectors_are_frozen() {
             "name": GENERIC_ARTIFACT_RENDERER_PROFILE,
             "version": GENERIC_ARTIFACT_RENDERER_PROFILE_VERSION
         },
+        "generator": frozen_generator,
         "cases": actual_cases
     });
-    let expected: JsonValue = serde_json::from_slice(
-        &fs::read(
-            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../spec/application/generic-artifact-publication/v1/golden-vectors.json"),
-        )
-        .unwrap(),
-    )
-    .unwrap();
     assert_eq!(actual, expected);
 }

@@ -1,6 +1,6 @@
 [package]
 name = "synapse-publication"
-version = "0.3.0"
+version = "0.4.0"
 description = "Read-only public projection and local publication bundles for SynapseGit"
 edition.workspace = true
 repository.workspace = true

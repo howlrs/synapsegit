@@ -1,6 +1,6 @@
 [package]
 name = "synapse-artifact"
-version = "0.3.0"
+version = "0.4.0"
 description = "Provider-neutral regular-file artifact mapping for SynapseGit"
 edition.workspace = true
 repository.workspace = true
