@@ -116,15 +116,58 @@ session. See the
 | Human/AI-attributed provenance and a comparison-aware report | Implemented; AI output remains caller-supplied |
 | Original/current comparison | Primary blob byte identity only; always partial comparability |
 | Local browser interface | Read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, and confirmed background `fsck`; archive maintenance remains CLI-only |
+| Generic regular-file artifact building blocks | Current-`main` Rust libraries provide a bounded deterministic mapper, one same-process Proposal/Decision workflow, a frozen v1 public-safe contract, trusted restart re-registration, and a separate SQLite review/idempotency journal; the workflow is not journal-integrated or restart-resumable and has no HTTP, CLI, browser UI, or production service |
 | Content-addressed objects, typed closure, Ref CAS, and reflog | Implemented and covered by repository tests |
 | `fsck`, checksum-bound directory export, and verified restore | Implemented for the local repository format |
 | Read-only history presentation for people and AI | Included in v0.3.0 as a deterministic local bundle: canonical JSON, Markdown, no-JavaScript HTML, manifest, checksums, and Synapse/GitHub target layouts; no upload or network access |
 | Public multi-user service | Architecture only; not implemented |
 | Pixel registration or visual/physical difference analysis | Not implemented |
 
-“Implemented” means covered by this repository's tests. It does not mean that
+“Implemented” means covered by this repository's tests. Rows explicitly marked
+as current-`main` source/API-contract boundaries describe untagged source and
+schema surfaces, not a tested transport integration. Neither label means that
 real-user authentication, network transport, production operations, or a
 general creator-facing application is ready.
+
+Current `main` includes evaluation-only building blocks for sibling
+applications implementing generic regular-file review. `synapse-artifact`
+validates a complete regular-file manifest and deterministically maps it to a
+nested site Tree without advancing a Ref. Its trusted
+`begin_artifact_proposal` / `decide_artifact_proposal` workflow initializes one
+Ref-empty repository, publishes one Proposal, and records one
+`adopted_unchanged`, `rejected`, or `deferred` Decision through
+`synapse-application` and Core in the same process. The pending authority is
+non-serializable and one-shot; existing repositories, sequential proposals,
+and restart resume are outside this workflow. The v1 type and convenience
+workflow record caller-supplied AI-attributed bytes only and cannot represent
+verified execution; SynapseGit invokes no model.
+Calling `decide_artifact_proposal` is trusted-process authority, not proof that
+a browser user authenticated. Direct HTTP wiring is therefore unsupported
+until a host-authenticated one-shot approval boundary is supplied ([#24](https://github.com/howlrs/synapsegit/issues/24)).
+
+The frozen
+[`synapsegit.generic-artifact` v1 contract](./spec/application/generic-artifact/v1/README.md)
+uses an opaque `ReviewId` as a lookup locator, not as authority. A separate
+SQLite journal can retain server-owned proposal bindings, bounded review state,
+and an idempotent Decision intent; `DurableProposalBinding` lets a newly
+constructed trusted application re-register that exact binding after checking
+the current Proposal and Decision Refs. It never restores a permit, and the
+final Decision still goes through `HumanDecisionRuntime` validation and CAS.
+The binding assumes an untampered trusted journal; it is not cryptographic
+evidence that the original Proposal passed a particular process runtime
+capability intersection.
+
+The Rust workflow receipts are getter-only process values, not serialized
+implementations of those JSON transport schemas. The journal and recovery
+primitives are not automatically invoked by the workflow.
+
+These are source-level Rust/application-contract capabilities on current
+`main`, not features of the tagged v0.3.0 binaries. They do not provide a
+journal-integrated/restart-resumable orchestrator, HTTP/CLI route, model
+invocation, a generic browser editor, multi-process authorization, production
+use, or a distribution permission. The v0.3.0
+Creator Pilot and localhost UI remain image-specific; their pending review
+authority is still same-process and non-resumable.
 
 The tagged v0.3.0 `synapse-local` binary includes browser import/review,
 dedicated diagnostics, and bounded browser `fsck`. Review authority and
@@ -172,6 +215,7 @@ local application routes, and archive verification. Read the
 | Look up commands and errors | [CLI reference](./docs/cli_reference.md) |
 | Generate a read-only local publication bundle | [CLI reference](./docs/cli_reference.md#synapse-present-companion-cli) |
 | Evaluate publication comprehension | [Frozen complete and incomplete-only corpus](./docs/evaluation/publication-comprehension/v1/) |
+| Embed the generic regular-file contract | [Generic artifact v1](./spec/application/generic-artifact/v1/README.md) |
 | Evaluate current maturity and next work | [Project status](./docs/project_status.md) |
 | Review trust, privacy, and security limits | [Security model](./docs/security_model.md) |
 | Implement the protocol | [Core Protocol v0.1](./spec/core/v0.1/README.md) |

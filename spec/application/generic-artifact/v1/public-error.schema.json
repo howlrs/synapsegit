@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "public-error.schema.json",
+  "title": "SynapseGit generic artifact public error v1",
+  "type": "object",
+  "required": [
+    "contract",
+    "contract_version",
+    "code",
+    "classification",
+    "retryable",
+    "detail"
+  ],
+  "properties": {
+    "contract": { "const": "synapsegit.generic-artifact" },
+    "contract_version": { "const": 1 },
+    "code": {
+      "type": "string",
+      "minLength": 2,
+      "maxLength": 64,
+      "pattern": "^[a-z][a-z0-9_]+$"
+    },
+    "classification": {
+      "enum": ["terminal", "retryable", "outcome_unknown"]
+    },
+    "retryable": { "type": "boolean" },
+    "detail": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "classification": { "const": "terminal" },
+        "retryable": { "const": false }
+      }
+    },
+    {
+      "properties": {
+        "classification": { "const": "retryable" },
+        "retryable": { "const": true }
+      }
+    },
+    {
+      "properties": {
+        "classification": { "const": "outcome_unknown" },
+        "retryable": { "const": false }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

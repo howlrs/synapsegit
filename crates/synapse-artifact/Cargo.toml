@@ -1,0 +1,22 @@
+[package]
+name = "synapse-artifact"
+version = "0.3.0"
+description = "Provider-neutral regular-file artifact mapping for SynapseGit"
+edition.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+license-file.workspace = true
+publish.workspace = true
+
+[dependencies]
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0.150"
+sha2.workspace = true
+synapse-application = { path = "../synapse-application" }
+synapse-canonical = { path = "../synapse-canonical" }
+synapse-core = { path = "../synapse-core" }
+synapse-sqlite = { path = "../synapse-sqlite" }
+unicode-normalization.workspace = true
+
+[dev-dependencies]
+jsonschema = { version = "0.47.0", default-features = false }

@@ -525,6 +525,39 @@ impl Fixture {
         )
     }
 
+    fn durable_proposal_binding(&self) -> DurableProposalBinding {
+        DurableProposalBinding::new(
+            self.selector.clone(),
+            PROPOSAL_REF,
+            self.candidate_oid.clone(),
+            BASE_REF,
+            self.base_commit_oid.clone(),
+        )
+    }
+
+    fn restarted_application(&self) -> Arc<TestApplication> {
+        let repository = Repository::open(self._temporary.join("repo")).unwrap();
+        let executor = TestExecutor::new(ExecutedAiProposal::new(
+            self.candidate_oid.clone(),
+            self.activity_oid.clone(),
+            Some("unused restarted executor"),
+        ));
+        let application = Arc::new(
+            Application::new(
+                TestAuthenticator::default(),
+                executor,
+                self.clock.clone(),
+                TTL,
+                [RegisteredProject::new(self.selector.clone(), repository)],
+            )
+            .unwrap(),
+        );
+        application
+            .grant_project_access(&self.selector, PRINCIPAL_ID)
+            .unwrap();
+        application
+    }
+
     fn register_human_with(
         &self,
         admitted: AdmittedProposalHandle,
@@ -1027,6 +1060,21 @@ fn base_and_target_changes_after_preflight_are_atomic_core_failures() {
 }
 
 #[test]
+fn base_and_target_changes_before_preflight_keep_distinct_public_codes() {
+    let stale = Fixture::valid();
+    stale.advance_base();
+    let error = stale.prepare().unwrap_err();
+    assert_eq!(error.code(), "stale_base");
+    assert_eq!(stale.target_head(), None);
+
+    let occupied = Fixture::valid();
+    occupied.occupy_target();
+    let error = occupied.prepare().unwrap_err();
+    assert_eq!(error.code(), "ref_conflict");
+    assert_eq!(occupied.target_head(), Some(occupied.base_commit_oid));
+}
+
+#[test]
 fn same_permit_parallel_replay_reaches_executor_at_most_once() {
     let fixture = Fixture::valid();
     let permit = fixture.prepare().unwrap();
@@ -1248,6 +1296,135 @@ fn admitted_proposal_proof_is_bound_to_the_issuing_application() {
         .unwrap_err();
     assert_eq!(error.code(), "configuration_invalid");
     assert_eq!(stale_proof.ref_snapshot_and_reflog(), before);
+}
+
+#[test]
+fn durable_binding_recovers_in_a_second_application_and_uses_the_normal_human_route() {
+    let fixture = Fixture::valid();
+    let old_admitted = fixture.admit_proposal();
+    let binding = fixture.durable_proposal_binding();
+    let binding_debug = format!("{binding:?}");
+    assert!(!binding_debug.contains(PROJECT_ID));
+    assert!(!binding_debug.contains(&fixture.candidate_oid));
+
+    let old_profile = fixture
+        .application
+        .register_human_profile(
+            fixture.human_profile_config(fixture.principal_oid.clone(), fixture.policy_oid.clone()),
+        )
+        .unwrap();
+    let restarted = fixture.restarted_application();
+    let profile = restarted
+        .register_human_profile(
+            fixture.human_profile_config(fixture.principal_oid.clone(), fixture.policy_oid.clone()),
+        )
+        .unwrap();
+
+    assert_eq!(
+        restarted
+            .register_human_decision(&profile, &old_admitted, fixture.human_candidate())
+            .unwrap_err()
+            .code(),
+        "configuration_invalid"
+    );
+    assert_eq!(
+        restarted
+            .register_recovered_human_decision(&old_profile, &binding, fixture.human_candidate(),)
+            .unwrap_err()
+            .code(),
+        "configuration_invalid"
+    );
+
+    let registration = restarted
+        .register_recovered_human_decision(&profile, &binding, fixture.human_candidate())
+        .unwrap();
+    let permit = restarted
+        .prepare_human_decision("principal-session", &fixture.selector, &registration)
+        .unwrap();
+    let receipt = restarted
+        .publish_human_decision("principal-session", &permit)
+        .unwrap();
+    assert_eq!(receipt.proposal_commit_oid, fixture.candidate_oid);
+    assert_eq!(receipt.decision_feedback_oid, fixture.decision_feedback_oid);
+    assert_eq!(receipt.disposition, DecisionDisposition::AdoptedUnchanged);
+    assert_eq!(fixture.decision_head(), fixture.decision_oid);
+}
+
+#[test]
+fn recovered_registration_rejects_stale_refs_and_wrong_project_or_profile() {
+    for stale_ref in ["proposal", "decision"] {
+        let fixture = Fixture::valid();
+        fixture.admit_proposal();
+        let binding = fixture.durable_proposal_binding();
+        let restarted = fixture.restarted_application();
+        let profile =
+            restarted
+                .register_human_profile(fixture.human_profile_config(
+                    fixture.principal_oid.clone(),
+                    fixture.policy_oid.clone(),
+                ))
+                .unwrap();
+        match stale_ref {
+            "proposal" => fixture.advance_admitted_proposal_ref(),
+            "decision" => fixture.advance_decision_ref(),
+            _ => unreachable!(),
+        }
+        let before = fixture.ref_snapshot_and_reflog();
+        let error = restarted
+            .register_recovered_human_decision(&profile, &binding, fixture.human_candidate())
+            .unwrap_err();
+        let expected = match stale_ref {
+            "proposal" => "ref_conflict",
+            "decision" => "stale_base",
+            _ => unreachable!(),
+        };
+        assert_eq!(error.code(), expected, "{stale_ref}");
+        assert_eq!(fixture.ref_snapshot_and_reflog(), before, "{stale_ref}");
+    }
+
+    let fixture = Fixture::valid();
+    fixture.admit_proposal();
+    let restarted = fixture.restarted_application();
+    let profile = restarted
+        .register_human_profile(
+            fixture.human_profile_config(fixture.principal_oid.clone(), fixture.policy_oid.clone()),
+        )
+        .unwrap();
+    let wrong_project = DurableProposalBinding::new(
+        ProjectSelector::new("urn:uuid:eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"),
+        PROPOSAL_REF,
+        fixture.candidate_oid.clone(),
+        BASE_REF,
+        fixture.base_commit_oid.clone(),
+    );
+    assert_eq!(
+        restarted
+            .register_recovered_human_decision(&profile, &wrong_project, fixture.human_candidate(),)
+            .unwrap_err()
+            .code(),
+        "configuration_invalid"
+    );
+
+    let wrong_profile = restarted
+        .register_human_profile(HumanAuthorityProfileConfig::new(
+            fixture.selector.clone(),
+            PRINCIPAL_ID,
+            "decision/other",
+            fixture.principal_oid.clone(),
+            fixture.policy_oid.clone(),
+        ))
+        .unwrap();
+    assert_eq!(
+        restarted
+            .register_recovered_human_decision(
+                &wrong_profile,
+                &fixture.durable_proposal_binding(),
+                fixture.human_candidate(),
+            )
+            .unwrap_err()
+            .code(),
+        "configuration_invalid"
+    );
 }
 
 #[test]

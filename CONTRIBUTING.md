@@ -63,6 +63,11 @@ flowchart TB
     Publication[synapse-publication] --> Creator
     Publication --> Core
     Publication --> Canon
+    Artifact[synapse-artifact] --> Application
+    Artifact --> Core
+    Artifact --> SQLite
+    Artifact --> Canon
+    ArtifactJournal[synapse-artifact-journal] --> JournalDb[(separate SQLite review DB)]
     Application[synapse-application] --> Core
     Observation[synapse-observation] --> Core
     Observation --> Schema
@@ -81,7 +86,7 @@ flowchart TB
     classDef identity fill:#e8e8ff,stroke:#4c4cc7;
     classDef storage fill:#e2f3eb,stroke:#18794e;
     class Canon,Schema identity;
-    class CAS,SQLite,Core,Projection storage;
+    class CAS,SQLite,Core,Projection,JournalDb storage;
 ```
 
 | crate | 責務 |
@@ -91,7 +96,9 @@ flowchart TB
 | `synapse-cas` | filesystem ObjectStore、typed graph、closure、Tombstone、fsck |
 | `synapse-sqlite` | transactional Ref compare-and-swap、reflog、logical archive snapshot |
 | `synapse-projection` | disposable SQLite query index、explicit atomic rebuild、Ref-scoped timeline／Observation dependency／Analysis lineage／closure query |
-| `synapse-application` | process-local authenticated Creative AI／narrow Human Decision route、one-shot permit、publication fence |
+| `synapse-application` | process-local authenticated Creative AI／narrow Human Decision route、one-shot permit、publication fence、server-owned durable Proposal bindingからのchecked recovery registration |
+| `synapse-artifact` | bounded regular-file mapper／contractと、Ref-empty repository一つでcaller-supplied AI-attributed Proposal／Decision一回をApplication／Coreへ通すsame-process workflow。journal統合、restart resume、transport、model invocationは提供しない |
+| `synapse-artifact-journal` | opaque `ReviewId`、server-owned Proposal／Decision binding、bounded state、hashed idempotent Decision intentを保持する別SQLite storage primitive。authentication／authorization／permitではない |
 | `synapse-observation` | ordered Observationと全media Blobを検証し、primary Blob OIDのbyte identityだけを`partial`なAnalysisResultとして記録する保守的adapter |
 | `synapse-creator` | 3つのopaque fileからimported CaptureProfile、session-local provenance、byte-identity analysis、AI proposal、Human Decision、Projection lineageを検証するsnapshot-bound reportを組み立てるcreate-only local Pilot orchestration |
 | `synapse-publication` | existing read-only CASと、checkpoint済みRef SQLiteのdigest検証付きprivate stable copyから、provider-neutral PublicProjection、Human／Machine view、manifest／checksum、local target layoutを生成・検証するpresentation layer |
@@ -102,6 +109,11 @@ flowchart TB
 `synapse-sqlite` は Ref と reflog の store であり、ProjectionStore ではない。
 disposable SQLite query indexは別の`synapse-projection`に置き、正本やauthorizationへ使わない。
 `synapse-observation`はCore／Schema／Canonicalの上位adapterであり、Refを更新しない。
+`synapse-artifact`はgeneric artifact向けmapper／contractを置く上位境界で、mapper単体はRefを更新しない。
+crate内のtrusted workflowだけがApplication／Coreを組み合わせる。journal／recoveryを使うrestart-resumable
+orchestrationとHTTP／CLI／UI transportはまだ存在しない。
+`synapse-artifact-journal`のSQLiteは`refs.sqlite3`やProjectionStoreとは別の
+application storageであり、そのrowをauthorityやCore publication receiptとして扱わない。
 `synapse-creator`はApplication／Core／Observation／Projectionを組み合わせる上位orchestrationであり、
 これらの下位crateからCreatorやCLIへ依存させない。
 `synapse-publication`はCreator／Coreのread boundaryより上に置き、Core object／Refを書き換えず、
@@ -149,6 +161,16 @@ object 単体で判定できる rule は ingest、参照先の存在・型を必
 `build-tree` と `commit` は JSON builder ではない。利用者が用意した body を、
 それぞれ Tree / Commit family として validate + put する command である。
 新 command または output を変える場合は process-level test、Quickstart、CLI reference を同時に更新する。
+
+### Generic artifact application contract
+
+1. `spec/application/generic-artifact/v1`のschemaとcapability fixtureを同時に更新し、対応するRust typeがあるfieldは整合させる。process-only receiptをwire DTOと誤記しない。
+2. v1のunknown field／version／disposition／attributionをfail closedにし、golden fixtureで確認する。
+3. public DTOへrepository path、Ref／head、Core OID、Actor／Policy／Grant、permit、credentialを追加しない。
+4. `ReviewId`をlocatorのまま保ち、lookup前のauthentication／project authorizationと、final
+   `HumanDecisionRuntime` validationを迂回しない。
+5. Creator Pilot／localhost UIへgeneric recoveryが自動的に追加されたとは記述しない。
+6. v1はcaller-supplied／execution未検証だけに限定する。verified executorを追加する場合はrequest fieldで昇格せず、別contract versionとtrusted execution evidenceを設計する。
 
 ### Observation adapter
 

@@ -1,0 +1,9 @@
+{
+  "contract": "synapsegit.generic-artifact",
+  "contract_version": 1,
+  "review_id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "state": "decision_committed",
+  "disposition": "adopted_unchanged",
+  "reviewed_artifact_manifest_sha256": "3d1e9884c243da349a9f1aab642339caaabd098fe28855c60d34c1d18f3995b6",
+  "selected_snapshot": "proposal"
+}

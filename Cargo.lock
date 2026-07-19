@@ -1304,6 +1304,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "synapse-artifact"
+version = "0.3.0"
+dependencies = [
+ "jsonschema",
+ "serde",
+ "serde_json",
+ "sha2",
+ "synapse-application",
+ "synapse-canonical",
+ "synapse-core",
+ "synapse-sqlite",
+ "unicode-normalization",
+]
+
+[[package]]
+name = "synapse-artifact-journal"
+version = "0.3.0"
+dependencies = [
+ "getrandom 0.4.3",
+ "rusqlite",
+ "sha2",
+]
+
+[[package]]
 name = "synapse-canonical"
 version = "0.3.0"
 dependencies = [

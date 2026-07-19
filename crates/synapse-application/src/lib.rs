@@ -17,8 +17,9 @@ use synapse_core::{
 mod human;
 
 pub use human::{
-    AdmittedProposalHandle, HumanAuthorityProfileConfig, HumanAuthorityProfileHandle,
-    HumanDecisionCandidate, HumanDecisionPermit, RegisteredHumanDecisionHandle,
+    AdmittedProposalHandle, DurableProposalBinding, HumanAuthorityProfileConfig,
+    HumanAuthorityProfileHandle, HumanDecisionCandidate, HumanDecisionPermit,
+    RegisteredHumanDecisionHandle,
 };
 
 static NEXT_APPLICATION_INSTANCE: AtomicU64 = AtomicU64::new(1);
@@ -380,6 +381,8 @@ pub enum ApplicationError {
     ProjectAccessDenied,
     ExecutionPermitInvalid,
     ExecutionFailed,
+    StaleBase,
+    RefConflict,
     ConfigInvalid,
     ServiceUnavailable,
     Core(RepositoryError),
@@ -392,6 +395,8 @@ impl ApplicationError {
             Self::ProjectAccessDenied => "project_access_denied",
             Self::ExecutionPermitInvalid => "execution_permit_invalid",
             Self::ExecutionFailed => "execution_failed",
+            Self::StaleBase => "stale_base",
+            Self::RefConflict => "ref_conflict",
             Self::ConfigInvalid => "configuration_invalid",
             Self::ServiceUnavailable => "service_unavailable",
             Self::Core(error) => error.code(),
@@ -406,6 +411,8 @@ impl fmt::Display for ApplicationError {
             Self::ProjectAccessDenied => formatter.write_str("project access denied"),
             Self::ExecutionPermitInvalid => formatter.write_str("execution permit invalid"),
             Self::ExecutionFailed => formatter.write_str("execution failed"),
+            Self::StaleBase => formatter.write_str("the accepted base changed"),
+            Self::RefConflict => formatter.write_str("the proposal target changed"),
             Self::ConfigInvalid => formatter.write_str("application configuration invalid"),
             Self::ServiceUnavailable => formatter.write_str("application service unavailable"),
             Self::Core(error) => error.fmt(formatter),
@@ -1192,10 +1199,11 @@ fn allocate_application_instance() -> Result<u64> {
 }
 
 fn map_preflight_error(error: RepositoryError) -> ApplicationError {
-    if matches!(error.code(), "storage_error" | "resource_limit") {
-        ApplicationError::ServiceUnavailable
-    } else {
-        ApplicationError::ConfigInvalid
+    match error.code() {
+        "stale_base" => ApplicationError::StaleBase,
+        "ref_conflict" => ApplicationError::RefConflict,
+        "storage_error" | "resource_limit" => ApplicationError::ServiceUnavailable,
+        _ => ApplicationError::ConfigInvalid,
     }
 }
 

@@ -1,0 +1,9 @@
+{
+  "contract": "synapsegit.generic-artifact",
+  "contract_version": 1,
+  "path_profile": "relative-nfc-portable-v1",
+  "supported_entry_kinds": ["regular_file"],
+  "supported_dispositions": ["adopted_unchanged", "rejected", "deferred"],
+  "source_attributions": ["caller_supplied_ai_attributed"],
+  "mapper_writes_refs": false
+}

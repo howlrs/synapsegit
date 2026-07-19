@@ -41,6 +41,91 @@ impl fmt::Debug for AdmittedProposalHandle {
     }
 }
 
+/// Trusted, durable identifiers used to rebind one admitted proposal after restart.
+///
+/// This value is control-plane configuration, not a bearer capability. It is
+/// intentionally not serializable; an embedding service persists its own
+/// versioned journal representation and reconstructs this value only after
+/// authenticating and authorizing the project. The application rechecks every
+/// Ref/head binding before creating a normal process-local registration, and
+/// final publication still performs the complete Core Human Decision validation.
+#[derive(Clone, Eq, PartialEq)]
+pub struct DurableProposalBinding {
+    pub(crate) project: ProjectSelector,
+    pub(crate) proposal_ref_name: String,
+    pub(crate) proposal_head: String,
+    pub(crate) decision_ref_name: String,
+    pub(crate) decision_head: String,
+}
+
+impl DurableProposalBinding {
+    pub fn new(
+        project: ProjectSelector,
+        proposal_ref_name: impl Into<String>,
+        proposal_head: impl Into<String>,
+        decision_ref_name: impl Into<String>,
+        decision_head: impl Into<String>,
+    ) -> Self {
+        Self {
+            project,
+            proposal_ref_name: proposal_ref_name.into(),
+            proposal_head: proposal_head.into(),
+            decision_ref_name: decision_ref_name.into(),
+            decision_head: decision_head.into(),
+        }
+    }
+
+    pub fn project(&self) -> &ProjectSelector {
+        &self.project
+    }
+
+    pub fn proposal_ref_name(&self) -> &str {
+        &self.proposal_ref_name
+    }
+
+    pub fn proposal_head(&self) -> &str {
+        &self.proposal_head
+    }
+
+    pub fn decision_ref_name(&self) -> &str {
+        &self.decision_ref_name
+    }
+
+    pub fn decision_head(&self) -> &str {
+        &self.decision_head
+    }
+
+    fn validate(&self) -> Result<()> {
+        if [
+            self.project.as_str(),
+            &self.proposal_ref_name,
+            &self.proposal_head,
+            &self.decision_ref_name,
+            &self.decision_head,
+        ]
+        .into_iter()
+        .any(|value| !valid_control_value(value))
+            || self
+                .proposal_ref_name
+                .strip_prefix("proposal/")
+                .is_none_or(str::is_empty)
+            || self
+                .decision_ref_name
+                .strip_prefix("decision/")
+                .is_none_or(str::is_empty)
+        {
+            return Err(ApplicationError::ConfigInvalid);
+        }
+        Ok(())
+    }
+}
+
+impl fmt::Debug for DurableProposalBinding {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("DurableProposalBinding(<redacted trusted binding>)")
+    }
+}
+
 /// Reusable, process-local trusted authority for one direct human reviewer.
 #[derive(Clone)]
 pub struct HumanAuthorityProfileConfig {
@@ -432,6 +517,93 @@ where
         Ok(RegisteredHumanDecisionHandle {
             application_instance: self.instance,
             project: profile_handle.project.clone(),
+            registration_serial: serial,
+        })
+    }
+
+    /// Rebind a journaled proposal to this process and register one Human decision.
+    ///
+    /// The durable binding is accepted only from the trusted control plane. It
+    /// never restores an old handle or permit. Under the project publication
+    /// fence, this method checks the live Human profile, exact Proposal Ref/head,
+    /// and exact canonical Decision Ref/head before creating the same ordinary
+    /// one-shot registration used by [`Self::register_human_decision`].
+    pub fn register_recovered_human_decision(
+        &self,
+        profile_handle: &HumanAuthorityProfileHandle,
+        binding: &DurableProposalBinding,
+        candidate: HumanDecisionCandidate,
+    ) -> Result<RegisteredHumanDecisionHandle> {
+        candidate.validate()?;
+        binding.validate()?;
+        if profile_handle.application_instance != self.instance
+            || profile_handle.project != binding.project.as_str()
+        {
+            return Err(ApplicationError::ConfigInvalid);
+        }
+        let slot = self.control_project(&binding.project)?;
+        let _gate = slot.publication_gate.enter()?;
+
+        let profile = {
+            let state = lock(&self.security)?;
+            state
+                .human_profiles
+                .get(&profile_handle.profile_serial)
+                .filter(|profile| {
+                    !profile.suspended
+                        && profile.config.project.as_str() == binding.project.as_str()
+                        && profile.config.decision_ref_name == binding.decision_ref_name
+                })
+                .cloned()
+                .ok_or(ApplicationError::ConfigInvalid)?
+        };
+        {
+            let repository = lock(&slot.repository)?;
+            let current_proposal = repository
+                .refs()
+                .get(&binding.proposal_ref_name)
+                .map_err(|_| ApplicationError::ServiceUnavailable)?
+                .map(|record| record.head);
+            let current_decision = repository
+                .refs()
+                .get(&binding.decision_ref_name)
+                .map_err(|_| ApplicationError::ServiceUnavailable)?
+                .map(|record| record.head);
+            if current_proposal.as_deref() != Some(binding.proposal_head.as_str()) {
+                return Err(ApplicationError::RefConflict);
+            }
+            if current_decision.as_deref() != Some(binding.decision_head.as_str()) {
+                return Err(ApplicationError::StaleBase);
+            }
+        }
+
+        let mut state = lock(&self.security)?;
+        state
+            .human_profiles
+            .get(&profile_handle.profile_serial)
+            .filter(|live| {
+                !live.suspended
+                    && live.generation == profile.generation
+                    && live.config.project.as_str() == binding.project.as_str()
+                    && live.config.decision_ref_name == binding.decision_ref_name
+            })
+            .ok_or(ApplicationError::ConfigInvalid)?;
+        let serial = state.allocate_serial()?;
+        state.human_registrations.insert(
+            serial,
+            HumanDecisionRegistrationRecord {
+                project: binding.project.0.clone(),
+                profile_serial: profile_handle.profile_serial,
+                profile_generation: profile.generation,
+                decision_head: binding.decision_head.clone(),
+                proposal_ref_name: binding.proposal_ref_name.clone(),
+                proposal_head: binding.proposal_head.clone(),
+                candidate,
+            },
+        );
+        Ok(RegisteredHumanDecisionHandle {
+            application_instance: self.instance,
+            project: binding.project.0.clone(),
             registration_serial: serial,
         })
     }

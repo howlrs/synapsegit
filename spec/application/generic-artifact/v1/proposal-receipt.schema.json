@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "proposal-receipt.schema.json",
+  "title": "SynapseGit generic artifact public proposal receipt v1",
+  "type": "object",
+  "required": [
+    "contract",
+    "contract_version",
+    "review_id",
+    "state",
+    "artifact_manifest_sha256",
+    "review_context_sha256",
+    "source_attribution",
+    "execution_verified"
+  ],
+  "properties": {
+    "contract": { "const": "synapsegit.generic-artifact" },
+    "contract_version": { "const": 1 },
+    "review_id": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "state": { "const": "pending_review" },
+    "artifact_manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "review_context_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "source_attribution": {
+      "const": "caller_supplied_ai_attributed"
+    },
+    "execution_verified": { "const": false }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "capabilities.schema.json",
+  "title": "SynapseGit generic artifact capabilities v1",
+  "type": "object",
+  "required": [
+    "contract",
+    "contract_version",
+    "path_profile",
+    "supported_entry_kinds",
+    "supported_dispositions",
+    "source_attributions",
+    "mapper_writes_refs"
+  ],
+  "properties": {
+    "contract": { "const": "synapsegit.generic-artifact" },
+    "contract_version": { "const": 1 },
+    "path_profile": { "const": "relative-nfc-portable-v1" },
+    "supported_entry_kinds": {
+      "type": "array",
+      "prefixItems": [{ "const": "regular_file" }],
+      "items": false,
+      "minItems": 1,
+      "maxItems": 1
+    },
+    "supported_dispositions": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "adopted_unchanged" },
+        { "const": "rejected" },
+        { "const": "deferred" }
+      ],
+      "items": false,
+      "minItems": 3,
+      "maxItems": 3
+    },
+    "source_attributions": {
+      "type": "array",
+      "prefixItems": [
+        { "const": "caller_supplied_ai_attributed" }
+      ],
+      "items": false,
+      "minItems": 1,
+      "maxItems": 1
+    },
+    "mapper_writes_refs": { "const": false }
+  },
+  "additionalProperties": false
+}

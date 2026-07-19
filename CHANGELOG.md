@@ -8,6 +8,33 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ### Added
 
+- A provider-neutral `synapse-artifact` Rust boundary and frozen
+  `synapsegit.generic-artifact` v1 application contract for bounded regular
+  files. The mapper validates the complete manifest before its first CAS
+  write, rejects non-regular entries and unsafe or colliding portable paths,
+  builds deterministic nested ManifestTrees, and never updates a Ref. The
+  `begin_artifact_proposal` / `decide_artifact_proposal` source API bootstraps
+  one Ref-empty repository and routes one Proposal plus one adopt/reject/defer
+  Decision through `synapse-application` and Core in the same process. Its
+  non-serializable pending authority and getter-only receipts omit repository
+  paths, Refs/heads, Core OIDs, authority records, permits, and credentials.
+  The separate frozen JSON contract adds an opaque review locator for a future
+  transport integration. V1 accepts only caller-supplied AI-attributed bytes,
+  always marks execution unverified, and cannot represent a trusted executor;
+  verified execution requires a future negotiated contract version.
+- A trusted `DurableProposalBinding` recovery registration for
+  `synapse-application` and a separate `synapse-artifact-journal` SQLite
+  storage primitive. A new application process can check server-owned exact
+  Proposal and canonical Decision bindings under the project fence before it
+  creates an ordinary one-shot Human registration; it does not deserialize an
+  old handle or permit, and final publication still passes through the full
+  `HumanDecisionRuntime`. The journal stores an opaque `ReviewId`, bounded
+  review state, and one hashed/fingerprinted Decision intent for idempotent
+  replay, but is neither authentication nor publication authority.
+  The journal and recovery registration are not yet wired into the same-process
+  generic workflow, so it is not restart-resumable. No HTTP/CLI/UI, model
+  invocation, production service, or sequential/existing-project workflow is
+  added, and tagged binaries and distribution terms are unchanged.
 - A frozen publication-comprehension corpus with separate complete
   adopt/reject/defer and incomplete-only bundles, a fixed questionnaire and
   semantic oracle, privacy canaries, response/protocol contracts, candidate

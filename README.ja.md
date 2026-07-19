@@ -109,14 +109,46 @@ resume、cleanup、history書換えを行いません。
 | 人／AI帰属provenanceと比較情報を含むreport | 実装済み。AI outputはcaller-supplied |
 | original／current比較 | primary Blobのbyte identityのみ。comparabilityは常にpartial |
 | local browser UI | read表示、boundedな三file import／same-process `adopt`・`reject`・`defer`、read-only incomplete-session diagnostics、確認付きbackground `fsck`を実装済み。archive maintenanceはCLIのみ |
+| generic regular-file artifact building block | current `main`のRust libraryとしてbounded deterministic mapper、same-processの単一Proposal／Decision workflow、固定v1 public-safe contract、trustedなrestart再登録、別SQLite review／idempotency journalを実装。workflowはjournal未統合／restart非対応で、HTTP、CLI、browser UI、production serviceは提供しない |
 | content-addressed object、typed closure、Ref CAS、reflog | 実装済み、repository test対象 |
 | `fsck`、checksum付きdirectory export、verified restore | local repository formatで実装済み |
 | 人とAI向けのread-only履歴presentation | v0.3.0に収録。canonical JSON、Markdown、JavaScriptなしHTML、manifest、checksum、Synapse／GitHub target layoutをdeterministicなlocal bundleとして生成し、upload／network accessは行わない |
 | public multi-user service | architectureのみ。未実装 |
 | pixel registration、視覚的／物理的な差分解析 | 未実装 |
 
-「実装済み」は、このrepositoryのtestで検証される範囲を意味します。real-user認証、network
-transport、production運用、一般利用者向けapplicationの完成を意味しません。
+「実装済み」は、このrepositoryのtestで検証される範囲を意味します。current `main`のsource／
+API-contract boundaryと明記したrowはuntaggedなsource／schema surfaceを表し、transport統合のtest完了を
+意味しません。どちらもreal-user認証、network transport、production運用、一般利用者向けapplicationの
+完成を意味しません。
+
+current `main`には、sibling applicationがgenericなregular-file reviewを実装するための
+評価用building blockもあります。`synapse-artifact`はregular-file manifest全体を検証し、Refを
+進めずにnested site Treeへdeterministicに変換します。trustedな
+`begin_artifact_proposal`／`decide_artifact_proposal` workflowは、Refのないrepository一つを初期化し、
+一つのProposalと`adopted_unchanged`／`rejected`／`deferred`のDecision一つを
+`synapse-application`／Core経由で同一process内に記録します。pending authorityはnon-serializableかつ
+one-shotで、既存repository、連続Proposal、restart resumeは対象外です。
+v1 typeとconvenience workflowが扱うのはcaller-supplied AI-attributed bytesだけで、verified executionを
+表現できません。SynapseGit自身はmodelを呼びません。
+`decide_artifact_proposal`の呼出しはtrusted process authorityであり、browser userの認証証明ではありません。
+host-authenticated one-shot approval境界を追加するまでHTTPへ直結しません（[#24](https://github.com/howlrs/synapsegit/issues/24)）。
+
+固定された
+[`synapsegit.generic-artifact` v1 contract](./spec/application/generic-artifact/v1/README.md)の
+opaque `ReviewId`はlookup locatorであり、authorityではありません。別SQLite journalは
+server-ownedなproposal binding、bounded review state、idempotentなDecision intentを保持できます。
+`DurableProposalBinding`は、新しく構築したtrusted applicationがcurrent Proposal／Decision Refを
+確認してexact bindingを再登録するための値です。permitを復元せず、final Decisionは引き続き
+`HumanDecisionRuntime`のvalidationとCASを通ります。
+
+Rust workflowのreceiptはgetter-onlyなprocess内valueであり、このJSON transport schemaをserializeする
+実装ではありません。journal／recovery primitiveもworkflowから自動利用されません。
+
+これらはcurrent `main`のsource-level Rust／application-contract capabilityであり、tagged v0.3.0
+binaryの機能ではありません。journal統合／restart-resume orchestration、HTTP／CLI route、model invocation、generic browser editor、
+multi-process authorization、production利用、配布許可は提供しません。v0.3.0 Creator Pilotと
+localhost UIは引き続き画像専用で、そのpending review authorityはsame-processかつrestart後に
+resumeできません。
 
 tagged v0.3.0の`synapse-local` binaryにはbrowser import／review、専用diagnostics、bounded browser
 `fsck`が含まれます。review authorityとmaintenance job stateはprocess-localで、restart後に
@@ -160,6 +192,7 @@ application route、archive verificationはRustが担当します。componentの
 | commandとerrorを調べる | [CLI reference](./docs/cli_reference.md) |
 | read-only local publication bundleを生成する | [CLI reference](./docs/cli_reference.md#synapse-present-companion-cli) |
 | publicationの理解度を評価する | [complete／incomplete-only固定コーパス](./docs/evaluation/publication-comprehension/v1/) |
+| generic regular-file contractをembedする | [Generic artifact v1](./spec/application/generic-artifact/v1/README.md) |
 | 成熟度と次の作業を確認する | [Project status](./docs/project_status.md) |
 | trust、privacy、security boundaryを確認する | [Security model](./docs/security_model.md) |
 | protocolを実装する | [Core Protocol v0.1](./spec/core/v0.1/README.md) |
