@@ -1312,8 +1312,10 @@ dependencies = [
  "serde_json",
  "sha2",
  "synapse-application",
+ "synapse-artifact-journal",
  "synapse-canonical",
  "synapse-core",
+ "synapse-schema",
  "synapse-sqlite",
  "unicode-normalization",
 ]
@@ -1441,10 +1443,13 @@ dependencies = [
 name = "synapse-publication"
 version = "0.3.0"
 dependencies = [
+ "jsonschema",
  "rustix",
  "serde",
  "serde_json",
  "sha2",
+ "synapse-application",
+ "synapse-artifact",
  "synapse-canonical",
  "synapse-core",
  "synapse-creator",
@@ -1456,6 +1461,7 @@ name = "synapse-schema"
 version = "0.3.0"
 dependencies = [
  "jsonschema",
+ "serde",
  "serde_json",
  "synapse-canonical",
  "unicode-normalization",

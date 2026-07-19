@@ -79,6 +79,24 @@ pub struct RefReadPage {
     pub next_after_event_id: Option<i64>,
 }
 
+/// One consistent Ref snapshot plus bounded aggregate evidence for a candidate
+/// head across the complete history of one Ref.
+///
+/// The history is aggregated inside SQLite rather than materialized, so the
+/// result remains bounded even when the Ref has more events than one reflog
+/// page. `candidate_touch_count` counts events where the candidate is either
+/// the old or new head. `exact_transition_count` counts only the caller-bound
+/// old-to-candidate CAS, and `exact_transition_entry` is its newest matching
+/// event. `latest_entry` is the Ref's newest event.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RefTransitionEvidence {
+    pub snapshot: RefSnapshot,
+    pub candidate_touch_count: u64,
+    pub exact_transition_count: u64,
+    pub exact_transition_entry: Option<ReflogEntry>,
+    pub latest_entry: Option<ReflogEntry>,
+}
+
 /// Complete SQLite-owned state needed by an archive export/restore.
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
 pub struct RefArchive {
@@ -581,6 +599,79 @@ impl SqliteRefStore {
         limit: usize,
     ) -> Result<RefReadPage> {
         self.read_reflog_page_with_hook(ref_name, after_event_id, limit, || {})
+    }
+
+    /// Capture current Refs and complete-history aggregate evidence for one
+    /// candidate transition in the same SQLite read transaction.
+    pub fn read_ref_transition_evidence(
+        &self,
+        ref_name: &str,
+        expected_old_head: Option<&str>,
+        candidate_head: &str,
+    ) -> Result<RefTransitionEvidence> {
+        validate_ref_name(ref_name)?;
+        if let Some(expected_old_head) = expected_old_head {
+            validate_commit_oid(expected_old_head)?;
+        }
+        validate_commit_oid(candidate_head)?;
+        let transaction = self.connection.unchecked_transaction()?;
+        let snapshot = load_snapshot_count_limited(&transaction, MAX_REF_SNAPSHOT_ENTRIES)?;
+        let touch_count = transaction.query_row(
+            "SELECT COUNT(*) FROM ref_events
+             WHERE ref_name = ?1 AND (old_head = ?2 OR new_head = ?2)",
+            params![ref_name, candidate_head],
+            |row| row.get::<_, i64>(0),
+        )?;
+        let candidate_touch_count =
+            u64::try_from(touch_count).map_err(|_| RefStoreError::ArchiveInvalid {
+                message: "candidate transition count is negative".into(),
+            })?;
+        let exact_count = transaction.query_row(
+            "SELECT COUNT(*) FROM ref_events
+             WHERE ref_name = ?1
+               AND ((old_head IS NULL AND ?2 IS NULL) OR old_head = ?2)
+               AND new_head = ?3",
+            params![ref_name, expected_old_head, candidate_head],
+            |row| row.get::<_, i64>(0),
+        )?;
+        let exact_transition_count =
+            u64::try_from(exact_count).map_err(|_| RefStoreError::ArchiveInvalid {
+                message: "exact transition count is negative".into(),
+            })?;
+        let exact_transition_entry = transaction
+            .query_row(
+                "SELECT id, ref_name, old_head, new_head,
+                        occurred_at_unix_nanos, actor, message
+                 FROM ref_events
+                 WHERE ref_name = ?1
+                   AND ((old_head IS NULL AND ?2 IS NULL) OR old_head = ?2)
+                   AND new_head = ?3
+                 ORDER BY id DESC
+                 LIMIT 1",
+                params![ref_name, expected_old_head, candidate_head],
+                reflog_entry_from_row,
+            )
+            .optional()?;
+        let latest_entry = transaction
+            .query_row(
+                "SELECT id, ref_name, old_head, new_head,
+                        occurred_at_unix_nanos, actor, message
+                 FROM ref_events
+                 WHERE ref_name = ?1
+                 ORDER BY id DESC
+                 LIMIT 1",
+                [ref_name],
+                reflog_entry_from_row,
+            )
+            .optional()?;
+        transaction.commit()?;
+        Ok(RefTransitionEvidence {
+            snapshot,
+            candidate_touch_count,
+            exact_transition_count,
+            exact_transition_entry,
+            latest_entry,
+        })
     }
 
     fn read_reflog_page_with_hook(

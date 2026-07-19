@@ -43,6 +43,7 @@ apply a stricter application profile but must not weaken these checks.
 | `review-status.schema.json` | Durable review/outcome query result |
 | `public-error.schema.json` | Safe failure returned by the application boundary |
 | `digest-vectors.json` | Frozen manifest/context digest inputs and outputs |
+| `scaled-integer-vectors-v1.json` | Supplemental exact-decimal normalization and context-digest vectors |
 | `fixtures/` | Positive frozen instances used by upstream and downstream contract tests |
 
 `review_id` is an opaque, randomly generated 256-bit locator encoded as exactly
@@ -52,9 +53,13 @@ project-routed before a service resolves it. Malformed, unknown, and forbidden
 identifiers must not become a project or review oracle.
 Publishing a Human Decision additionally requires host authentication and
 project authorization before the trusted workflow is invoked. Passing a
-public review request to `decide_artifact_proposal` is not authentication; the
-mandatory one-shot host approval integration is tracked in
-[issue #24](https://github.com/howlrs/synapsegit/issues/24).
+public review request or `review_id` to `decide_artifact_proposal` is not
+authentication. The Rust boundary requires an opaque, expiring one-shot
+approval issued by an embedding-host `Authenticator` and server-owned project
+ACL. It binds the exact actor/session, ACL epoch, Proposal/Decision heads,
+disposition, and rationale presence/bytes, and is consumed before Decision
+object or Ref mutation. Credentials and approvals never appear in this public
+contract or the durable journal.
 
 The two SHA-256 fields bind application-owned canonical bytes. Exact golden
 inputs and outputs are fixed in `digest-vectors.json`:
@@ -75,6 +80,41 @@ inputs and outputs are fixed in `digest-vectors.json`:
 These digests establish byte bindings only. They do not prove authorship,
 rights, truth, semantic correctness, visual correctness, or physical change.
 
+## Exact numeric application context
+
+JSON fraction and exponent tokens are outside the Synapse canonical numeric
+domain. Values such as dimensions and confidence ratios should be converted
+from their original decimal strings to the Core v0.1 `ScaledInteger` shape,
+whose value is `mantissa * 10^scale`. For example, `1440.0 px` normalizes to
+`{"mantissa":"144","scale":1,"unit":"px"}`, while `0.9200` normalizes to
+`{"mantissa":"92","scale":-2,"unit":"ratio"}`.
+
+```json
+{
+  "geometry": {
+    "css_width": { "mantissa": "144", "scale": 1, "unit": "px" }
+  },
+  "confidence": { "mantissa": "92", "scale": -2, "unit": "ratio" }
+}
+```
+
+Conversion must operate on the exact decimal string and must not pass through
+binary floating point. `scaled-integer-vectors-v1.json` fixes successful
+normalization, stable rejection reasons, and the resulting canonical review
+context digest for equivalent decimal spellings. This new vector is frozen as
+`scaled-integer-decimal-v1`; the existing frozen `digest-vectors.json` file is
+unchanged.
+
+For every `equivalent` case, `review_context_input` freezes the exact canonical
+UTF-8 bytes hashed by `review_context_sha256`. The conformance wrapper is
+exactly `{"measurement":<scaled>}` with no extra members or whitespace, where
+`<scaled>` is that case's normalized object. Each listed decimal spelling must
+produce the same normalized object, the same wrapper bytes, and the recorded
+digest. This single-key wrapper belongs to the
+`scaled-integer-decimal-v1` vector profile only; an application may define a
+different reviewed-context schema, but it must freeze and hash its own exact
+canonical JSON bytes.
+
 ## Attribution boundary
 
 `caller_supplied_ai_attributed` always has `execution_verified: false`. It means
@@ -90,6 +130,16 @@ field.
 closed failure. `retryable_failure` may be retried only according to the
 server-owned durable intent. `outcome_unknown` must be reconciled by querying
 trusted local state and must not trigger a blind Decision replay.
+
+The local durable Rust orchestration writes a private Proposal intent before
+Proposal CAS and exposes a `review_id` only after verifying exact publication.
+It writes an exact Decision intent before Decision CAS and commits a terminal
+outcome only after live Ref/reflog reconciliation and bounded selected-site
+checkout. After restart it authenticates again and reconstructs fresh
+process-local authority from trusted configuration plus the journal and
+immutable graph; it never deserializes an old credential, admitted handle,
+approval, registration, or permit. This is an implementation of the frozen
+state semantics, not a new field or authority mechanism in these JSON schemas.
 
 For a committed Decision, `adopted_unchanged` selects the exact proposal
 snapshot. `rejected` and `deferred` retain the exact base snapshot. Modified,

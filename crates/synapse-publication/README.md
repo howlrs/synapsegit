@@ -1,10 +1,11 @@
 # synapse-publication
 
 `synapse-publication` is the read-only presentation layer for SynapseGit creator
-history and provides the companion `synapse-present` binary. It opens the
-existing CAS without creating or mutating it, captures the Ref database through
-a bounded stable private copy, and generates a reviewable local
-`PublicationBundle` for people and machines.
+history and generic-artifact Decisions, and provides the companion
+`synapse-present` binary. The creator-history path opens the existing CAS
+without creating or mutating it, captures the Ref database through a bounded
+stable private copy, and generates a reviewable local `PublicationBundle` for
+people and machines.
 
 The bundle contains canonical `projection.json`, escaped `story.md`, a
 JavaScript-free `index.html`, `manifest.json`, `checksums.json`, and a
@@ -57,3 +58,51 @@ remain explicitly `not_run` until performed.
 This crate does not change the SynapseGit Core protocol or the meaning of
 `synapse export`, which remains the verified restorable Core archive command.
 It does not publish to GitHub or a hosted Synapse service.
+
+## Generic-artifact public projection v1
+
+The generic-artifact API is a separate, explicitly dispatched profile. It does
+not reuse or change the creator publication v1 schemas, renderer, bundle bytes,
+or verifier.
+
+- Profile: `org.synapsegit.generic-artifact-publication`, version `1`
+- Projection: `org.synapsegit.generic-artifact-public-projection`, version `1`
+- Renderer: `org.synapsegit.generic-artifact-publication-renderer`, version `1`
+- Bundle: `org.synapsegit.generic-artifact-publication-bundle`, version `1`
+
+`build_generic_artifact_complete_projection` accepts a
+`TrustedArtifactDecisionBinding` and calls the artifact checkout boundary. A
+complete projection is returned only after canonical Decision lineage, the
+Human disposition, selected snapshot, every selected regular file, and the
+application manifest digest verify. The public accepted-site binding contains
+the manifest SHA-256, file count, and byte count, but no Core OID. Its identity
+is byte-and-path identity only; it is not proof of authorship, rights, truth,
+semantic equivalence, visual equivalence, or physical change.
+
+Pending and incomplete projections require a non-serializable
+`TrustedGenericArtifactStatus`. They contain no digest, OID, repository
+locator, Decision receipt, selected site, or Human disposition and explicitly
+identify their facts as bounded trusted display input rather than Synapse
+authority.
+
+The only application metadata accepted by this profile is a strict, bounded
+`ReviewedPublicTargetV1` sidecar. It carries LP Studio product/API/schema
+versions plus a reviewed target ID, kind, label, and accepted/proposal capture
+source. It has no field for DOM paths or quotes, page paths, geometry, prompts,
+provider responses, private rationale, raw site paths or bytes, repository
+paths, or internal Actor, Policy, Grant, Ref, Commit, and Tree identifiers.
+
+`export_generic_artifact_bundle` writes an atomic local bundle from an already
+detached projection. Synapse and GitHub layouts reuse byte-identical canonical
+`projection.json`, escaped `story.md`, and script-free `index.html`; only their
+local `target/` copies differ. The API has no Git, credential, remote, or
+network input and performs no such operation. The caller must select a new
+destination outside every source repository; the detached public projection
+intentionally contains no private repository path with which the export phase
+could infer that boundary.
+
+The schemas, semantic rules, and golden vectors are in
+[`spec/application/generic-artifact-publication/v1`](../../spec/application/generic-artifact-publication/v1/).
+Future remote publication, Git import, identity mapping, GitHub App, and hosted
+service work is isolated in
+[`docs/generic_artifact_publication_roadmap.md`](../../docs/generic_artifact_publication_roadmap.md).

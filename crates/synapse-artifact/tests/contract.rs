@@ -1,10 +1,12 @@
 use serde_json::{Value as JsonValue, json};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::str::FromStr;
 use synapse_artifact::{
     ArtifactLimits, ArtifactManifestEntry, RegularFileManifest, artifact_manifest_sha256,
     review_context_sha256,
 };
+use synapse_schema::{ScaledInteger, Unit};
 
 fn contract_root() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../spec/application/generic-artifact/v1")
@@ -74,6 +76,52 @@ fn digest_implementation_matches_the_frozen_cross_language_vectors() {
     assert_eq!(
         review_context_sha256(vector["review_context_input"].as_str().unwrap().as_bytes()).unwrap(),
         vector["review_context_sha256"].as_str().unwrap()
+    );
+}
+
+#[test]
+fn exact_decimal_construction_matches_the_additional_scaled_integer_vectors() {
+    let vector = read_json(&contract_root().join("scaled-integer-vectors-v1.json"));
+    assert_eq!(vector["status"], "frozen");
+
+    for case in vector["equivalent"].as_array().unwrap() {
+        let unit = Unit::from_str(case["unit"].as_str().unwrap()).unwrap();
+        let mut observed_digest = None;
+        for decimal in case["decimals"].as_array().unwrap() {
+            let scaled = ScaledInteger::from_decimal_str(decimal.as_str().unwrap(), unit).unwrap();
+            assert_eq!(serde_json::to_value(&scaled).unwrap(), case["scaled"]);
+            let context = serde_json::to_vec(&json!({"measurement": scaled})).unwrap();
+            let review_context_input = case["review_context_input"].as_str().unwrap();
+            assert_eq!(context, review_context_input.as_bytes());
+            let digest = review_context_sha256(review_context_input.as_bytes()).unwrap();
+            assert_eq!(digest, case["review_context_sha256"].as_str().unwrap());
+            if let Some(previous) = &observed_digest {
+                assert_eq!(previous, &digest);
+            }
+            observed_digest = Some(digest);
+        }
+    }
+
+    for case in vector["valid"].as_array().unwrap() {
+        let unit = Unit::from_str(case["unit"].as_str().unwrap()).unwrap();
+        let scaled =
+            ScaledInteger::from_decimal_str(case["decimal"].as_str().unwrap(), unit).unwrap();
+        assert_eq!(serde_json::to_value(scaled).unwrap(), case["scaled"]);
+    }
+
+    for case in vector["invalid"].as_array().unwrap() {
+        let error = match Unit::from_str(case["unit"].as_str().unwrap()) {
+            Ok(unit) => ScaledInteger::from_decimal_str(case["decimal"].as_str().unwrap(), unit)
+                .unwrap_err(),
+            Err(error) => error,
+        };
+        assert_eq!(error.kind().as_str(), case["reason"].as_str().unwrap());
+    }
+
+    let context = &vector["review_context"];
+    assert_eq!(
+        review_context_sha256(context["input"].as_str().unwrap().as_bytes()).unwrap(),
+        context["sha256"].as_str().unwrap()
     );
 }
 

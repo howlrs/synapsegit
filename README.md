@@ -116,7 +116,7 @@ session. See the
 | Human/AI-attributed provenance and a comparison-aware report | Implemented; AI output remains caller-supplied |
 | Original/current comparison | Primary blob byte identity only; always partial comparability |
 | Local browser interface | Read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, and confirmed background `fsck`; archive maintenance remains CLI-only |
-| Generic regular-file artifact building blocks | Current-`main` Rust libraries provide a bounded deterministic mapper, one same-process Proposal/Decision workflow, a frozen v1 public-safe contract, trusted restart re-registration, and a separate SQLite review/idempotency journal; the workflow is not journal-integrated or restart-resumable and has no HTTP, CLI, browser UI, or production service |
+| Generic regular-file artifact building blocks | Current-`main` Rust libraries provide a bounded deterministic mapper and checkout, sequential Proposal/Decision workflow, host-authenticated one-shot approval, a SQLite journal-integrated restart/reconciliation boundary, a frozen v1 public-safe contract, and a separate local public projection; there is no HTTP, CLI, browser UI, model invocation, multi-process control plane, or production service |
 | Content-addressed objects, typed closure, Ref CAS, and reflog | Implemented and covered by repository tests |
 | `fsck`, checksum-bound directory export, and verified restore | Implemented for the local repository format |
 | Read-only history presentation for people and AI | Included in v0.3.0 as a deterministic local bundle: canonical JSON, Markdown, no-JavaScript HTML, manifest, checksums, and Synapse/GitHub target layouts; no upload or network access |
@@ -133,39 +133,51 @@ Current `main` includes evaluation-only building blocks for sibling
 applications implementing generic regular-file review. `synapse-artifact`
 validates a complete regular-file manifest and deterministically maps it to a
 nested site Tree without advancing a Ref. Its trusted
-`begin_artifact_proposal` / `decide_artifact_proposal` workflow initializes one
-Ref-empty repository, publishes one Proposal, and records one
+workflow initializes a profile-owned repository, publishes at most one active
+Proposal from each exact canonical Decision head, and records one
 `adopted_unchanged`, `rejected`, or `deferred` Decision through
-`synapse-application` and Core in the same process. The pending authority is
-non-serializable and one-shot; existing repositories, sequential proposals,
-and restart resume are outside this workflow. The v1 type and convenience
-workflow record caller-supplied AI-attributed bytes only and cannot represent
-verified execution; SynapseGit invokes no model.
-Calling `decide_artifact_proposal` is trusted-process authority, not proof that
-a browser user authenticated. Direct HTTP wiring is therefore unsupported
-until a host-authenticated one-shot approval boundary is supplied ([#24](https://github.com/howlrs/synapsegit/issues/24)).
+`synapse-application` and Core. A completed Decision can become the verified
+accepted base for the next Proposal; each attempt has a fresh deterministic Ref
+and immutable identity, while prior Proposal history remains reachable.
+
+The same-process pending authority remains non-serializable and one-shot.
+`decide_artifact_proposal` additionally requires an opaque, expiring
+`ArtifactDecisionApproval` issued only after the embedding host authenticates
+the reviewer and checks a server-owned project ACL. The approval is bound to
+the exact actor/session, security epoch, Proposal and expected Decision heads,
+disposition, rationale presence and bytes, and is burned before Decision object
+or Ref mutation. It is not reconstructed from browser fields or a `ReviewId`.
+The v1 workflow still records caller-supplied AI-attributed bytes only and
+cannot represent verified execution; SynapseGit invokes no model.
 
 The frozen
 [`synapsegit.generic-artifact` v1 contract](./spec/application/generic-artifact/v1/README.md)
 uses an opaque `ReviewId` as a lookup locator, not as authority. A separate
-SQLite journal can retain server-owned proposal bindings, bounded review state,
-and an idempotent Decision intent; `DurableProposalBinding` lets a newly
-constructed trusted application re-register that exact binding after checking
-the current Proposal and Decision Refs. It never restores a permit, and the
-final Decision still goes through `HumanDecisionRuntime` validation and CAS.
-The binding assumes an untampered trusted journal; it is not cryptographic
-evidence that the original Proposal passed a particular process runtime
-capability intersection.
+SQLite journal and explicit orchestration boundary register a private Proposal
+intent before Proposal CAS, finalize the public-safe locator only after exact
+publication verification, persist an exact Decision intent before Decision
+CAS, and commit a terminal outcome only after live Ref/reflog reconciliation
+and bounded selected-site checkout. Exact retries are idempotent. After a
+restart, trusted configuration plus journal facts are checked against immutable
+objects and one consistent live Ref state before fresh application authority is
+constructed. Credentials, admitted handles, approvals, registrations, and
+permits are never serialized or restored; the reviewer must authenticate again
+and obtain a new approval, and final publication still passes through ordinary
+`HumanDecisionRuntime` validation and CAS.
 
-The Rust workflow receipts are getter-only process values, not serialized
-implementations of those JSON transport schemas. The journal and recovery
-primitives are not automatically invoked by the workflow.
+The binding assumes untampered trusted local configuration and journal storage;
+it is not cryptographic evidence that the original Proposal passed a particular
+process runtime capability intersection. Core Ref/reflog and journal SQLite
+transactions are separate, so crash windows are resolved by explicit bounded
+reconciliation rather than by claiming cross-database atomicity. Rust trusted
+workflow values are getter-only process values, not browser-supplied authority.
 
 These are source-level Rust/application-contract capabilities on current
 `main`, not features of the tagged v0.3.0 binaries. They do not provide a
-journal-integrated/restart-resumable orchestrator, HTTP/CLI route, model
-invocation, a generic browser editor, multi-process authorization, production
-use, or a distribution permission. The v0.3.0
+background service that resumes work automatically, an HTTP/CLI route, model
+invocation, a generic browser editor, durable identity or ACL storage,
+multi-process linearizability, production use, or a distribution permission.
+The v0.3.0
 Creator Pilot and localhost UI remain image-specific; their pending review
 authority is still same-process and non-resumable.
 
@@ -184,6 +196,15 @@ GitHub. Private
 rationale, internal Actor IDs, repository paths, and raw assets stay omitted;
 raw-asset rendering is not implemented, and a public note is separate
 author-supplied text. See the [CLI reference](./docs/cli_reference.md).
+
+Separately, current `main` exposes a versioned generic-artifact projection and
+local bundle API. A complete projection is built only through the bounded
+Decision checkout above; pending/incomplete projections carry no repository or
+authority identifiers. Canonical JSON, escaped Markdown, script-free HTML,
+manifest, checksums, and local Synapse/GitHub layouts are generated without Git
+or network access. Remote Synapse/GitHub adapters, Git import and provenance,
+identity mapping, a GitHub App, and a hosted service remain distinct roadmap
+work; this source-only slice does not complete [#17](https://github.com/howlrs/synapsegit/issues/17).
 
 ## How it works
 
@@ -216,6 +237,7 @@ local application routes, and archive verification. Read the
 | Generate a read-only local publication bundle | [CLI reference](./docs/cli_reference.md#synapse-present-companion-cli) |
 | Evaluate publication comprehension | [Frozen complete and incomplete-only corpus](./docs/evaluation/publication-comprehension/v1/) |
 | Embed the generic regular-file contract | [Generic artifact v1](./spec/application/generic-artifact/v1/README.md) |
+| Build or extend a generic-artifact public projection | [Generic publication profile](./spec/application/generic-artifact-publication/v1/README.md) / [integration roadmap](./docs/generic_artifact_publication_roadmap.md) |
 | Evaluate current maturity and next work | [Project status](./docs/project_status.md) |
 | Review trust, privacy, and security limits | [Security model](./docs/security_model.md) |
 | Implement the protocol | [Core Protocol v0.1](./spec/core/v0.1/README.md) |

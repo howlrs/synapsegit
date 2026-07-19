@@ -521,6 +521,73 @@ where
         })
     }
 
+    /// Verify a recovered Proposal/Decision binding without issuing authority.
+    ///
+    /// This is a read-only preflight for trusted orchestration that must reject
+    /// a stale approval before it creates candidate Decision objects. It uses
+    /// the same project fence, live profile generation, and exact Ref/head
+    /// checks as recovery registration, but creates no registration or permit.
+    pub fn verify_recovered_human_decision_binding(
+        &self,
+        profile_handle: &HumanAuthorityProfileHandle,
+        binding: &DurableProposalBinding,
+    ) -> Result<()> {
+        binding.validate()?;
+        if profile_handle.application_instance != self.instance
+            || profile_handle.project != binding.project.as_str()
+        {
+            return Err(ApplicationError::ConfigInvalid);
+        }
+        let slot = self.control_project(&binding.project)?;
+        let _gate = slot.publication_gate.enter()?;
+
+        let profile = {
+            let state = lock(&self.security)?;
+            state
+                .human_profiles
+                .get(&profile_handle.profile_serial)
+                .filter(|profile| {
+                    !profile.suspended
+                        && profile.config.project.as_str() == binding.project.as_str()
+                        && profile.config.decision_ref_name == binding.decision_ref_name
+                })
+                .cloned()
+                .ok_or(ApplicationError::ConfigInvalid)?
+        };
+        {
+            let repository = lock(&slot.repository)?;
+            let current_proposal = repository
+                .refs()
+                .get(&binding.proposal_ref_name)
+                .map_err(|_| ApplicationError::ServiceUnavailable)?
+                .map(|record| record.head);
+            let current_decision = repository
+                .refs()
+                .get(&binding.decision_ref_name)
+                .map_err(|_| ApplicationError::ServiceUnavailable)?
+                .map(|record| record.head);
+            if current_proposal.as_deref() != Some(binding.proposal_head.as_str()) {
+                return Err(ApplicationError::RefConflict);
+            }
+            if current_decision.as_deref() != Some(binding.decision_head.as_str()) {
+                return Err(ApplicationError::StaleBase);
+            }
+        }
+
+        let state = lock(&self.security)?;
+        state
+            .human_profiles
+            .get(&profile_handle.profile_serial)
+            .filter(|live| {
+                !live.suspended
+                    && live.generation == profile.generation
+                    && live.config.project.as_str() == binding.project.as_str()
+                    && live.config.decision_ref_name == binding.decision_ref_name
+            })
+            .ok_or(ApplicationError::ConfigInvalid)?;
+        Ok(())
+    }
+
     /// Rebind a journaled proposal to this process and register one Human decision.
     ///
     /// The durable binding is accepted only from the trusted control plane. It

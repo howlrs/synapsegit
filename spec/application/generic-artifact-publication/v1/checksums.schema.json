@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.synapsegit.dev/application/generic-artifact-publication/v1/checksums.schema.json",
+  "title": "Generic artifact local publication checksums v1",
+  "type": "object",
+  "required": ["schema", "algorithm", "files"],
+  "properties": {
+    "schema": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "org.synapsegit.generic-artifact-publication-checksums" },
+        "version": { "const": 1 }
+      },
+      "additionalProperties": false
+    },
+    "algorithm": { "const": "sha256" },
+    "files": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 7,
+      "items": {
+        "type": "object",
+        "required": ["path", "sha256", "byte_len"],
+        "properties": {
+          "path": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9._/-]+$",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "byte_len": { "type": "integer", "minimum": 0, "maximum": 16777216 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

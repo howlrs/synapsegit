@@ -11,13 +11,43 @@ use std::io::Cursor;
 use synapse_core::{Repository, RepositoryError};
 use unicode_normalization::UnicodeNormalization;
 
+mod approval;
+mod checkout;
+mod durable;
 mod workflow;
 
+pub use approval::{ArtifactApprovalError, ArtifactApprovalRegistry, ArtifactDecisionApproval};
+pub use checkout::{
+    ArtifactCheckoutError, ArtifactCheckoutLimits, CheckedOutArtifact, CheckoutResult,
+    TrustedArtifactDecisionBinding, checkout_artifact_decision,
+};
+pub use durable::{
+    ArtifactReviewId, DurableArtifactCheckoutState, DurableArtifactDecisionStatus,
+    DurableArtifactError, DurableArtifactProposalRecovery, DurableArtifactResult,
+    DurableArtifactReviewState, DurableArtifactReviewStatus, DurableArtifactSelectedSnapshot,
+    DurablePendingArtifactReview, PreparedDurableArtifactDecision, PreparedDurableArtifactProposal,
+    PublishedDurableArtifactDecision, PublishedDurableArtifactProposal,
+    ReconciledDurableArtifactReview, commit_published_durable_artifact_decision,
+    commit_published_durable_artifact_proposal, get_durable_artifact_review_status,
+    prepare_durable_artifact_decision, prepare_durable_artifact_proposal,
+    publish_prepared_durable_artifact_decision, publish_prepared_durable_artifact_proposal,
+    reconcile_durable_artifact_review, recover_durable_artifact_proposal,
+    recover_durable_artifact_review,
+};
+pub use synapse_schema::{
+    CanonicalTimestamp, CanonicalTimestampError, CanonicalTimestampErrorKind, ScaledInteger,
+    ScaledIntegerError, ScaledIntegerErrorKind, Unit,
+};
 pub use workflow::{
-    ArtifactDecisionOptions, ArtifactDecisionReceipt, ArtifactProposalReceipt,
-    PendingArtifactProposal, PendingArtifactState, TrustedArtifactProjectConfig, WorkflowError,
-    artifact_manifest_sha256, begin_artifact_proposal, decide_artifact_proposal,
-    review_context_sha256,
+    ArtifactDecisionOptions, ArtifactDecisionPublication, ArtifactDecisionReceipt,
+    ArtifactProposalReceipt, PendingArtifactProposal, PendingArtifactState,
+    PreparedArtifactDecision, PreparedArtifactProposal, TrustedArtifactProjectConfig,
+    WorkflowError, artifact_manifest_sha256, begin_artifact_proposal, begin_next_artifact_proposal,
+    begin_next_artifact_proposal_at_head, decide_artifact_proposal, prepare_artifact_decision,
+    prepare_artifact_proposal, prepare_next_artifact_proposal,
+    prepare_next_artifact_proposal_at_head, publish_prepared_artifact_decision,
+    publish_prepared_artifact_proposal, recover_prepared_artifact_proposal,
+    recover_published_artifact_proposal, review_context_sha256,
 };
 
 pub const CONTRACT_NAME: &str = "synapsegit.generic-artifact";

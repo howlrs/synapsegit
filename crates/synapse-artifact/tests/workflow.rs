@@ -1,11 +1,14 @@
+mod support;
+
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
+use support::approved_decide;
 use synapse_artifact::{
     ArtifactDecisionOptions, ArtifactDisposition, ArtifactLimits, ArtifactManifestEntry,
     ArtifactSourceAttribution, PendingArtifactState, RegularFileManifest,
-    TrustedArtifactProjectConfig, WorkflowError, begin_artifact_proposal, decide_artifact_proposal,
+    TrustedArtifactProjectConfig, WorkflowError, begin_artifact_proposal,
 };
 use synapse_core::Repository;
 
@@ -92,14 +95,18 @@ fn same_process_workflow_publishes_proposal_and_adopted_decision() {
 
     let binding = pending.durable_binding();
     assert!(binding.project().as_str().starts_with("urn:uuid:"));
-    assert_eq!(binding.proposal_ref_name(), "proposal/artifact/adopt-flow");
+    assert!(
+        binding
+            .proposal_ref_name()
+            .starts_with("proposal/artifact/adopt-flow/")
+    );
     assert_eq!(binding.decision_ref_name(), "decision/artifact/adopt-flow");
     let debug_binding = format!("{binding:?}");
     assert!(debug_binding.contains("redacted"));
     assert!(!debug_binding.contains("proposal/artifact"));
 
     let proposed_digest = pending.receipt().artifact_manifest_sha256().to_owned();
-    let receipt = decide_artifact_proposal(
+    let receipt = approved_decide(
         &mut pending,
         &ArtifactDecisionOptions {
             disposition: ArtifactDisposition::AdoptedUnchanged,
@@ -134,7 +141,7 @@ fn rejecting_or_deferring_selects_the_identical_base_manifest() {
     let mut rejected = begin(&rejected_temp, "reject-flow");
     let mut deferred = begin(&deferred_temp, "defer-flow");
 
-    let rejected_receipt = decide_artifact_proposal(
+    let rejected_receipt = approved_decide(
         &mut rejected,
         &ArtifactDecisionOptions {
             disposition: ArtifactDisposition::Rejected,
@@ -142,7 +149,7 @@ fn rejecting_or_deferring_selects_the_identical_base_manifest() {
         },
     )
     .unwrap();
-    let deferred_receipt = decide_artifact_proposal(
+    let deferred_receipt = approved_decide(
         &mut deferred,
         &ArtifactDecisionOptions {
             disposition: ArtifactDisposition::Deferred,
@@ -181,7 +188,7 @@ fn rejecting_or_deferring_selects_the_identical_base_manifest() {
 fn authority_is_one_shot_and_an_initialized_repository_is_not_reused() {
     let temp = TempProject::new("one-shot");
     let mut pending = begin(&temp, "one-shot-flow");
-    decide_artifact_proposal(
+    approved_decide(
         &mut pending,
         &ArtifactDecisionOptions {
             disposition: ArtifactDisposition::Rejected,
@@ -190,7 +197,7 @@ fn authority_is_one_shot_and_an_initialized_repository_is_not_reused() {
     )
     .unwrap();
 
-    let second_decision = decide_artifact_proposal(
+    let second_decision = approved_decide(
         &mut pending,
         &ArtifactDecisionOptions {
             disposition: ArtifactDisposition::Rejected,
@@ -198,7 +205,7 @@ fn authority_is_one_shot_and_an_initialized_repository_is_not_reused() {
         },
     )
     .unwrap_err();
-    assert_eq!(second_decision.code(), "artifact_decision_unavailable");
+    assert_eq!(second_decision.code(), "artifact_approval_invalid");
 
     let second_proposal = begin_artifact_proposal(
         &temp.config("another-flow"),
