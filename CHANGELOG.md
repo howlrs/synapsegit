@@ -12,29 +12,38 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   `synapsegit.generic-artifact` v1 application contract for bounded regular
   files. The mapper validates the complete manifest before its first CAS
   write, rejects non-regular entries and unsafe or colliding portable paths,
-  builds deterministic nested ManifestTrees, and never updates a Ref. The
-  `begin_artifact_proposal` / `decide_artifact_proposal` source API bootstraps
-  one Ref-empty repository and routes one Proposal plus one adopt/reject/defer
-  Decision through `synapse-application` and Core in the same process. Its
-  non-serializable pending authority and getter-only receipts omit repository
-  paths, Refs/heads, Core OIDs, authority records, permits, and credentials.
-  The separate frozen JSON contract adds an opaque review locator for a future
-  transport integration. V1 accepts only caller-supplied AI-attributed bytes,
-  always marks execution unverified, and cannot represent a trusted executor;
-  verified execution requires a future negotiated contract version.
+  builds deterministic nested ManifestTrees, and never updates a Ref. Staged
+  source APIs support an initial Proposal and sequential Proposals from exact
+  canonical Decision heads, retain prior attempts, enforce one active review,
+  and reverify the selected accepted base before each new Proposal. Human
+  Decisions require a host-authenticated, project-authorized, expiring one-shot
+  approval bound to the exact actor, session, project epoch, Proposal, expected
+  Decision head, disposition, and private-rationale bytes. Non-serializable
+  pending authority and getter-only receipts omit repository paths, Refs/heads,
+  Core OIDs, authority records, permits, and credentials. V1 accepts only
+  caller-supplied AI-attributed bytes, always marks execution unverified, and
+  cannot represent a trusted executor; verified execution requires a future
+  negotiated contract version.
 - A trusted `DurableProposalBinding` recovery registration for
-  `synapse-application` and a separate `synapse-artifact-journal` SQLite
-  storage primitive. A new application process can check server-owned exact
-  Proposal and canonical Decision bindings under the project fence before it
-  creates an ordinary one-shot Human registration; it does not deserialize an
-  old handle or permit, and final publication still passes through the full
-  `HumanDecisionRuntime`. The journal stores an opaque `ReviewId`, bounded
-  review state, and one hashed/fingerprinted Decision intent for idempotent
-  replay, but is neither authentication nor publication authority.
-  The journal and recovery registration are not yet wired into the same-process
-  generic workflow, so it is not restart-resumable. No HTTP/CLI/UI, model
-  invocation, production service, or sequential/existing-project workflow is
-  added, and tagged binaries and distribution terms are unchanged.
+  `synapse-application`, a separate `synapse-artifact-journal` SQLite store,
+  and an explicit durable artifact orchestrator. The orchestrator records a
+  private Proposal intent before CAS, allocates a public opaque `ReviewId` only
+  after exact Proposal publication, records an exact Decision intent before
+  CAS, and commits an outcome only after bounded live-state reconciliation and
+  selected-site checkout. Restart recovery authenticates and authorizes before
+  locator lookup, reconstructs fresh application authority without restoring
+  credentials, approvals, registrations, handles, or permits, and distinguishes
+  current from superseded Decisions without returning stale bytes. Final
+  publication still passes through the complete `HumanDecisionRuntime`; the
+  journal is neither authentication nor publication authority and is not
+  atomic with the Core Ref store.
+- A versioned generic-artifact public projection and deterministic local-only
+  bundle with canonical JSON, escaped Markdown, script-free HTML, manifests,
+  checksums, and Synapse/GitHub staging layouts. Complete projections require
+  the bounded verified Decision checkout; pending and incomplete projections
+  carry no repository or authority identifiers. The renderer performs no Git,
+  network, upload, or credential operation. No HTTP/CLI/UI transport, model
+  invocation, multi-process control plane, or production service is added.
 - A frozen publication-comprehension corpus with separate complete
   adopt/reject/defer and incomplete-only bundles, a fixed questionnaire and
   semantic oracle, privacy canaries, response/protocol contracts, candidate

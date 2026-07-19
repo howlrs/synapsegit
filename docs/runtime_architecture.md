@@ -14,11 +14,10 @@ flowchart LR
     CREATOR["synapse-creator<br/>local create-only Pilot"] --> OBS["synapse-observation<br/>deterministic byte identity"]
     CREATOR --> APP
     CREATOR --> CORE
-    ARTIFACT["synapse-artifact<br/>mapper + same-process one-shot workflow"] --> CORE
+    ARTIFACT["synapse-artifact<br/>mapper + sequential workflow + durable reconciliation"] --> CORE
     ARTIFACT --> APP
-    JOURNAL["synapse-artifact-journal<br/>separate SQLite state / idempotency"]
-    TRANSPORT["Journal / recovery / HTTP / CLI / UI integration<br/>not implemented"] -. future composition .-> ARTIFACT
-    TRANSPORT -. future composition .-> JOURNAL
+    JOURNAL["synapse-artifact-journal<br/>private intents + exact outcomes"] --> ARTIFACT
+    TRANSPORT["HTTP / CLI / UI integration<br/>not implemented"] -. future composition .-> ARTIFACT
     OBS --> CORE
     REQUEST["AI / Human request<br/>credential + project + opaque handle/permit"] --> APP["synapse-application<br/>local AI + narrow Human routes"]
     CONTROL["Trusted control plane<br/>profiles + candidate + executor + Clock"] --> APP

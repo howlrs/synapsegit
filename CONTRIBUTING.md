@@ -97,8 +97,8 @@ flowchart TB
 | `synapse-sqlite` | transactional Ref compare-and-swap、reflog、logical archive snapshot |
 | `synapse-projection` | disposable SQLite query index、explicit atomic rebuild、Ref-scoped timeline／Observation dependency／Analysis lineage／closure query |
 | `synapse-application` | process-local authenticated Creative AI／narrow Human Decision route、one-shot permit、publication fence、server-owned durable Proposal bindingからのchecked recovery registration |
-| `synapse-artifact` | bounded regular-file mapper／contractと、Ref-empty repository一つでcaller-supplied AI-attributed Proposal／Decision一回をApplication／Coreへ通すsame-process workflow。journal統合、restart resume、transport、model invocationは提供しない |
-| `synapse-artifact-journal` | opaque `ReviewId`、server-owned Proposal／Decision binding、bounded state、hashed idempotent Decision intentを保持する別SQLite storage primitive。authentication／authorization／permitではない |
+| `synapse-artifact` | bounded regular-file mapper／checkout、exact Decision headごとのsequential Proposal／Decision、host-authenticated one-shot approval、journalとlive Core stateを照合するexplicit restart reconciliationを提供するtrusted library境界。HTTP／CLI／UI transport、model invocation、multi-process control planeは提供しない |
+| `synapse-artifact-journal` | private Proposal intent、verified publication後のopaque `ReviewId`、server-owned Proposal／Decision binding、bounded state、exact Decision intent／outcomeを保持する別SQLite storage primitive。authentication／authorization／permit／Core receiptではない |
 | `synapse-observation` | ordered Observationと全media Blobを検証し、primary Blob OIDのbyte identityだけを`partial`なAnalysisResultとして記録する保守的adapter |
 | `synapse-creator` | 3つのopaque fileからimported CaptureProfile、session-local provenance、byte-identity analysis、AI proposal、Human Decision、Projection lineageを検証するsnapshot-bound reportを組み立てるcreate-only local Pilot orchestration |
 | `synapse-publication` | existing read-only CASと、checkpoint済みRef SQLiteのdigest検証付きprivate stable copyから、provider-neutral PublicProjection、Human／Machine view、manifest／checksum、local target layoutを生成・検証するpresentation layer |
@@ -110,8 +110,9 @@ flowchart TB
 disposable SQLite query indexは別の`synapse-projection`に置き、正本やauthorizationへ使わない。
 `synapse-observation`はCore／Schema／Canonicalの上位adapterであり、Refを更新しない。
 `synapse-artifact`はgeneric artifact向けmapper／contractを置く上位境界で、mapper単体はRefを更新しない。
-crate内のtrusted workflowだけがApplication／Coreを組み合わせる。journal／recoveryを使うrestart-resumable
-orchestrationとHTTP／CLI／UI transportはまだ存在しない。
+crate内のtrusted workflowだけがApplication／Coreを組み合わせ、explicit durable orchestrationだけが
+journal factsをlive Ref／reflog／immutable graph／bounded checkoutへ照合してfresh authorityを構築する。
+HTTP／CLI／UI transport、automatic background resume、multi-process orderingはまだ存在しない。
 `synapse-artifact-journal`のSQLiteは`refs.sqlite3`やProjectionStoreとは別の
 application storageであり、そのrowをauthorityやCore publication receiptとして扱わない。
 `synapse-creator`はApplication／Core／Observation／Projectionを組み合わせる上位orchestrationであり、
