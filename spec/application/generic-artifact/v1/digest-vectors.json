@@ -1,0 +1,20 @@
+{
+  "contract": "synapsegit.generic-artifact",
+  "contract_version": 1,
+  "manifest_profile": "sha256-domain-length-framed-v1",
+  "manifest": {
+    "files": [
+      {
+        "path": "index.html",
+        "content_hex": "4c50"
+      },
+      {
+        "path": "assets/data.bin",
+        "content_hex": "00ff10"
+      }
+    ]
+  },
+  "artifact_manifest_sha256": "3d1e9884c243da349a9f1aab642339caaabd098fe28855c60d34c1d18f3995b6",
+  "review_context_input": "{\"selection\":{\"block_id\":\"hero\"},\"request\":{\"kind\":\"copy_change\"}}",
+  "review_context_sha256": "883724dc6d67e45df58fa26613a6a6ee5ff6778e829b87c9a8a5b9d9511b8b2a"
+}

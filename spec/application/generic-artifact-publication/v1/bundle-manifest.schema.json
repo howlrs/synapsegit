@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.synapsegit.dev/application/generic-artifact-publication/v1/bundle-manifest.schema.json",
+  "title": "Generic artifact local publication bundle manifest v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "profile",
+    "projection_schema",
+    "renderer_profile",
+    "generator",
+    "target",
+    "visibility",
+    "outcome_state",
+    "publication_state",
+    "network_operations",
+    "git_operations",
+    "projection_path",
+    "story_path",
+    "html_path",
+    "checksums_path",
+    "projection_sha256",
+    "accepted_site_manifest_sha256",
+    "review_required_before_external_copy"
+  ],
+  "properties": {
+    "schema": { "$ref": "#/$defs/bundleSchema" },
+    "profile": { "$ref": "#/$defs/publicationProfile" },
+    "projection_schema": { "$ref": "#/$defs/projectionSchema" },
+    "renderer_profile": { "$ref": "#/$defs/rendererProfile" },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "synapse-publication" },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9._+-]+$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "target": { "enum": ["synapse", "github"] },
+    "visibility": { "enum": ["private_review", "public"] },
+    "outcome_state": { "enum": ["complete", "pending", "incomplete"] },
+    "publication_state": { "const": "local_preview" },
+    "network_operations": { "const": 0 },
+    "git_operations": { "const": 0 },
+    "projection_path": { "const": "projection.json" },
+    "story_path": { "const": "story.md" },
+    "html_path": { "const": "index.html" },
+    "checksums_path": { "const": "checksums.json" },
+    "projection_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "accepted_site_manifest_sha256": {
+      "type": ["string", "null"],
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "review_required_before_external_copy": { "type": "boolean" }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "bundleSchema": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "org.synapsegit.generic-artifact-publication-bundle" },
+        "version": { "const": 1 }
+      },
+      "additionalProperties": false
+    },
+    "publicationProfile": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "org.synapsegit.generic-artifact-publication" },
+        "version": { "const": 1 }
+      },
+      "additionalProperties": false
+    },
+    "projectionSchema": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "org.synapsegit.generic-artifact-public-projection" },
+        "version": { "const": 1 }
+      },
+      "additionalProperties": false
+    },
+    "rendererProfile": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "org.synapsegit.generic-artifact-publication-renderer" },
+        "version": { "const": 1 }
+      },
+      "additionalProperties": false
+    }
+  }
+}

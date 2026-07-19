@@ -358,6 +358,57 @@ fn reflog_page_rejects_unbounded_or_invalid_inputs_before_querying() {
 }
 
 #[test]
+fn transition_evidence_covers_history_beyond_one_reflog_page() {
+    let mut store = SqliteRefStore::open_in_memory().unwrap();
+    let ref_name = "decision/long-history";
+    let mut expected: Option<String> = None;
+    let mut candidate = String::new();
+    let mut candidate_expected = None;
+    for index in 1..=(MAX_REFLOG_PAGE_ENTRIES + 2) {
+        let next = format!("commit:sg-oid-v1:sha256:{index:064x}");
+        candidate_expected = expected.clone();
+        store
+            .compare_and_swap(
+                update(
+                    ref_name,
+                    expected.as_deref(),
+                    &next,
+                    i64::try_from(index).unwrap(),
+                ),
+                &allow_all,
+            )
+            .unwrap();
+        expected = Some(next.clone());
+        candidate = next;
+    }
+
+    let paged = store
+        .read_reflog_page(Some(ref_name), None, MAX_REFLOG_PAGE_ENTRIES)
+        .unwrap();
+    assert!(paged.next_after_event_id.is_some());
+    let evidence = store
+        .read_ref_transition_evidence(ref_name, candidate_expected.as_deref(), &candidate)
+        .unwrap();
+    assert_eq!(evidence.snapshot, store.snapshot().unwrap());
+    assert_eq!(evidence.candidate_touch_count, 1);
+    assert_eq!(evidence.exact_transition_count, 1);
+    assert_eq!(
+        evidence
+            .exact_transition_entry
+            .as_ref()
+            .map(|entry| (entry.old_head.as_deref(), entry.new_head.as_str())),
+        Some((candidate_expected.as_deref(), candidate.as_str()))
+    );
+    assert_eq!(
+        evidence
+            .latest_entry
+            .as_ref()
+            .map(|entry| entry.new_head.as_str()),
+        Some(candidate.as_str())
+    );
+}
+
+#[test]
 fn bounded_snapshot_rejects_one_row_beyond_the_limit() {
     let head_a = commit_oid('a');
     let head_b = commit_oid('b');

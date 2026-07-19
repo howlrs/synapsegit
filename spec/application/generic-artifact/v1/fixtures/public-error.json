@@ -1,0 +1,8 @@
+{
+  "contract": "synapsegit.generic-artifact",
+  "contract_version": 1,
+  "code": "stale_base",
+  "classification": "terminal",
+  "retryable": false,
+  "detail": "The reviewed base is no longer current."
+}

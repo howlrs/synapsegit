@@ -7,9 +7,12 @@
 
 #![forbid(unsafe_code)]
 
+mod generic_artifact;
+mod generic_artifact_render;
 mod model;
 mod render;
 
+pub use generic_artifact::*;
 pub use model::*;
 
 use render::{render_html, render_story};

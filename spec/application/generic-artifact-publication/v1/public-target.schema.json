@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.synapsegit.dev/application/generic-artifact-publication/v1/public-target.schema.json",
+  "title": "Reviewed LP Studio PublicTarget v1",
+  "type": "object",
+  "required": ["schema", "lp_studio", "target"],
+  "properties": {
+    "schema": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "org.synapsegit.lp-studio.public-target" },
+        "version": { "const": 1 }
+      },
+      "additionalProperties": false
+    },
+    "lp_studio": {
+      "type": "object",
+      "required": [
+        "product",
+        "product_version",
+        "api_version",
+        "api_schema_version",
+        "target_schema_version"
+      ],
+      "properties": {
+        "product": { "const": "synapsegit-lp-studio" },
+        "product_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9._+-]+$"
+        },
+        "api_version": { "const": "v1" },
+        "api_schema_version": { "const": "1" },
+        "target_schema_version": { "const": 1 }
+      },
+      "additionalProperties": false
+    },
+    "target": {
+      "type": "object",
+      "required": ["target_id", "kind", "label", "capture_source"],
+      "properties": {
+        "target_id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9._:-]+$"
+        },
+        "kind": {
+          "enum": ["page", "block", "element", "text", "point", "region"]
+        },
+        "label": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "capture_source": { "enum": ["accepted", "proposal"] }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,183 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "review-status.schema.json",
+  "title": "SynapseGit generic artifact public review status v1",
+  "$defs": {
+    "reviewId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "failure": {
+      "type": "object",
+      "required": ["code", "classification", "retryable"],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]+$"
+        },
+        "classification": {
+          "enum": ["terminal", "retryable", "outcome_unknown"]
+        },
+        "retryable": { "type": "boolean" }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "classification": { "const": "terminal" },
+            "retryable": { "const": false }
+          }
+        },
+        {
+          "properties": {
+            "classification": { "const": "retryable" },
+            "retryable": { "const": true }
+          }
+        },
+        {
+          "properties": {
+            "classification": { "const": "outcome_unknown" },
+            "retryable": { "const": false }
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  },
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["contract", "contract_version", "review_id", "state"],
+      "properties": {
+        "contract": { "const": "synapsegit.generic-artifact" },
+        "contract_version": { "const": 1 },
+        "review_id": { "$ref": "#/$defs/reviewId" },
+        "state": { "const": "pending_review" }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "contract",
+        "contract_version",
+        "review_id",
+        "state",
+        "disposition",
+        "reviewed_artifact_manifest_sha256",
+        "selected_snapshot"
+      ],
+      "properties": {
+        "contract": { "const": "synapsegit.generic-artifact" },
+        "contract_version": { "const": 1 },
+        "review_id": { "$ref": "#/$defs/reviewId" },
+        "state": { "const": "decision_committed" },
+        "disposition": {
+          "enum": ["adopted_unchanged", "rejected", "deferred"]
+        },
+        "reviewed_artifact_manifest_sha256": { "$ref": "#/$defs/sha256" },
+        "selected_snapshot": { "enum": ["proposal", "base"] }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "disposition": { "const": "adopted_unchanged" }
+            },
+            "required": ["disposition"]
+          },
+          "then": {
+            "properties": {
+              "selected_snapshot": { "const": "proposal" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "disposition": { "enum": ["rejected", "deferred"] }
+            },
+            "required": ["disposition"]
+          },
+          "then": {
+            "properties": {
+              "selected_snapshot": { "const": "base" }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": ["contract", "contract_version", "review_id", "state", "failure"],
+      "properties": {
+        "contract": { "const": "synapsegit.generic-artifact" },
+        "contract_version": { "const": 1 },
+        "review_id": { "$ref": "#/$defs/reviewId" },
+        "state": { "const": "terminal_denial" },
+        "failure": {
+          "allOf": [
+            { "$ref": "#/$defs/failure" },
+            {
+              "properties": {
+                "classification": { "const": "terminal" },
+                "retryable": { "const": false }
+              }
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": ["contract", "contract_version", "review_id", "state", "failure"],
+      "properties": {
+        "contract": { "const": "synapsegit.generic-artifact" },
+        "contract_version": { "const": 1 },
+        "review_id": { "$ref": "#/$defs/reviewId" },
+        "state": { "const": "retryable_failure" },
+        "failure": {
+          "allOf": [
+            { "$ref": "#/$defs/failure" },
+            {
+              "properties": {
+                "classification": { "const": "retryable" },
+                "retryable": { "const": true }
+              }
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": ["contract", "contract_version", "review_id", "state", "failure"],
+      "properties": {
+        "contract": { "const": "synapsegit.generic-artifact" },
+        "contract_version": { "const": 1 },
+        "review_id": { "$ref": "#/$defs/reviewId" },
+        "state": { "const": "outcome_unknown" },
+        "failure": {
+          "allOf": [
+            { "$ref": "#/$defs/failure" },
+            {
+              "properties": {
+                "classification": { "const": "outcome_unknown" },
+                "retryable": { "const": false }
+              }
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    }
+  ]
+}

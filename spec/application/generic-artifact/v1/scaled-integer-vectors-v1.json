@@ -1,0 +1,97 @@
+{
+  "profile": "scaled-integer-decimal-v1",
+  "status": "frozen",
+  "equivalent": [
+    {
+      "decimals": ["1440", "1440.0", "01440.000"],
+      "unit": "px",
+      "scaled": {
+        "mantissa": "144",
+        "scale": 1,
+        "unit": "px"
+      },
+      "review_context_input": "{\"measurement\":{\"mantissa\":\"144\",\"scale\":1,\"unit\":\"px\"}}",
+      "review_context_sha256": "225b527df30d4a9117ab490f51d55046bb630cab8898cb3dc28ccdd4b46a42ab"
+    },
+    {
+      "decimals": ["0.92", "0.9200", "00.920000"],
+      "unit": "ratio",
+      "scaled": {
+        "mantissa": "92",
+        "scale": -2,
+        "unit": "ratio"
+      },
+      "review_context_input": "{\"measurement\":{\"mantissa\":\"92\",\"scale\":-2,\"unit\":\"ratio\"}}",
+      "review_context_sha256": "a741c8410899aa4dc3f6b9af929df485960493ef48f1abf6d73a9632b9cf4cc9"
+    }
+  ],
+  "valid": [
+    {
+      "decimal": "1440.0",
+      "unit": "px",
+      "scaled": {
+        "mantissa": "144",
+        "scale": 1,
+        "unit": "px"
+      }
+    },
+    {
+      "decimal": "0.9200",
+      "unit": "ratio",
+      "scaled": {
+        "mantissa": "92",
+        "scale": -2,
+        "unit": "ratio"
+      }
+    },
+    {
+      "decimal": "0001.2300",
+      "unit": "unitless",
+      "scaled": {
+        "mantissa": "123",
+        "scale": -2,
+        "unit": "unitless"
+      }
+    },
+    {
+      "decimal": "0.000",
+      "unit": "unitless",
+      "scaled": {
+        "mantissa": "0",
+        "scale": 0,
+        "unit": "unitless"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "decimal": "1e3",
+      "unit": "unitless",
+      "reason": "invalid_decimal"
+    },
+    {
+      "decimal": "+1",
+      "unit": "unitless",
+      "reason": "invalid_decimal"
+    },
+    {
+      "decimal": "-0.0",
+      "unit": "unitless",
+      "reason": "negative_zero"
+    },
+    {
+      "decimal": "0.0000000000000000000000001",
+      "unit": "unitless",
+      "reason": "scale_out_of_range"
+    },
+    {
+      "decimal": "1",
+      "unit": "inch",
+      "reason": "invalid_unit"
+    }
+  ],
+  "review_context": {
+    "input": "{\"measurements\":{\"confidence\":{\"mantissa\":\"92\",\"scale\":-2,\"unit\":\"ratio\"},\"width\":{\"mantissa\":\"144\",\"scale\":1,\"unit\":\"px\"}}}",
+    "sha256": "504baaac4da23b26c4ec293833b13f0d2eb021c2b204915ce3f7300ea00670ba"
+  }
+}

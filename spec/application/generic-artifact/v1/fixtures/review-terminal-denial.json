@@ -1,0 +1,11 @@
+{
+  "contract": "synapsegit.generic-artifact",
+  "contract_version": 1,
+  "review_id": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+  "state": "terminal_denial",
+  "failure": {
+    "code": "authorization_denied",
+    "classification": "terminal",
+    "retryable": false
+  }
+}

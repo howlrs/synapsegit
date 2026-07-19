@@ -7,6 +7,14 @@
 
 #![forbid(unsafe_code)]
 
+mod canonical_timestamp;
+mod scaled_integer;
+
+pub use canonical_timestamp::{
+    CanonicalTimestamp, CanonicalTimestampError, CanonicalTimestampErrorKind,
+};
+pub use scaled_integer::{ScaledInteger, ScaledIntegerError, ScaledIntegerErrorKind, Unit};
+
 use jsonschema::{Retrieve, Uri, Validator as JsonSchemaValidator};
 use serde_json::Value as JsonValue;
 use std::cmp::Ordering;
@@ -889,65 +897,11 @@ fn validate_delegation_expiration(value: &Value) -> Result<(), CoreError> {
 }
 
 fn validate_timestamp(value: &str, pointer: &str) -> Result<(), CoreError> {
-    let bytes = value.as_bytes();
-    let lexical = bytes.len() == 30
-        && bytes[4] == b'-'
-        && bytes[7] == b'-'
-        && bytes[10] == b'T'
-        && bytes[13] == b':'
-        && bytes[16] == b':'
-        && bytes[19] == b'.'
-        && bytes[29] == b'Z'
-        && bytes.iter().enumerate().all(|(index, byte)| {
-            matches!(index, 4 | 7 | 10 | 13 | 16 | 19 | 29) || byte.is_ascii_digit()
-        });
-    if !lexical {
+    if CanonicalTimestamp::parse(value).is_err() {
         return Err(CoreError::new(
             ErrorCode::TimestampInvalid,
             format!(
-                "invalid canonical timestamp at {}: {value}",
-                display_pointer(pointer)
-            ),
-        ));
-    }
-
-    let number = |start: usize, end: usize| -> u32 {
-        bytes[start..end]
-            .iter()
-            .fold(0, |value, digit| value * 10 + u32::from(digit - b'0'))
-    };
-    let year = number(0, 4);
-    let month = number(5, 7);
-    let day = number(8, 10);
-    let hour = number(11, 13);
-    let minute = number(14, 16);
-    let second = number(17, 19);
-    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-    let days = [
-        31,
-        if leap { 29 } else { 28 },
-        31,
-        30,
-        31,
-        30,
-        31,
-        31,
-        30,
-        31,
-        30,
-        31,
-    ];
-    let calendar_valid = (1..=12).contains(&month)
-        && day >= 1
-        && day <= days[(month - 1) as usize]
-        && hour <= 23
-        && minute <= 59
-        && second <= 59;
-    if !calendar_valid {
-        return Err(CoreError::new(
-            ErrorCode::TimestampInvalid,
-            format!(
-                "invalid calendar timestamp at {}: {value}",
+                "invalid canonical timestamp at {}",
                 display_pointer(pointer)
             ),
         ));
@@ -999,11 +953,6 @@ fn validate_temporal_precision(value: &Value, pointer: &str) -> Result<(), CoreE
     Ok(())
 }
 
-const UNITS: &[&str] = &[
-    "unitless", "ratio", "percent", "count", "byte", "px", "mm", "m", "ms", "s", "deg", "rad",
-    "kelvin", "celsius", "delta_e",
-];
-
 #[derive(Clone, Copy)]
 struct ScaledNumber<'a> {
     negative: bool,
@@ -1033,18 +982,10 @@ fn validate_scaled_integer(value: &Value, pointer: &str) -> Result<(), CoreError
         return Ok(());
     };
 
-    let digits = mantissa.strip_prefix('-').unwrap_or(mantissa);
-    let mantissa_valid = mantissa == "0"
-        || (!digits.is_empty()
-            && !digits.starts_with('0')
-            && !digits.ends_with('0')
-            && digits.bytes().all(|byte| byte.is_ascii_digit()));
-    if !mantissa_valid
-        || mantissa.len() > 257
-        || !(-24..=24).contains(&scale)
-        || !UNITS.contains(&unit)
-        || (mantissa == "0" && scale != 0)
-    {
+    let normalized = unit
+        .parse::<Unit>()
+        .and_then(|unit| ScaledInteger::try_from_parts(mantissa, scale, unit));
+    if normalized.is_err() {
         return Err(CoreError::new(
             ErrorCode::FixedPointNotNormalized,
             format!("invalid ScaledInteger at {}", display_pointer(pointer)),

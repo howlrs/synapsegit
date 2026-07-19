@@ -1,0 +1,300 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.synapsegit.dev/application/generic-artifact-publication/v1/projection.schema.json",
+  "title": "Generic artifact public projection v1",
+  "type": "object",
+  "required": [
+    "schema",
+    "profile",
+    "generator",
+    "publication",
+    "contracts",
+    "public_target",
+    "outcome",
+    "limitations"
+  ],
+  "properties": {
+    "schema": { "$ref": "#/$defs/projectionSchema" },
+    "profile": { "$ref": "#/$defs/publicationProfile" },
+    "generator": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "synapse-publication" },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9._+-]+$"
+        }
+      },
+      "additionalProperties": false
+    },
+    "publication": {
+      "type": "object",
+      "required": [
+        "visibility",
+        "state",
+        "network_operations",
+        "git_operations",
+        "raw_site_bytes_included",
+        "raw_site_paths_included",
+        "private_rationale_included",
+        "prompt_included",
+        "provider_response_included",
+        "repository_path_included",
+        "internal_authority_ids_included",
+        "training_use_policy"
+      ],
+      "properties": {
+        "visibility": { "enum": ["private_review", "public"] },
+        "state": { "const": "local_preview" },
+        "network_operations": { "const": 0 },
+        "git_operations": { "const": 0 },
+        "raw_site_bytes_included": { "const": false },
+        "raw_site_paths_included": { "const": false },
+        "private_rationale_included": { "const": false },
+        "prompt_included": { "const": false },
+        "provider_response_included": { "const": false },
+        "repository_path_included": { "const": false },
+        "internal_authority_ids_included": { "const": false },
+        "training_use_policy": { "const": "prohibited" }
+      },
+      "additionalProperties": false
+    },
+    "contracts": {
+      "type": "object",
+      "required": ["lp_studio", "generic_artifact", "public_target"],
+      "properties": {
+        "lp_studio": { "$ref": "#/$defs/lpStudio" },
+        "generic_artifact": {
+          "type": "object",
+          "required": ["name", "version"],
+          "properties": {
+            "name": { "const": "synapsegit.generic-artifact" },
+            "version": { "const": 1 }
+          },
+          "additionalProperties": false
+        },
+        "public_target": { "$ref": "#/$defs/publicTargetSchema" }
+      },
+      "additionalProperties": false
+    },
+    "public_target": { "$ref": "#/$defs/publicTarget" },
+    "outcome": {
+      "oneOf": [
+        { "$ref": "#/$defs/completeOutcome" },
+        { "$ref": "#/$defs/pendingOutcome" },
+        { "$ref": "#/$defs/incompleteOutcome" }
+      ]
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 9,
+      "items": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1, "maxLength": 64 },
+          "message": { "type": "string", "minLength": 1, "maxLength": 1024 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "projectionSchema": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "org.synapsegit.generic-artifact-public-projection" },
+        "version": { "const": 1 }
+      },
+      "additionalProperties": false
+    },
+    "publicationProfile": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "org.synapsegit.generic-artifact-publication" },
+        "version": { "const": 1 }
+      },
+      "additionalProperties": false
+    },
+    "publicTargetSchema": {
+      "type": "object",
+      "required": ["name", "version"],
+      "properties": {
+        "name": { "const": "org.synapsegit.lp-studio.public-target" },
+        "version": { "const": 1 }
+      },
+      "additionalProperties": false
+    },
+    "lpStudio": {
+      "type": "object",
+      "required": [
+        "product",
+        "product_version",
+        "api_version",
+        "api_schema_version",
+        "target_schema_version"
+      ],
+      "properties": {
+        "product": { "const": "synapsegit-lp-studio" },
+        "product_version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[A-Za-z0-9._+-]+$"
+        },
+        "api_version": { "const": "v1" },
+        "api_schema_version": { "const": "1" },
+        "target_schema_version": { "const": 1 }
+      },
+      "additionalProperties": false
+    },
+    "publicTarget": {
+      "type": "object",
+      "required": ["schema", "lp_studio", "target"],
+      "properties": {
+        "schema": { "$ref": "#/$defs/publicTargetSchema" },
+        "lp_studio": { "$ref": "#/$defs/lpStudio" },
+        "target": {
+          "type": "object",
+          "required": ["target_id", "kind", "label", "capture_source"],
+          "properties": {
+            "target_id": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9._:-]+$"
+            },
+            "kind": {
+              "enum": ["page", "block", "element", "text", "point", "region"]
+            },
+            "label": { "type": "string", "minLength": 1, "maxLength": 300 },
+            "capture_source": { "enum": ["accepted", "proposal"] }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    },
+    "attribution": {
+      "type": "object",
+      "required": ["mode", "execution_verified", "origin"],
+      "properties": {
+        "mode": { "const": "caller_supplied_ai_attributed" },
+        "execution_verified": { "const": false },
+        "origin": { "const": "frozen_generic_artifact_contract_v1" }
+      },
+      "additionalProperties": false
+    },
+    "acceptedSite": {
+      "type": "object",
+      "required": [
+        "profile",
+        "manifest_sha256",
+        "file_count",
+        "total_bytes",
+        "public_core_oid_included",
+        "identity_limit"
+      ],
+      "properties": {
+        "profile": {
+          "type": "object",
+          "required": ["name", "version"],
+          "properties": {
+            "name": { "const": "synapsegit-generic-artifact-manifest-v1" },
+            "version": { "const": 1 }
+          },
+          "additionalProperties": false
+        },
+        "manifest_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "file_count": { "type": "integer", "minimum": 0 },
+        "total_bytes": { "type": "integer", "minimum": 0 },
+        "public_core_oid_included": { "const": false },
+        "identity_limit": { "type": "string", "minLength": 1, "maxLength": 1024 }
+      },
+      "additionalProperties": false
+    },
+    "completeOutcome": {
+      "type": "object",
+      "required": [
+        "state",
+        "fact_origin",
+        "verification_scope",
+        "source_attribution",
+        "human_disposition",
+        "selected_snapshot",
+        "accepted_site",
+        "status_reason"
+      ],
+      "properties": {
+        "state": { "const": "complete" },
+        "fact_origin": { "const": "verified_from_synapse" },
+        "verification_scope": { "type": "string", "minLength": 1 },
+        "source_attribution": { "$ref": "#/$defs/attribution" },
+        "human_disposition": {
+          "enum": ["adopted_unchanged", "rejected", "deferred"]
+        },
+        "selected_snapshot": { "enum": ["proposal", "base"] },
+        "accepted_site": { "$ref": "#/$defs/acceptedSite" },
+        "status_reason": { "type": "null" }
+      },
+      "additionalProperties": false
+    },
+    "pendingOutcome": {
+      "type": "object",
+      "required": [
+        "state",
+        "fact_origin",
+        "verification_scope",
+        "source_attribution",
+        "human_disposition",
+        "selected_snapshot",
+        "accepted_site",
+        "status_reason"
+      ],
+      "properties": {
+        "state": { "const": "pending" },
+        "fact_origin": { "const": "bounded_trusted_status_input" },
+        "verification_scope": { "type": "string", "minLength": 1 },
+        "source_attribution": { "$ref": "#/$defs/attribution" },
+        "human_disposition": { "type": "null" },
+        "selected_snapshot": { "type": "null" },
+        "accepted_site": { "type": "null" },
+        "status_reason": { "const": "pending_review" }
+      },
+      "additionalProperties": false
+    },
+    "incompleteOutcome": {
+      "type": "object",
+      "required": [
+        "state",
+        "fact_origin",
+        "verification_scope",
+        "source_attribution",
+        "human_disposition",
+        "selected_snapshot",
+        "accepted_site",
+        "status_reason"
+      ],
+      "properties": {
+        "state": { "const": "incomplete" },
+        "fact_origin": { "const": "bounded_trusted_status_input" },
+        "verification_scope": { "type": "string", "minLength": 1 },
+        "source_attribution": { "$ref": "#/$defs/attribution" },
+        "human_disposition": { "type": "null" },
+        "selected_snapshot": { "type": "null" },
+        "accepted_site": { "type": "null" },
+        "status_reason": {
+          "enum": ["retryable_failure", "outcome_unknown", "terminal_denial"]
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
