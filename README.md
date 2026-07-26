@@ -24,6 +24,57 @@ not prove authorship, truth, copyright, permission, or physical change.
 _The actual `synapse-local` project overview, served only from `127.0.0.1`.
 It is not a hosted or multi-user service._
 
+## The problem it makes visible
+
+A final creative file usually hides the decision that produced it:
+
+- Which state was the original reference?
+- What was observed before the proposed change?
+- Which output was attributed to an AI workflow?
+- Did a person adopt it, reject it, or postpone the decision?
+- Can another person verify the exact bytes and history later?
+
+SynapseGit keeps those roles separate. It stores immutable objects, advances
+named Refs through checked history, and records the Human Decision as its own
+event instead of treating the latest generated file as automatically accepted.
+
+| Input and observation | Proposal | Human Decision | Verifiable result |
+|---|---|---|---|
+| Original and current files | Caller-supplied AI-attributed output | `adopt`, `reject`, or `defer` | Report, timeline, integrity check, archive, and local presentation |
+
+## See one complete example
+
+The illustrated [15-minute mural tutorial](./docs/tutorial/README.md) includes
+three ready-to-use synthetic images, exact commands, expected report fields,
+the actual localhost UI, troubleshooting, and a local publication-bundle step.
+
+| Original | Current | AI-attributed proposal |
+|---|---|---|
+| ![Synthetic original coastal mural](./docs/tutorial/assets/mural-original.png) | ![Synthetic current mural with visible conservation issues](./docs/tutorial/assets/mural-current.png) | ![Synthetic restrained treatment proposal](./docs/tutorial/assets/mural-ai-proposal.png) |
+
+You can also run the sample in one command after installing `synapse`:
+
+```bash
+scripts/run_mural_tutorial.sh "$HOME/SynapseGit/mural-tutorial" adopt
+```
+
+The sample images are generated, non-sensitive fixtures. They are not evidence
+of a real artwork or treatment. The tutorial actually runs them through
+SynapseGit; its screenshots are captures of the implemented application, not
+UI mockups.
+
+## Choose your path
+
+| I want to… | Start here |
+|---|---|
+| Understand the idea in five minutes | Continue with [How it works](#how-it-works) |
+| Try a complete visual example | [15-minute mural tutorial](./docs/tutorial/README.md) |
+| Install the three preview binaries | [Installation](./docs/install.md) |
+| Use my own three images | [Three-minute Pilot](#try-it-in-three-minutes) |
+| Inspect a repository in the browser | [Local application runbook](./deploy/local/README.md) |
+| Generate a shareable local read-only view | [`synapse-present` guide](./docs/cli_reference.md#synapse-present-companion-cli) |
+| Evaluate or embed the Rust boundaries | [Documentation index](./docs/README.md) |
+
 ## Who can use this preview
 
 The current v0.4.0 preview is most useful to:
@@ -229,6 +280,17 @@ flowchart LR
     C --> V["Read-only publication bundle\nJSON / Markdown / static HTML"]
 ```
 
+The smallest useful mental model is:
+
+1. **Observe** — retain the exact original and current bytes.
+2. **Propose** — record an output as AI-attributed without claiming how it was
+   generated.
+3. **Decide** — a Human explicitly adopts, rejects, or defers.
+4. **Verify** — inspect IDs, graph relations, Ref history, and repository
+   integrity.
+5. **Present** — derive a local, redacted read-only bundle without changing the
+   authority.
+
 The normative draft and its JSON Schemas live under
 [`spec/core/v0.1`](./spec/core/v0.1/README.md). Rust owns canonicalization,
 object IDs, schema validation, repository integrity, Ref updates, the current
@@ -239,6 +301,7 @@ local application routes, and archive verification. Read the
 
 | Goal | Start here |
 |---|---|
+| Complete the illustrated first-use tutorial | [15-minute mural tutorial](./docs/tutorial/README.md) |
 | Install a release or build from a tag | [Installation](./docs/install.md) |
 | Run the complete source demo | [Core Quickstart](./docs/quickstart.md) |
 | Understand creator and AI-assisted use cases | [Usage guide](./docs/usage_guide.md) |

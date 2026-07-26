@@ -8,6 +8,10 @@ Status: **実装済みの local CLI を対象**<br>
 Audience: 利用を試す人、実装へ参加する人<br>
 所要時間: 初回 dependency build を除いて1分以内
 
+> 画像と実際のlocalhost画面を使って利用者flowを試したい場合は、先に
+> [15分 壁画チュートリアル](./tutorial/README.ja.md)を利用してください。このQuickstartは
+> protocol fixture、archive、restoreまでを開発者向けに確認する低水準flowです。
+
 ## 前提
 
 - Rust 1.88 以降

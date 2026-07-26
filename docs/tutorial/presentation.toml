@@ -1,0 +1,11 @@
+title = "Community Hall Coastal Mural"
+summary = "A synthetic conservation proposal reviewed in SynapseGit."
+creator_display_name = "Tutorial Conservator"
+proposal_agent_display_name = "Caller-supplied AI-attributed proposal"
+
+[sessions.mural-treatment-01]
+title = "Restrained inpainting review"
+public_decision_note = "The tutorial records adoption of the proposed direction; it does not document physical treatment."
+original_caption = "Synthetic earlier reference"
+current_caption = "Synthetic observed state used for review"
+proposal_caption = "Synthetic restrained digital treatment proposal"

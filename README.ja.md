@@ -23,6 +23,56 @@ OID が確認するのは byte identity であり、作者性、真実、著作�
 _実装済みの`synapse-local` project overviewです。`127.0.0.1`だけで配信され、
 hosted serviceやmulti-user serviceではありません。_
 
+## 見えなくなりがちな判断を残す
+
+完成fileだけでは、その結果を選ぶまでの判断が見えなくなります。
+
+- どれがoriginal referenceだったのか
+- 提案前に何をcurrent stateとして観測したのか
+- どのoutputをAI workflowへ帰属させたのか
+- 人は採用、却下、延期のどれを選んだのか
+- 後からexact bytesと履歴を検証できるか
+
+SynapseGitは、これらの役割を分離します。immutable objectを保存し、検査された履歴を
+通じてnamed Refを進め、最後に生成されたfileを自動採用せず、Human Decisionを独立した
+eventとして記録します。
+
+| Input／Observation | Proposal | Human Decision | 検証できる結果 |
+|---|---|---|---|
+| OriginalとCurrent file | caller-suppliedなAI帰属output | `adopt`、`reject`、`defer` | report、timeline、integrity check、archive、local presentation |
+
+## 完成例を見て試す
+
+画像付きの[15分 壁画チュートリアル](./docs/tutorial/README.ja.md)には、すぐ使える3枚の
+synthetic画像、exact command、確認すべきreport field、実際のlocalhost UI、
+troubleshooting、local publication bundle生成までを収録しています。
+
+| Original | Current | AI-attributed proposal |
+|---|---|---|
+| ![syntheticなoriginal海岸壁画](./docs/tutorial/assets/mural-original.png) | ![保存上の変化が見えるsyntheticなcurrent壁画](./docs/tutorial/assets/mural-current.png) | ![syntheticな抑制的処置提案](./docs/tutorial/assets/mural-ai-proposal.png) |
+
+`synapse`のinstall後は、1 commandでも実行できます。
+
+```bash
+scripts/run_mural_tutorial.sh "$HOME/SynapseGit/mural-tutorial" adopt
+```
+
+sample画像は生成したnon-sensitive fixtureで、実在作品や処置のevidenceではありません。
+tutorialでは実際にSynapseGitへ投入しています。掲載screenはmockupではなく、実装済み
+applicationのcaptureです。
+
+## 目的から選ぶ
+
+| やりたいこと | 最初に読むもの |
+|---|---|
+| 5分で考え方を知る | [仕組み](#仕組み) |
+| 画像付きの一連のflowを試す | [15分 壁画チュートリアル](./docs/tutorial/README.ja.md) |
+| preview binaryをinstallする | [Installation](./docs/install.md) |
+| 自分の3画像を使う | [3分で試す](#3分で試す) |
+| browserでrepositoryを見る | [Local application runbook](./deploy/local/README.md) |
+| 共有前にlocal read-only viewを作る | [`synapse-present` guide](./docs/cli_reference.md#synapse-present-companion-cli) |
+| Rust境界／protocolを評価する | [Documentation index](./docs/README.md) |
+
 ## 現在このpreviewを活用できる人
 
 v0.4.0 preview の主な対象は次の利用者です。
@@ -201,6 +251,14 @@ flowchart LR
     C --> V["Read-only publication bundle\nJSON / Markdown / static HTML"]
 ```
 
+最小のmental modelは次の5段階です。
+
+1. **Observe** — original／currentのexact bytesを保持
+2. **Propose** — 生成方法を証明したと主張せず、outputをAI帰属として記録
+3. **Decide** — Humanが採用、却下、延期を明示
+4. **Verify** — ID、graph relation、Ref history、repository integrityを検査
+5. **Present** — authorityを変更せず、redactedなlocal read-only bundleを導出
+
 normative draftとJSON Schemaは[`spec/core/v0.1`](./spec/core/v0.1/README.md)にあります。
 canonicalization、OID、schema validation、repository integrity、Ref update、現在のlocal
 application route、archive verificationはRustが担当します。componentの詳細は
@@ -210,6 +268,7 @@ application route、archive verificationはRustが担当します。componentの
 
 | 目的 | 最初に読む資料 |
 |---|---|
+| 画像付きfirst-use tutorialを完走する | [15分 壁画チュートリアル](./docs/tutorial/README.ja.md) |
 | Releaseをinstallする、tagからbuildする | [Installation](./docs/install.md) |
 | sourceで完全なdemoを動かす | [Core Quickstart](./docs/quickstart.md) |
 | creatorとAI-assisted use caseを知る | [使用ガイド](./docs/usage_guide.md) |
