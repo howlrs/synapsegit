@@ -63,6 +63,7 @@ creator PilotのidentityとAI outputはtrusted local integrationが供給し、�
 
 | 目的 | 最初に読む資料 | 次に読む資料 |
 |---|---|---|
+| 生成sample画像と実画面で最初のDecisionを記録する | [15分 壁画チュートリアル](./tutorial/README.ja.md) | [English tutorial](./tutorial/README.md) |
 | Releaseをinstallし3分で試す | [Installation](./install.md) | [root README](../README.md#try-it-in-three-minutes) |
 | v0.4.0の変更と配布境界を確認する | [Release notes](./releases/v0.4.0.md) | [Project status](./project_status.md) |
 | sourceからCore全体を動かす | [Quickstart](./quickstart.md) | [使用ガイド](./usage_guide.md) |

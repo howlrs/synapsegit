@@ -9,6 +9,8 @@ Status: **Core v0.1 / Stage 0 draft**
 ## 関連資料
 
 - [Documentation index](./README.md)
+- [15分 壁画チュートリアル](./tutorial/README.ja.md)
+- [15-minute mural tutorial (English)](./tutorial/README.md)
 - [v0.4.0 release notes](./releases/v0.4.0.md)
 - [5分Quickstart](./quickstart.md)
 - [Native localhost application起動手順](../deploy/local/README.md)
@@ -65,6 +67,16 @@ local CLIを利用できるtechnical creator、researcher、tool builder、devel
 Coreは既存の制作ソフト、BIM/CAD、ペイントツールを置き換えない。それらを横断して、物理対象、成果物、観測、判断を接続する。
 
 ## Pilotでの基本的な使い方
+
+最短で実装済みflowを体験する場合は、次のsynthetic fixtureを使う
+[15分 壁画チュートリアル](./tutorial/README.ja.md)から始める。
+
+| Original | Current | AI-attributed proposal |
+|---|---|---|
+| ![synthetic original mural](./tutorial/assets/mural-original.png) | ![synthetic current mural](./tutorial/assets/mural-current.png) | ![synthetic AI-attributed proposal](./tutorial/assets/mural-ai-proposal.png) |
+
+このsampleは実在作品や実処置のevidenceではない。実際の`creator-run`、Human Decision、
+`creator-report`、localhost UI、`synapse-present`を一つの再現可能なflowとして示す。
 
 ### 1. 一つの対象を選ぶ
 
