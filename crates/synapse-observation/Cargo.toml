@@ -8,8 +8,11 @@ rust-version.workspace = true
 license-file.workspace = true
 publish.workspace = true
 
+[lints]
+workspace = true
+
 [dependencies]
-serde_json = "1.0.150"
+serde_json.workspace = true
 synapse-canonical = { path = "../synapse-canonical" }
 synapse-core = { path = "../synapse-core" }
 synapse-schema = { path = "../synapse-schema" }
