@@ -393,11 +393,13 @@ pub fn verify_blob_oid(claimed_oid: &str, bytes: &[u8]) -> Result<(), CoreError>
     Ok(())
 }
 
+/// Hash `bytes` with SHA-256 and return the digest as lowercase hex, no prefix.
 pub fn sha256_hex(bytes: &[u8]) -> String {
     lower_hex(Sha256::digest(bytes))
 }
 
-fn lower_hex(bytes: impl IntoIterator<Item = u8>) -> String {
+/// Encode a byte sequence as lowercase hex, no prefix.
+pub fn lower_hex(bytes: impl IntoIterator<Item = u8>) -> String {
     const DIGITS: &[u8; 16] = b"0123456789abcdef";
     let bytes = bytes.into_iter();
     let mut output = String::with_capacity(bytes.size_hint().0.saturating_mul(2));

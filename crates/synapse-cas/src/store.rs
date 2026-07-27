@@ -7,8 +7,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_canonical::{
     CoreError, ErrorCode, ObjectKind, ResourceLimits, Value, canonical_bytes_with_limits,
-    parse_oid, parse_strict_with_limits, structured_oid_unchecked_with_limits, verify_blob_oid,
-    verify_claimed_oid_unchecked_with_limits,
+    lower_hex, parse_oid, parse_strict_with_limits, structured_oid_unchecked_with_limits,
+    verify_blob_oid, verify_claimed_oid_unchecked_with_limits,
 };
 
 const OBJECTS_DIRECTORY: &str = "objects";
@@ -1456,17 +1456,6 @@ fn compare_regular_files(
 
 fn is_lower_hex(byte: u8) -> bool {
     byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte)
-}
-
-fn lower_hex(bytes: impl IntoIterator<Item = u8>) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let bytes = bytes.into_iter();
-    let mut output = String::with_capacity(bytes.size_hint().0.saturating_mul(2));
-    for byte in bytes {
-        output.push(DIGITS[usize::from(byte >> 4)] as char);
-        output.push(DIGITS[usize::from(byte & 0x0f)] as char);
-    }
-    output
 }
 
 #[cfg(unix)]
