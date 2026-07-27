@@ -416,7 +416,11 @@ pub enum CreatorError {
     SessionExists(String),
     SessionIncomplete(String),
     SessionNotFound(String),
-    Io { path: PathBuf, source: io::Error },
+    Io {
+        operation: &'static str,
+        path: PathBuf,
+        source: io::Error,
+    },
     Clock(String),
     Random(String),
     Repository(RepositoryError),
@@ -445,6 +449,14 @@ impl CreatorError {
             Self::Integrity(_) => "fsck_failed",
         }
     }
+
+    fn io(operation: &'static str, path: impl Into<PathBuf>, source: io::Error) -> Self {
+        Self::Io {
+            operation,
+            path: path.into(),
+            source,
+        }
+    }
 }
 
 impl fmt::Display for CreatorError {
@@ -462,7 +474,11 @@ impl fmt::Display for CreatorError {
             Self::SessionNotFound(session) => {
                 write!(formatter, "creator session {session:?} was not found")
             }
-            Self::Io { path, source } => write!(formatter, "{}: {source}", path.display()),
+            Self::Io {
+                operation,
+                path,
+                source,
+            } => write!(formatter, "{operation} {}: {source}", path.display()),
             Self::Clock(message) => formatter.write_str(message),
             Self::Random(message) => formatter.write_str(message),
             Self::Repository(error) => error.fmt(formatter),
@@ -1762,16 +1778,11 @@ fn validate_decision_metadata(options: &CreatorDecisionOptions) -> Result<()> {
 fn validate_input_files(original: &Path, current: &Path, ai_output: &Path) -> Result<()> {
     let mut aggregate_bytes = 0_u64;
     for path in [original, current, ai_output] {
-        let file = File::open(path).map_err(|source| CreatorError::Io {
-            path: path.to_owned(),
-            source,
-        })?;
+        let file = File::open(path)
+            .map_err(|source| CreatorError::io("open creator input file", path, source))?;
         let bytes = file
             .metadata()
-            .map_err(|source| CreatorError::Io {
-                path: path.to_owned(),
-                source,
-            })?
+            .map_err(|source| CreatorError::io("inspect opened creator input file", path, source))?
             .len();
         if bytes > CREATOR_MAX_INPUT_FILE_BYTES {
             return Err(CreatorError::ResourceLimit(format!(
@@ -2138,10 +2149,8 @@ impl AiExecutor for PreparedExecutor {
 }
 
 fn put_file(repository: &Repository, path: &Path) -> Result<String> {
-    let file = File::open(path).map_err(|source| CreatorError::Io {
-        path: path.to_owned(),
-        source,
-    })?;
+    let file = File::open(path)
+        .map_err(|source| CreatorError::io("open creator input Blob", path, source))?;
     Ok(repository
         .put_blob(CreatorFileReader {
             file,

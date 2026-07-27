@@ -5,7 +5,7 @@ use std::error::Error;
 use std::fmt;
 use std::fs::File;
 use std::io::{self, Read};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 use synapse_canonical::{DEFAULT_MAX_STRUCTURED_BYTES, ObjectKind};
@@ -40,7 +40,8 @@ const VERSION: &str = concat!("synapse ", env!("CARGO_PKG_VERSION"));
 enum CliError {
     Usage(String),
     Io {
-        path: String,
+        operation: &'static str,
+        path: PathBuf,
         source: io::Error,
     },
     Core(RepositoryError),
@@ -66,13 +67,25 @@ impl CliError {
             Self::FsckFailed => "fsck_failed",
         }
     }
+
+    fn io(operation: &'static str, path: impl Into<PathBuf>, source: io::Error) -> Self {
+        Self::Io {
+            operation,
+            path: path.into(),
+            source,
+        }
+    }
 }
 
 impl fmt::Display for CliError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Usage(message) => formatter.write_str(message),
-            Self::Io { path, source } => write!(formatter, "{path}: {source}"),
+            Self::Io {
+                operation,
+                path,
+                source,
+            } => write!(formatter, "{operation} {}: {source}", path.display()),
             Self::Core(error) => error.fmt(formatter),
             Self::Creator(error) => error.fmt(formatter),
             Self::CreatorReportUnavailableAfterCommit { session, source } => write!(
@@ -322,10 +335,8 @@ fn print_creator_report(report: &CreatorReport) {
 fn put_blob(args: &[String]) -> Result<(), CliError> {
     let (repo, file, claimed) = parse_put_args(args)?;
     let repository = Repository::open(repo)?;
-    let input = File::open(file).map_err(|source| CliError::Io {
-        path: file.to_owned(),
-        source,
-    })?;
+    let input =
+        File::open(file).map_err(|source| CliError::io("open blob input file", file, source))?;
     let result = match claimed {
         Some(oid) => repository.put_blob_claimed(oid, input)?,
         None => repository.put_blob(input)?,
@@ -413,17 +424,12 @@ fn now_unix_nanos() -> Result<i64, CliError> {
 }
 
 fn read_structured(path: &Path) -> Result<Vec<u8>, CliError> {
-    let file = File::open(path).map_err(|source| CliError::Io {
-        path: path.display().to_string(),
-        source,
-    })?;
+    let file = File::open(path)
+        .map_err(|source| CliError::io("open structured input file", path, source))?;
     let mut bytes = Vec::new();
     file.take(DEFAULT_MAX_STRUCTURED_BYTES as u64 + 1)
         .read_to_end(&mut bytes)
-        .map_err(|source| CliError::Io {
-            path: path.display().to_string(),
-            source,
-        })?;
+        .map_err(|source| CliError::io("read structured input file", path, source))?;
     if bytes.len() > DEFAULT_MAX_STRUCTURED_BYTES {
         return Err(CliError::Usage(format!(
             "{} exceeds the structured input limit",

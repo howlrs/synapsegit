@@ -14,6 +14,14 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   could pass). Canonical timestamp parsing is now single-sourced in
   `synapse-canonical`, which `synapse-schema` and `synapse-core` also
   delegate to.
+- `synapse-creator` and the `synapse` CLI now report the same `Io {
+  operation, path, source }` shape as `synapse-core`, `synapse-cas`, and
+  `synapse-publication`, so I/O failures from creator sessions and CLI
+  commands carry richer operation context (for example, which file was
+  being opened or inspected) instead of only a bare path and the OS error.
+  Machine-readable error codes are unchanged. The pre-1.0 policy of keeping
+  public Rust error enums exhaustive (no new `#[non_exhaustive]`) is now
+  documented in `CONTRIBUTING.md`.
 
 ## [0.4.0] - 2026-07-20
 
