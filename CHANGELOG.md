@@ -6,6 +6,15 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+### Changed
+
+- Publication bundle verification now validates canonical timestamps against
+  the proleptic Gregorian calendar (previously it checked only the lexical
+  wire form, so calendar-invalid values such as month 13 or February 30th
+  could pass). Canonical timestamp parsing is now single-sourced in
+  `synapse-canonical`, which `synapse-schema` and `synapse-core` also
+  delegate to.
+
 ## [0.4.0] - 2026-07-20
 
 ### Added

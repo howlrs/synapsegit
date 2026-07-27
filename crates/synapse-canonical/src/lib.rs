@@ -199,6 +199,159 @@ impl fmt::Display for CoreError {
 
 impl Error for CoreError {}
 
+/// Stable category for a canonical timestamp parse failure.
+///
+/// This mirrors the lexical-versus-calendar distinction used throughout the
+/// workspace's canonical timestamp validators. It intentionally omits an
+/// out-of-range kind: [`parse_canonical_timestamp_unix_nanos`] only parses
+/// text into nanoseconds and never rejects a value for being outside a
+/// representable range (that concern belongs to callers that convert
+/// nanoseconds back into wire text).
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CanonicalTimestampParseErrorKind {
+    /// The value is not exactly `YYYY-MM-DDTHH:mm:ss.nnnnnnnnnZ`.
+    InvalidLexicalForm,
+    /// The value has the right shape but is not a valid proleptic Gregorian
+    /// calendar date and time (for example month 13 or February 30th).
+    InvalidCalendarDate,
+}
+
+/// Error returned when text is not a valid Core v0.1 canonical timestamp.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct CanonicalTimestampParseError {
+    kind: CanonicalTimestampParseErrorKind,
+}
+
+impl CanonicalTimestampParseError {
+    const fn new(kind: CanonicalTimestampParseErrorKind) -> Self {
+        Self { kind }
+    }
+
+    /// Returns the stable category of this parse failure.
+    pub const fn kind(self) -> CanonicalTimestampParseErrorKind {
+        self.kind
+    }
+}
+
+impl fmt::Display for CanonicalTimestampParseError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = match self.kind {
+            CanonicalTimestampParseErrorKind::InvalidLexicalForm => {
+                "timestamp must use YYYY-MM-DDTHH:mm:ss.nnnnnnnnnZ"
+            }
+            CanonicalTimestampParseErrorKind::InvalidCalendarDate => {
+                "timestamp is not a valid Gregorian date and time"
+            }
+        };
+        formatter.write_str(message)
+    }
+}
+
+impl Error for CanonicalTimestampParseError {}
+
+/// Parses a Core v0.1 canonical timestamp into Unix nanoseconds.
+///
+/// The input must be exactly `YYYY-MM-DDTHH:mm:ss.nnnnnnnnnZ`: a fixed-width
+/// ASCII-digit layout with literal `-`, `T`, `:`, `.`, and `Z` separators and
+/// exactly nine fractional digits. Beyond the lexical shape, the calendar
+/// date and time of day must be valid under the proleptic Gregorian
+/// calendar (correct days-per-month, including leap years, and hour/minute/
+/// second within their ordinary ranges).
+///
+/// This is the single source of truth for canonical timestamp parsing in the
+/// workspace: `synapse-schema`, `synapse-core`, and `synapse-publication` all
+/// delegate to this function rather than re-deriving the lexical check or
+/// the civil-calendar arithmetic.
+///
+/// # Errors
+///
+/// Returns [`CanonicalTimestampParseError`] with
+/// [`CanonicalTimestampParseErrorKind::InvalidLexicalForm`] if `value` does
+/// not match the fixed-width wire layout, or
+/// [`CanonicalTimestampParseErrorKind::InvalidCalendarDate`] if it matches
+/// the layout but is not a valid calendar date and time.
+pub fn parse_canonical_timestamp_unix_nanos(
+    value: &str,
+) -> Result<i128, CanonicalTimestampParseError> {
+    let bytes = value.as_bytes();
+    let lexical = bytes.len() == 30
+        && bytes[4] == b'-'
+        && bytes[7] == b'-'
+        && bytes[10] == b'T'
+        && bytes[13] == b':'
+        && bytes[16] == b':'
+        && bytes[19] == b'.'
+        && bytes[29] == b'Z'
+        && bytes.iter().enumerate().all(|(index, byte)| {
+            matches!(index, 4 | 7 | 10 | 13 | 16 | 19 | 29) || byte.is_ascii_digit()
+        });
+    if !lexical {
+        return Err(CanonicalTimestampParseError::new(
+            CanonicalTimestampParseErrorKind::InvalidLexicalForm,
+        ));
+    }
+
+    let number = |start: usize, end: usize| -> u32 {
+        bytes[start..end]
+            .iter()
+            .fold(0, |number, digit| number * 10 + u32::from(digit - b'0'))
+    };
+    let year = number(0, 4);
+    let month = number(5, 7);
+    let day = number(8, 10);
+    let hour = number(11, 13);
+    let minute = number(14, 16);
+    let second = number(17, 19);
+    let nanos = number(20, 29);
+
+    if !(1..=12).contains(&month)
+        || day == 0
+        || day > days_in_civil_month(year, month)
+        || hour > 23
+        || minute > 59
+        || second > 59
+    {
+        return Err(CanonicalTimestampParseError::new(
+            CanonicalTimestampParseErrorKind::InvalidCalendarDate,
+        ));
+    }
+
+    let day_of_year = (1..month)
+        .map(|candidate| i128::from(days_in_civil_month(year, candidate)))
+        .sum::<i128>()
+        + i128::from(day - 1);
+    let absolute_days = days_before_civil_year(year) + day_of_year;
+    let unix_days = absolute_days - days_before_civil_year(1970);
+    let unix_seconds = unix_days * 86_400
+        + i128::from(hour) * 3_600
+        + i128::from(minute) * 60
+        + i128::from(second);
+
+    Ok(unix_seconds * 1_000_000_000 + i128::from(nanos))
+}
+
+const fn is_civil_leap_year(year: u32) -> bool {
+    year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400))
+}
+
+const fn days_in_civil_month(year: u32, month: u32) -> u32 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 if is_civil_leap_year(year) => 29,
+        2 => 28,
+        _ => 0,
+    }
+}
+
+const fn days_before_civil_year(year: u32) -> i128 {
+    if year == 0 {
+        return 0;
+    }
+    let completed = (year - 1) as i128;
+    year as i128 * 365 + completed / 4 - completed / 100 + completed / 400 + 1
+}
+
 /// The restricted JSON domain accepted at the content-addressed boundary.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Value {
@@ -1260,5 +1413,136 @@ mod unit_tests {
         };
         let oid = structured_oid_unchecked_with_limits(&value, accepted).unwrap();
         verify_claimed_oid_unchecked_with_limits(&oid, &value, accepted).unwrap();
+    }
+
+    // -- Canonical timestamp parsing --------------------------------------
+    //
+    // These cover `parse_canonical_timestamp_unix_nanos`, the single source
+    // of truth for canonical timestamp parsing shared by `synapse-schema`,
+    // `synapse-core`, and `synapse-publication`.
+
+    #[test]
+    fn canonical_timestamp_accepts_the_unix_epoch_and_its_neighbors() {
+        assert_eq!(
+            parse_canonical_timestamp_unix_nanos("1970-01-01T00:00:00.000000000Z").unwrap(),
+            0
+        );
+        assert_eq!(
+            parse_canonical_timestamp_unix_nanos("1969-12-31T23:59:59.000000000Z").unwrap(),
+            -1_000_000_000
+        );
+        assert_eq!(
+            parse_canonical_timestamp_unix_nanos("1970-01-01T00:00:00.000000001Z").unwrap(),
+            1
+        );
+        assert_eq!(
+            parse_canonical_timestamp_unix_nanos("1970-01-01T00:00:01.000000000Z").unwrap(),
+            1_000_000_000
+        );
+    }
+
+    #[test]
+    fn canonical_timestamp_preserves_full_nanosecond_precision() {
+        assert_eq!(
+            parse_canonical_timestamp_unix_nanos("2000-02-29T12:34:56.123456789Z").unwrap(),
+            951_827_696_123_456_789
+        );
+        assert_eq!(
+            parse_canonical_timestamp_unix_nanos("1970-01-01T00:00:00.999999999Z").unwrap(),
+            999_999_999
+        );
+    }
+
+    #[test]
+    fn canonical_timestamp_validates_leap_years_under_the_gregorian_400_year_rule() {
+        // Divisible by 4 and 400: a leap year, so February 29th exists.
+        assert!(parse_canonical_timestamp_unix_nanos("2000-02-29T00:00:00.000000000Z").is_ok());
+        // Divisible by 4 and 100 but not 400: not a leap year.
+        assert_eq!(
+            parse_canonical_timestamp_unix_nanos("1900-02-29T00:00:00.000000000Z")
+                .unwrap_err()
+                .kind(),
+            CanonicalTimestampParseErrorKind::InvalidCalendarDate
+        );
+        // Ordinary leap year (divisible by 4, not by 100).
+        assert!(parse_canonical_timestamp_unix_nanos("2004-02-29T00:00:00.000000000Z").is_ok());
+        // Ordinary non-leap year.
+        assert_eq!(
+            parse_canonical_timestamp_unix_nanos("2001-02-29T00:00:00.000000000Z")
+                .unwrap_err()
+                .kind(),
+            CanonicalTimestampParseErrorKind::InvalidCalendarDate
+        );
+        // The leap day and the following day must be exactly one day apart.
+        let leap_day =
+            parse_canonical_timestamp_unix_nanos("2000-02-29T00:00:00.000000000Z").unwrap();
+        let next_day =
+            parse_canonical_timestamp_unix_nanos("2000-03-01T00:00:00.000000000Z").unwrap();
+        assert_eq!(next_day - leap_day, 86_400 * 1_000_000_000);
+    }
+
+    #[test]
+    fn canonical_timestamp_rejects_calendar_invalid_month_day_and_time_fields() {
+        for invalid in [
+            "2025-00-01T00:00:00.000000000Z",
+            "2025-13-01T00:00:00.000000000Z",
+            "2025-01-00T00:00:00.000000000Z",
+            "2025-01-32T00:00:00.000000000Z",
+            "2025-04-31T00:00:00.000000000Z",
+            "2025-02-30T00:00:00.000000000Z",
+            "2025-01-01T24:00:00.000000000Z",
+            "2025-01-01T00:60:00.000000000Z",
+            "2025-01-01T00:00:60.000000000Z",
+        ] {
+            assert_eq!(
+                parse_canonical_timestamp_unix_nanos(invalid)
+                    .unwrap_err()
+                    .kind(),
+                CanonicalTimestampParseErrorKind::InvalidCalendarDate,
+                "expected calendar rejection for {invalid:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn canonical_timestamp_rejects_malformed_lexical_shapes() {
+        for invalid in [
+            "",
+            "1970-01-01T00:00:00.000000000",
+            "1970-01-01T00:00:00.00000000Z",
+            "1970-01-01T00:00:00.0000000000Z",
+            "1970/01-01T00:00:00.000000000Z",
+            "1970-01-01 00:00:00.000000000Z",
+            "1970-01-01T00-00:00.000000000Z",
+            "1970-01-01T00:00-00.000000000Z",
+            "1970-01-01T00:00:00,000000000Z",
+            "1970-01-01T00:00:00.000000000z",
+            "197a-01-01T00:00:00.000000000Z",
+            "1970-01-01T00:00:00.00000000aZ",
+        ] {
+            assert_eq!(
+                parse_canonical_timestamp_unix_nanos(invalid)
+                    .unwrap_err()
+                    .kind(),
+                CanonicalTimestampParseErrorKind::InvalidLexicalForm,
+                "expected lexical rejection for {invalid:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn canonical_timestamp_error_kind_display_text_is_stable() {
+        assert_eq!(
+            CanonicalTimestampParseError::new(CanonicalTimestampParseErrorKind::InvalidLexicalForm)
+                .to_string(),
+            "timestamp must use YYYY-MM-DDTHH:mm:ss.nnnnnnnnnZ"
+        );
+        assert_eq!(
+            CanonicalTimestampParseError::new(
+                CanonicalTimestampParseErrorKind::InvalidCalendarDate
+            )
+            .to_string(),
+            "timestamp is not a valid Gregorian date and time"
+        );
     }
 }

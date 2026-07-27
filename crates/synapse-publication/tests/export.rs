@@ -303,6 +303,75 @@ fn verification_rejects_consistent_bundle_with_source_rationale_payload() {
 }
 
 #[test]
+fn verification_rejects_a_bundle_with_a_calendar_invalid_timeline_ordering_time() {
+    let temporary = TempDirectory::new();
+    create_three_decision_fixture(&temporary.0);
+    let bundle = export(&temporary, "bundle", OutputTarget::Github);
+
+    let mut projection: serde_json::Value =
+        serde_json::from_slice(&fs::read(bundle.join("projection.json")).unwrap()).unwrap();
+    let timeline = projection["sessions"][0]["timeline"]
+        .as_array_mut()
+        .unwrap();
+    assert!(
+        !timeline.is_empty(),
+        "fixture must produce at least one timeline entry to mutate"
+    );
+    let original_ordering_time = timeline[0]["ordering_time"].as_str().unwrap().to_owned();
+    // Lexically valid (30 bytes, correct separators, all-digit fields) but not
+    // a real Gregorian date: February only ever has up to 29 days.
+    timeline[0]["ordering_time"] =
+        serde_json::Value::String("2025-02-30T00:00:00.000000000Z".into());
+    assert_ne!(
+        timeline[0]["ordering_time"].as_str().unwrap(),
+        original_ordering_time
+    );
+    let projection_bytes = canonical_json(&projection);
+    fs::write(bundle.join("projection.json"), &projection_bytes).unwrap();
+    fs::write(bundle.join("target/projection.json"), &projection_bytes).unwrap();
+
+    let mut manifest: BundleManifest =
+        serde_json::from_slice(&fs::read(bundle.join("manifest.json")).unwrap()).unwrap();
+    manifest.projection_sha256 = sha256_hex(&projection_bytes);
+    write_manifest_and_reconcile_checksums(&bundle, &manifest);
+
+    let error = verify_bundle(bundle).unwrap_err();
+    assert!(matches!(error, PublicationError::InvalidBundle(_)));
+}
+
+#[test]
+fn verification_accepts_a_bundle_with_a_calendar_valid_timeline_ordering_time() {
+    let temporary = TempDirectory::new();
+    create_three_decision_fixture(&temporary.0);
+    let bundle = export(&temporary, "bundle", OutputTarget::Github);
+
+    let mut projection: serde_json::Value =
+        serde_json::from_slice(&fs::read(bundle.join("projection.json")).unwrap()).unwrap();
+    let timeline = projection["sessions"][0]["timeline"]
+        .as_array_mut()
+        .unwrap();
+    assert!(
+        !timeline.is_empty(),
+        "fixture must produce at least one timeline entry to mutate"
+    );
+    // Lexically valid AND a real Gregorian date (2024 is a leap year, so
+    // February 29th exists): bundle verification must still accept it.
+    timeline[0]["ordering_time"] =
+        serde_json::Value::String("2024-02-29T12:34:56.000000000Z".into());
+    let projection_bytes = canonical_json(&projection);
+    fs::write(bundle.join("projection.json"), &projection_bytes).unwrap();
+    fs::write(bundle.join("target/projection.json"), &projection_bytes).unwrap();
+
+    let mut manifest: BundleManifest =
+        serde_json::from_slice(&fs::read(bundle.join("manifest.json")).unwrap()).unwrap();
+    manifest.projection_sha256 = sha256_hex(&projection_bytes);
+    write_manifest_and_reconcile_checksums(&bundle, &manifest);
+
+    let verified = verify_bundle(bundle).unwrap();
+    assert_eq!(verified.manifest.target, OutputTarget::Github);
+}
+
+#[test]
 fn verification_accepts_legacy_v1_bundle_without_renderer_profile() {
     let temporary = TempDirectory::new();
     create_three_decision_fixture(&temporary.0);
