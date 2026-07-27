@@ -26,7 +26,9 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use synapse_canonical::{ObjectKind, canonical_bytes, parse_oid, parse_strict};
+use synapse_canonical::{
+    ObjectKind, canonical_bytes, lower_hex, parse_oid, parse_strict, sha256_hex,
+};
 use synapse_core::{Repository, RepositoryError};
 use synapse_creator::{
     CREATOR_FSCK_MAX_OBJECTS, CREATOR_FSCK_MAX_REF_ROOTS, CreatorError, CreatorReport,
@@ -461,7 +463,7 @@ pub fn export_bundle(options: &ExportOptions) -> Result<ExportReceipt> {
     let destination = validate_export_paths(&options.projection.repository, &options.destination)?;
     let projection = build_public_projection(&options.projection)?;
     let projection_bytes = canonical_json_bytes(&projection)?;
-    let projection_sha256 = sha256(&projection_bytes);
+    let projection_sha256 = sha256_hex(&projection_bytes);
     let (story_bytes, html_bytes) = render_views(ResolvedRendererProfile::V1, &projection);
 
     let manifest = BundleManifest {
@@ -499,7 +501,7 @@ pub fn export_bundle(options: &ExportOptions) -> Result<ExportReceipt> {
             .iter()
             .map(|(path, bytes)| FileChecksum {
                 path: path.clone(),
-                sha256: sha256(bytes),
+                sha256: sha256_hex(bytes),
                 byte_len: bytes.len() as u64,
             })
             .collect(),
@@ -572,7 +574,7 @@ pub fn verify_bundle(root: impl AsRef<Path>) -> Result<VerifiedBundle> {
         }
         previous = Some(&entry.path);
         let bytes = read_regular_file(&root.join(&entry.path))?;
-        if bytes.len() as u64 != entry.byte_len || sha256(&bytes) != entry.sha256 {
+        if bytes.len() as u64 != entry.byte_len || sha256_hex(&bytes) != entry.sha256 {
             return Err(PublicationError::InvalidBundle(format!(
                 "checksum mismatch for {:?}",
                 entry.path
@@ -593,7 +595,7 @@ pub fn verify_bundle(root: impl AsRef<Path>) -> Result<VerifiedBundle> {
     }
 
     let projection_bytes = read_regular_file(&root.join(&manifest.projection_path))?;
-    if sha256(&projection_bytes) != manifest.projection_sha256 {
+    if sha256_hex(&projection_bytes) != manifest.projection_sha256 {
         return Err(PublicationError::InvalidBundle(
             "manifest projection digest does not match projection.json".into(),
         ));
@@ -1842,20 +1844,6 @@ fn ref_snapshot_sha256<'a>(records: impl IntoIterator<Item = (&'a str, &'a str, 
 fn update_length_prefixed(digest: &mut Sha256, value: &[u8]) {
     digest.update((value.len() as u64).to_be_bytes());
     digest.update(value);
-}
-
-fn sha256(bytes: &[u8]) -> String {
-    lower_hex(Sha256::digest(bytes))
-}
-
-fn lower_hex(bytes: impl AsRef<[u8]>) -> String {
-    let bytes = bytes.as_ref();
-    let mut output = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        use std::fmt::Write as _;
-        write!(output, "{byte:02x}").expect("writing to String cannot fail");
-    }
-    output
 }
 
 fn schema(name: &str, version: u32) -> SchemaIdentity {

@@ -20,7 +20,9 @@ use synapse_application::{
     HumanAuthorityProfileHandle, HumanDecisionCandidate, HumanDecisionPermit, ProjectSelector,
     RegisteredExecutionHandle, RegisteredProject,
 };
-use synapse_canonical::{CoreError, ObjectKind, Value, canonical_bytes, parse_oid, parse_strict};
+use synapse_canonical::{
+    CoreError, ObjectKind, Value, canonical_bytes, lower_hex, parse_oid, parse_strict, sha256_hex,
+};
 use synapse_core::{
     AiCapability, AiSideEffectClass, AuthorizationClock, RefSnapshot, Repository, RepositoryError,
     SystemAuthorizationClock,
@@ -1187,7 +1189,7 @@ fn prepare_artifact_proposal_internal(
         activity_oid,
         receipt: ArtifactProposalReceipt {
             artifact_manifest_sha256: artifact_manifest_sha256(proposed),
-            review_context_sha256: raw_sha256(&canonical_context),
+            review_context_sha256: sha256_hex(&canonical_context),
             source_attribution,
         },
     };
@@ -1519,7 +1521,7 @@ fn derive_published_artifact_proposal(
         activity_oid,
         receipt: ArtifactProposalReceipt {
             artifact_manifest_sha256: proposed_digest,
-            review_context_sha256: raw_sha256(&context_bytes),
+            review_context_sha256: sha256_hex(&context_bytes),
             source_attribution: ArtifactSourceAttribution::CallerSuppliedAiAttributed,
         },
     };
@@ -1711,7 +1713,7 @@ fn artifact_attempt_id(project_key: &str, decision_head: &str) -> String {
     hash.update(project_key.as_bytes());
     hash.update(b"\0");
     hash.update(decision_head.as_bytes());
-    hex(&hash.finalize()[..16])
+    lower_hex(hash.finalize()[..16].iter().copied())
 }
 
 struct DecisionLineage {
@@ -3329,12 +3331,12 @@ pub fn artifact_manifest_sha256(manifest: &RegularFileManifest) -> String {
         hash.update(u64::try_from(bytes.len()).unwrap_or(u64::MAX).to_be_bytes());
         hash.update(bytes);
     }
-    hex(&hash.finalize())
+    lower_hex(hash.finalize())
 }
 
 /// Strictly canonicalize and hash the public-safe application review context.
 pub fn review_context_sha256(application_context_json: &[u8]) -> Result<String> {
-    Ok(raw_sha256(&canonical_review_context(
+    Ok(sha256_hex(&canonical_review_context(
         application_context_json,
     )?))
 }
@@ -3342,18 +3344,4 @@ pub fn review_context_sha256(application_context_json: &[u8]) -> Result<String> 
 fn canonical_review_context(application_context_json: &[u8]) -> Result<Vec<u8>> {
     let parsed = parse_strict(application_context_json)?;
     Ok(canonical_bytes(&parsed)?)
-}
-
-fn raw_sha256(bytes: &[u8]) -> String {
-    hex(&Sha256::digest(bytes))
-}
-
-fn hex(bytes: &[u8]) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let mut output = String::with_capacity(bytes.len() * 2);
-    for byte in bytes {
-        output.push(char::from(DIGITS[usize::from(byte >> 4)]));
-        output.push(char::from(DIGITS[usize::from(byte & 0x0f)]));
-    }
-    output
 }

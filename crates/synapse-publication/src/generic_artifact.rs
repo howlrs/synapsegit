@@ -1,6 +1,6 @@
 use super::{
     PublicationError, canonical_json_bytes, collect_bundle_files, publish_files_atomically,
-    read_regular_file, reject_symlink_components, require_real_directory, sha256,
+    read_regular_file, reject_symlink_components, require_real_directory,
     validate_bundle_relative_path,
 };
 use crate::generic_artifact_render::render_generic_artifact_views;
@@ -15,7 +15,7 @@ use synapse_artifact::{
     ArtifactCheckoutLimits, ArtifactDisposition, TrustedArtifactDecisionBinding,
     checkout_artifact_decision,
 };
-use synapse_canonical::{canonical_bytes, parse_strict};
+use synapse_canonical::{canonical_bytes, parse_strict, sha256_hex};
 
 pub const GENERIC_ARTIFACT_PUBLICATION_PROFILE: &str =
     "org.synapsegit.generic-artifact-publication";
@@ -741,7 +741,7 @@ pub fn export_generic_artifact_bundle(
     validate_generic_artifact_projection(options.projection)?;
     let destination = validate_generic_destination(&options.destination)?;
     let projection_bytes = canonical_generic_json(options.projection)?;
-    let projection_sha256 = sha256(&projection_bytes);
+    let projection_sha256 = sha256_hex(&projection_bytes);
     let (story_bytes, html_bytes) = render_generic_artifact_views(options.projection);
     let accepted_site_manifest_sha256 = options
         .projection
@@ -801,7 +801,7 @@ pub fn export_generic_artifact_bundle(
             .iter()
             .map(|(path, bytes)| GenericArtifactFileChecksumV1 {
                 path: path.clone(),
-                sha256: sha256(bytes),
+                sha256: sha256_hex(bytes),
                 byte_len: bytes.len() as u64,
             })
             .collect(),
@@ -890,7 +890,7 @@ pub fn verify_generic_artifact_bundle(
         }
         previous = Some(&entry.path);
         let bytes = read_regular_file(&root.join(&entry.path))?;
-        if bytes.len() as u64 != entry.byte_len || sha256(&bytes) != entry.sha256 {
+        if bytes.len() as u64 != entry.byte_len || sha256_hex(&bytes) != entry.sha256 {
             return Err(invalid_bundle("generic artifact bundle checksum mismatch"));
         }
         expected_files.insert(entry.path.clone());
@@ -903,7 +903,7 @@ pub fn verify_generic_artifact_bundle(
     }
 
     let projection_bytes = read_regular_file(&root.join("projection.json"))?;
-    if sha256(&projection_bytes) != manifest.projection_sha256 {
+    if sha256_hex(&projection_bytes) != manifest.projection_sha256 {
         return Err(invalid_bundle(
             "manifest projection digest does not match projection.json",
         ));

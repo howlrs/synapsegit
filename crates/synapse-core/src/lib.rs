@@ -30,7 +30,7 @@ use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
-use synapse_canonical::{CoreError, ErrorCode, ObjectKind, parse_oid};
+use synapse_canonical::{CoreError, ErrorCode, ObjectKind, lower_hex, parse_oid, sha256_hex};
 pub use synapse_cas::TombstoneScanLimits;
 use synapse_cas::{
     ClosureIssueKind, ClosureReport, FileObjectStore, FsckIssue, FsckIssueKind, FsckReport,
@@ -1359,21 +1359,6 @@ fn open_regular_limited(path: &Path, limit: u64) -> Result<(File, u64)> {
         }
     }
     Ok((file, opened_metadata.len()))
-}
-
-fn sha256_hex(bytes: &[u8]) -> String {
-    lower_hex(Sha256::digest(bytes))
-}
-
-fn lower_hex(bytes: impl IntoIterator<Item = u8>) -> String {
-    const DIGITS: &[u8; 16] = b"0123456789abcdef";
-    let bytes = bytes.into_iter();
-    let mut output = String::with_capacity(bytes.size_hint().0.saturating_mul(2));
-    for byte in bytes {
-        output.push(DIGITS[usize::from(byte >> 4)] as char);
-        output.push(DIGITS[usize::from(byte & 0x0f)] as char);
-    }
-    output
 }
 
 struct HashingWriter {
