@@ -8,6 +8,9 @@ rust-version.workspace = true
 license-file.workspace = true
 publish.workspace = true
 
+[lints]
+workspace = true
+
 [lib]
 path = "src/lib.rs"
 
@@ -16,16 +19,16 @@ name = "synapse-local"
 path = "src/main.rs"
 
 [dependencies]
-askama = "=0.16.0"
-axum = { version = "=0.8.9", features = ["multipart"] }
-getrandom = "0.4.3"
-mime = "0.3.17"
-serde = { version = "1.0.228", features = ["derive"] }
-serde_json = "1.0.150"
-serde_urlencoded = "0.7.1"
+askama.workspace = true
+axum = { workspace = true, features = ["multipart"] }
+getrandom.workspace = true
+mime.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+serde_urlencoded.workspace = true
 synapse-local-service = { path = "../synapse-local-service" }
-tokio = { version = "=1.52.3", features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync"] }
+tokio = { workspace = true, features = ["fs", "io-util", "macros", "net", "rt-multi-thread", "signal", "sync"] }
 
 [dev-dependencies]
 synapse-creator = { path = "../synapse-creator" }
-tower = { version = "0.5.3", features = ["util"] }
+tower = { workspace = true, features = ["util"] }
