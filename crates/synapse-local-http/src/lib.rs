@@ -3567,4 +3567,353 @@ mod tests {
         drop(permits);
         assert_eq!(unknown.overall.available_permits(), MAX_BLOCKING_OPERATIONS);
     }
+
+    // Openapi contract route-parity coverage.
+    //
+    // Two complementary mechanisms cover every operation declared in
+    // `api/local/v1/openapi.json`:
+    //
+    //   1. Implemented-route parity (`checked`, asserted below): for every
+    //      operation NOT in `UNIMPLEMENTED_ARCHIVE_OPERATIONS`, a substituted
+    //      request must return neither 404 nor 405 — proving the route
+    //      exists and the method is wired, regardless of what status the
+    //      business logic itself returns.
+    //   2. Unimplemented-route 404 contract (`UNIMPLEMENTED_ARCHIVE_OPERATIONS`,
+    //      asserted below): for exactly the 3 archive operations
+    //      `docs/localhost_application_architecture.md` documents as
+    //      "remain unimplemented in the browser application" (line 14-15;
+    //      see also line 467's "the remaining archive portion of slice 7"),
+    //      the same substituted request must currently return 404. This
+    //      makes the list self-maintaining: the day someone implements one
+    //      of these routes, this assertion fails (404 stops being true) and
+    //      the failure forces that operationId's removal from the skip list
+    //      into ordinary positive coverage above, rather than the operation
+    //      silently staying unchecked forever.
+    //
+    // `startFsck` and `getOperation` both carry openapi's
+    // `x-synapse-implementation-slice: 7` tag too, but that tag is a
+    // compound "slice 7" label spanning the implemented fsck/job foundation
+    // (`docs/localhost_application_architecture.md` line 3, 7-8: "the
+    // fsck/job part of slice 7 ... implemented in v0.3.0") and the
+    // unimplemented archive portion (same doc, line 14-15) without
+    // distinguishing them. Both routes are genuinely wired
+    // (`.route("/api/v1/projects/{project_key}/operations/fsck",
+    // post(api_start_fsck))` and `.route("/api/v1/operations/{operation_id}",
+    // get(api_operation))`, both above in this file's router construction),
+    // so this test checks them by `operationId`
+    // (`UNIMPLEMENTED_ARCHIVE_OPERATIONS`) rather than by the slice tag, and
+    // includes them in ordinary positive parity coverage below.
+    //
+    // Neither mechanism can check the inverse direction: a route registered
+    // on this axum `Router` but absent from the openapi document is not
+    // enumerable by reading the `Router` value at runtime (axum exposes no
+    // route-listing API), so a silent, undocumented router addition would
+    // not be caught here. That direction would require either a routing
+    // introspection facility this codebase does not have, or a
+    // hand-maintained inverse listing that itself could drift; the canary
+    // test below only proves 404 is distinguishable from a wired route, not
+    // that every wired route is documented.
+    const UNIMPLEMENTED_ARCHIVE_OPERATIONS: [&str; 3] =
+        ["listArchives", "startArchiveExport", "startArchiveRestore"];
+
+    #[tokio::test]
+    async fn every_documented_openapi_route_matches_its_implementation_status() {
+        let spec: serde_json::Value = serde_json::from_str(include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../api/local/v1/openapi.json"
+        )))
+        .expect("api/local/v1/openapi.json is valid JSON");
+        let paths = spec["paths"]
+            .as_object()
+            .expect("openapi document has a paths object");
+
+        // `test_app_with_creator` publishes and adopts `render-session` as a
+        // complete session, which the GET routes below substitute in for
+        // `{session}` (proven to resolve by the existing read-path tests
+        // above). The decisions route instead needs a still-pending review,
+        // so a second, undecided session (`web-review`, from
+        // `valid_creator_multipart`) is created separately below.
+        let (_directory, app, _fixture) = test_app_with_creator("Parity project");
+
+        let boundary = "parity-boundary";
+        let begin_response = app
+            .clone()
+            .oneshot(unsafe_api_request(
+                "/api/v1/projects/demo/creator-sessions",
+                format!("multipart/form-data; boundary={boundary}"),
+                Body::from(valid_creator_multipart(boundary)),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(
+            begin_response.status(),
+            StatusCode::CREATED,
+            "fixture setup: beginning a second creator session must succeed"
+        );
+        let begin_body = to_bytes(begin_response.into_body(), 2 * 1024 * 1024)
+            .await
+            .unwrap();
+        let pending: serde_json::Value = serde_json::from_slice(&begin_body).unwrap();
+        let review_id = pending["review_id"].as_str().unwrap().to_owned();
+
+        // A real, currently-registered operation_id for the getOperation
+        // substitution below: startFsck reserves the operation
+        // synchronously (before the async worker spawns), so it is already
+        // visible to an immediate getOperation poll, matching the
+        // established pattern in
+        // `bounded_fsck_is_confirmed_queued_polled_and_reflected_in_project_status`.
+        let fsck_start = app
+            .clone()
+            .oneshot(unsafe_api_request(
+                "/api/v1/projects/demo/operations/fsck",
+                "application/json",
+                Body::from(r#"{"confirm_project_key":"demo"}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(
+            fsck_start.status(),
+            StatusCode::ACCEPTED,
+            "fixture setup: starting fsck for the getOperation substitution must succeed"
+        );
+        let fsck_start_body = to_bytes(fsck_start.into_body(), 64 * 1024).await.unwrap();
+        let fsck_accepted: serde_json::Value = serde_json::from_slice(&fsck_start_body).unwrap();
+        let fsck_operation_id = fsck_accepted["operation_id"].as_str().unwrap().to_owned();
+
+        let mut skipped_unimplemented_archive = Vec::new();
+        let mut checked = Vec::new();
+
+        for (path_template, methods) in paths {
+            let methods = methods
+                .as_object()
+                .expect("each openapi path entry is an object of methods");
+            for (method, operation) in methods {
+                let operation_id = operation["operationId"]
+                    .as_str()
+                    .expect("every openapi operation declares operationId");
+
+                // The decisions route resolves its target session from the
+                // path AND the body's review_id together; every other
+                // {session} substitution below only needs a session that
+                // resolves at all, so the already-complete `render-session`
+                // fixture (proven to resolve by the read-path tests above)
+                // is used for those.
+                let session_value = if path_template.ends_with("/decisions") {
+                    "web-review"
+                } else {
+                    "render-session"
+                };
+                let resolved_path = path_template
+                    .replace("{projectKey}", "demo")
+                    .replace("{session}", session_value)
+                    .replace("{role}", "original")
+                    .replace("{operationId}", &fsck_operation_id);
+                let full_path = format!("/api/v1{resolved_path}");
+
+                if UNIMPLEMENTED_ARCHIVE_OPERATIONS.contains(&operation_id) {
+                    // Positive assertion, not a mere skip: this operation
+                    // must currently 404, or the skip list itself is out of
+                    // date (see the module comment above for why this
+                    // matters).
+                    let response = match method.as_str() {
+                        "get" => app
+                            .clone()
+                            .oneshot(
+                                request(&full_path)
+                                    .header("x-synapse-local-token", "a".repeat(64))
+                                    .body(Body::empty())
+                                    .unwrap(),
+                            )
+                            .await
+                            .unwrap(),
+                        "post" => {
+                            let body = serde_json::to_vec(&serde_json::json!({
+                                "confirm_project_key": "demo",
+                                "archive_name": "nightly"
+                            }))
+                            .unwrap();
+                            app.clone()
+                                .oneshot(unsafe_api_request(
+                                    &full_path,
+                                    "application/json",
+                                    Body::from(body),
+                                ))
+                                .await
+                                .unwrap()
+                        }
+                        other => panic!(
+                            "unhandled unimplemented-archive-operation method {other} for \
+                             {path_template}; add a substitution branch above"
+                        ),
+                    };
+                    assert_eq!(
+                        response.status(),
+                        StatusCode::NOT_FOUND,
+                        "{} {full_path} (openapi operationId {operation_id:?}) is listed in \
+                         UNIMPLEMENTED_ARCHIVE_OPERATIONS but did not return 404: either it has \
+                         been implemented (move it into positive parity coverage above and \
+                         remove it from the skip list) or something else changed",
+                        method.to_uppercase()
+                    );
+                    skipped_unimplemented_archive.push(format!(
+                        "{} {path_template} ({operation_id})",
+                        method.to_uppercase()
+                    ));
+                    continue;
+                }
+
+                let response = match method.as_str() {
+                    "get" => app
+                        .clone()
+                        .oneshot(
+                            request(&full_path)
+                                .header("x-synapse-local-token", "a".repeat(64))
+                                .body(Body::empty())
+                                .unwrap(),
+                        )
+                        .await
+                        .unwrap(),
+                    "post" if resolved_path.ends_with("/creator-sessions") => {
+                        // beginCreatorSession: a fresh session name (not
+                        // `render-session` or `web-review`, both already
+                        // used above) avoids a duplicate-session business
+                        // error standing in for what this assertion checks.
+                        let boundary = "parity-route-boundary";
+                        let body = multipart_body(
+                            boundary,
+                            &[
+                                (
+                                    "session",
+                                    "text/plain; charset=utf-8",
+                                    b"parity-route-session",
+                                ),
+                                (
+                                    "subject_label",
+                                    "text/plain; charset=utf-8",
+                                    b"Route parity fixture",
+                                ),
+                                (
+                                    "creator_name",
+                                    "text/plain; charset=utf-8",
+                                    b"Parity tester",
+                                ),
+                                (
+                                    "original_image",
+                                    "application/octet-stream",
+                                    b"\x89PNG\r\n\x1a\nparity-original",
+                                ),
+                                (
+                                    "current_image",
+                                    "application/octet-stream",
+                                    b"<svg xmlns='http://www.w3.org/2000/svg'><rect/></svg>",
+                                ),
+                                (
+                                    "ai_output",
+                                    "application/octet-stream",
+                                    b"GIF89aparity-ai-output",
+                                ),
+                            ],
+                        );
+                        app.clone()
+                            .oneshot(unsafe_api_request(
+                                &full_path,
+                                format!("multipart/form-data; boundary={boundary}"),
+                                Body::from(body),
+                            ))
+                            .await
+                            .unwrap()
+                    }
+                    "post" if resolved_path.ends_with("/decisions") => {
+                        let decision_body = serde_json::to_vec(&serde_json::json!({
+                            "review_id": review_id,
+                            "disposition": "adopt",
+                            "rationale": "Openapi route-parity check."
+                        }))
+                        .unwrap();
+                        app.clone()
+                            .oneshot(unsafe_api_request(
+                                &full_path,
+                                "application/json",
+                                Body::from(decision_body),
+                            ))
+                            .await
+                            .unwrap()
+                    }
+                    "post" if resolved_path.ends_with("/operations/fsck") => {
+                        // startFsck: reuses the confirmation body already
+                        // proven valid by the fixture-setup call above; a
+                        // second, independent start is fine (each call
+                        // reserves its own operation_id).
+                        let body = r#"{"confirm_project_key":"demo"}"#;
+                        app.clone()
+                            .oneshot(unsafe_api_request(
+                                &full_path,
+                                "application/json",
+                                Body::from(body),
+                            ))
+                            .await
+                            .unwrap()
+                    }
+                    other => panic!(
+                        "unhandled implemented-operation method {other} for {path_template}; \
+                         add a substitution branch above"
+                    ),
+                };
+
+                assert_ne!(
+                    response.status(),
+                    StatusCode::NOT_FOUND,
+                    "{} {full_path} (openapi operationId {operation_id:?}) returned 404: the \
+                     route is documented but not wired into the router",
+                    method.to_uppercase()
+                );
+                assert_ne!(
+                    response.status(),
+                    StatusCode::METHOD_NOT_ALLOWED,
+                    "{} {full_path} (openapi operationId {operation_id:?}) returned 405: the \
+                     path exists but this method is not wired",
+                    method.to_uppercase()
+                );
+                checked.push(format!(
+                    "{} {full_path} ({operation_id})",
+                    method.to_uppercase()
+                ));
+            }
+        }
+
+        // Sanity bounds so a change to openapi.json's paths silently
+        // shrinking the enumerated set (e.g. an accidental truncation)
+        // would fail loudly instead of this test quietly checking nothing.
+        assert_eq!(
+            checked.len(),
+            13,
+            "expected 13 implemented operations, checked: {checked:?}"
+        );
+        assert_eq!(
+            skipped_unimplemented_archive.len(),
+            UNIMPLEMENTED_ARCHIVE_OPERATIONS.len(),
+            "expected exactly the {} UNIMPLEMENTED_ARCHIVE_OPERATIONS entries, found: \
+             {skipped_unimplemented_archive:?}",
+            UNIMPLEMENTED_ARCHIVE_OPERATIONS.len()
+        );
+    }
+
+    #[tokio::test]
+    async fn unregistered_api_path_returns_404_not_403_or_405() {
+        // Canary for the route-parity test above: confirms an unregistered
+        // path is distinguishable as 404 (not swallowed by the security
+        // middleware as 403, nor reported as 405) when the request already
+        // satisfies the local browser security policy.
+        let (_directory, app) = test_app();
+        let response = app
+            .oneshot(
+                request("/api/v1/nonexistent")
+                    .header("x-synapse-local-token", "a".repeat(64))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::NOT_FOUND);
+    }
 }
