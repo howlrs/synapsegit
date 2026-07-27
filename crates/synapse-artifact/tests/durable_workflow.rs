@@ -1,5 +1,7 @@
+mod common;
 mod support;
 
+use common::object_json;
 use serde_json::{Value as JsonValue, json};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -70,6 +72,7 @@ impl Drop for TempReview {
     }
 }
 
+// Diverges from common::manifest: second entry is assets/app.js (JS), not assets/site.css — not consolidated.
 fn manifest(label: &str) -> RegularFileManifest {
     RegularFileManifest::from_entries(
         [
@@ -87,6 +90,8 @@ fn manifest(label: &str) -> RegularFileManifest {
     .unwrap()
 }
 
+// Same construction as approval.rs's options() (different name) and sequential.rs's options()
+// (optional rationale) — not consolidated; see approval.rs's comment for why.
 fn decision(disposition: ArtifactDisposition, rationale: &str) -> ArtifactDecisionOptions {
     ArtifactDecisionOptions {
         disposition,
@@ -108,15 +113,6 @@ fn repository_state(path: &Path) -> RepositoryState {
         reflog: repository.refs().reflog().unwrap(),
         objects: repository.objects().list_oids().unwrap(),
     }
-}
-
-fn object_json(repository: &Repository, oid: &str) -> JsonValue {
-    let bytes = repository
-        .objects()
-        .read_raw(oid)
-        .unwrap_or_else(|error| panic!("read {oid}: {error}"))
-        .unwrap_or_else(|| panic!("missing object {oid}"));
-    serde_json::from_slice(&bytes).unwrap_or_else(|error| panic!("parse {oid}: {error}"))
 }
 
 fn store_changed_object(

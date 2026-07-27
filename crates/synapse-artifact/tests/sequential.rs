@@ -56,6 +56,7 @@ impl Drop for TempProject {
     }
 }
 
+// Diverges from common::manifest: single index.html entry with different markup — not consolidated.
 fn manifest(label: &str) -> RegularFileManifest {
     RegularFileManifest::from_entries(
         [ArtifactManifestEntry::regular_file(
@@ -67,6 +68,8 @@ fn manifest(label: &str) -> RegularFileManifest {
     .unwrap()
 }
 
+// Same construction as approval.rs's options() (with rationale) and durable_workflow.rs's
+// decision() (different name) — not consolidated; see approval.rs's comment for why.
 fn options(disposition: ArtifactDisposition) -> ArtifactDecisionOptions {
     ArtifactDecisionOptions {
         disposition,

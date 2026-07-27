@@ -1,13 +1,14 @@
+mod common;
 mod support;
 
+use common::manifest;
 use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use support::approved_decide;
 use synapse_artifact::{
-    ArtifactDecisionOptions, ArtifactDisposition, ArtifactLimits, ArtifactManifestEntry,
-    ArtifactSourceAttribution, PendingArtifactState, RegularFileManifest,
+    ArtifactDecisionOptions, ArtifactDisposition, ArtifactSourceAttribution, PendingArtifactState,
     TrustedArtifactProjectConfig, WorkflowError, begin_artifact_proposal,
 };
 use synapse_core::Repository;
@@ -51,23 +52,6 @@ impl Drop for TempProject {
             let _ = fs::remove_dir_all(&self.path);
         }
     }
-}
-
-fn manifest(label: &str) -> RegularFileManifest {
-    RegularFileManifest::from_entries(
-        [
-            ArtifactManifestEntry::regular_file(
-                "index.html",
-                format!("<!doctype html><title>{label}</title>").into_bytes(),
-            ),
-            ArtifactManifestEntry::regular_file(
-                "assets/site.css",
-                format!("/* {label} */ body {{ color: #123456; }}").into_bytes(),
-            ),
-        ],
-        ArtifactLimits::default(),
-    )
-    .unwrap()
 }
 
 fn begin(temp: &TempProject, key: &str) -> synapse_artifact::PendingArtifactProposal {

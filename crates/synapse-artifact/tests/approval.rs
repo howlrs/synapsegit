@@ -58,6 +58,7 @@ impl Drop for TempProject {
     }
 }
 
+// Diverges from common::manifest: single index.html entry, no CSS asset — not consolidated.
 fn manifest(label: &str) -> RegularFileManifest {
     RegularFileManifest::from_entries(
         [ArtifactManifestEntry::regular_file(
@@ -80,6 +81,10 @@ fn begin(temp: &TempProject, key: &str) -> PendingArtifactProposal {
     .unwrap()
 }
 
+// Same construction as sequential.rs's options() (optional rationale) and durable_workflow.rs's
+// decision() (required rationale, different name) — not consolidated: unifying would require an
+// Option<&str> signature change and renaming ~18 call sites across three files for a helper this
+// small, which is more than a mechanical dedup.
 fn options(disposition: ArtifactDisposition, rationale: &str) -> ArtifactDecisionOptions {
     ArtifactDecisionOptions {
         disposition,
@@ -102,6 +107,8 @@ fn repository_state(repository: &Repository) -> RepositoryState {
     }
 }
 
+// Same as common::object_json apart from panic-message wording ("missing test object") —
+// left local since the divergence, though cosmetic, isn't byte-identical.
 fn object_json(repository: &Repository, oid: &str) -> JsonValue {
     serde_json::from_slice(
         &repository
@@ -113,6 +120,8 @@ fn object_json(repository: &Repository, oid: &str) -> JsonValue {
     .unwrap()
 }
 
+// Same shape as acceptance_contract.rs's successor_commit apart from unwrap error handling —
+// not consolidated since the panic-message divergence is a real (if minor) behavior difference.
 fn successor_commit(repository: &Repository, parent: &str, label: &str) -> String {
     let mut commit = object_json(repository, parent);
     commit["parents"] = json!([parent]);
