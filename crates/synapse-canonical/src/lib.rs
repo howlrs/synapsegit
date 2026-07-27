@@ -1144,6 +1144,203 @@ fn valid_integer_token(token: &str) -> bool {
     digits == "0" || !digits.starts_with('0')
 }
 
+// -- Portable path syntax -------------------------------------------------
+//
+// Pure string predicates for the workspace's shared "portable path" syntax
+// floor: no filesystem I/O, no symlink handling, no OS `Path`/`Component`
+// types.
+//
+// [`is_portable_segment`] is the floor every segment-level site agrees on.
+// It has three direct callers: `synapse-cas` and `synapse-schema` call it
+// as their whole check; `synapse-artifact::checkout` composes it with its
+// own additional local checks. It deliberately does NOT reject a bare `\`
+// byte: `synapse-cas` and `synapse-schema` validate one key of a
+// content-addressed structured object, not an OS-style file path, and have
+// never rejected a literal backslash character in that position — only
+// `/`-splitting boundary characters (`/`, NUL, `.`, `..`) are universal
+// across every segment-level site. Callers that also need to reject
+// backslash (because they are validating something that will eventually
+// reach a filesystem, where a literal `\` is a Windows path separator)
+// check it explicitly; [`is_portable_relative_path`] does, and additionally
+// re-derives (rather than calls) the same empty/`.`/`..` per-segment rules
+// inline so it can report each one as its own [`PortablePathErrorKind`]
+// variant — [`is_portable_segment`] only returns a `bool`. The two are kept
+// in exact agreement by a dedicated cross-check unit test.
+//
+// `synapse-artifact`, `synapse-publication`, `synapse-cas`, and
+// `synapse-schema` all delegate the syntax slice of their path/segment
+// validation here rather than re-deriving the dot-segment and NUL-byte
+// checks independently. Each caller keeps any additional domain-specific
+// checks (resource limits, NFC normalization, Windows reserved device
+// names, a fixed ASCII character allowlist, a broader ASCII-control-byte
+// sweep, and so on) layered on top, since those are not part of the common
+// syntax floor every site agrees on.
+
+/// Stable category for a portable path syntax rejection.
+///
+/// Every variant here corresponds to exactly one syntax check shared by at
+/// least two workspace crates (see the crate-level module comment). This
+/// type intentionally does not cover domain-specific checks such as NFC
+/// normalization, Windows reserved device names, or a caller's fixed
+/// character allowlist — those remain in each consumer.
+///
+/// Kept exhaustive per the pre-1.0 policy in `CONTRIBUTING.md`: public Rust
+/// error enums do not gain a new `#[non_exhaustive]` before 1.0, so that
+/// cross-crate match exhaustiveness checking still catches a missed variant
+/// at compile time. Only `synapse-canonical::ErrorCode` and
+/// `synapse-publication::GenericArtifactPublicationError` are grandfathered
+/// wire-extensibility exceptions; this type is not one of them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PortablePathErrorKind {
+    /// The path or segment is empty.
+    Empty,
+    /// The path has a leading `/` (an absolute POSIX-style path).
+    LeadingSlash,
+    /// The path contains a `\` byte anywhere.
+    Backslash,
+    /// The path starts with an ASCII drive-letter prefix (`[A-Za-z]:`, for
+    /// example `C:`), a Windows-style absolute path form.
+    WindowsDriveLetter,
+    /// A `/`-separated segment is exactly `.`.
+    CurrentDirSegment,
+    /// A `/`-separated segment is exactly `..`.
+    ParentDirSegment,
+    /// A `/`-separated segment is empty (for example from `//` or a
+    /// trailing `/`).
+    EmptySegment,
+    /// The path contains a NUL (`\0`) byte.
+    NulByte,
+}
+
+/// Error returned when a path or segment fails the shared portable-path
+/// syntax floor.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PortablePathError {
+    kind: PortablePathErrorKind,
+}
+
+impl PortablePathError {
+    const fn new(kind: PortablePathErrorKind) -> Self {
+        Self { kind }
+    }
+
+    /// Returns the stable category of this rejection.
+    pub const fn kind(self) -> PortablePathErrorKind {
+        self.kind
+    }
+}
+
+impl fmt::Display for PortablePathError {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let message = match self.kind {
+            PortablePathErrorKind::Empty => "path is empty",
+            PortablePathErrorKind::LeadingSlash => "path starts with '/'",
+            PortablePathErrorKind::Backslash => "path contains '\\'",
+            PortablePathErrorKind::WindowsDriveLetter => {
+                "path starts with a Windows drive-letter prefix"
+            }
+            PortablePathErrorKind::CurrentDirSegment => "path contains a '.' segment",
+            PortablePathErrorKind::ParentDirSegment => "path contains a '..' segment",
+            PortablePathErrorKind::EmptySegment => "path contains an empty segment",
+            PortablePathErrorKind::NulByte => "path contains a NUL byte",
+        };
+        formatter.write_str(message)
+    }
+}
+
+impl Error for PortablePathError {}
+
+/// Returns `true` if `segment` is a syntactically safe single path segment.
+///
+/// A safe segment is non-empty, is not `.` or `..`, and contains no `/` or
+/// NUL byte. This is the per-segment building block for callers that
+/// validate one path component at a time (for example a content-addressed
+/// Tree entry key) rather than a whole slash-joined path.
+/// [`is_portable_relative_path`] enforces the same per-segment rules on
+/// each `/`-split piece of a whole path, but re-derives them inline (rather
+/// than calling this function) so it can report which specific rule failed
+/// as a [`PortablePathErrorKind`] variant; a dedicated unit test keeps the
+/// two in exact agreement.
+///
+/// This function does not reject a bare `\` byte — see the module-level
+/// documentation for why that is not part of the universal segment floor —
+/// nor does it check NFC normalization, Windows reserved device names,
+/// reserved characters, or any caller-specific character allowlist.
+/// Callers that need those layer them on top.
+pub fn is_portable_segment(segment: &str) -> bool {
+    !segment.is_empty() && segment != "." && segment != ".." && !segment.contains(['/', '\0'])
+}
+
+/// Returns `true` if `path` starts with an ASCII drive-letter prefix
+/// (`[A-Za-z]:`, for example `C:` or `c:`), a Windows-style absolute path
+/// form that is unsafe to treat as a portable relative path.
+pub fn has_windows_drive_letter_prefix(path: &str) -> bool {
+    let bytes = path.as_bytes();
+    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
+}
+
+/// Validates the shared portable-path syntax floor for a whole `/`-joined
+/// relative path.
+///
+/// Rejects: an empty path, a leading `/`, any `\` byte anywhere in the
+/// path, an ASCII drive-letter prefix (see
+/// [`has_windows_drive_letter_prefix`]), any NUL byte, and any `/`-split
+/// segment that is empty, `.`, or `..` (via [`is_portable_segment`]).
+///
+/// Unlike [`is_portable_segment`], this whole-path validator does reject a
+/// bare `\` byte: every workspace site that validates a whole slash-joined
+/// relative path (as opposed to one already-split segment) is guarding
+/// something that can reach a filesystem, where `\` is a meaningful
+/// Windows path separator.
+///
+/// This function does not check a trailing `/` as an independent rule — a
+/// trailing `/` always produces an empty final segment once split on `/`,
+/// which the segment check already rejects — nor NFC normalization,
+/// Windows reserved device names, reserved characters beyond `\` and NUL,
+/// or any caller-specific character allowlist. Callers that need those (for
+/// example `synapse-artifact`'s `relative-nfc-portable-v1` profile) perform
+/// them in addition to this call, not instead of it.
+///
+/// # Errors
+///
+/// Returns [`PortablePathError`] describing the first syntax rule that
+/// `path` violates.
+pub fn is_portable_relative_path(path: &str) -> Result<(), PortablePathError> {
+    if path.is_empty() {
+        return Err(PortablePathError::new(PortablePathErrorKind::Empty));
+    }
+    if path.starts_with('/') {
+        return Err(PortablePathError::new(PortablePathErrorKind::LeadingSlash));
+    }
+    if path.contains('\\') {
+        return Err(PortablePathError::new(PortablePathErrorKind::Backslash));
+    }
+    if has_windows_drive_letter_prefix(path) {
+        return Err(PortablePathError::new(
+            PortablePathErrorKind::WindowsDriveLetter,
+        ));
+    }
+    if path.contains('\0') {
+        return Err(PortablePathError::new(PortablePathErrorKind::NulByte));
+    }
+    for segment in path.split('/') {
+        if segment.is_empty() {
+            return Err(PortablePathError::new(PortablePathErrorKind::EmptySegment));
+        }
+        if segment == "." {
+            return Err(PortablePathError::new(
+                PortablePathErrorKind::CurrentDirSegment,
+            ));
+        }
+        if segment == ".." {
+            return Err(PortablePathError::new(
+                PortablePathErrorKind::ParentDirSegment,
+            ));
+        }
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod unit_tests {
     use super::*;
@@ -1544,5 +1741,131 @@ mod unit_tests {
             .to_string(),
             "timestamp is not a valid Gregorian date and time"
         );
+    }
+
+    // -- Portable path syntax ----------------------------------------------
+    //
+    // These cover `is_portable_segment`, `has_windows_drive_letter_prefix`,
+    // and `is_portable_relative_path`, the shared portable-path syntax floor
+    // used by `synapse-artifact`, `synapse-publication`, `synapse-cas`, and
+    // `synapse-schema`.
+
+    #[test]
+    fn portable_segment_accepts_ordinary_single_component_names() {
+        for segment in ["a", "file.txt", "assets", "..hidden", "...", "a.b.c", "😀"] {
+            assert!(is_portable_segment(segment), "segment={segment:?}");
+        }
+    }
+
+    #[test]
+    fn portable_segment_rejects_empty_dot_dotdot_slash_and_nul() {
+        for segment in ["", ".", "..", "a/b", "a\0b", "/", "\0"] {
+            assert!(!is_portable_segment(segment), "segment={segment:?}");
+        }
+    }
+
+    #[test]
+    fn portable_segment_deliberately_does_not_reject_a_bare_backslash() {
+        // `synapse-cas` and `synapse-schema` validate one key of a
+        // content-addressed structured object, not an OS-style file path,
+        // and have never rejected a literal '\' character in that
+        // position. This is the exact pre-existing behavior for both
+        // sites (see `valid_path_segment` in synapse-cas::graph and the
+        // inline check in synapse-schema::validate_manifest) — not a gap.
+        for segment in ["a\\b", "\\", "assets\\secret"] {
+            assert!(is_portable_segment(segment), "segment={segment:?}");
+        }
+    }
+
+    #[test]
+    fn drive_letter_prefix_matches_the_synapse_artifact_precedent() {
+        for path in ["C:/secret", "c:/secret", "Z:\\x", "a:", "a:b"] {
+            assert!(has_windows_drive_letter_prefix(path), "path={path:?}");
+        }
+        for path in ["", "a", "/a:b", "1:", ":a", "assets/a:b", "ab:"] {
+            assert!(!has_windows_drive_letter_prefix(path), "path={path:?}");
+        }
+    }
+
+    #[test]
+    fn portable_relative_path_accepts_ordinary_nested_paths() {
+        for path in ["a", "a/b", "a/b/c", "assets/site.css", "a.b/c..d/e"] {
+            assert!(is_portable_relative_path(path).is_ok(), "path={path:?}");
+        }
+    }
+
+    #[test]
+    fn portable_relative_path_reports_the_first_violated_rule() {
+        let cases = [
+            ("", PortablePathErrorKind::Empty),
+            ("/etc/passwd", PortablePathErrorKind::LeadingSlash),
+            ("assets\\secret", PortablePathErrorKind::Backslash),
+            ("a/b\\c", PortablePathErrorKind::Backslash),
+            ("C:/secret", PortablePathErrorKind::WindowsDriveLetter),
+            ("c:\\windows", PortablePathErrorKind::Backslash),
+            ("a\0b", PortablePathErrorKind::NulByte),
+            ("a//b", PortablePathErrorKind::EmptySegment),
+            ("a/", PortablePathErrorKind::EmptySegment),
+            ("a/./b", PortablePathErrorKind::CurrentDirSegment),
+            (".", PortablePathErrorKind::CurrentDirSegment),
+            ("a/../b", PortablePathErrorKind::ParentDirSegment),
+            ("..", PortablePathErrorKind::ParentDirSegment),
+        ];
+        for (path, expected) in cases {
+            assert_eq!(
+                is_portable_relative_path(path).unwrap_err().kind(),
+                expected,
+                "path={path:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn portable_relative_path_and_segment_agree_except_on_drive_letter_and_backslash() {
+        // Splitting on '/' and running `is_portable_segment` on each piece
+        // must agree with `is_portable_relative_path` for the dot-segment,
+        // empty-segment, and NUL-byte rules — the two checks that only
+        // apply at the whole-path level (drive-letter prefix, and the
+        // deliberately-whole-path-only backslash rejection; see the
+        // module-level documentation) are excluded from this comparison.
+        let paths = ["a/b/c", "a//b", "a/./b", "a/../b", "a\0b", ""];
+        for path in paths {
+            let whole = is_portable_relative_path(path);
+            let per_segment = !path.is_empty() && path.split('/').all(is_portable_segment);
+            assert_eq!(
+                whole.is_ok(),
+                per_segment,
+                "path={path:?} whole={whole:?} per_segment={per_segment}"
+            );
+        }
+    }
+
+    #[test]
+    fn portable_path_error_kind_display_text_is_stable() {
+        let cases = [
+            (PortablePathErrorKind::Empty, "path is empty"),
+            (PortablePathErrorKind::LeadingSlash, "path starts with '/'"),
+            (PortablePathErrorKind::Backslash, "path contains '\\'"),
+            (
+                PortablePathErrorKind::WindowsDriveLetter,
+                "path starts with a Windows drive-letter prefix",
+            ),
+            (
+                PortablePathErrorKind::CurrentDirSegment,
+                "path contains a '.' segment",
+            ),
+            (
+                PortablePathErrorKind::ParentDirSegment,
+                "path contains a '..' segment",
+            ),
+            (
+                PortablePathErrorKind::EmptySegment,
+                "path contains an empty segment",
+            ),
+            (PortablePathErrorKind::NulByte, "path contains a NUL byte"),
+        ];
+        for (kind, expected) in cases {
+            assert_eq!(PortablePathError::new(kind).to_string(), expected);
+        }
     }
 }

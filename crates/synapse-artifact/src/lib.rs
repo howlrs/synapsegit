@@ -8,6 +8,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt;
 use std::io::Cursor;
+use synapse_canonical::is_portable_relative_path;
 use synapse_core::{Repository, RepositoryError};
 use unicode_normalization::UnicodeNormalization;
 
@@ -529,14 +530,18 @@ fn validate_limits(limits: ArtifactLimits) -> Result<()> {
 }
 
 fn validate_path(path: &str, limits: ArtifactLimits) -> Result<Vec<String>> {
-    if path.is_empty()
-        || path.starts_with('/')
-        || path.ends_with('/')
-        || path.contains('\\')
-        || path
-            .bytes()
-            .any(|byte| byte == 0 || byte.is_ascii_control())
-        || looks_like_windows_absolute(path)
+    // Shared portable-path syntax floor (empty, leading '/', backslash,
+    // Windows drive-letter prefix, NUL byte, and '.'/'..'/empty segments)
+    // is single-sourced in `synapse-canonical`. A trailing '/' is also
+    // rejected by this call: it produces an empty final segment once split
+    // on '/', which the shared segment check catches.
+    //
+    // `synapse-artifact` additionally rejects every ASCII control byte (not
+    // only NUL) as its own domain-specific broadening, since regular-file
+    // artifact paths must never carry raw control characters such as '\n'
+    // or '\t'. This stays local: no other portable-path site in the
+    // workspace shares this stricter control-byte rule.
+    if is_portable_relative_path(path).is_err() || path.bytes().any(|byte| byte.is_ascii_control())
     {
         return Err(ArtifactError::InvalidPath(path.into()));
     }
@@ -553,12 +558,6 @@ fn validate_path(path: &str, limits: ArtifactLimits) -> Result<Vec<String>> {
     }
     if components
         .iter()
-        .any(|component| component.is_empty() || component == "." || component == "..")
-    {
-        return Err(ArtifactError::InvalidPath(path.into()));
-    }
-    if components
-        .iter()
         .any(|component| component.nfc().collect::<String>() != *component)
     {
         return Err(ArtifactError::PathNotNfc(path.into()));
@@ -570,11 +569,6 @@ fn validate_path(path: &str, limits: ArtifactLimits) -> Result<Vec<String>> {
         return Err(ArtifactError::InvalidPath(path.into()));
     }
     Ok(components)
-}
-
-fn looks_like_windows_absolute(path: &str) -> bool {
-    let bytes = path.as_bytes();
-    bytes.len() >= 2 && bytes[0].is_ascii_alphabetic() && bytes[1] == b':'
 }
 
 fn lowercase_key(value: &str) -> String {

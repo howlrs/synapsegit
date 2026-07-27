@@ -22,6 +22,17 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   Machine-readable error codes are unchanged. The pre-1.0 policy of keeping
   public Rust error enums exhaustive (no new `#[non_exhaustive]`) is now
   documented in `CONTRIBUTING.md`.
+- Portable-path syntax validation (rejecting a leading `/`, a `\` byte, a
+  `.`/`..`/empty path segment, and a NUL byte) is now single-sourced in
+  `synapse-canonical`, which `synapse-artifact`, `synapse-publication`,
+  `synapse-cas`, and `synapse-schema` all delegate to. Publication bundle
+  path validation now also explicitly rejects an ASCII Windows drive-letter
+  prefix (for example `C:`); such paths were already rejected end to end by
+  an unrelated fixed-character-set check, but this makes the rejection an
+  intentional, named rule rather than an incidental side effect. A NUL-byte
+  bundle path is still rejected, but now fails with the explicit unsafe-path
+  message instead of the unrelated fixed-character-set message it produced
+  before. Machine-readable error codes are unchanged.
 
 ## [0.4.0] - 2026-07-20
 

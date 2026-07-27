@@ -1185,13 +1185,19 @@ fn read_site(
 }
 
 fn validate_segment(segment: &str) -> CheckoutResult<()> {
-    if segment.is_empty()
-        || segment == "."
-        || segment == ".."
-        || segment.contains(['/', '\\'])
-        || segment
-            .bytes()
-            .any(|byte| byte == 0 || byte.is_ascii_control())
+    // Shared portable-path segment syntax floor (empty, '.', '..', '/',
+    // NUL) is single-sourced in `synapse-canonical`. `synapse-artifact`
+    // additionally rejects a bare '\' explicitly (canonical's segment-level
+    // check deliberately does not, since two of its other callers validate
+    // a structured-object key rather than an OS-style path segment — see
+    // that module's documentation), plus the broader ASCII-control-byte
+    // sweep, NFC normalization, and `portable_component`'s
+    // reserved-name/reserved-character/bidi checks. Those four stay local:
+    // they are `synapse-artifact`-specific domain checks, not part of the
+    // shared syntax floor other portable-path sites agree on.
+    if !synapse_canonical::is_portable_segment(segment)
+        || segment.contains('\\')
+        || segment.bytes().any(|byte| byte.is_ascii_control())
         || segment.nfc().collect::<String>() != segment
         || !crate::portable_component(segment)
     {
