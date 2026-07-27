@@ -2,6 +2,7 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::error::Error;
 use std::fmt;
 use std::str::FromStr;
+use synapse_canonical::{CanonicalTimestampParseErrorKind, parse_canonical_timestamp_unix_nanos};
 
 const NANOS_PER_SECOND: i128 = 1_000_000_000;
 const SECONDS_PER_DAY: i128 = 86_400;
@@ -19,63 +20,21 @@ pub struct CanonicalTimestamp {
 impl CanonicalTimestamp {
     /// Parses and validates an exact canonical timestamp.
     pub fn parse(value: &str) -> Result<Self, CanonicalTimestampError> {
-        let bytes = value.as_bytes();
-        let lexical = bytes.len() == 30
-            && bytes[4] == b'-'
-            && bytes[7] == b'-'
-            && bytes[10] == b'T'
-            && bytes[13] == b':'
-            && bytes[16] == b':'
-            && bytes[19] == b'.'
-            && bytes[29] == b'Z'
-            && bytes.iter().enumerate().all(|(index, byte)| {
-                matches!(index, 4 | 7 | 10 | 13 | 16 | 19 | 29) || byte.is_ascii_digit()
-            });
-        if !lexical {
-            return Err(CanonicalTimestampError::new(
-                CanonicalTimestampErrorKind::InvalidLexicalForm,
-            ));
-        }
-
-        let number = |start: usize, end: usize| -> u32 {
-            bytes[start..end]
-                .iter()
-                .fold(0, |number, digit| number * 10 + u32::from(digit - b'0'))
-        };
-        let year = number(0, 4);
-        let month = number(5, 7);
-        let day = number(8, 10);
-        let hour = number(11, 13);
-        let minute = number(14, 16);
-        let second = number(17, 19);
-        let nanos = number(20, 29);
-
-        if !(1..=12).contains(&month)
-            || day == 0
-            || day > days_in_month(year, month)
-            || hour > 23
-            || minute > 59
-            || second > 59
-        {
-            return Err(CanonicalTimestampError::new(
-                CanonicalTimestampErrorKind::InvalidCalendarDate,
-            ));
-        }
-
-        let day_of_year = (1..month)
-            .map(|candidate| i128::from(days_in_month(year, candidate)))
-            .sum::<i128>()
-            + i128::from(day - 1);
-        let absolute_days = days_before_year(year) + day_of_year;
-        let unix_days = absolute_days - days_before_year(1970);
-        let unix_seconds = unix_days * SECONDS_PER_DAY
-            + i128::from(hour) * 3_600
-            + i128::from(minute) * 60
-            + i128::from(second);
+        let unix_nanos = parse_canonical_timestamp_unix_nanos(value).map_err(|error| {
+            let kind = match error.kind() {
+                CanonicalTimestampParseErrorKind::InvalidLexicalForm => {
+                    CanonicalTimestampErrorKind::InvalidLexicalForm
+                }
+                CanonicalTimestampParseErrorKind::InvalidCalendarDate => {
+                    CanonicalTimestampErrorKind::InvalidCalendarDate
+                }
+            };
+            CanonicalTimestampError::new(kind)
+        })?;
 
         Ok(Self {
             encoded: value.to_owned(),
-            unix_nanos: unix_seconds * NANOS_PER_SECOND + i128::from(nanos),
+            unix_nanos,
         })
     }
 

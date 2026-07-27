@@ -27,7 +27,8 @@ use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_canonical::{
-    ObjectKind, canonical_bytes, lower_hex, parse_oid, parse_strict, sha256_hex,
+    ObjectKind, canonical_bytes, lower_hex, parse_canonical_timestamp_unix_nanos, parse_oid,
+    parse_strict, sha256_hex,
 };
 use synapse_core::{Repository, RepositoryError};
 use synapse_creator::{
@@ -1335,18 +1336,7 @@ fn safe_version_label(value: &str) -> bool {
 }
 
 fn is_canonical_timestamp(value: &str) -> bool {
-    let bytes = value.as_bytes();
-    bytes.len() == 30
-        && bytes[4] == b'-'
-        && bytes[7] == b'-'
-        && bytes[10] == b'T'
-        && bytes[13] == b':'
-        && bytes[16] == b':'
-        && bytes[19] == b'.'
-        && bytes[29] == b'Z'
-        && bytes.iter().enumerate().all(|(index, byte)| {
-            matches!(index, 4 | 7 | 10 | 13 | 16 | 19 | 29) || byte.is_ascii_digit()
-        })
+    parse_canonical_timestamp_unix_nanos(value).is_ok()
 }
 
 fn profile_error(message: impl Into<String>) -> PublicationError {

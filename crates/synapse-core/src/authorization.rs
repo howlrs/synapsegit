@@ -9,7 +9,10 @@ use super::{Repository, RepositoryError, Result, validate_prepared_head};
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
-use synapse_canonical::{CoreError, ErrorCode, ObjectKind, Value, parse_oid};
+use synapse_canonical::{
+    CanonicalTimestampParseErrorKind, CoreError, ErrorCode, ObjectKind, Value,
+    parse_canonical_timestamp_unix_nanos, parse_oid,
+};
 use synapse_cas::{ClosureNodeState, PreparedClosureVerifier};
 use synapse_schema::validate;
 use synapse_sqlite::{
@@ -2037,70 +2040,17 @@ fn require_direct_base_parent(candidate: &Value, base_commit: &str) -> Result<()
 }
 
 fn canonical_timestamp_unix_nanos(value: &str) -> Result<i128> {
-    let bytes = value.as_bytes();
-    let lexical = bytes.len() == 30
-        && bytes[4] == b'-'
-        && bytes[7] == b'-'
-        && bytes[10] == b'T'
-        && bytes[13] == b':'
-        && bytes[16] == b':'
-        && bytes[19] == b'.'
-        && bytes[29] == b'Z'
-        && bytes.iter().enumerate().all(|(index, byte)| {
-            matches!(index, 4 | 7 | 10 | 13 | 16 | 19 | 29) || byte.is_ascii_digit()
-        });
-    if !lexical {
-        return Err(CoreError::new(
-            ErrorCode::TimestampInvalid,
-            format!("invalid canonical timestamp {value:?}"),
-        )
-        .into());
-    }
-    let number = |start: usize, end: usize| -> i128 {
-        bytes[start..end].iter().fold(0_i128, |number, digit| {
-            number * 10 + i128::from(digit - b'0')
-        })
-    };
-    let year = number(0, 4);
-    let month = number(5, 7);
-    let day = number(8, 10);
-    let hour = number(11, 13);
-    let minute = number(14, 16);
-    let second = number(17, 19);
-    let nanos = number(20, 29);
-    let leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
-    let month_days = [
-        31_i128,
-        if leap { 29 } else { 28 },
-        31,
-        30,
-        31,
-        30,
-        31,
-        31,
-        30,
-        31,
-        30,
-        31,
-    ];
-    if !(1..=12).contains(&month)
-        || day < 1
-        || day > month_days[(month - 1) as usize]
-        || hour > 23
-        || minute > 59
-        || second > 59
-    {
-        return Err(CoreError::new(
-            ErrorCode::TimestampInvalid,
-            format!("invalid calendar timestamp {value:?}"),
-        )
-        .into());
-    }
-    let days_before_year =
-        |year: i128| 365 * year + (year + 3) / 4 - (year + 99) / 100 + (year + 399) / 400;
-    let preceding_month_days = month_days[..(month - 1) as usize].iter().sum::<i128>();
-    let days = days_before_year(year) - days_before_year(1970) + preceding_month_days + day - 1;
-    Ok((((days * 24 + hour) * 60 + minute) * 60 + second) * 1_000_000_000 + nanos)
+    parse_canonical_timestamp_unix_nanos(value).map_err(|error| {
+        let message = match error.kind() {
+            CanonicalTimestampParseErrorKind::InvalidLexicalForm => {
+                format!("invalid canonical timestamp {value:?}")
+            }
+            CanonicalTimestampParseErrorKind::InvalidCalendarDate => {
+                format!("invalid calendar timestamp {value:?}")
+            }
+        };
+        CoreError::new(ErrorCode::TimestampInvalid, message).into()
+    })
 }
 
 fn denied(message: impl Into<String>) -> RepositoryError {
