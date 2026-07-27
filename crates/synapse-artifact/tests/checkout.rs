@@ -92,6 +92,7 @@ impl CompletedDecision {
     }
 }
 
+// Diverges from common::manifest: caller-supplied raw bytes, different signature — not consolidated.
 fn manifest(index: &[u8], css: &[u8]) -> RegularFileManifest {
     RegularFileManifest::from_entries(
         [
@@ -172,6 +173,8 @@ fn source_state(root: &Path) -> BTreeMap<PathBuf, Option<Vec<u8>>> {
     state
 }
 
+// Same as common::object_json apart from panic-message wording ("missing fixture object") —
+// left local since the divergence, though cosmetic, isn't byte-identical.
 fn object_json(repository: &Repository, oid: &str) -> JsonValue {
     serde_json::from_slice(
         &repository

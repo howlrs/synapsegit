@@ -201,7 +201,7 @@ machine-readable error code は protocol と CLI の契約である。既存 cod
 
 pre-1.0 の間、public な Rust error enum は exhaustive のまま維持し、`#[non_exhaustive]` を新たに付与しない。
 workspace 内クロスクレートの match 網羅性検査は variant の取りこぼしをコンパイル時に検知する fail-closed 設計の
-中核であり、全面的な `#[non_exhaustive]` 付与はこの価値を失わせる。variant 追加はソース互換を意図的に破る
+中核であり、public error enum への全面的な `#[non_exhaustive]` 付与はこの価値を失わせる。variant 追加はソース互換を意図的に破る
 変更として PR で明示し、安定契約は machine-readable error code 側に置く。Rust enum の形状そのものは pre-1.0 では
 契約ではない。既存の `#[non_exhaustive]` 2型（`synapse-canonical::ErrorCode`、
 `synapse-publication::GenericArtifactPublicationError`）はワイヤ拡張を前提とした意図的な例外として維持する。

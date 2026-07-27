@@ -1,3 +1,6 @@
+mod common;
+
+use common::put_json;
 use serde_json::{Map as JsonMap, Value as JsonValue, json};
 use std::collections::VecDeque;
 use std::fs;
@@ -1294,13 +1297,6 @@ fn commit(
         "message": message,
         "extensions": {}
     })
-}
-
-fn put_json(repository: &Repository, value: JsonValue) -> String {
-    repository
-        .put_object(&serde_json::to_vec(&value).unwrap())
-        .unwrap()
-        .oid
 }
 
 fn assert_failure_unchanged(mut scenario: Scenario, expected_code: &str) -> RepositoryError {

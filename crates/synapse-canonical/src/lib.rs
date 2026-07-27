@@ -270,6 +270,34 @@ impl Error for CanonicalTimestampParseError {}
 /// not match the fixed-width wire layout, or
 /// [`CanonicalTimestampParseErrorKind::InvalidCalendarDate`] if it matches
 /// the layout but is not a valid calendar date and time.
+///
+/// # Examples
+///
+/// ```
+/// use synapse_canonical::parse_canonical_timestamp_unix_nanos;
+///
+/// assert_eq!(
+///     parse_canonical_timestamp_unix_nanos("1970-01-01T00:00:00.000000000Z").unwrap(),
+///     0,
+/// );
+/// assert_eq!(
+///     parse_canonical_timestamp_unix_nanos("1970-01-01T00:00:01.500000000Z").unwrap(),
+///     1_500_000_000,
+/// );
+/// ```
+///
+/// An invalid calendar date (February 30th) is distinguished from a
+/// malformed literal:
+///
+/// ```
+/// use synapse_canonical::{CanonicalTimestampParseErrorKind, parse_canonical_timestamp_unix_nanos};
+///
+/// let error = parse_canonical_timestamp_unix_nanos("2026-02-30T00:00:00.000000000Z").unwrap_err();
+/// assert_eq!(error.kind(), CanonicalTimestampParseErrorKind::InvalidCalendarDate);
+///
+/// let error = parse_canonical_timestamp_unix_nanos("not-a-timestamp").unwrap_err();
+/// assert_eq!(error.kind(), CanonicalTimestampParseErrorKind::InvalidLexicalForm);
+/// ```
 pub fn parse_canonical_timestamp_unix_nanos(
     value: &str,
 ) -> Result<i128, CanonicalTimestampParseError> {
@@ -340,6 +368,7 @@ const fn days_in_civil_month(year: u32, month: u32) -> u32 {
         4 | 6 | 9 | 11 => 30,
         2 if is_civil_leap_year(year) => 29,
         2 => 28,
+        // Defensively unreachable: every caller pre-checks `1..=12` before calling.
         _ => 0,
     }
 }
@@ -547,11 +576,36 @@ pub fn verify_blob_oid(claimed_oid: &str, bytes: &[u8]) -> Result<(), CoreError>
 }
 
 /// Hash `bytes` with SHA-256 and return the digest as lowercase hex, no prefix.
+///
+/// # Examples
+///
+/// ```
+/// use synapse_canonical::sha256_hex;
+///
+/// assert_eq!(
+///     sha256_hex(b""),
+///     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+/// );
+/// ```
 pub fn sha256_hex(bytes: &[u8]) -> String {
     lower_hex(Sha256::digest(bytes))
 }
 
 /// Encode a byte sequence as lowercase hex, no prefix.
+///
+/// The parameter is `impl IntoIterator<Item = u8>` (owned `u8`s, not
+/// references) so this accepts both owned byte collections — such as the
+/// [`sha2::digest::Output`] returned by `Sha256::digest` — and a `&[u8]`
+/// slice via `slice.iter().copied()`.
+///
+/// # Examples
+///
+/// ```
+/// use synapse_canonical::lower_hex;
+///
+/// let bytes: &[u8] = &[0xde, 0xad, 0xbe, 0xef];
+/// assert_eq!(lower_hex(bytes.iter().copied()), "deadbeef");
+/// ```
 pub fn lower_hex(bytes: impl IntoIterator<Item = u8>) -> String {
     const DIGITS: &[u8; 16] = b"0123456789abcdef";
     let bytes = bytes.into_iter();
@@ -1305,6 +1359,20 @@ pub fn has_windows_drive_letter_prefix(path: &str) -> bool {
 ///
 /// Returns [`PortablePathError`] describing the first syntax rule that
 /// `path` violates.
+///
+/// # Examples
+///
+/// ```
+/// use synapse_canonical::{PortablePathErrorKind, is_portable_relative_path};
+///
+/// assert!(is_portable_relative_path("assets/site.css").is_ok());
+///
+/// let error = is_portable_relative_path("../escape").unwrap_err();
+/// assert_eq!(error.kind(), PortablePathErrorKind::ParentDirSegment);
+///
+/// let error = is_portable_relative_path("/etc/passwd").unwrap_err();
+/// assert_eq!(error.kind(), PortablePathErrorKind::LeadingSlash);
+/// ```
 pub fn is_portable_relative_path(path: &str) -> Result<(), PortablePathError> {
     if path.is_empty() {
         return Err(PortablePathError::new(PortablePathErrorKind::Empty));

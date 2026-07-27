@@ -1,5 +1,7 @@
+mod common;
 mod support;
 
+use common::{manifest, object_json};
 use serde_json::{Value as JsonValue, json};
 use std::fs;
 use std::path::PathBuf;
@@ -55,23 +57,6 @@ impl Drop for TempProject {
     }
 }
 
-fn manifest(label: &str) -> RegularFileManifest {
-    RegularFileManifest::from_entries(
-        [
-            ArtifactManifestEntry::regular_file(
-                "index.html",
-                format!("<!doctype html><title>{label}</title>").into_bytes(),
-            ),
-            ArtifactManifestEntry::regular_file(
-                "assets/site.css",
-                format!("/* {label} */ body {{ color: #123456; }}").into_bytes(),
-            ),
-        ],
-        ArtifactLimits::default(),
-    )
-    .unwrap()
-}
-
 fn begin(temp: &TempProject, key: &str) -> synapse_artifact::PendingArtifactProposal {
     begin_artifact_proposal(
         &temp.config(key),
@@ -81,15 +66,6 @@ fn begin(temp: &TempProject, key: &str) -> synapse_artifact::PendingArtifactProp
         ArtifactSourceAttribution::CallerSuppliedAiAttributed,
     )
     .unwrap()
-}
-
-fn object_json(repository: &Repository, oid: &str) -> JsonValue {
-    let bytes = repository
-        .objects()
-        .read_raw(oid)
-        .unwrap_or_else(|error| panic!("read {oid}: {error}"))
-        .unwrap_or_else(|| panic!("missing object {oid}"));
-    serde_json::from_slice(&bytes).unwrap_or_else(|error| panic!("parse {oid}: {error}"))
 }
 
 fn direct_site_oid(repository: &Repository, commit_oid: &str) -> String {
@@ -127,6 +103,8 @@ fn current_head(repository: &Repository, ref_name: &str) -> String {
         .head
 }
 
+// Same shape as approval.rs's successor_commit apart from unwrap error handling — not
+// consolidated since the panic-message divergence is a real (if minor) behavior difference.
 fn successor_commit(repository: &Repository, parent: &str, label: &str) -> String {
     let mut commit = object_json(repository, parent);
     commit["parents"] = json!([parent]);

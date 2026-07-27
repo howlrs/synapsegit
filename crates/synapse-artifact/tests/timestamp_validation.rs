@@ -39,6 +39,7 @@ impl Drop for UnopenedProject {
     }
 }
 
+// Diverges from common::manifest: zero-arg, fixed content — not consolidated.
 fn manifest() -> RegularFileManifest {
     RegularFileManifest::from_entries(
         [ArtifactManifestEntry::regular_file(
