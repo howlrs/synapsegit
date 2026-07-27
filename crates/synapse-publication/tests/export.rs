@@ -418,6 +418,55 @@ fn verification_rejects_unknown_renderer_profile_name_or_version() {
 }
 
 #[test]
+fn verification_rejects_a_windows_drive_letter_bundle_path_as_the_explicit_syntax_rule() {
+    // Before this change, `validate_bundle_relative_path` had no purpose-built
+    // drive-letter check. A drive-letter-shaped path such as "C:/secret" was
+    // still rejected end to end, but only as an incidental side effect of a
+    // *different*, unrelated check: the fixed ASCII character allowlist a few
+    // lines below, which happens to exclude ':' for its own reasons. That is
+    // not the same as a named, intentional guarantee -- a future change to
+    // the allowlist's exact character set (for example widening it to allow
+    // ':' for some unrelated future path shape) could have silently reopened
+    // the hole without any test catching it, because no test asserted
+    // drive-letter rejection as its own property.
+    //
+    // This test proves the strengthening moved the rejection to the correct,
+    // explicit layer: the error now carries the "unsafe bundle path" message
+    // that `synapse_canonical::is_portable_relative_path`'s
+    // `WindowsDriveLetter` rejection kind produces, not the "outside the
+    // fixed ASCII profile" message the old incidental path would have
+    // produced for the exact same input.
+    let temporary = TempDirectory::new();
+    create_three_decision_fixture(&temporary.0);
+    let bundle = export(&temporary, "drive-letter-bundle", OutputTarget::Github);
+
+    let mut checksums: ChecksumsDocument =
+        serde_json::from_slice(&fs::read(bundle.join("checksums.json")).unwrap()).unwrap();
+    checksums.files = vec![synapse_publication::FileChecksum {
+        path: "C:/secret".into(),
+        sha256: "0".repeat(64),
+        byte_len: 0,
+    }];
+    fs::write(bundle.join("checksums.json"), canonical_json(&checksums)).unwrap();
+
+    let error = verify_bundle(&bundle).unwrap_err();
+    match error {
+        PublicationError::InvalidBundle(message) => {
+            assert!(
+                message.contains("unsafe bundle path"),
+                "expected the explicit portable-path syntax rejection, got: {message}"
+            );
+            assert!(
+                !message.contains("fixed ASCII profile"),
+                "drive-letter rejection should fire before the unrelated ASCII allowlist \
+                 check, got: {message}"
+            );
+        }
+        other => panic!("unexpected drive-letter verification error: {other}"),
+    }
+}
+
+#[test]
 fn incomplete_only_projection_marks_source_facts_unverified() {
     let temporary = TempDirectory::new();
     let unverified_blob = create_incomplete_fixture(&temporary.0);

@@ -22,7 +22,7 @@ use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::sync::{Arc, OnceLock};
 use synapse_canonical::{
-    CoreError, ErrorCode, ResourceLimits, Value, canonical_bytes_with_limits,
+    CoreError, ErrorCode, ResourceLimits, Value, canonical_bytes_with_limits, is_portable_segment,
     parse_strict_with_limits, structured_oid_unchecked_with_limits,
 };
 use unicode_normalization::UnicodeNormalization;
@@ -846,12 +846,12 @@ fn validate_manifest(value: &Value) -> Result<(), CoreError> {
         return Ok(());
     };
     for (segment, entry) in entries {
-        if segment.is_empty()
-            || segment == "."
-            || segment == ".."
-            || segment.contains('/')
-            || segment.contains('\0')
-        {
+        // Shared portable-path segment syntax floor is single-sourced in
+        // `synapse-canonical`; this is an exact byte-for-byte match of the
+        // check that used to live here inline (see that module's own
+        // documentation for why it does not additionally reject a bare
+        // '\').
+        if !is_portable_segment(segment) {
             return Err(CoreError::new(
                 ErrorCode::PathSegmentInvalid,
                 format!("invalid Manifest segment {segment:?}"),

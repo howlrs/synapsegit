@@ -1418,11 +1418,11 @@ fn invalid_object(oid: &str, detail: impl Into<String>, issues: &mut Vec<Closure
 }
 
 fn valid_path_segment(segment: &str) -> bool {
-    !segment.is_empty()
-        && segment != "."
-        && segment != ".."
-        && !segment.contains('/')
-        && !segment.contains('\0')
+    // Shared portable-path segment syntax floor is single-sourced in
+    // `synapse-canonical`; this is an exact byte-for-byte match of the
+    // check that used to live here (see the module's own documentation for
+    // why it does not additionally reject a bare '\').
+    synapse_canonical::is_portable_segment(segment)
 }
 
 #[cfg(test)]

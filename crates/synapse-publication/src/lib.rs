@@ -27,8 +27,8 @@ use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_canonical::{
-    ObjectKind, canonical_bytes, lower_hex, parse_canonical_timestamp_unix_nanos, parse_oid,
-    parse_strict, sha256_hex,
+    ObjectKind, canonical_bytes, is_portable_relative_path, lower_hex,
+    parse_canonical_timestamp_unix_nanos, parse_oid, parse_strict, sha256_hex,
 };
 use synapse_core::{Repository, RepositoryError};
 use synapse_creator::{
@@ -1792,13 +1792,17 @@ fn path_to_slash(path: &Path) -> Result<String> {
 }
 
 fn validate_bundle_relative_path(path: &str) -> Result<()> {
-    if path.is_empty()
-        || path.starts_with('/')
-        || path.contains('\\')
-        || path
-            .split('/')
-            .any(|part| part.is_empty() || part == "." || part == "..")
-    {
+    // Shared portable-path syntax floor (empty, leading '/', backslash,
+    // '.'/'..'/empty segments) is single-sourced in `synapse-canonical`.
+    // This call also newly rejects an ASCII Windows drive-letter prefix
+    // (`[A-Za-z]:`, for example `C:`): the pre-existing ASCII-profile
+    // allowlist below rejects such paths too today, since ':' is not in
+    // that allowlist, but only as an incidental side effect of the exact
+    // character set chosen for an unrelated reason — there was no named,
+    // intentional drive-letter check an unrelated future change to the
+    // allowlist couldn't silently reopen. This makes that rejection
+    // explicit and independent of the allowlist's exact contents.
+    if is_portable_relative_path(path).is_err() {
         return Err(PublicationError::InvalidBundle(format!(
             "unsafe bundle path {path:?}"
         )));
