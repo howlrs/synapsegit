@@ -6,6 +6,8 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-28
+
 ### Changed
 
 - Publication bundle verification now validates canonical timestamps against
@@ -197,7 +199,8 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/howlrs/synapsegit/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/howlrs/synapsegit/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/howlrs/synapsegit/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/howlrs/synapsegit/compare/v0.1.0...v0.2.0
