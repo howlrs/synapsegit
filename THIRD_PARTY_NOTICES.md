@@ -138,7 +138,7 @@ linked into every distributed binary.
 | scopeguard | 1.2.0 | MIT OR Apache-2.0 | https://github.com/bluss/scopeguard |
 | serde_core | 1.0.229 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
 | serde_derive | 1.0.229 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
-| serde_json | 1.0.150 | MIT OR Apache-2.0 | https://github.com/serde-rs/json |
+| serde_json | 1.0.151 | MIT OR Apache-2.0 | https://github.com/serde-rs/json |
 | serde_path_to_error | 0.1.20 | MIT OR Apache-2.0 | https://github.com/dtolnay/path-to-error |
 | serde_spanned | 1.1.1 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
 | serde_urlencoded | 0.7.1 | MIT/Apache-2.0 | https://github.com/nox/serde_urlencoded |
@@ -607,7 +607,7 @@ Applies to:
 - serde 1.0.229 — LICENSE-APACHE
 - serde_core 1.0.229 — LICENSE-APACHE
 - serde_derive 1.0.229 — LICENSE-APACHE
-- serde_json 1.0.150 — LICENSE-APACHE
+- serde_json 1.0.151 — LICENSE-APACHE
 - serde_path_to_error 0.1.20 — LICENSE-APACHE
 - serde_urlencoded 0.7.1 — LICENSE-APACHE
 - syn 2.0.119 — LICENSE-APACHE
@@ -817,7 +817,7 @@ Applies to:
 - serde 1.0.229 — LICENSE-MIT
 - serde_core 1.0.229 — LICENSE-MIT
 - serde_derive 1.0.229 — LICENSE-MIT
-- serde_json 1.0.150 — LICENSE-MIT
+- serde_json 1.0.151 — LICENSE-MIT
 - serde_path_to_error 0.1.20 — LICENSE-MIT
 - syn 2.0.119 — LICENSE-MIT
 - syn 3.0.3 — LICENSE-MIT
