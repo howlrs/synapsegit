@@ -199,6 +199,14 @@ export function loadPublicationComprehensionCorpus(corpusDir = publicationCompre
       ),
     "protocol context.track_matrix must exactly match the scorer's fixed group order",
   );
+  for (const entry of protocol.context.track_matrix) {
+    for (const property of Object.keys(entry)) {
+      requireCondition(
+        ["evaluator_kind", "track"].includes(property),
+        `protocol context.track_matrix entry has an unknown property: ${property}`,
+      );
+    }
+  }
 
   const cases = Object.keys(oracle.cases).sort();
   requireCondition(cases.length > 0, "oracle must define at least one case");

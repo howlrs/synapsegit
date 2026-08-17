@@ -278,6 +278,13 @@ function testCorpusLoadRejectsTrackMatrixMismatch() {
     },
     "track_matrix",
   );
+  assertLoadThrows(
+    "protocol.json",
+    (doc) => {
+      doc.context.track_matrix[0].extra_property = "unexpected";
+    },
+    "track_matrix entry has an unknown property",
+  );
 }
 
 function testCorpusLoadRejectsDuplicateCasesAndTracks() {
