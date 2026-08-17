@@ -63,10 +63,13 @@ flowchart TB
     Publication[synapse-publication] --> Creator
     Publication --> Core
     Publication --> Canon
+    Publication --> Artifact
     Artifact[synapse-artifact] --> Application
     Artifact --> Core
     Artifact --> SQLite
     Artifact --> Canon
+    Artifact --> ArtifactJournal
+    Artifact --> Schema
     ArtifactJournal[synapse-artifact-journal] --> JournalDb[(separate SQLite review DB)]
     Application[synapse-application] --> Core
     Observation[synapse-observation] --> Core
@@ -82,6 +85,10 @@ flowchart TB
     Projection --> Canon
     Schema --> Canon
     CAS --> Canon
+    LocalHttp[synapse-local-http] --> LocalService[synapse-local-service]
+    LocalService --> Core
+    LocalService --> Creator
+    LocalService --> SQLite
 
     classDef identity fill:#e8e8ff,stroke:#4c4cc7;
     classDef storage fill:#e2f3eb,stroke:#18794e;
@@ -104,6 +111,8 @@ flowchart TB
 | `synapse-publication` | existing read-only CASと、checkpoint済みRef SQLiteのdigest検証付きprivate stable copyから、provider-neutral PublicProjection、Human／Machine view、manifest／checksum、local target layoutを生成・検証するpresentation layer |
 | `synapse-core` | validated ingest、repository boundary、AI proposal／Human Decision admission、directory export / restore |
 | `synapse-cli` | Coreのlocal commandと`creator-run`／`creator-report`を公開するStage 0 command-line interface |
+| `synapse-local-service` | transport-neutral localhost read (project／status／Refs／reflog／creator-session discovery)とbounded creator facade (begin／decide) を提供し、versioned DTOを返すtrusted層。repository pathや低level Ref/object mutation primitiveは公開しない |
+| `synapse-local-http` | Axum + Askamaによるloopback-only HTTP／browser UI server。templateとassetをbinaryへembedし、`synapse-local-service`経由でのみCoreへ届く |
 
 依存方向を逆転させない。canonical identity layer は database、CLI、media adapter に依存しない。
 `synapse-sqlite` は Ref と reflog の store であり、ProjectionStore ではない。

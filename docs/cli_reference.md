@@ -204,11 +204,11 @@ CLI は `Created` / `AlreadyPresent` の disposition を表示しない。
 candidate Commit の typed closure を確認し、Ref と reflog を compare-and-swap 更新する。
 
 ```bash
-synapse update-ref .synapse proposal/agent/run-1 - \"$NEW_HEAD\" \
+synapse update-ref .synapse proposal/agent/run-1 - "$NEW_HEAD" \
   --actor actor:local-user \
-  --message \"first proposal\"
+  --message "first proposal"
 
-synapse update-ref .synapse proposal/agent/run-1 \"$OLD_HEAD\" \"$NEW_HEAD\"
+synapse update-ref .synapse proposal/agent/run-1 "$OLD_HEAD" "$NEW_HEAD"
 ```
 
 - `-` は current Ref が存在しないことを期待する create operation。
