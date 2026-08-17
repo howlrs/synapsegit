@@ -2,8 +2,8 @@
 
 Audience: preview users and evaluators
 Status: Stage 0 prerelease
-Applies to: v0.5.0
-Last verified: 2026-07-28
+Applies to: v0.5.1
+Last verified: 2026-08-17
 
 SynapseGit currently has one prebuilt distribution and one source-install path.
 It is not published to crates.io, Homebrew, a Linux package repository, or a
@@ -19,7 +19,7 @@ Linux ARM64 do not have release-tested prebuilt artifacts yet. The Dockerfile
 in this repository is for a private, one-shot GCP packaging smoke test; it is
 not an end-user SynapseGit image.
 
-The tagged v0.5.0 source also contains the frozen generic-artifact v1
+The tagged v0.5.1 source also contains the frozen generic-artifact v1
 contracts and their sequential, durable, checkout, and local-projection Rust
 libraries. Those are workspace libraries for an embedding application. The
 release archive still contains exactly the three binaries listed above; it does
@@ -28,23 +28,23 @@ path.
 
 ## Install the Linux x86-64 release
 
-Download the archive and checksum from the fixed v0.5.0 release URL:
+Download the archive and checksum from the fixed v0.5.1 release URL:
 
 ```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.5.0/synapsegit-v0.5.0-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.5.0/SHA256SUMS
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.5.1/synapsegit-v0.5.1-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.5.1/SHA256SUMS
 sha256sum --check SHA256SUMS
 ```
 
 `SHA256SUMS` detects accidental or malicious byte changes relative to the file
 published on the same Release. It does not authenticate the project owner by
-itself. Verify the v0.5.0 archive's build provenance with GitHub CLI as well:
+itself. Verify the v0.5.1 archive's build provenance with GitHub CLI as well:
 
 ```bash
-gh attestation verify synapsegit-v0.5.0-x86_64-unknown-linux-gnu.tar.gz \
+gh attestation verify synapsegit-v0.5.1-x86_64-unknown-linux-gnu.tar.gz \
   --repo howlrs/synapsegit \
   --signer-workflow howlrs/synapsegit/.github/workflows/release.yml \
-  --source-ref refs/tags/v0.5.0 \
+  --source-ref refs/tags/v0.5.1 \
   --deny-self-hosted-runners
 ```
 
@@ -56,13 +56,13 @@ Inspect the extracted release notes before installing. Then copy all three
 binaries to a user-owned directory:
 
 ```bash
-tar -xzf synapsegit-v0.5.0-x86_64-unknown-linux-gnu.tar.gz
-less synapsegit-v0.5.0-x86_64-unknown-linux-gnu/README.md
+tar -xzf synapsegit-v0.5.1-x86_64-unknown-linux-gnu.tar.gz
+less synapsegit-v0.5.1-x86_64-unknown-linux-gnu/README.md
 
 mkdir -p "$HOME/.local/bin"
-install -m 0755 synapsegit-v0.5.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
-install -m 0755 synapsegit-v0.5.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
-install -m 0755 synapsegit-v0.5.0-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
+install -m 0755 synapsegit-v0.5.1-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
+install -m 0755 synapsegit-v0.5.1-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
+install -m 0755 synapsegit-v0.5.1-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
 export PATH="$HOME/.local/bin:$PATH"
 
 synapse --version
@@ -80,24 +80,24 @@ export PATH="$HOME/.local/bin:$PATH"
 ## Build from a tagged source release
 
 Install Rust 1.88 or newer, a C toolchain, and SQLite build prerequisites for
-the host. Install directly from the immutable v0.5.0 tag:
+the host. Install directly from the immutable v0.5.1 tag:
 
 ```bash
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.5.0 \
+  --tag v0.5.1 \
   --locked \
   synapse-cli
 
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.5.0 \
+  --tag v0.5.1 \
   --locked \
   synapse-local-http
 
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.5.0 \
+  --tag v0.5.1 \
   --locked \
   synapse-publication
 
@@ -112,7 +112,7 @@ not a moving branch, when installing software you plan to evaluate or retain.
 To inspect and test the source before installing:
 
 ```bash
-git clone --branch v0.5.0 --depth 1 https://github.com/howlrs/synapsegit.git
+git clone --branch v0.5.1 --depth 1 https://github.com/howlrs/synapsegit.git
 cd synapsegit
 cargo test --workspace --all-targets --locked
 cargo install --path crates/synapse-cli --locked
@@ -131,19 +131,19 @@ The workspace crates are intentionally marked `publish = false` during Stage
 ```bash
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.5.0 \
+  --tag v0.5.1 \
   --locked \
   synapse-cli
 
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.5.0 \
+  --tag v0.5.1 \
   --locked \
   synapse-local-http
 
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.5.0 \
+  --tag v0.5.1 \
   --locked \
   synapse-publication
 ```
@@ -179,7 +179,7 @@ need the recorded data.
 
 ## Next steps
 
-- [Read the v0.5.0 release notes](./releases/v0.5.0.md)
+- [Read the v0.5.1 release notes](./releases/v0.5.1.md)
 - [Complete the illustrated 15-minute mural tutorial](./tutorial/README.md)
 - [画像付き15分 壁画チュートリアルを実行する](./tutorial/README.ja.md)
 - [Run the three-minute Pilot](../README.md#try-it-in-three-minutes)
