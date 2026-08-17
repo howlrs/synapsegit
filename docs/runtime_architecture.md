@@ -20,6 +20,10 @@ flowchart LR
     ARTIFACT --> APP
     JOURNAL["synapse-artifact-journal<br/>private intents + exact outcomes"] --> ARTIFACT
     TRANSPORT["HTTP / CLI / UI integration<br/>not implemented"] -. future composition .-> ARTIFACT
+    LOCALHTTP["synapse-local-http<br/>Axum + Askama loopback server"] --> LOCALSVC["synapse-local-service<br/>transport-neutral trusted facade"]
+    LOCALSVC --> CORE
+    LOCALSVC --> CREATOR
+    LOCALSVC --> REF
     OBS --> CORE
     REQUEST["AI / Human request<br/>credential + project + opaque handle/permit"] --> APP["synapse-application<br/>local AI + narrow Human routes"]
     CONTROL["Trusted control plane<br/>profiles + candidate + executor + Clock"] --> APP

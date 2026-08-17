@@ -45,42 +45,42 @@ node scripts/verify_core_fixtures.mjs
 ```bash
 SG=target/debug/synapse
 SP=target/debug/synapse-present
-DEMO=\"$(mktemp -d)\"
-REPO=\"$DEMO/repository\"
-ARCHIVE=\"$DEMO/archive\"
-RESTORED=\"$DEMO/restored\"
+DEMO="$(mktemp -d)"
+REPO="$DEMO/repository"
+ARCHIVE="$DEMO/archive"
+RESTORED="$DEMO/restored"
 FIX=spec/core/v0.1/fixtures
 
-\"$SG\" init \"$REPO\"
+"$SG" init "$REPO"
 
 for name in \
   actor-ai actor-creator-a policy delegation-grant \
   context-pack ai-activity
 do
-  \"$SG\" put-record \"$REPO\" \"$FIX/$name.json\"
+  "$SG" put-record "$REPO" "$FIX/$name.json"
 done
 
-\"$SG\" put-blob \"$REPO\" \"$FIX/proposal.txt\"
-\"$SG\" build-tree \"$REPO\" \"$FIX/base-tree-a.json\"
-\"$SG\" commit \"$REPO\" \"$FIX/base-commit.json\"
-\"$SG\" build-tree \"$REPO\" \"$FIX/proposal-tree.json\"
-HEAD=\"$(\"$SG\" commit \"$REPO\" \"$FIX/proposal-commit.json\")\"
+"$SG" put-blob "$REPO" "$FIX/proposal.txt"
+"$SG" build-tree "$REPO" "$FIX/base-tree-a.json"
+"$SG" commit "$REPO" "$FIX/base-commit.json"
+"$SG" build-tree "$REPO" "$FIX/proposal-tree.json"
+HEAD="$("$SG" commit "$REPO" "$FIX/proposal-commit.json")"
 
-\"$SG\" update-ref \
-  \"$REPO\" \
+"$SG" update-ref \
+  "$REPO" \
   proposal/agent/demo \
   - \
-  \"$HEAD\" \
+  "$HEAD" \
   --actor demo-user \
-  --message \"Quickstart proposal\"
+  --message "Quickstart proposal"
 
-\"$SG\" fsck \"$REPO\"
-\"$SG\" export \"$REPO\" \"$ARCHIVE\"
-\"$SG\" restore \"$ARCHIVE\" \"$RESTORED\"
-\"$SG\" refs \"$RESTORED\"
-\"$SG\" fsck \"$RESTORED\"
+"$SG" fsck "$REPO"
+"$SG" export "$REPO" "$ARCHIVE"
+"$SG" restore "$ARCHIVE" "$RESTORED"
+"$SG" refs "$RESTORED"
+"$SG" fsck "$RESTORED"
 
-echo \"demo data: $DEMO\"
+echo "demo data: $DEMO"
 ```
 
 主な期待出力は次のとおりである。OID は省略表示している。

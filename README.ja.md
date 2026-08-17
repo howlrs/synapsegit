@@ -205,6 +205,8 @@ trusted configとjournal factsをimmutable object／一貫したlive Ref state�
 再authenticationと新しいapprovalが必要です。final publicationは引き続き`HumanDecisionRuntime`のfull
 validationとCASを通ります。
 
+このbindingはuntamperedなtrusted local configurationとjournal storageを前提としており、元のProposalが
+特定のprocess runtime capability intersectionを通過したことのcryptographic evidenceではありません。
 Core Ref／reflogとjournalのSQLite transactionは別なので、cross-database atomicityを主張せず、crash windowを
 bounded reconciliationで解決します。Rust trusted workflow valueはgetter-onlyなprocess valueで、browserから
 authorityとして渡すtransport DTOではありません。
