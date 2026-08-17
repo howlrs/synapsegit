@@ -136,13 +136,13 @@ linked into every distributed binary.
 | rustversion | 1.0.23 | MIT OR Apache-2.0 | https://github.com/dtolnay/rustversion |
 | ryu | 1.0.23 | Apache-2.0 OR BSL-1.0 | https://github.com/dtolnay/ryu |
 | scopeguard | 1.2.0 | MIT OR Apache-2.0 | https://github.com/bluss/scopeguard |
-| serde_core | 1.0.228 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
-| serde_derive | 1.0.228 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
+| serde_core | 1.0.229 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
+| serde_derive | 1.0.229 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
 | serde_json | 1.0.150 | MIT OR Apache-2.0 | https://github.com/serde-rs/json |
 | serde_path_to_error | 0.1.20 | MIT OR Apache-2.0 | https://github.com/dtolnay/path-to-error |
 | serde_spanned | 1.1.1 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
 | serde_urlencoded | 0.7.1 | MIT/Apache-2.0 | https://github.com/nox/serde_urlencoded |
-| serde | 1.0.228 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
+| serde | 1.0.229 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
 | sha2 | 0.11.0 | MIT OR Apache-2.0 | https://github.com/RustCrypto/hashes |
 | shlex | 2.0.1 | MIT OR Apache-2.0 | https://github.com/comex/rust-shlex |
 | signal-hook-registry | 1.4.8 | MIT OR Apache-2.0 | https://github.com/vorner/signal-hook |
@@ -155,6 +155,7 @@ linked into every distributed binary.
 | strum_macros | 0.28.0 | MIT | https://github.com/Peternator7/strum |
 | strum | 0.28.0 | MIT | https://github.com/Peternator7/strum |
 | syn | 2.0.119 | MIT OR Apache-2.0 | https://github.com/dtolnay/syn |
+| syn | 3.0.3 | MIT OR Apache-2.0 | https://github.com/dtolnay/syn |
 | sync_wrapper | 1.0.2 | Apache-2.0 | https://github.com/Actyx/sync_wrapper |
 | synstructure | 0.13.2 | MIT | https://github.com/mystor/synstructure |
 | thiserror-impl | 2.0.18 | MIT OR Apache-2.0 | https://github.com/dtolnay/thiserror |
@@ -603,13 +604,14 @@ Applies to:
 - rustc-hash 2.1.3 — LICENSE-APACHE
 - rustversion 1.0.23 — LICENSE-APACHE
 - ryu 1.0.23 — LICENSE-APACHE
-- serde 1.0.228 — LICENSE-APACHE
-- serde_core 1.0.228 — LICENSE-APACHE
-- serde_derive 1.0.228 — LICENSE-APACHE
+- serde 1.0.229 — LICENSE-APACHE
+- serde_core 1.0.229 — LICENSE-APACHE
+- serde_derive 1.0.229 — LICENSE-APACHE
 - serde_json 1.0.150 — LICENSE-APACHE
 - serde_path_to_error 0.1.20 — LICENSE-APACHE
 - serde_urlencoded 0.7.1 — LICENSE-APACHE
 - syn 2.0.119 — LICENSE-APACHE
+- syn 3.0.3 — LICENSE-APACHE
 - thiserror 2.0.18 — LICENSE-APACHE
 - thiserror-impl 2.0.18 — LICENSE-APACHE
 - unicode-ident 1.0.24 — LICENSE-APACHE
@@ -812,12 +814,13 @@ Applies to:
 - rustc-hash 2.1.3 — LICENSE-MIT
 - rustix 1.1.4 — LICENSE-MIT
 - rustversion 1.0.23 — LICENSE-MIT
-- serde 1.0.228 — LICENSE-MIT
-- serde_core 1.0.228 — LICENSE-MIT
-- serde_derive 1.0.228 — LICENSE-MIT
+- serde 1.0.229 — LICENSE-MIT
+- serde_core 1.0.229 — LICENSE-MIT
+- serde_derive 1.0.229 — LICENSE-MIT
 - serde_json 1.0.150 — LICENSE-MIT
 - serde_path_to_error 0.1.20 — LICENSE-MIT
 - syn 2.0.119 — LICENSE-MIT
+- syn 3.0.3 — LICENSE-MIT
 - thiserror 2.0.18 — LICENSE-MIT
 - thiserror-impl 2.0.18 — LICENSE-MIT
 - unicode-ident 1.0.24 — LICENSE-MIT
