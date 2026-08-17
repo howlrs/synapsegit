@@ -14,9 +14,10 @@ review authority, resume, clean up, or rewrite history. Confirmed maintenance
 `fsck` runs as a detached bounded job with a 256-entry / 64-active process-local
 registry, pollable states, and project-page result display; dirty is a succeeded
 result with `clean=false`. Archive list/export/restore UI/routes are not yet
-implemented. The diagnostics and browser `fsck` additions are included in the
-tagged v0.4.0 binary. The generic-artifact libraries present in the v0.4.0
-tagged source do not add routes, DTOs, UI, or a new binary here.
+implemented. The diagnostics and browser `fsck` additions were introduced in
+v0.3.0 and remain unchanged in the tagged v0.5.0 binary. The generic-artifact
+libraries present in the tagged v0.5.0 source do not add routes, DTOs, UI, or
+a new binary here.
 
 Write forms require the embedded JavaScript module. Native HTML form submission
 cannot attach the process-local custom token or normalize each multipart part
