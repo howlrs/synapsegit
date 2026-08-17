@@ -6,6 +6,32 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+### Changed
+
+- Runtime dependencies updated: serde 1.0.228 → 1.0.229 (serde_derive now
+  builds with syn 3), serde_json 1.0.150 → 1.0.151, tokio 1.52.3 → 1.53.1,
+  toml 1.1.3+spec-1.1.0 → 1.1.4+spec-1.1.0, and jsonschema 0.47.0 → 0.49.2
+  (which introduces the jsonschema-value subcrate).
+  `THIRD_PARTY_NOTICES.md` was regenerated for the updated dependency set,
+  and the notices generator gained a fallback license entry for
+  jsonschema-value, whose crates.io package omits its license file.
+  No SynapseGit API or behavior changes are intended by these updates.
+- CI and release workflows now run actions/checkout 7.0.1 and
+  actions/attest 4.2.1 (SHA-pinned as before).
+
+### Fixed
+
+- Post-v0.5.0 documentation drift: the Japanese README trust-boundary
+  paragraph is again a complete translation of the English one, literal
+  `\"` artifacts in `docs/quickstart.md` and `docs/cli_reference.md` code
+  blocks were removed, the `CONTRIBUTING.md` workspace map and
+  `docs/runtime_architecture.md` mermaid diagrams now include
+  synapse-local-http / synapse-local-service and the missing dependency
+  edges, `SECURITY.md` now lists v0.5.x as supported, and stale v0.4.0
+  version references (including the misattributed introduction version of
+  localhost diagnostics and background fsck, which shipped in v0.3.0) were
+  corrected across six documents.
+
 ## [0.5.0] - 2026-07-28
 
 ### Changed
