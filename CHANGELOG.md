@@ -6,6 +6,32 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+### Added
+
+- `scripts/score_publication_comprehension.mjs` now validates
+  `questionnaire.json`/`oracle.json`/`protocol.json` schema identity, that
+  `protocol.json`'s `context.track_matrix` exactly matches the scorer's
+  fixed evaluator-kind/track group order, that no question names a
+  duplicate case or track, and that every case/track combination has at
+  least one applicable question, all at corpus-load time. Oracle answer
+  integers are now required to be safe integers
+  (`Number.isSafeInteger`); response-side integer scoring is unchanged.
+  Malformed inputs continue to fail via the existing
+  `score_publication_comprehension_error:` stderr prefix and exit code 1 —
+  no new machine-readable response error codes were introduced, and the
+  frozen v1 corpus and score-report output are unaffected.
+- `scripts/test_publication_comprehension_scorer.mjs` gained regression
+  coverage for the frozen v1 corpus thresholds, corpus-load rejection of
+  each new validation above, `evaluator_metadata`/`run_id`/`notes`
+  boundary cases, unknown response/schema properties, and CLI exit-code
+  behavior (`--help`, no arguments, an unreadable response file, malformed
+  JSON, and a single valid response staying `not_run` with exit code 0).
+- `crates/synapse-publication/examples/generate_evaluation_corpus.rs` now
+  removes the output directory it created if generation fails partway
+  through, instead of leaving a partial corpus behind. An existing output
+  directory is still refused outright and is never touched by this
+  cleanup.
+
 ## [0.5.1] - 2026-08-17
 
 ### Changed
