@@ -164,7 +164,7 @@ linked into every distributed binary.
 | tinyvec_macros | 0.1.1 | MIT OR Apache-2.0 OR Zlib | https://github.com/Soveu/tinyvec_macros |
 | tinyvec | 1.12.0 | Zlib OR Apache-2.0 OR MIT | https://github.com/Lokathor/tinyvec |
 | tokio-macros | 2.7.0 | MIT | https://github.com/tokio-rs/tokio |
-| tokio | 1.52.3 | MIT | https://github.com/tokio-rs/tokio |
+| tokio | 1.53.1 | MIT | https://github.com/tokio-rs/tokio |
 | toml_datetime | 1.1.1+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
 | toml_parser | 1.1.2+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
 | toml_writer | 1.1.2+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
@@ -6556,7 +6556,7 @@ SHA-256: `6abdec69ada0c5f06d4819d9a0db0824ce54d610665df0b64c774480db9c1f2a`
 
 Applies to:
 
-- tokio 1.52.3 — LICENSE
+- tokio 1.53.1 — LICENSE
 
 SHA-256: `253cd04c6714889df2d32f3f64d669179a1c95c76ac43c40882c52eb06bc3552`
 
