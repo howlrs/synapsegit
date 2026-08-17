@@ -105,6 +105,79 @@ impl Drop for FreshTempDirectory {
     }
 }
 
+/// Guards the caller-specified output directory for one generation attempt.
+///
+/// The guard is armed the moment `fs::create_dir(output)` itself succeeds —
+/// before the `bundles` subdirectory or any bundle content exists — and it
+/// stays armed for the rest of `main`. If generation fails anywhere after
+/// that point, `Drop` removes exactly the directory this run created. A
+/// successful run calls `defuse()` so the finished corpus is kept.
+///
+/// This guard is only ever constructed on the success branch of
+/// `fs::create_dir`; the `AlreadyExists` rejection branch inside `create`
+/// below returns before building one, so an existing directory supplied by
+/// the caller is never a cleanup candidate. That keeps the "refuse to
+/// replace an existing directory" contract intact.
+struct FreshCorpusOutputDirectory {
+    path: PathBuf,
+    keep: bool,
+}
+
+impl FreshCorpusOutputDirectory {
+    /// Creates `output` fresh (erroring on `AlreadyExists` without arming
+    /// any cleanup) and arms cleanup for it, then creates the `bundles`
+    /// subdirectory under the now-armed guard so a `bundles` creation
+    /// failure still removes the outer directory this run just created.
+    fn create(output: &Path) -> io::Result<Self> {
+        match fs::create_dir(output) {
+            Ok(()) => {}
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
+                return Err(io::Error::new(
+                    io::ErrorKind::AlreadyExists,
+                    format!(
+                        "refusing to replace existing evaluation corpus {}",
+                        output.display()
+                    ),
+                ));
+            }
+            Err(error) => return Err(error),
+        }
+        let guard = Self {
+            path: output.to_path_buf(),
+            keep: false,
+        };
+        fs::create_dir(output.join("bundles"))?;
+        Ok(guard)
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
+    }
+
+    /// Marks the directory as a completed, keepable corpus so `Drop` does
+    /// not remove it.
+    fn defuse(&mut self) {
+        self.keep = true;
+    }
+}
+
+impl Drop for FreshCorpusOutputDirectory {
+    fn drop(&mut self) {
+        if self.keep {
+            return;
+        }
+        // `path` was created by this exact run's `fs::create_dir` call
+        // above (the AlreadyExists branch never reaches here). Never
+        // broaden cleanup to its parent or an input path.
+        if let Err(error) = fs::remove_dir_all(&self.path) {
+            eprintln!(
+                "warning: could not remove partially generated evaluation corpus {}: {error}",
+                self.path.display()
+            );
+        }
+    }
+}
+
 #[derive(Serialize)]
 struct SchemaIdentity {
     name: &'static str,
@@ -140,13 +213,32 @@ struct SourceCanaries {
 
 fn main() -> Result<(), Box<dyn Error>> {
     let output = parse_output_directory(env::args_os().skip(1).collect())?;
-    create_new_output_directory(&output)?;
+    let mut output_guard = FreshCorpusOutputDirectory::create(&output)?;
 
+    generate_corpus(output_guard.path())?;
+
+    // Every fallible step above succeeded: keep the finished directory this
+    // run created instead of removing it on drop.
+    output_guard.defuse();
+
+    println!("corpus={}", output.display());
+    println!("complete_bundle=bundles/complete");
+    println!("incomplete_only_bundle=bundles/incomplete-only");
+    println!("source_canaries=source-canaries.json");
+    println!("candidate_identity=fresh_not_byte_identical_on_regeneration");
+    Ok(())
+}
+
+/// Generates both evaluation cases into `output` (which must already exist
+/// with its `bundles` subdirectory) and writes `source-canaries.json`.
+/// Isolated from `main` so the caller can guard `output` for cleanup around
+/// this exact fallible span without duplicating the generation steps.
+fn generate_corpus(output: &Path) -> Result<(), Box<dyn Error>> {
     let complete_source = FreshTempDirectory::create(COMPLETE_TEMP_PATH_CANARY)?;
     let incomplete_source = FreshTempDirectory::create(INCOMPLETE_TEMP_PATH_CANARY)?;
 
-    let complete_case = generate_complete_case(&output, &complete_source)?;
-    let incomplete_case = generate_incomplete_case(&output, &incomplete_source)?;
+    let complete_case = generate_complete_case(output, &complete_source)?;
+    let incomplete_case = generate_incomplete_case(output, &incomplete_source)?;
 
     assert_case_canaries(&output.join("bundles/complete"), &complete_case)?;
     assert_case_canaries(&output.join("bundles/incomplete-only"), &incomplete_case)?;
@@ -165,12 +257,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut canary_bytes = serde_json::to_vec_pretty(&source_canaries)?;
     canary_bytes.push(b'\n');
     fs::write(output.join("source-canaries.json"), canary_bytes)?;
-
-    println!("corpus={}", output.display());
-    println!("complete_bundle=bundles/complete");
-    println!("incomplete_only_bundle=bundles/incomplete-only");
-    println!("source_canaries=source-canaries.json");
-    println!("candidate_identity=fresh_not_byte_identical_on_regeneration");
     Ok(())
 }
 
@@ -179,23 +265,6 @@ fn parse_output_directory(args: Vec<OsString>) -> io::Result<PathBuf> {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, USAGE));
     }
     Ok(PathBuf::from(&args[0]))
-}
-
-fn create_new_output_directory(output: &Path) -> io::Result<()> {
-    match fs::create_dir(output) {
-        Ok(()) => {}
-        Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {
-            return Err(io::Error::new(
-                io::ErrorKind::AlreadyExists,
-                format!(
-                    "refusing to replace existing evaluation corpus {}",
-                    output.display()
-                ),
-            ));
-        }
-        Err(error) => return Err(error),
-    }
-    fs::create_dir(output.join("bundles"))
 }
 
 fn generate_complete_case(
@@ -556,5 +625,79 @@ mod tests {
         let directory = FreshTempDirectory::create("permission-test").unwrap();
         let mode = fs::metadata(&directory.path).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o700);
+    }
+
+    fn unique_temp_output_path(label: &str) -> PathBuf {
+        let timestamp = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_nanos();
+        let sequence = NEXT_TEMP.fetch_add(1, Ordering::Relaxed);
+        env::temp_dir().join(format!(
+            "synapse-publication-evaluation-output-test-{label}-{}-{timestamp}-{sequence}",
+            std::process::id()
+        ))
+    }
+
+    #[test]
+    fn fresh_output_directory_is_removed_when_generation_fails() {
+        let output = unique_temp_output_path("failure-cleanup");
+        assert!(!output.exists());
+
+        {
+            let _guard = FreshCorpusOutputDirectory::create(&output).unwrap();
+            assert!(output.exists());
+            assert!(output.join("bundles").is_dir());
+            // Guard drops here without defuse(), simulating a failure
+            // closure: any `?`-propagated error after `create` succeeds
+            // takes exactly this path.
+        }
+
+        assert!(
+            !output.exists(),
+            "the directory this run created must not survive a failed generation"
+        );
+    }
+
+    #[test]
+    fn fresh_output_directory_is_kept_after_defuse() {
+        let output = unique_temp_output_path("success-keep");
+        assert!(!output.exists());
+
+        {
+            let mut guard = FreshCorpusOutputDirectory::create(&output).unwrap();
+            guard.defuse();
+        }
+
+        assert!(
+            output.exists(),
+            "a defused guard must leave the completed corpus directory in place"
+        );
+        fs::remove_dir_all(&output).unwrap();
+    }
+
+    #[test]
+    fn existing_output_directory_is_rejected_and_left_unmodified() {
+        let output = unique_temp_output_path("already-exists");
+        fs::create_dir(&output).unwrap();
+        let sentinel = output.join("sentinel.txt");
+        fs::write(&sentinel, "pre-existing content").unwrap();
+
+        match FreshCorpusOutputDirectory::create(&output) {
+            Ok(_) => panic!("expected AlreadyExists, got Ok"),
+            Err(error) => assert_eq!(error.kind(), io::ErrorKind::AlreadyExists),
+        }
+
+        // The AlreadyExists branch must never arm a cleanup guard for a
+        // caller-supplied existing directory, so its pre-existing content
+        // must be exactly as it was before the rejected call.
+        assert!(output.exists());
+        assert_eq!(
+            fs::read_to_string(&sentinel).unwrap(),
+            "pre-existing content"
+        );
+        assert!(!output.join("bundles").exists());
+
+        fs::remove_dir_all(&output).unwrap();
     }
 }
