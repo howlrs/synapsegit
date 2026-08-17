@@ -17,7 +17,7 @@ only `fsck_with_limits` with a server-fixed Core-default-equivalent maintenance
 profile, and retains the latest clean or dirty aggregate result in process-local
 `last_fsck`. Archive inspection/listing, export, restore, restart-durable review, and automatic
 incomplete-session recovery are not implemented here. The diagnostics and
-maintenance `fsck` additions were introduced in v0.4.0 and remain unchanged in
+maintenance `fsck` additions were introduced in v0.3.0 and remain unchanged in
 the tagged v0.5.0 binary. The generic-artifact workflow in the tagged v0.5.0
 source is a separate Rust library boundary; this facade does not expose it
 through HTTP/CLI/UI or remote publication.

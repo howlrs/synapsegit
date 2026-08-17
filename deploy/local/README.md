@@ -60,7 +60,7 @@ A browser disconnect does not cancel or retry the job, and `last_fsck` is also
 process-local.
 
 The tagged v0.5.0 binary includes the diagnostics and browser `fsck` additions
-(introduced in v0.4.0 and unchanged since) alongside three-file import/same-process
+(introduced in v0.3.0 and unchanged since) alongside three-file import/same-process
 review. JavaScript is
 required for write and maintenance POST actions because unsafe API requests
 require the process-local custom token header; server-rendered read and
@@ -76,8 +76,8 @@ Linux x86_64では、[`v0.5.0` preview release](../../docs/releases/v0.5.0.md)�
 `synapse-local`を含む検証済みbinary archiveがある。downloadとchecksum検証は
 [Installation guide](../../docs/install.md#install-the-linux-x86-64-release)を参照する。その他のplatformでは、
 下記のsource buildを使用する。v0.5.0の配布済みbinaryには、三file import／same-process
-Human review、dedicated read-only diagnostics、bounded browser `fsck`が含まれる
-（いずれもv0.4.0で導入し、v0.5.0でも変更なし）。
+Human reviewに加え、dedicated read-only diagnostics、bounded browser `fsck`
+（いずれもv0.3.0で導入し、v0.5.0でも変更なし）が含まれる。
 
 Use a Rust toolchain compatible with the workspace MSRV, then run these
 commands from the repository root:
