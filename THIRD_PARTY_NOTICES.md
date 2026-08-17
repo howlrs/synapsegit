@@ -65,6 +65,7 @@ linked into every distributed binary.
 | hashbrown | 0.16.1 | MIT OR Apache-2.0 | https://github.com/rust-lang/hashbrown |
 | hashbrown | 0.17.1 | MIT OR Apache-2.0 | https://github.com/rust-lang/hashbrown |
 | hashlink | 0.11.1 | MIT OR Apache-2.0 | https://github.com/djc/hashlink |
+| heck | 0.5.0 | MIT OR Apache-2.0 | https://github.com/withoutboats/heck |
 | http-body-util | 0.1.4 | MIT | https://github.com/hyperium/http-body |
 | http-body | 1.1.0 | MIT | https://github.com/hyperium/http-body |
 | http | 1.4.2 | MIT OR Apache-2.0 | https://github.com/hyperium/http |
@@ -85,8 +86,9 @@ linked into every distributed binary.
 | indexmap | 2.14.0 | Apache-2.0 OR MIT | https://github.com/indexmap-rs/indexmap |
 | itoa | 1.0.18 | MIT OR Apache-2.0 | https://github.com/dtolnay/itoa |
 | js-sys | 0.3.103 | MIT OR Apache-2.0 | https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys |
-| jsonschema-regex | 0.47.0 | MIT | https://github.com/Stranger6667/jsonschema |
-| jsonschema | 0.47.0 | MIT | https://github.com/Stranger6667/jsonschema |
+| jsonschema-regex | 0.49.2 | MIT | https://github.com/Stranger6667/jsonschema |
+| jsonschema-value | 0.49.2 | MIT | https://github.com/Stranger6667/jsonschema |
+| jsonschema | 0.49.2 | MIT | https://github.com/Stranger6667/jsonschema |
 | lazy_static | 1.5.0 | MIT OR Apache-2.0 | https://github.com/rust-lang-nursery/lazy-static.rs |
 | libc | 0.2.186 | MIT OR Apache-2.0 | https://github.com/rust-lang/libc |
 | libsqlite3-sys | 0.37.0 | MIT | https://github.com/rusqlite/rusqlite |
@@ -123,7 +125,7 @@ linked into every distributed binary.
 | redox_syscall | 0.5.18 | MIT | https://gitlab.redox-os.org/redox-os/syscall |
 | ref-cast-impl | 1.0.25 | MIT OR Apache-2.0 | https://github.com/dtolnay/ref-cast |
 | ref-cast | 1.0.25 | MIT OR Apache-2.0 | https://github.com/dtolnay/ref-cast |
-| referencing | 0.47.0 | MIT | https://github.com/Stranger6667/jsonschema |
+| referencing | 0.49.2 | MIT | https://github.com/Stranger6667/jsonschema |
 | regex-automata | 0.4.15 | MIT OR Apache-2.0 | https://github.com/rust-lang/regex |
 | regex-syntax | 0.8.11 | MIT OR Apache-2.0 | https://github.com/rust-lang/regex |
 | regex | 1.13.0 | MIT OR Apache-2.0 | https://github.com/rust-lang/regex |
@@ -150,6 +152,8 @@ linked into every distributed binary.
 | spin | 0.9.9 | MIT | https://github.com/mvdnes/spin-rs.git |
 | sqlite-wasm-rs | 0.5.5 | MIT | https://github.com/Spxg/sqlite-wasm-rs |
 | stable_deref_trait | 1.2.1 | MIT OR Apache-2.0 | https://github.com/storyyeller/stable_deref_trait |
+| strum_macros | 0.28.0 | MIT | https://github.com/Peternator7/strum |
+| strum | 0.28.0 | MIT | https://github.com/Peternator7/strum |
 | syn | 2.0.119 | MIT OR Apache-2.0 | https://github.com/dtolnay/syn |
 | sync_wrapper | 1.0.2 | Apache-2.0 | https://github.com/Actyx/sync_wrapper |
 | synstructure | 0.13.2 | MIT | https://github.com/mystor/synstructure |
@@ -225,6 +229,7 @@ Applies to:
 - hashbrown 0.16.1 — LICENSE-APACHE
 - hashbrown 0.17.1 — LICENSE-APACHE
 - hashlink 0.11.1 — LICENSE-APACHE
+- heck 0.5.0 — LICENSE-APACHE
 - httparse 1.10.1 — LICENSE-APACHE
 - idna 1.1.0 — LICENSE-APACHE
 - idna_adapter 1.2.2 — LICENSE-APACHE
@@ -3362,6 +3367,41 @@ SHA-256: `f1fa5f9e9d8f7827ae2235e742dd00bdf6106d4c5753df928e521d7541b7f9b6`
     IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
     DEALINGS IN THE SOFTWARE.
 
+### Notice 7b63ecd5f190
+
+Applies to:
+
+- heck 0.5.0 — LICENSE-MIT
+- unicode-normalization 0.1.25 — LICENSE-MIT
+
+SHA-256: `7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0`
+
+    Copyright (c) 2015 The Rust Project Developers
+
+    Permission is hereby granted, free of charge, to any
+    person obtaining a copy of this software and associated
+    documentation files (the "Software"), to deal in the
+    Software without restriction, including without
+    limitation the rights to use, copy, modify, merge,
+    publish, distribute, sublicense, and/or sell copies of
+    the Software, and to permit persons to whom the Software
+    is furnished to do so, subject to the following
+    conditions:
+
+    The above copyright notice and this permission notice
+    shall be included in all copies or substantial portions
+    of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+    ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+    TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+    PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+    SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+    OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+    IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
 ### Notice 93edcb3f4167
 
 Applies to:
@@ -4176,9 +4216,10 @@ SHA-256: `ecc269ef87fd38a1d98e30bfac9ba964a9dbd9315c3770fed98d4d7cb5882055`
 
 Applies to:
 
-- jsonschema 0.47.0 — LICENSE
-- jsonschema-regex 0.47.0 — Stranger6667-jsonschema-LICENSE
-- referencing 0.47.0 — LICENSE
+- jsonschema 0.49.2 — LICENSE
+- jsonschema-regex 0.49.2 — Stranger6667-jsonschema-LICENSE
+- jsonschema-value 0.49.2 — Stranger6667-jsonschema-LICENSE
+- referencing 0.49.2 — LICENSE
 
 SHA-256: `117829c3ca21efb132d81a44b55363d395ab8eea18526873bc828da4c0e5f038`
 
@@ -6159,6 +6200,37 @@ SHA-256: `3c125f249fc6fb19f2415d027a0d9a170860583960ea53d08ea1d2b3f269d153`
     IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
     DEALINGS IN THE SOFTWARE.
 
+### Notice 8bce3b45e49e
+
+Applies to:
+
+- strum 0.28.0 — LICENSE
+- strum_macros 0.28.0 — LICENSE
+
+SHA-256: `8bce3b45e49ecd1461f223b46de133d8f62cd39f745cfdaf81bee554b908bd42`
+
+    MIT License
+
+    Copyright (c) 2019 Peter Glotfelty
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in all
+    copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+    SOFTWARE.
+
 ### Notice 219920e865ee
 
 Applies to:
@@ -6922,40 +6994,6 @@ SHA-256: `23860c2a7b5d96b21569afedf033469bab9fe14a1b24a35068b8641c578ce24d`
     at your option. All files in the project carrying such
     notice may not be copied, modified, or distributed except
     according to those terms.
-
-### Notice 7b63ecd5f190
-
-Applies to:
-
-- unicode-normalization 0.1.25 — LICENSE-MIT
-
-SHA-256: `7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0`
-
-    Copyright (c) 2015 The Rust Project Developers
-
-    Permission is hereby granted, free of charge, to any
-    person obtaining a copy of this software and associated
-    documentation files (the "Software"), to deal in the
-    Software without restriction, including without
-    limitation the rights to use, copy, modify, merge,
-    publish, distribute, sublicense, and/or sell copies of
-    the Software, and to permit persons to whom the Software
-    is furnished to do so, subject to the following
-    conditions:
-
-    The above copyright notice and this permission notice
-    shall be included in all copies or substantial portions
-    of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-    ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-    TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-    PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-    SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-    OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-    IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-    DEALINGS IN THE SOFTWARE.
 
 ### Notice c30152c94a6d
 
