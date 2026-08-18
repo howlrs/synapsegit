@@ -1540,11 +1540,12 @@ async fn blocking_gates_bound_known_projects_and_route_unknown_projects_through_
 //   2. Unimplemented-route 404 contract (`UNIMPLEMENTED_ARCHIVE_OPERATIONS`,
 //      asserted below): for exactly the 2 archive operations
 //      `docs/localhost_application_architecture.md` documents as still
-//      remaining unimplemented in the browser application (line 20:
-//      "Archive export and restore remain unimplemented in the ...
-//      application"; see also line 534's "Archive export and
-//      empty-target restore remain planned"), the same substituted
-//      request must currently return 404. `listArchives` moved into
+//      remaining unimplemented in the browser application ("Archive export
+//      and restore remain unimplemented in the ... application" near the
+//      top-level Status/Implementation-status summary; see also the
+//      "Implementation slices" list's slice 7 entry, "Archive export
+//      and empty-target restore remain planned"), the same
+//      substituted request must currently return 404. `listArchives` moved into
 //      positive parity coverage above once its route was implemented.
 //      This
 //      makes the list self-maintaining: the day someone implements one
