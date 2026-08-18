@@ -489,13 +489,24 @@ states from the inspected result:
   length check.
 - `invalid` when the candidate is structurally identifiable as an archive
   but fails that verification: a manifest checksum mismatch, a rejected
-  manifest structure, or a manifest-listed object that is missing, has the
-  wrong length, or is a symlink — the same `archive_invalid` failures Core
-  reports for `Repository::restore_from`.
+  manifest structure, a manifest that fails to parse as JSON once its
+  checksum has already matched (a checksum-verified manifest cannot yield
+  `staging_or_unknown`; a parse failure at that point is definite
+  corruption), or a manifest-listed object that is missing, not a regular
+  file, a symlink, has the wrong length, or could not be read for any other
+  reason (including a permission error) — inspection reclassifies every
+  per-object read failure as `archive_invalid` once the manifest itself is
+  checksum-verified, since the object inventory no longer matching its
+  manifest is itself the useful, stable answer. This differs from
+  `Repository::restore_from`, which instead reports a missing (or otherwise
+  unreadable) object file as its underlying storage error rather than
+  `archive_invalid`; the two only agree on `archive_invalid` for a checksum/
+  structure mismatch or a length/type disagreement on an object file that
+  could be opened.
 - `staging_or_unknown` when the candidate cannot be judged either way: its
-  manifest or checksum file cannot be read or parsed as JSON (for example,
-  mid-export staging), or inspection is rejected by the per-archive
-  resource limit.
+  manifest or checksum file itself cannot be read (for example, mid-export
+  staging, or an unrelated directory), or inspection is rejected by the
+  per-archive resource limit.
 
 Only the archive root's own entry count exceeding its limit fails the whole
 `GET /archives` request closed; a per-archive resource-limit rejection
