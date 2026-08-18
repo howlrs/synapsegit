@@ -80,7 +80,7 @@ Linux x86_64では、[`v0.6.0` preview release](../../docs/releases/v0.6.0.md)�
 [Installation guide](../../docs/install.md#install-the-linux-x86-64-release)を参照する。その他のplatformでは、
 下記のsource buildを使用する。v0.6.0の配布済みbinaryには、三file import／same-process
 Human reviewに加え、dedicated read-only diagnostics、bounded browser `fsck`
-（いずれもv0.3.0で導入し、v0.5.1でも変更なし）、任意の`--archive-root`起動flag指定時のみ
+（いずれもv0.3.0で導入し、v0.6.0でも変更なし）、任意の`--archive-root`起動flag指定時のみ
 有効なbounded read-only archive listing（v0.6.0で追加）が含まれる。
 
 Use a Rust toolchain compatible with the workspace MSRV, then run these
