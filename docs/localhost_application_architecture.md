@@ -479,13 +479,27 @@ validation `Repository::restore_from` applies (via a shared
 file exists as a regular, non-symlink file with the manifest-declared byte
 length — without reading object content or computing a per-object content
 hash, and without writing objects or Refs or opening a `Repository`. `GET
-/archives` reports `valid` (with the manifest checksum), `invalid`, or
-`staging_or_unknown` only from that inspected result: a manifest or checksum
-file that cannot be read (for example, mid-export staging) is
-`staging_or_unknown`; any other inspection failure, including a per-archive
-resource-limit rejection, is also `staging_or_unknown` rather than failing
-the whole listing. Only the archive root's own entry count exceeding its
-limit fails the whole `GET /archives` request closed. A `valid` result is
+/archives` only lists a directory-typed, slug-named entry directly under the
+archive root; a slug-named plain file or symlink there is silently excluded
+rather than reported. Each listed candidate reports exactly one of three
+states from the inspected result:
+
+- `valid`, with the manifest checksum, once inspection passes checksum
+  verification, manifest structural validation, and the object presence/
+  length check.
+- `invalid` when the candidate is structurally identifiable as an archive
+  but fails that verification: a manifest checksum mismatch, a rejected
+  manifest structure, or a manifest-listed object that is missing, has the
+  wrong length, or is a symlink — the same `archive_invalid` failures Core
+  reports for `Repository::restore_from`.
+- `staging_or_unknown` when the candidate cannot be judged either way: its
+  manifest or checksum file cannot be read or parsed as JSON (for example,
+  mid-export staging), or inspection is rejected by the per-archive
+  resource limit.
+
+Only the archive root's own entry count exceeding its limit fails the whole
+`GET /archives` request closed; a per-archive resource-limit rejection
+affects only that one candidate's reported state. A `valid` result is
 manifest-level evidence, not a restore-success guarantee.
 
 The inspection, listing, and restore paths share server-fixed operation-wide
