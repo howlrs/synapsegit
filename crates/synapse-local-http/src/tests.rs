@@ -2093,3 +2093,35 @@ async fn index_page_renders_an_empty_archives_state_without_a_configured_root() 
     let page = std::str::from_utf8(&page).unwrap();
     assert!(page.contains("表示できるarchiveがありません"));
 }
+
+/// If the server-owned archive root becomes unreadable after startup (here,
+/// removed out from under a configured `--archive-root`), the dashboard must
+/// still return `200` with every other section intact: archive listing
+/// degrades independently of the rest of the page into an inline notice in
+/// the archives section, rather than turning the whole dashboard into a page
+/// failure. See the `run_dashboard`/`index_page` "Archive listing degrades
+/// independently of the project dashboard" comment in `handlers.rs`.
+#[tokio::test]
+async fn index_page_degrades_the_archives_section_when_the_archive_root_is_unreadable() {
+    let (_directory, app, archive_root) = test_app_with_archive_root();
+    fs::remove_dir_all(&archive_root).unwrap();
+
+    let page = app
+        .oneshot(request("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(page.status(), StatusCode::OK);
+    let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
+    let page = std::str::from_utf8(&page).unwrap();
+
+    // The archives section renders its inline failure notice instead of any
+    // archive card or the empty-root state.
+    assert!(page.contains("Archive listingを読み込めません"));
+    assert!(!page.contains("aaa-valid"));
+    assert!(!page.contains("表示できるarchiveがありません"));
+
+    // The rest of the dashboard, in particular the unrelated projects
+    // section, still renders normally.
+    assert!(page.contains("プロジェクト"));
+    assert!(page.contains("Demo project"));
+}
