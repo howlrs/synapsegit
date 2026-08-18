@@ -583,10 +583,9 @@ pub(crate) async fn index_page(State(state): State<AppState>) -> Response {
                     .collect::<Vec<_>>(),
                 None,
             ),
-            Err(BlockingError::Service(error)) => (
-                Vec::new(),
-                Some(HttpFailure::service(&state, error).detail),
-            ),
+            Err(BlockingError::Service(error)) => {
+                (Vec::new(), Some(HttpFailure::service(&state, error).detail))
+            }
             Err(BlockingError::Task) => (
                 Vec::new(),
                 Some("The archive listing task failed.".to_owned()),

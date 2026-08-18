@@ -1328,7 +1328,7 @@ impl Default for ArchiveInspectionLimits {
 /// Outcome of one bounded, read-only archive inspection.
 ///
 /// Every variant is a manifest-level result: `Valid` confirms the manifest
-/// checksum, [`ArchiveManifest::validate`]'s structural rules, and that every
+/// checksum, `ArchiveManifest::validate`'s structural rules, and that every
 /// listed object file exists on disk with the manifest-declared byte length.
 /// It does not read or hash object *content*, so it is not equivalent to a
 /// full restore-time verification (restore additionally re-derives and
@@ -1358,10 +1358,10 @@ pub struct ArchiveInspection {
 /// Inspect one directory archive without writing objects, Refs, or any other
 /// state, and without opening a [`Repository`].
 ///
-/// This reuses [`read_verified_manifest`] (the same manifest checksum and
+/// This reuses `read_verified_manifest` (the same manifest checksum and
 /// structural validation [`Repository::restore_from`] applies) and then
 /// confirms each manifest-listed object file exists as a regular,
-/// non-symlink file (via the same [`open_regular_limited`] rejection
+/// non-symlink file (via the same `open_regular_limited` rejection
 /// [`Repository::restore_from`] uses) with the manifest-declared byte
 /// length. It never reads object file *content* and never computes a
 /// per-object content hash, so a `Valid` result is manifest-level evidence,
@@ -1374,7 +1374,7 @@ pub struct ArchiveInspection {
 ///   when the cumulative manifest-declared byte length exceeds
 ///   `limits.max_object_bytes`.
 /// - An `archive_invalid`-coded [`RepositoryError`] when the manifest
-///   checksum does not match, [`ArchiveManifest::validate`] rejects its
+///   checksum does not match, `ArchiveManifest::validate` rejects its
 ///   structure, or a listed object file is absent, a symlink, not a regular
 ///   file, or has a length that disagrees with the manifest.
 /// - A `storage_error`-coded [`RepositoryError::Io`] (frequently
@@ -1814,7 +1814,9 @@ mod archive_tests {
         let repository_path = unique_test_path(&format!("{label}-repository"));
         let archive_path = unique_test_path(&format!("{label}-archive"));
         let mut repository = Repository::open(&repository_path).unwrap();
-        repository.put_blob(&b"inspected archive fixture blob"[..]).unwrap();
+        repository
+            .put_blob(&b"inspected archive fixture blob"[..])
+            .unwrap();
         repository.export_archive(&archive_path).unwrap();
         let manifest_bytes = fs::read(archive_path.join(MANIFEST_FILE)).unwrap();
         let expected_checksum = sha256_hex(&manifest_bytes);
@@ -1858,9 +1860,8 @@ mod archive_tests {
         manifest_bytes.push(b'\n');
         fs::write(&manifest_path, &manifest_bytes).unwrap();
 
-        let error =
-            inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
-                .unwrap_err();
+        let error = inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
+            .unwrap_err();
         assert_eq!(error.code(), "archive_invalid");
 
         cleanup_fixture(&repository_path, &archive_path);
@@ -1871,9 +1872,8 @@ mod archive_tests {
         let (repository_path, archive_path, _) = exported_archive_fixture("inspect-bad-checksum");
         fs::write(archive_path.join(MANIFEST_CHECKSUM_FILE), b"not-hex\n").unwrap();
 
-        let error =
-            inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
-                .unwrap_err();
+        let error = inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
+            .unwrap_err();
         assert_eq!(error.code(), "archive_invalid");
 
         cleanup_fixture(&repository_path, &archive_path);
@@ -1884,9 +1884,8 @@ mod archive_tests {
         let (repository_path, archive_path, _) = exported_archive_fixture("inspect-no-manifest");
         fs::remove_file(archive_path.join(MANIFEST_FILE)).unwrap();
 
-        let error =
-            inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
-                .unwrap_err();
+        let error = inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
+            .unwrap_err();
         assert_eq!(error.code(), "storage_error");
         match error {
             RepositoryError::Io { source, .. } => {
@@ -1903,9 +1902,8 @@ mod archive_tests {
         let (repository_path, archive_path, _) = exported_archive_fixture("inspect-no-checksum");
         fs::remove_file(archive_path.join(MANIFEST_CHECKSUM_FILE)).unwrap();
 
-        let error =
-            inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
-                .unwrap_err();
+        let error = inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
+            .unwrap_err();
         assert_eq!(error.code(), "storage_error");
         match error {
             RepositoryError::Io { source, .. } => {
@@ -1922,9 +1920,8 @@ mod archive_tests {
         let (repository_path, archive_path, _) = exported_archive_fixture("inspect-missing-object");
         fs::remove_file(archive_path.join("objects/00000000")).unwrap();
 
-        let error =
-            inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
-                .unwrap_err();
+        let error = inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
+            .unwrap_err();
         assert_eq!(error.code(), "archive_invalid");
 
         cleanup_fixture(&repository_path, &archive_path);
@@ -1939,9 +1936,8 @@ mod archive_tests {
         bytes.push(b'!');
         fs::write(&object_path, &bytes).unwrap();
 
-        let error =
-            inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
-                .unwrap_err();
+        let error = inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
+            .unwrap_err();
         assert_eq!(error.code(), "archive_invalid");
 
         cleanup_fixture(&repository_path, &archive_path);

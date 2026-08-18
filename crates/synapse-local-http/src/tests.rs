@@ -93,7 +93,11 @@ const EMPTY_ARCHIVE_MANIFEST_CHECKSUM: &str =
 fn write_valid_archive_fixture(archive_root: &Path, name: &str) {
     let archive_path = archive_root.join(name);
     fs::create_dir(&archive_path).unwrap();
-    fs::write(archive_path.join("manifest.json"), EMPTY_ARCHIVE_MANIFEST_BYTES).unwrap();
+    fs::write(
+        archive_path.join("manifest.json"),
+        EMPTY_ARCHIVE_MANIFEST_BYTES,
+    )
+    .unwrap();
     fs::write(
         archive_path.join("manifest.sha256"),
         format!("{EMPTY_ARCHIVE_MANIFEST_CHECKSUM}\n"),
@@ -1511,8 +1515,7 @@ async fn blocking_gates_bound_known_projects_and_route_unknown_projects_through_
 // hand-maintained inverse listing that itself could drift; the canary
 // test below only proves 404 is distinguishable from a wired route, not
 // that every wired route is documented.
-const UNIMPLEMENTED_ARCHIVE_OPERATIONS: [&str; 2] =
-    ["startArchiveExport", "startArchiveRestore"];
+const UNIMPLEMENTED_ARCHIVE_OPERATIONS: [&str; 2] = ["startArchiveExport", "startArchiveRestore"];
 
 #[tokio::test]
 async fn every_documented_openapi_route_matches_its_implementation_status() {

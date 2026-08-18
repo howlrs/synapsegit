@@ -297,7 +297,9 @@ fn list_archives_is_empty_without_a_configured_archive_root() {
     let service = service_for(&repository);
     assert_eq!(
         service.list_archives().unwrap(),
-        ArchiveList { archives: Vec::new() }
+        ArchiveList {
+            archives: Vec::new()
+        }
     );
 }
 
@@ -309,13 +311,17 @@ fn list_archives_is_empty_for_an_empty_archive_root() {
     let service = service_with_archive_root(&repository, &archive_root);
     assert_eq!(
         service.list_archives().unwrap(),
-        ArchiveList { archives: Vec::new() }
+        ArchiveList {
+            archives: Vec::new()
+        }
     );
 }
 
 fn export_named_archive(source_repository: &Path, archive_root: &Path, name: &str) -> String {
     let mut repository = Repository::open(source_repository).unwrap();
-    repository.put_blob(&b"archive listing fixture blob"[..]).unwrap();
+    repository
+        .put_blob(&b"archive listing fixture blob"[..])
+        .unwrap();
     let destination = archive_root.join(name);
     repository.export_archive(&destination).unwrap();
     let checksum_bytes = fs::read(destination.join("manifest.sha256")).unwrap();
@@ -357,7 +363,10 @@ fn list_archives_reports_valid_invalid_and_staging_or_unknown_in_name_order() {
     let list = service.list_archives().unwrap();
 
     assert_eq!(
-        list.archives.iter().map(|entry| entry.archive_name.as_str()).collect::<Vec<_>>(),
+        list.archives
+            .iter()
+            .map(|entry| entry.archive_name.as_str())
+            .collect::<Vec<_>>(),
         vec!["bbb-invalid", "mmm-staging", "zzz-valid"],
         "archives must be sorted by archive_name ascending"
     );
@@ -372,7 +381,10 @@ fn list_archives_reports_valid_invalid_and_staging_or_unknown_in_name_order() {
 
     let zzz = &list.archives[2];
     assert_eq!(zzz.state, ArchiveState::Valid);
-    assert_eq!(zzz.manifest_checksum.as_deref(), Some(expected_checksum.as_str()));
+    assert_eq!(
+        zzz.manifest_checksum.as_deref(),
+        Some(expected_checksum.as_str())
+    );
 
     let response_json = serde_json::to_string(&list).unwrap();
     assert!(

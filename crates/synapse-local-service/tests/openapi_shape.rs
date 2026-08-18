@@ -32,15 +32,14 @@ use serde_json::Value;
 use std::fs;
 use synapse_local_service::{
     ArchiveList, ArchiveResult, ArchiveResultKind, ArchiveState, ArchiveSummary,
-    CommittedCreatorSession, CommittedState, ComparisonEvidence,
-    CompleteCreatorSession, CompleteState, CreatorDecision, CreatorDecisionReceipt,
-    CreatorDecisionRequest, CreatorReport, CreatorSessionCounts, CreatorSessionDiagnostic,
-    CreatorSessionList, CreatorSessionState, CreatorSessionSummary, FsckResult, HealthResponse,
-    IncompleteCreatorSession, IncompleteState, OperationAccepted, OperationKind, OperationResult,
-    OperationState, OperationStatus, PendingCreatorSession, PendingReviewState, Problem,
-    ProjectCapabilities, ProjectConfirmation, ProjectList, ProjectState, ProjectStatus,
-    ProjectSummary, ProjectionState, RefList, RefRecord, ReflogEntry, ReflogPage, SnapshotContext,
-    TimelineEntry,
+    CommittedCreatorSession, CommittedState, ComparisonEvidence, CompleteCreatorSession,
+    CompleteState, CreatorDecision, CreatorDecisionReceipt, CreatorDecisionRequest, CreatorReport,
+    CreatorSessionCounts, CreatorSessionDiagnostic, CreatorSessionList, CreatorSessionState,
+    CreatorSessionSummary, FsckResult, HealthResponse, IncompleteCreatorSession, IncompleteState,
+    OperationAccepted, OperationKind, OperationResult, OperationState, OperationStatus,
+    PendingCreatorSession, PendingReviewState, Problem, ProjectCapabilities, ProjectConfirmation,
+    ProjectList, ProjectState, ProjectStatus, ProjectSummary, ProjectionState, RefList, RefRecord,
+    ReflogEntry, ReflogPage, SnapshotContext, TimelineEntry,
 };
 
 /// Loads `api/local/v1/openapi.json` once per test process invocation (each
