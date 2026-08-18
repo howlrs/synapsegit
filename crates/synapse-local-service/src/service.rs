@@ -67,7 +67,10 @@ const _: () = assert!(
 /// change what the localhost application admits.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ArchiveListLimits {
-    /// Maximum number of direct entries read from the archive root.
+    /// Maximum number of direct entries read from the archive root,
+    /// counting every raw `readdir` entry regardless of whether it is a
+    /// slug name, a directory, or ultimately admitted as a candidate
+    /// archive.
     pub max_root_entries: usize,
     /// Per-archive inspection limits applied to each candidate entry.
     pub inspection: ArchiveInspectionLimits,
@@ -494,6 +497,7 @@ impl LocalService {
         })?;
 
         let mut archive_names = Vec::new();
+        let mut root_entries_read = 0_usize;
         for entry in entries {
             let entry = entry.map_err(|error| {
                 ServiceError::new(
@@ -503,7 +507,14 @@ impl LocalService {
                 )
                 .with_diagnostic(error.to_string())
             })?;
-            if archive_names.len() >= limits.max_root_entries {
+            // Count every raw entry read from the root, independent of
+            // whether it is ultimately admitted as a candidate archive.
+            // Counting only accepted slug names would make success/failure
+            // depend on readdir order whenever accepted and excluded entries
+            // coexist near the limit, and would leave non-slug entries
+            // unbounded, contradicting this field's doc comment.
+            root_entries_read += 1;
+            if root_entries_read > limits.max_root_entries {
                 return Err(ServiceError::new(
                     "resource_limit",
                     format!(
@@ -514,13 +525,21 @@ impl LocalService {
                 ));
             }
             // A non-slug name (including any dot-prefixed staging directory
-            // left behind by a concurrent export, and any plain file) is
-            // silently excluded rather than reported: it is never a
-            // candidate archive under this server's own naming convention.
+            // left behind by a concurrent export), and any entry whose file
+            // type is not a directory (including a slug-named plain file or
+            // a symlink, which is never followed) is silently excluded
+            // rather than reported: it is never a candidate archive under
+            // this server's own naming convention.
             let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
                 continue;
             };
             if !is_slug(&name) {
+                continue;
+            }
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if !file_type.is_dir() {
                 continue;
             }
             archive_names.push(name);

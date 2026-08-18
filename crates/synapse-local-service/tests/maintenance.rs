@@ -433,3 +433,107 @@ fn list_archives_fails_closed_when_root_entries_exceed_the_limit() {
         .unwrap_err();
     assert_eq!(error.code(), "resource_limit");
 }
+
+#[test]
+fn list_archives_root_entry_limit_counts_every_raw_entry_deterministically() {
+    // The root-entry limit must count every raw `readdir` entry (slug or
+    // not), not only entries accepted as candidate archives. Otherwise
+    // whether a request over budget fails or succeeds would depend on
+    // readdir order whenever accepted and excluded entries coexist near the
+    // limit. Exercise this with 2 slug directories and 2 dot-prefixed
+    // (non-slug) directories against a limit of 3: total raw entries (4)
+    // exceed the limit regardless of order, so this must always fail
+    // closed.
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let archive_root = temporary.directory("archives");
+    fs::create_dir(archive_root.join("aaa")).unwrap();
+    fs::create_dir(archive_root.join("bbb")).unwrap();
+    fs::create_dir(archive_root.join(".staging-one")).unwrap();
+    fs::create_dir(archive_root.join(".staging-two")).unwrap();
+
+    let service = service_with_archive_root(&repository, &archive_root);
+    let error = service
+        .list_archives_with_limits(synapse_local_service::ArchiveListLimits {
+            max_root_entries: 3,
+            inspection: ARCHIVE_LIST_LIMITS.inspection,
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+}
+
+#[test]
+fn list_archives_root_entry_limit_admits_the_exact_raw_entry_count() {
+    // The inverse of the above: when the raw entry count (including
+    // non-slug entries) is exactly at the limit, the request must succeed.
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let archive_root = temporary.directory("archives");
+    fs::create_dir(archive_root.join("aaa")).unwrap();
+    fs::create_dir(archive_root.join("bbb")).unwrap();
+    fs::create_dir(archive_root.join(".staging-one")).unwrap();
+    fs::create_dir(archive_root.join(".staging-two")).unwrap();
+
+    let service = service_with_archive_root(&repository, &archive_root);
+    let list = service
+        .list_archives_with_limits(synapse_local_service::ArchiveListLimits {
+            max_root_entries: 4,
+            inspection: ARCHIVE_LIST_LIMITS.inspection,
+        })
+        .unwrap();
+    assert_eq!(
+        list.archives
+            .iter()
+            .map(|entry| entry.archive_name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["aaa", "bbb"]
+    );
+}
+
+#[test]
+fn list_archives_excludes_a_slug_named_plain_file() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let archive_root = temporary.directory("archives");
+    // A slug-named regular file directly under the root must never be
+    // listed, even though its name alone would pass `is_slug`.
+    fs::write(archive_root.join("backup"), b"not a directory").unwrap();
+
+    let service = service_with_archive_root(&repository, &archive_root);
+    let list = service.list_archives().unwrap();
+    assert_eq!(
+        list,
+        ArchiveList {
+            archives: Vec::new()
+        }
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn list_archives_does_not_follow_a_slug_named_symlink() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let source = temporary.directory("archive-source");
+    let archive_root = temporary.directory("archives");
+    let real_archive_dir = temporary.directory("outside-archives");
+    export_named_archive(&source, &real_archive_dir, "real-archive");
+
+    // A slug-named symlink under the root, even one pointing at a real,
+    // valid exported archive directory, must not be followed or admitted
+    // as a candidate archive.
+    std::os::unix::fs::symlink(
+        real_archive_dir.join("real-archive"),
+        archive_root.join("linked-archive"),
+    )
+    .unwrap();
+
+    let service = service_with_archive_root(&repository, &archive_root);
+    let list = service.list_archives().unwrap();
+    assert_eq!(
+        list,
+        ArchiveList {
+            archives: Vec::new()
+        }
+    );
+}
