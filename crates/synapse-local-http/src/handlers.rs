@@ -19,7 +19,8 @@ use crate::staging::StagedCreatorUpload;
 use crate::state::{AppState, BlockingError, OperationRegistryError};
 use crate::templates::{ErrorTemplate, IndexTemplate, ProjectTemplate, SessionTemplate};
 use crate::views::{
-    HttpFailure, ProjectCardView, RefView, ReflogView, SessionPageView, SessionSummaryView,
+    ArchiveView, HttpFailure, ProjectCardView, RefView, ReflogView, SessionPageView,
+    SessionSummaryView, archive_checksum_preview, archive_state_label, archive_state_tone,
     project_state_label, project_state_tone, session_state_label, session_state_tone,
 };
 
@@ -34,6 +35,19 @@ pub(crate) async fn api_projects(
     State(state): State<AppState>,
 ) -> Json<synapse_local_service::ProjectList> {
     Json(state.service.list_projects())
+}
+
+pub(crate) async fn api_archives(State(state): State<AppState>) -> Response {
+    // Archive listing scans a server-owned archive root, not a project
+    // repository, so it has no per-project blocking gate key to acquire.
+    match run_blocking(state.clone(), None, |service| service.list_archives()).await {
+        Ok(archives) => Json(archives).into_response(),
+        Err(BlockingError::Service(error)) => failure_response(HttpFailure::service(&state, error)),
+        Err(BlockingError::Task) => failure_response(HttpFailure::internal(
+            &state,
+            "The archive listing task failed.",
+        )),
+    }
 }
 
 pub(crate) async fn api_project_status(
@@ -546,12 +560,47 @@ pub(crate) async fn index_page(State(state): State<AppState>) -> Response {
             incomplete_sessions: status.creator_session_counts.incomplete,
         });
     }
+
+    // Archive listing degrades independently of the project dashboard: an
+    // archive-root read failure (for example a resource_limit from too many
+    // root entries) must not turn the whole project dashboard into a page
+    // failure, since archives are server-wide state unrelated to any one
+    // project's availability. A failure renders as an inline notice in the
+    // archives section instead.
+    let (archives, archives_error) =
+        match run_blocking(state.clone(), None, |service| service.list_archives()).await {
+            Ok(list) => (
+                list.archives
+                    .into_iter()
+                    .map(|archive| ArchiveView {
+                        archive_name: archive.archive_name,
+                        state_label: archive_state_label(archive.state),
+                        tone: archive_state_tone(archive.state),
+                        checksum_preview: archive_checksum_preview(
+                            archive.manifest_checksum.as_deref(),
+                        ),
+                    })
+                    .collect::<Vec<_>>(),
+                None,
+            ),
+            Err(BlockingError::Service(error)) => (
+                Vec::new(),
+                Some(HttpFailure::service(&state, error).detail),
+            ),
+            Err(BlockingError::Task) => (
+                Vec::new(),
+                Some("The archive listing task failed.".to_owned()),
+            ),
+        };
+
     render_template(
         &state,
         IndexTemplate {
             page_title: "プロジェクト",
             token: state.security.token(),
             projects: &cards,
+            archives: &archives,
+            archives_error: archives_error.as_deref(),
         },
     )
 }

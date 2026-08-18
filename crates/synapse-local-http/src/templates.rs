@@ -3,7 +3,7 @@ use axum::http::header::CONTENT_TYPE;
 use axum::response::{IntoResponse, Response};
 
 use crate::views::{
-    ImageView, ProjectCardView, RefView, ReflogView, SessionSummaryView, TimelineView,
+    ArchiveView, ImageView, ProjectCardView, RefView, ReflogView, SessionSummaryView, TimelineView,
 };
 
 pub(crate) const APP_CSS: &str = include_str!("../assets/app.css");
@@ -23,6 +23,8 @@ pub(crate) struct IndexTemplate<'a> {
     pub(crate) page_title: &'a str,
     pub(crate) token: &'a str,
     pub(crate) projects: &'a [ProjectCardView],
+    pub(crate) archives: &'a [ArchiveView],
+    pub(crate) archives_error: Option<&'a str>,
 }
 
 #[derive(Template)]
