@@ -15,10 +15,15 @@ authority is opaque, non-serializable, capacity-bounded, and never reconstructed
 from Ref/head IDs. The service also validates exact project confirmation, runs
 only `fsck_with_limits` with a server-fixed Core-default-equivalent maintenance
 profile, and retains the latest clean or dirty aggregate result in process-local
-`last_fsck`. Archive inspection/listing, export, restore, restart-durable review, and automatic
-incomplete-session recovery are not implemented here. The diagnostics and
-maintenance `fsck` additions were introduced in v0.3.0 and remain unchanged in
-the tagged v0.5.1 binary. The generic-artifact workflow in the tagged v0.5.1
+`last_fsck`. An optional server-owned archive root enables `list_archives`, a
+bounded read-only listing of the root's direct entries with per-archive
+manifest-level inspection (`valid`/`invalid`/`staging_or_unknown`); it is
+configured-empty by default and never accepts a caller-supplied path. Archive
+export, restore, restart-durable review, and automatic incomplete-session
+recovery are not implemented here. The diagnostics and maintenance `fsck`
+additions were introduced in v0.3.0 and remain unchanged in the tagged v0.6.0
+binary. Archive listing was added on `main` after v0.5.1 and is included in
+the tagged v0.6.0 binary. The generic-artifact workflow in the tagged v0.6.0
 source is a separate Rust library boundary; this facade does not expose it
 through HTTP/CLI/UI or remote publication.
 

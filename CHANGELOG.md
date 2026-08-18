@@ -6,6 +6,8 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-18
+
 ### Added
 
 - `scripts/score_publication_comprehension.mjs` now validates
@@ -270,7 +272,8 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/howlrs/synapsegit/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/howlrs/synapsegit/compare/v0.5.0...v0.5.1
 [0.5.0]: https://github.com/howlrs/synapsegit/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/howlrs/synapsegit/compare/v0.3.0...v0.4.0

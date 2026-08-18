@@ -1,6 +1,6 @@
 [package]
 name = "synapse-artifact-journal"
-version = "0.5.1"
+version = "0.6.0"
 description = "Transport-neutral durable review journal for SynapseGit artifact applications"
 edition.workspace = true
 rust-version.workspace = true

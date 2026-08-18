@@ -170,7 +170,7 @@ sessionはcreate-onlyです。同じrepository内で`mural-treatment-01`を再�
   選びます。Pilotは既存のcreative historyを上書きしません。
 - **browserへ接続できない** — terminal processを動かしたまま、表示されたexact loopback
   URLを開きます。
-- **restart後にsessionがincompleteになる** — tagged v0.5.1 binaryのpending Human review
+- **restart後にsessionがincompleteになる** — tagged v0.6.0 binaryのpending Human review
   authorityはsame-processです。UIから診断し、表示identifierからauthorityを再構築しないでください。
 - **見た目が違うのに`byte_identity=different`しか表示されない** — 現在の保守的な
   boundaryどおりです。
