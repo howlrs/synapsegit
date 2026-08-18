@@ -4,9 +4,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_core::{FsckLimits, Repository, TombstoneScanLimits};
 use synapse_local_service::{
-    ArchiveResult, ArchiveResultKind, FsckResult, LocalService, MAINTENANCE_FSCK_LIMITS,
-    OperationAccepted, OperationKind, OperationResult, OperationState, OperationStatus,
-    ProjectConfirmation, ProjectRegistration,
+    ARCHIVE_LIST_LIMITS, ArchiveList, ArchiveResult, ArchiveResultKind, ArchiveState, FsckResult,
+    LocalService, MAINTENANCE_FSCK_LIMITS, OperationAccepted, OperationKind, OperationResult,
+    OperationState, OperationStatus, ProjectConfirmation, ProjectRegistration,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -39,6 +39,12 @@ impl Drop for TempDirectory {
 
 fn service_for(repository: &Path) -> LocalService {
     LocalService::new([ProjectRegistration::new("project", "Project", repository)]).unwrap()
+}
+
+fn service_with_archive_root(repository: &Path, archive_root: &Path) -> LocalService {
+    LocalService::new([ProjectRegistration::new("project", "Project", repository)])
+        .unwrap()
+        .with_archive_root(archive_root.to_path_buf())
 }
 
 fn blob_path(repository: &Path, oid: &str) -> PathBuf {
@@ -267,4 +273,267 @@ fn maintenance_operation_dtos_serialize_to_the_openapi_shape() {
     assert_eq!(archive_json["completed_at"], Value::Null);
     assert_eq!(archive_json["result"]["result_kind"], "restored");
     assert_eq!(archive_json["error"], Value::Null);
+}
+
+#[test]
+fn archive_list_limits_are_server_fixed() {
+    // Server-fixed work ceiling, mirrored the same way as
+    // `maintenance_profile_confirmation_and_capabilities_are_server_fixed`
+    // pins `MAINTENANCE_FSCK_LIMITS`: this locks the exact profile so a
+    // silent change is caught by this test rather than only observed at
+    // runtime.
+    assert_eq!(ARCHIVE_LIST_LIMITS.max_root_entries, 100_000);
+    assert_eq!(ARCHIVE_LIST_LIMITS.inspection.max_objects, 100_000);
+    assert_eq!(
+        ARCHIVE_LIST_LIMITS.inspection.max_object_bytes,
+        1024_u64 * 1024 * 1024 * 1024
+    );
+}
+
+#[test]
+fn list_archives_is_empty_without_a_configured_archive_root() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let service = service_for(&repository);
+    assert_eq!(
+        service.list_archives().unwrap(),
+        ArchiveList {
+            archives: Vec::new()
+        }
+    );
+}
+
+#[test]
+fn list_archives_is_empty_for_an_empty_archive_root() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let archive_root = temporary.directory("archives");
+    let service = service_with_archive_root(&repository, &archive_root);
+    assert_eq!(
+        service.list_archives().unwrap(),
+        ArchiveList {
+            archives: Vec::new()
+        }
+    );
+}
+
+fn export_named_archive(source_repository: &Path, archive_root: &Path, name: &str) -> String {
+    let mut repository = Repository::open(source_repository).unwrap();
+    repository
+        .put_blob(&b"archive listing fixture blob"[..])
+        .unwrap();
+    let destination = archive_root.join(name);
+    repository.export_archive(&destination).unwrap();
+    let checksum_bytes = fs::read(destination.join("manifest.sha256")).unwrap();
+    let checksum_text = String::from_utf8(checksum_bytes).unwrap();
+    checksum_text.trim().to_owned()
+}
+
+#[test]
+fn list_archives_reports_valid_invalid_and_staging_or_unknown_in_name_order() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let source = temporary.directory("archive-source");
+    let archive_root = temporary.directory("archives");
+
+    // `zzz-valid`: a real exported archive, expected `valid` with its
+    // manifest checksum.
+    let expected_checksum = export_named_archive(&source, &archive_root, "zzz-valid");
+
+    // `bbb-invalid`: an exported archive whose manifest is then tampered,
+    // expected `invalid`.
+    export_named_archive(&source, &archive_root, "bbb-invalid");
+    let bbb_manifest = archive_root.join("bbb-invalid").join("manifest.json");
+    let mut bytes = fs::read(&bbb_manifest).unwrap();
+    bytes.push(b'\n');
+    fs::write(&bbb_manifest, bytes).unwrap();
+
+    // `mmm-staging`: a slug directory with no manifest at all yet, expected
+    // `staging_or_unknown`.
+    fs::create_dir(archive_root.join("mmm-staging")).unwrap();
+
+    // A dot-prefixed directory is never a valid slug and must not appear.
+    fs::create_dir(archive_root.join(".tmp-export-hidden")).unwrap();
+    // A non-slug (uppercase) directory name must not appear either.
+    fs::create_dir(archive_root.join("Not-A-Slug")).unwrap();
+    // A stray regular file directly under the root must not appear.
+    fs::write(archive_root.join("readme.txt"), b"not an archive").unwrap();
+
+    let service = service_with_archive_root(&repository, &archive_root);
+    let list = service.list_archives().unwrap();
+
+    assert_eq!(
+        list.archives
+            .iter()
+            .map(|entry| entry.archive_name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["bbb-invalid", "mmm-staging", "zzz-valid"],
+        "archives must be sorted by archive_name ascending"
+    );
+
+    let bbb = &list.archives[0];
+    assert_eq!(bbb.state, ArchiveState::Invalid);
+    assert_eq!(bbb.manifest_checksum, None);
+
+    let mmm = &list.archives[1];
+    assert_eq!(mmm.state, ArchiveState::StagingOrUnknown);
+    assert_eq!(mmm.manifest_checksum, None);
+
+    let zzz = &list.archives[2];
+    assert_eq!(zzz.state, ArchiveState::Valid);
+    assert_eq!(
+        zzz.manifest_checksum.as_deref(),
+        Some(expected_checksum.as_str())
+    );
+
+    let response_json = serde_json::to_string(&list).unwrap();
+    assert!(
+        !response_json.contains(archive_root.to_str().unwrap()),
+        "archive listing responses must never leak filesystem paths"
+    );
+}
+
+#[test]
+fn list_archives_treats_limit_exceeded_archives_as_staging_or_unknown() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let source = temporary.directory("archive-source");
+    let archive_root = temporary.directory("archives");
+    export_named_archive(&source, &archive_root, "over-limit");
+
+    let service = service_with_archive_root(&repository, &archive_root);
+    let list = service.list_archives_with_limits(synapse_local_service::ArchiveListLimits {
+        max_root_entries: ARCHIVE_LIST_LIMITS.max_root_entries,
+        inspection: synapse_core::ArchiveInspectionLimits {
+            max_objects: 0,
+            max_object_bytes: 1,
+        },
+    });
+    let list = list.unwrap();
+    assert_eq!(list.archives.len(), 1);
+    assert_eq!(list.archives[0].archive_name, "over-limit");
+    assert_eq!(list.archives[0].state, ArchiveState::StagingOrUnknown);
+    assert_eq!(list.archives[0].manifest_checksum, None);
+}
+
+#[test]
+fn list_archives_fails_closed_when_root_entries_exceed_the_limit() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let archive_root = temporary.directory("archives");
+    fs::create_dir(archive_root.join("aaa")).unwrap();
+    fs::create_dir(archive_root.join("bbb")).unwrap();
+
+    let service = service_with_archive_root(&repository, &archive_root);
+    let error = service
+        .list_archives_with_limits(synapse_local_service::ArchiveListLimits {
+            max_root_entries: 1,
+            inspection: ARCHIVE_LIST_LIMITS.inspection,
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+}
+
+#[test]
+fn list_archives_root_entry_limit_counts_every_raw_entry_deterministically() {
+    // The root-entry limit must count every raw `readdir` entry (slug or
+    // not), not only entries accepted as candidate archives. Otherwise
+    // whether a request over budget fails or succeeds would depend on
+    // readdir order whenever accepted and excluded entries coexist near the
+    // limit. Exercise this with 2 slug directories and 2 dot-prefixed
+    // (non-slug) directories against a limit of 3: total raw entries (4)
+    // exceed the limit regardless of order, so this must always fail
+    // closed.
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let archive_root = temporary.directory("archives");
+    fs::create_dir(archive_root.join("aaa")).unwrap();
+    fs::create_dir(archive_root.join("bbb")).unwrap();
+    fs::create_dir(archive_root.join(".staging-one")).unwrap();
+    fs::create_dir(archive_root.join(".staging-two")).unwrap();
+
+    let service = service_with_archive_root(&repository, &archive_root);
+    let error = service
+        .list_archives_with_limits(synapse_local_service::ArchiveListLimits {
+            max_root_entries: 3,
+            inspection: ARCHIVE_LIST_LIMITS.inspection,
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+}
+
+#[test]
+fn list_archives_root_entry_limit_admits_the_exact_raw_entry_count() {
+    // The inverse of the above: when the raw entry count (including
+    // non-slug entries) is exactly at the limit, the request must succeed.
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let archive_root = temporary.directory("archives");
+    fs::create_dir(archive_root.join("aaa")).unwrap();
+    fs::create_dir(archive_root.join("bbb")).unwrap();
+    fs::create_dir(archive_root.join(".staging-one")).unwrap();
+    fs::create_dir(archive_root.join(".staging-two")).unwrap();
+
+    let service = service_with_archive_root(&repository, &archive_root);
+    let list = service
+        .list_archives_with_limits(synapse_local_service::ArchiveListLimits {
+            max_root_entries: 4,
+            inspection: ARCHIVE_LIST_LIMITS.inspection,
+        })
+        .unwrap();
+    assert_eq!(
+        list.archives
+            .iter()
+            .map(|entry| entry.archive_name.as_str())
+            .collect::<Vec<_>>(),
+        vec!["aaa", "bbb"]
+    );
+}
+
+#[test]
+fn list_archives_excludes_a_slug_named_plain_file() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let archive_root = temporary.directory("archives");
+    // A slug-named regular file directly under the root must never be
+    // listed, even though its name alone would pass `is_slug`.
+    fs::write(archive_root.join("backup"), b"not a directory").unwrap();
+
+    let service = service_with_archive_root(&repository, &archive_root);
+    let list = service.list_archives().unwrap();
+    assert_eq!(
+        list,
+        ArchiveList {
+            archives: Vec::new()
+        }
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn list_archives_does_not_follow_a_slug_named_symlink() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let source = temporary.directory("archive-source");
+    let archive_root = temporary.directory("archives");
+    let real_archive_dir = temporary.directory("outside-archives");
+    export_named_archive(&source, &real_archive_dir, "real-archive");
+
+    // A slug-named symlink under the root, even one pointing at a real,
+    // valid exported archive directory, must not be followed or admitted
+    // as a candidate archive.
+    std::os::unix::fs::symlink(
+        real_archive_dir.join("real-archive"),
+        archive_root.join("linked-archive"),
+    )
+    .unwrap();
+
+    let service = service_with_archive_root(&repository, &archive_root);
+    let list = service.list_archives().unwrap();
+    assert_eq!(
+        list,
+        ArchiveList {
+            archives: Vec::new()
+        }
+    );
 }

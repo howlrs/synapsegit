@@ -573,6 +573,35 @@ pub enum ImageDisposition {
     Attachment,
 }
 
+/// Read-only inspection outcome for one server-owned archive-root entry.
+///
+/// This is manifest-level evidence, not a restore-success guarantee: `Valid`
+/// confirms the manifest checksum, structural validation, and every listed
+/// object file's presence/length, but never reads object content. See
+/// `synapse_core::inspect_archive_with_limits` for the exact verification
+/// performed.
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ArchiveState {
+    Valid,
+    Invalid,
+    StagingOrUnknown,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArchiveSummary {
+    pub archive_name: String,
+    pub state: ArchiveState,
+    pub manifest_checksum: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArchiveList {
+    pub archives: Vec<ArchiveSummary>,
+}
+
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Problem {

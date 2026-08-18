@@ -846,31 +846,7 @@ impl Repository {
         let existing_oids = self.objects.list_oids()?;
 
         let archive = archive.as_ref();
-        let manifest_path = archive.join(MANIFEST_FILE);
-        let manifest_bytes = read_limited(&manifest_path, MAX_MANIFEST_BYTES)?;
-        let checksum_path = archive.join(MANIFEST_CHECKSUM_FILE);
-        let checksum_bytes = read_limited(&checksum_path, 256)?;
-        if checksum_bytes.len() != 65
-            || checksum_bytes[64] != b'\n'
-            || !checksum_bytes[..64]
-                .iter()
-                .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
-        {
-            return Err(RepositoryError::ArchiveInvalid(
-                "manifest checksum must be 64 lowercase hex characters plus newline".into(),
-            ));
-        }
-        let claimed_checksum = std::str::from_utf8(&checksum_bytes[..64]).map_err(|_| {
-            RepositoryError::ArchiveInvalid("manifest checksum is not ASCII".into())
-        })?;
-        let expected_checksum = sha256_hex(&manifest_bytes);
-        if claimed_checksum != expected_checksum {
-            return Err(RepositoryError::ArchiveInvalid(format!(
-                "manifest checksum mismatch: claimed {claimed_checksum:?}, expected {expected_checksum}"
-            )));
-        }
-        let manifest: ArchiveManifest = serde_json::from_slice(&manifest_bytes)?;
-        manifest.validate()?;
+        let (manifest, _manifest_checksum) = read_verified_manifest(archive)?;
         let archived_oids = manifest
             .objects
             .iter()
@@ -1218,7 +1194,12 @@ impl ArchiveManifest {
         let mut paths = HashSet::with_capacity(self.objects.len());
         let mut previous_oid: Option<&str> = None;
         for (index, object) in self.objects.iter().enumerate() {
-            let kind = parse_oid(&object.oid)?;
+            let kind = parse_oid(&object.oid).map_err(|error| {
+                RepositoryError::ArchiveInvalid(format!(
+                    "invalid object OID {:?}: {error}",
+                    object.oid
+                ))
+            })?;
             let expected_path = format!("objects/{index:08}");
             if object.path != expected_path {
                 return Err(RepositoryError::ArchiveInvalid(format!(
@@ -1287,6 +1268,196 @@ impl ArchiveManifest {
                 })
                 .collect(),
         }
+    }
+}
+
+/// Read, checksum-verify, and structurally validate one archive's manifest.
+///
+/// Shared by [`Repository::restore_from`] and
+/// [`inspect_archive_with_limits`] so the two callers apply the exact same
+/// manifest checksum format, checksum comparison, and
+/// [`ArchiveManifest::validate`] rules. Returns the parsed manifest together
+/// with its confirmed lowercase-hex SHA-256 checksum string.
+fn read_verified_manifest(archive: &Path) -> Result<(ArchiveManifest, String)> {
+    let manifest_path = archive.join(MANIFEST_FILE);
+    let manifest_bytes = read_limited(&manifest_path, MAX_MANIFEST_BYTES)?;
+    let checksum_path = archive.join(MANIFEST_CHECKSUM_FILE);
+    let checksum_bytes = read_limited(&checksum_path, 256)?;
+    if checksum_bytes.len() != 65
+        || checksum_bytes[64] != b'\n'
+        || !checksum_bytes[..64]
+            .iter()
+            .all(|byte| byte.is_ascii_digit() || matches!(byte, b'a'..=b'f'))
+    {
+        return Err(RepositoryError::ArchiveInvalid(
+            "manifest checksum must be 64 lowercase hex characters plus newline".into(),
+        ));
+    }
+    let claimed_checksum = std::str::from_utf8(&checksum_bytes[..64])
+        .map_err(|_| RepositoryError::ArchiveInvalid("manifest checksum is not ASCII".into()))?;
+    let expected_checksum = sha256_hex(&manifest_bytes);
+    if claimed_checksum != expected_checksum {
+        return Err(RepositoryError::ArchiveInvalid(format!(
+            "manifest checksum mismatch: claimed {claimed_checksum:?}, expected {expected_checksum}"
+        )));
+    }
+    let manifest: ArchiveManifest = serde_json::from_slice(&manifest_bytes)?;
+    manifest.validate()?;
+    Ok((manifest, expected_checksum))
+}
+
+/// Resource limits for one read-only, synchronous archive inspection.
+///
+/// These bound `inspect_archive_with_limits` alone; they are deliberately
+/// separate from [`ArchiveExportLimits`] and [`FsckLimits`] so a caller
+/// exposing inspection over a synchronous HTTP GET can pin a narrower ceiling
+/// than export or fsck without affecting either. [`Default`] supplies the
+/// same local profile values as [`ArchiveExportLimits::default`].
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ArchiveInspectionLimits {
+    /// Maximum number of object rows accepted from the manifest.
+    pub max_objects: usize,
+    /// Maximum cumulative manifest-declared byte length across all objects.
+    pub max_object_bytes: u64,
+}
+
+impl Default for ArchiveInspectionLimits {
+    fn default() -> Self {
+        Self {
+            max_objects: DEFAULT_MAX_ARCHIVE_OBJECTS,
+            max_object_bytes: DEFAULT_MAX_ARCHIVE_OBJECT_BYTES,
+        }
+    }
+}
+
+/// Outcome of one bounded, read-only archive inspection.
+///
+/// Every variant is a manifest-level result: `Valid` confirms the manifest
+/// checksum, `ArchiveManifest::validate`'s structural rules, and that every
+/// listed object file exists on disk with the manifest-declared byte length.
+/// It does not read or hash object *content*, so it is not equivalent to a
+/// full restore-time verification (restore additionally re-derives and
+/// compares each object's content checksum/OID). This asymmetry is
+/// deliberate: inspection is sized for a synchronous HTTP GET over
+/// potentially many archives, while restore is a one-time bounded mutation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum ArchiveInspectionState {
+    /// The manifest checksum, structure, and every listed object file's
+    /// presence/length are confirmed.
+    Valid {
+        /// The manifest's own confirmed lowercase-hex SHA-256 checksum.
+        manifest_checksum: String,
+    },
+}
+
+/// The result of [`inspect_archive_with_limits`] when the archive is valid.
+///
+/// Non-valid outcomes are reported as an `Err(RepositoryError)` instead of a
+/// state variant here; see [`inspect_archive_with_limits`] for the exact
+/// mapping callers should apply.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ArchiveInspection {
+    pub state: ArchiveInspectionState,
+}
+
+/// Inspect one directory archive without writing objects, Refs, or any other
+/// state, and without opening a [`Repository`].
+///
+/// This reuses `read_verified_manifest` (the same manifest checksum and
+/// structural validation [`Repository::restore_from`] applies) and then
+/// confirms each manifest-listed object file exists as a regular,
+/// non-symlink file (via the same `open_regular_limited` rejection
+/// [`Repository::restore_from`] uses) with the manifest-declared byte
+/// length. It never reads object file *content* and never computes a
+/// per-object content hash, so a `Valid` result is manifest-level evidence,
+/// not a restore-success guarantee.
+///
+/// # Errors
+///
+/// - A `resource_limit`-coded [`RepositoryError`] when `limits` themselves are
+///   zero, when the manifest lists more objects than `limits.max_objects`, or
+///   when the cumulative manifest-declared byte length exceeds
+///   `limits.max_object_bytes`.
+/// - An `archive_invalid`-coded [`RepositoryError`] when the manifest
+///   checksum does not match, `ArchiveManifest::validate` rejects its
+///   structure, or a listed object file is absent, a symlink, not a regular
+///   file, or has a length that disagrees with the manifest.
+/// - A `storage_error`-coded [`RepositoryError::Io`] (frequently
+///   [`io::ErrorKind::NotFound`]) when the manifest or checksum file itself
+///   cannot be read, which callers should treat as "not yet a complete
+///   archive" (for example mid-export staging, or an unrelated directory)
+///   rather than a corrupt one.
+pub fn inspect_archive_with_limits(
+    archive: &Path,
+    limits: &ArchiveInspectionLimits,
+) -> Result<ArchiveInspection> {
+    if limits.max_objects == 0 {
+        return Err(resource_limit(
+            "archive inspection max_objects must be greater than zero",
+        ));
+    }
+    if limits.max_object_bytes == 0 {
+        return Err(resource_limit(
+            "archive inspection max_object_bytes must be greater than zero",
+        ));
+    }
+    let (manifest, manifest_checksum) = read_verified_manifest(archive)?;
+    if manifest.objects.len() > limits.max_objects {
+        return Err(resource_limit(format!(
+            "archive inspection object count exceeds max_objects {}",
+            limits.max_objects
+        )));
+    }
+    let mut total_object_bytes = 0_u64;
+    for object in &manifest.objects {
+        total_object_bytes = total_object_bytes
+            .checked_add(object.byte_length)
+            .ok_or_else(|| resource_limit("archive inspection object byte total overflowed u64"))?;
+        if total_object_bytes > limits.max_object_bytes {
+            return Err(resource_limit(format!(
+                "archive inspection object bytes exceed max_object_bytes {}",
+                limits.max_object_bytes
+            )));
+        }
+        let object_path = archive.join(&object.path);
+        // `open_regular_limited` performs the same symlink/non-regular-file
+        // rejection `restore_from` relies on, so inspection cannot report
+        // `Valid` for an object restore would refuse to trust.
+        let (_, byte_length) = open_regular_limited(&object_path, object.byte_length)
+            .map_err(|error| inspection_object_error(error, &object.path))?;
+        if byte_length != object.byte_length {
+            return Err(RepositoryError::ArchiveInvalid(format!(
+                "{} length mismatch",
+                object.path
+            )));
+        }
+    }
+    Ok(ArchiveInspection {
+        state: ArchiveInspectionState::Valid { manifest_checksum },
+    })
+}
+
+/// Reclassify an `open_regular_limited` failure for inspection.
+///
+/// Once the manifest itself is checksum-verified and structurally valid, the
+/// directory is confirmed to be a genuine (not merely in-progress-staging)
+/// archive; any per-object shape problem underneath it — missing, a
+/// symlink, not a regular file, or oversized relative to its manifest
+/// length — is `archive_invalid` evidence about that archive, not a
+/// generic storage failure. This intentionally differs from
+/// [`Repository::restore_from`], which instead maps a missing object file to
+/// its underlying `Io`/`storage_error`: restore is a one-time mutation where
+/// a transient read failure should be retried, while inspection is a
+/// read-only summary where "this archive's object inventory does not match
+/// its manifest" is itself the useful, stable answer.
+fn inspection_object_error(error: RepositoryError, relative_path: &str) -> RepositoryError {
+    match error {
+        RepositoryError::ArchiveInvalid(_) | RepositoryError::Io { .. } => {
+            RepositoryError::ArchiveInvalid(format!(
+                "{relative_path} is missing, not a regular file, or exceeds its manifest length"
+            ))
+        }
+        other => other,
     }
 }
 
@@ -1642,5 +1813,255 @@ mod archive_tests {
             "Ref is not exportable".to_owned(),
         );
         assert_eq!(io_error.code(), "storage_error");
+    }
+
+    fn exported_archive_fixture(label: &str) -> (PathBuf, PathBuf, String) {
+        let repository_path = unique_test_path(&format!("{label}-repository"));
+        let archive_path = unique_test_path(&format!("{label}-archive"));
+        let mut repository = Repository::open(&repository_path).unwrap();
+        repository
+            .put_blob(&b"inspected archive fixture blob"[..])
+            .unwrap();
+        repository.export_archive(&archive_path).unwrap();
+        let manifest_bytes = fs::read(archive_path.join(MANIFEST_FILE)).unwrap();
+        let expected_checksum = sha256_hex(&manifest_bytes);
+        (repository_path, archive_path, expected_checksum)
+    }
+
+    fn cleanup_fixture(repository_path: &Path, archive_path: &Path) {
+        let _ = fs::remove_dir_all(repository_path);
+        let _ = fs::remove_dir_all(archive_path);
+    }
+
+    #[test]
+    fn inspection_reports_valid_with_the_manifest_checksum_and_writes_nothing() {
+        let (repository_path, archive_path, expected_checksum) =
+            exported_archive_fixture("inspect-valid");
+        let before = fs::metadata(archive_path.join(MANIFEST_FILE))
+            .unwrap()
+            .modified()
+            .unwrap();
+
+        let inspection =
+            inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
+                .unwrap();
+        let ArchiveInspectionState::Valid { manifest_checksum } = inspection.state;
+        assert_eq!(manifest_checksum, expected_checksum);
+
+        let after = fs::metadata(archive_path.join(MANIFEST_FILE))
+            .unwrap()
+            .modified()
+            .unwrap();
+        assert_eq!(before, after, "inspection must not write to the archive");
+
+        cleanup_fixture(&repository_path, &archive_path);
+    }
+
+    #[test]
+    fn inspection_reports_invalid_for_a_tampered_manifest() {
+        let (repository_path, archive_path, _) = exported_archive_fixture("inspect-tampered");
+        let manifest_path = archive_path.join(MANIFEST_FILE);
+        let mut manifest_bytes = fs::read(&manifest_path).unwrap();
+        manifest_bytes.push(b'\n');
+        fs::write(&manifest_path, &manifest_bytes).unwrap();
+
+        let error = inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
+            .unwrap_err();
+        assert_eq!(error.code(), "archive_invalid");
+
+        cleanup_fixture(&repository_path, &archive_path);
+    }
+
+    #[test]
+    fn inspection_reports_invalid_for_a_malformed_checksum_file() {
+        let (repository_path, archive_path, _) = exported_archive_fixture("inspect-bad-checksum");
+        fs::write(archive_path.join(MANIFEST_CHECKSUM_FILE), b"not-hex\n").unwrap();
+
+        let error = inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
+            .unwrap_err();
+        assert_eq!(error.code(), "archive_invalid");
+
+        cleanup_fixture(&repository_path, &archive_path);
+    }
+
+    #[test]
+    fn inspection_reports_missing_manifest_as_io_not_found() {
+        let (repository_path, archive_path, _) = exported_archive_fixture("inspect-no-manifest");
+        fs::remove_file(archive_path.join(MANIFEST_FILE)).unwrap();
+
+        let error = inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
+            .unwrap_err();
+        assert_eq!(error.code(), "storage_error");
+        match error {
+            RepositoryError::Io { source, .. } => {
+                assert_eq!(source.kind(), io::ErrorKind::NotFound);
+            }
+            other => panic!("expected Io, got {other:?}"),
+        }
+
+        cleanup_fixture(&repository_path, &archive_path);
+    }
+
+    #[test]
+    fn inspection_reports_missing_checksum_file_as_io_not_found() {
+        let (repository_path, archive_path, _) = exported_archive_fixture("inspect-no-checksum");
+        fs::remove_file(archive_path.join(MANIFEST_CHECKSUM_FILE)).unwrap();
+
+        let error = inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
+            .unwrap_err();
+        assert_eq!(error.code(), "storage_error");
+        match error {
+            RepositoryError::Io { source, .. } => {
+                assert_eq!(source.kind(), io::ErrorKind::NotFound);
+            }
+            other => panic!("expected Io, got {other:?}"),
+        }
+
+        cleanup_fixture(&repository_path, &archive_path);
+    }
+
+    #[test]
+    fn inspection_reports_invalid_for_a_structurally_invalid_object_oid() {
+        // A manifest whose checksum matches and whose JSON parses, but whose
+        // object row carries a structurally invalid OID, must be rejected as
+        // `archive_invalid` by `ArchiveManifest::validate` just like every
+        // other structural violation (bad path, duplicate row, malformed
+        // checksum, out-of-order rows) — not silently fall through to a
+        // generic `Core`-wrapped error that a caller's catch-all would
+        // misclassify as merely unreadable/unknown.
+        let (repository_path, archive_path, _) = exported_archive_fixture("inspect-bad-object-oid");
+        let manifest_path = archive_path.join(MANIFEST_FILE);
+        let manifest_text = fs::read_to_string(&manifest_path).unwrap();
+        let mut manifest: serde_json::Value = serde_json::from_str(&manifest_text).unwrap();
+        manifest["objects"][0]["oid"] = serde_json::Value::String("junk".to_owned());
+        let tampered_bytes = serde_json::to_vec(&manifest).unwrap();
+        fs::write(&manifest_path, &tampered_bytes).unwrap();
+        fs::write(
+            archive_path.join(MANIFEST_CHECKSUM_FILE),
+            format!("{}\n", sha256_hex(&tampered_bytes)),
+        )
+        .unwrap();
+
+        let error = inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
+            .unwrap_err();
+        assert_eq!(error.code(), "archive_invalid");
+        assert!(
+            matches!(error, RepositoryError::ArchiveInvalid(_)),
+            "expected ArchiveInvalid, got {error:?}"
+        );
+
+        cleanup_fixture(&repository_path, &archive_path);
+    }
+
+    #[test]
+    fn inspection_reports_invalid_for_a_missing_object_file() {
+        let (repository_path, archive_path, _) = exported_archive_fixture("inspect-missing-object");
+        fs::remove_file(archive_path.join("objects/00000000")).unwrap();
+
+        let error = inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
+            .unwrap_err();
+        assert_eq!(error.code(), "archive_invalid");
+
+        cleanup_fixture(&repository_path, &archive_path);
+    }
+
+    #[test]
+    fn inspection_reports_invalid_for_an_object_length_mismatch() {
+        let (repository_path, archive_path, _) =
+            exported_archive_fixture("inspect-object-length-mismatch");
+        let object_path = archive_path.join("objects/00000000");
+        let mut bytes = fs::read(&object_path).unwrap();
+        bytes.push(b'!');
+        fs::write(&object_path, &bytes).unwrap();
+
+        let error = inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
+            .unwrap_err();
+        assert_eq!(error.code(), "archive_invalid");
+
+        cleanup_fixture(&repository_path, &archive_path);
+    }
+
+    #[test]
+    fn inspection_enforces_max_objects() {
+        let (repository_path, archive_path, _) = exported_archive_fixture("inspect-max-objects");
+
+        let error = inspect_archive_with_limits(
+            &archive_path,
+            &ArchiveInspectionLimits {
+                max_objects: 0,
+                max_object_bytes: DEFAULT_MAX_ARCHIVE_OBJECT_BYTES,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+
+        cleanup_fixture(&repository_path, &archive_path);
+    }
+
+    #[test]
+    fn inspection_enforces_max_object_bytes() {
+        let (repository_path, archive_path, _) = exported_archive_fixture("inspect-max-bytes");
+
+        let error = inspect_archive_with_limits(
+            &archive_path,
+            &ArchiveInspectionLimits {
+                max_objects: DEFAULT_MAX_ARCHIVE_OBJECTS,
+                max_object_bytes: 1,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+
+        cleanup_fixture(&repository_path, &archive_path);
+    }
+
+    #[test]
+    fn inspection_zero_limits_are_rejected_before_reading_the_manifest() {
+        let (repository_path, archive_path, _) = exported_archive_fixture("inspect-zero-limits");
+        // A limit of zero must fail closed even before the manifest exists,
+        // matching export/fsck's fail-fast validation of caller-supplied limits.
+        fs::remove_file(archive_path.join(MANIFEST_FILE)).unwrap();
+
+        let error = inspect_archive_with_limits(
+            &archive_path,
+            &ArchiveInspectionLimits {
+                max_objects: 0,
+                max_object_bytes: DEFAULT_MAX_ARCHIVE_OBJECT_BYTES,
+            },
+        )
+        .unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+
+        cleanup_fixture(&repository_path, &archive_path);
+    }
+
+    #[test]
+    fn inspection_rejects_a_symlinked_object_file_like_restore_does() {
+        let (repository_path, archive_path, _) = exported_archive_fixture("inspect-symlink-object");
+        let object_path = archive_path.join("objects/00000000");
+        let real_path = archive_path.join("objects/00000000.real");
+        fs::rename(&object_path, &real_path).unwrap();
+        #[cfg(unix)]
+        {
+            std::os::unix::fs::symlink(&real_path, &object_path).unwrap();
+        }
+        #[cfg(not(unix))]
+        {
+            fs::rename(&real_path, &object_path).unwrap();
+        }
+
+        let result =
+            inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default());
+        #[cfg(unix)]
+        {
+            let error = result.unwrap_err();
+            assert_eq!(error.code(), "archive_invalid");
+        }
+        #[cfg(not(unix))]
+        {
+            result.unwrap();
+        }
+
+        cleanup_fixture(&repository_path, &archive_path);
     }
 }

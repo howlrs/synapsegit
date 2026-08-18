@@ -4,7 +4,7 @@ use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE, HOST, ORIGIN};
 use axum::http::{Request, StatusCode, header};
 use axum::response::Response;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, UNIX_EPOCH};
@@ -69,6 +69,134 @@ fn test_app() -> (TestDirectory, Router) {
             repository,
         )])
         .unwrap(),
+    );
+    let application =
+        build_with_identity(service, 43123, "a".repeat(64), "local-test-instance".into());
+    (directory, application.into_router())
+}
+
+/// The exact bytes of one minimal, hand-written archive manifest with no
+/// objects/refs/reflog, plus its own precomputed SHA-256 checksum.
+///
+/// This crate has no `synapse-core` dev-dependency (`Repository::export_archive`
+/// is unavailable here), so a `valid` archive fixture is built directly from
+/// these fixed, known-good bytes instead. The checksum below was computed
+/// once with `sha256sum` over exactly this manifest byte string and is
+/// re-verified by `list_archives_manifest_fixture_checksum_is_correct`.
+const EMPTY_ARCHIVE_MANIFEST_BYTES: &[u8] =
+    br#"{"format":"synapsegit-core-archive-v0.1","objects":[],"refs":[],"reflog":[]}"#;
+const EMPTY_ARCHIVE_MANIFEST_CHECKSUM: &str =
+    "fd0351641f31506c2ad5e03b9e9ca2efc539b9ab4b30ce8b2e6bde5907a3701f";
+
+/// Write one `valid`-state archive fixture directory named `name` directly
+/// under `archive_root`, using the fixed empty-manifest bytes above.
+fn write_valid_archive_fixture(archive_root: &Path, name: &str) {
+    let archive_path = archive_root.join(name);
+    fs::create_dir(&archive_path).unwrap();
+    fs::write(
+        archive_path.join("manifest.json"),
+        EMPTY_ARCHIVE_MANIFEST_BYTES,
+    )
+    .unwrap();
+    fs::write(
+        archive_path.join("manifest.sha256"),
+        format!("{EMPTY_ARCHIVE_MANIFEST_CHECKSUM}\n"),
+    )
+    .unwrap();
+}
+
+/// The exact bytes of one hand-written archive manifest whose checksum
+/// matches and is otherwise well-formed JSON, but whose single object row
+/// carries a structurally invalid OID (`"junk"`, matching neither the
+/// `kind:hex` blob form nor any other recognized OID shape). Paired with its
+/// own precomputed SHA-256 checksum the same way as the empty-manifest
+/// fixture above, and re-verified by
+/// `list_archives_bad_oid_manifest_fixture_checksum_is_correct`.
+///
+/// This exercises the `ArchiveManifest::validate` code path that rejects a
+/// syntactically well-formed but semantically invalid OID: the manifest
+/// checksum matches and the JSON parses, so only structural validation (not
+/// the checksum or JSON gates) can catch it. It must be classified `invalid`
+/// like every other structural violation `validate` rejects, not
+/// `staging_or_unknown`.
+const BAD_OID_ARCHIVE_MANIFEST_BYTES: &[u8] = br#"{"format":"synapsegit-core-archive-v0.1","objects":[{"oid":"junk","path":"objects/00000000","byte_length":0,"sha256":"0000000000000000000000000000000000000000000000000000000000000000"}],"refs":[],"reflog":[]}"#;
+const BAD_OID_ARCHIVE_MANIFEST_CHECKSUM: &str =
+    "137d18faba43b38297f71686ad186937d0a78c50eab51a9a7a1f784fd0d636d7";
+
+/// Write one archive fixture directory named `name` directly under
+/// `archive_root` whose manifest checksum matches and JSON parses, but whose
+/// sole object row has a structurally invalid OID. See
+/// `BAD_OID_ARCHIVE_MANIFEST_BYTES` for why this fixture exists.
+fn write_bad_oid_archive_fixture(archive_root: &Path, name: &str) {
+    let archive_path = archive_root.join(name);
+    fs::create_dir(&archive_path).unwrap();
+    fs::write(
+        archive_path.join("manifest.json"),
+        BAD_OID_ARCHIVE_MANIFEST_BYTES,
+    )
+    .unwrap();
+    fs::write(
+        archive_path.join("manifest.sha256"),
+        format!("{BAD_OID_ARCHIVE_MANIFEST_CHECKSUM}\n"),
+    )
+    .unwrap();
+}
+
+fn test_app_with_archive_root() -> (TestDirectory, Router, PathBuf) {
+    let directory = TestDirectory::new();
+    let repository = directory.0.join("repository");
+    fs::create_dir(&repository).unwrap();
+    let archive_root = directory.0.join("archives");
+    fs::create_dir(&archive_root).unwrap();
+
+    write_valid_archive_fixture(&archive_root, "aaa-valid");
+    let invalid_path = archive_root.join("bbb-invalid");
+    fs::create_dir(&invalid_path).unwrap();
+    fs::write(invalid_path.join("manifest.json"), b"{not valid json").unwrap();
+    fs::write(
+        invalid_path.join("manifest.sha256"),
+        format!(
+            "{}\n",
+            "0".repeat(64) // deliberately wrong: the manifest above never matches
+        ),
+    )
+    .unwrap();
+    fs::create_dir(archive_root.join("ccc-staging")).unwrap();
+
+    let service = Arc::new(
+        LocalService::new([synapse_local_service::ProjectRegistration::new(
+            "demo",
+            "Demo project",
+            repository,
+        )])
+        .unwrap()
+        .with_archive_root(archive_root.clone()),
+    );
+    let application =
+        build_with_identity(service, 43123, "a".repeat(64), "local-test-instance".into());
+    (directory, application.into_router(), archive_root)
+}
+
+/// A second archive-root test app carrying only the bad-OID fixture, kept
+/// separate from `test_app_with_archive_root` so its assertions do not
+/// depend on (or perturb) that fixture's fixed three-entry ordering.
+fn test_app_with_bad_oid_archive() -> (TestDirectory, Router) {
+    let directory = TestDirectory::new();
+    let repository = directory.0.join("repository");
+    fs::create_dir(&repository).unwrap();
+    let archive_root = directory.0.join("archives");
+    fs::create_dir(&archive_root).unwrap();
+
+    write_bad_oid_archive_fixture(&archive_root, "ddd-bad-oid");
+
+    let service = Arc::new(
+        LocalService::new([synapse_local_service::ProjectRegistration::new(
+            "demo",
+            "Demo project",
+            repository,
+        )])
+        .unwrap()
+        .with_archive_root(archive_root),
     );
     let application =
         build_with_identity(service, 43123, "a".repeat(64), "local-test-instance".into());
@@ -1410,11 +1538,16 @@ async fn blocking_gates_bound_known_projects_and_route_unknown_projects_through_
 //      exists and the method is wired, regardless of what status the
 //      business logic itself returns.
 //   2. Unimplemented-route 404 contract (`UNIMPLEMENTED_ARCHIVE_OPERATIONS`,
-//      asserted below): for exactly the 3 archive operations
-//      `docs/localhost_application_architecture.md` documents as
-//      "remain unimplemented in the browser application" (line 14-15;
-//      see also line 467's "the remaining archive portion of slice 7"),
-//      the same substituted request must currently return 404. This
+//      asserted below): for exactly the 2 archive operations
+//      `docs/localhost_application_architecture.md` documents as still
+//      remaining unimplemented in the browser application ("Archive export
+//      and restore remain unimplemented in the ... application" near the
+//      top-level Status/Implementation-status summary; see also the
+//      "Implementation slices" list's slice 7 entry, "Archive export
+//      and empty-target restore remain planned"), the same
+//      substituted request must currently return 404. `listArchives` moved into
+//      positive parity coverage above once its route was implemented.
+//      This
 //      makes the list self-maintaining: the day someone implements one
 //      of these routes, this assertion fails (404 stops being true) and
 //      the failure forces that operationId's removal from the skip list
@@ -1423,10 +1556,12 @@ async fn blocking_gates_bound_known_projects_and_route_unknown_projects_through_
 //
 // `startFsck` and `getOperation` both carry openapi's
 // `x-synapse-implementation-slice: 7` tag too, but that tag is a
-// compound "slice 7" label spanning the implemented fsck/job foundation
-// (`docs/localhost_application_architecture.md` line 3, 7-8: "the
-// fsck/job part of slice 7 ... implemented in v0.3.0") and the
-// unimplemented archive portion (same doc, line 14-15) without
+// compound "slice 7" label spanning the implemented fsck/job foundation,
+// the now also-implemented read-only archive listing, and the still
+// unimplemented archive export/restore portion
+// (`docs/localhost_application_architecture.md` line 3: "the fsck/job
+// part of slice 7 ... implemented in v0.3.0; the read-only archive
+// listing part of slice 7 implemented in current `main`") without
 // distinguishing them. Both routes are genuinely wired
 // (`.route("/api/v1/projects/{project_key}/operations/fsck",
 // post(api_start_fsck))` and `.route("/api/v1/operations/{operation_id}",
@@ -1444,8 +1579,7 @@ async fn blocking_gates_bound_known_projects_and_route_unknown_projects_through_
 // hand-maintained inverse listing that itself could drift; the canary
 // test below only proves 404 is distinguishable from a wired route, not
 // that every wired route is documented.
-const UNIMPLEMENTED_ARCHIVE_OPERATIONS: [&str; 3] =
-    ["listArchives", "startArchiveExport", "startArchiveRestore"];
+const UNIMPLEMENTED_ARCHIVE_OPERATIONS: [&str; 2] = ["startArchiveExport", "startArchiveRestore"];
 
 #[tokio::test]
 async fn every_documented_openapi_route_matches_its_implementation_status() {
@@ -1717,8 +1851,8 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
     // would fail loudly instead of this test quietly checking nothing.
     assert_eq!(
         checked.len(),
-        13,
-        "expected 13 implemented operations, checked: {checked:?}"
+        14,
+        "expected 14 implemented operations, checked: {checked:?}"
     );
     assert_eq!(
         skipped_unimplemented_archive.len(),
@@ -1746,4 +1880,248 @@ async fn unregistered_api_path_returns_404_not_403_or_405() {
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[test]
+fn list_archives_manifest_fixture_checksum_is_correct() {
+    // Guards the hand-computed constant above against a silent copy/paste
+    // error: recomputes SHA-256 over the exact fixture bytes with the same
+    // minimal algorithm Core's `sha256_hex` wraps, independent of any
+    // synapse-core dependency.
+    assert_eq!(
+        sha256_hex_for_test(EMPTY_ARCHIVE_MANIFEST_BYTES),
+        EMPTY_ARCHIVE_MANIFEST_CHECKSUM
+    );
+}
+
+#[test]
+fn list_archives_bad_oid_manifest_fixture_checksum_is_correct() {
+    // Same guard as above, for the checksum-valid-but-bad-OID fixture.
+    assert_eq!(
+        sha256_hex_for_test(BAD_OID_ARCHIVE_MANIFEST_BYTES),
+        BAD_OID_ARCHIVE_MANIFEST_CHECKSUM
+    );
+}
+
+/// Minimal self-contained SHA-256 (FIPS 180-4), used only to independently
+/// verify the hand-computed manifest fixture checksum above without adding a
+/// `sha2` dev-dependency to this crate.
+fn sha256_hex_for_test(input: &[u8]) -> String {
+    const K: [u32; 64] = [
+        0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4,
+        0xab1c5ed5, 0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe,
+        0x9bdc06a7, 0xc19bf174, 0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f,
+        0x4a7484aa, 0x5cb0a9dc, 0x76f988da, 0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
+        0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967, 0x27b70a85, 0x2e1b2138, 0x4d2c6dfc,
+        0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85, 0xa2bfe8a1, 0xa81a664b,
+        0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070, 0x19a4c116,
+        0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+        0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7,
+        0xc67178f2,
+    ];
+    let mut h: [u32; 8] = [
+        0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab,
+        0x5be0cd19,
+    ];
+    let mut message = input.to_vec();
+    let bit_len = (input.len() as u64) * 8;
+    message.push(0x80);
+    while message.len() % 64 != 56 {
+        message.push(0);
+    }
+    message.extend_from_slice(&bit_len.to_be_bytes());
+
+    for chunk in message.chunks(64) {
+        let mut w = [0_u32; 64];
+        for (index, word) in chunk.chunks(4).enumerate() {
+            w[index] = u32::from_be_bytes([word[0], word[1], word[2], word[3]]);
+        }
+        for index in 16..64 {
+            let s0 = w[index - 15].rotate_right(7)
+                ^ w[index - 15].rotate_right(18)
+                ^ (w[index - 15] >> 3);
+            let s1 = w[index - 2].rotate_right(17)
+                ^ w[index - 2].rotate_right(19)
+                ^ (w[index - 2] >> 10);
+            w[index] = w[index - 16]
+                .wrapping_add(s0)
+                .wrapping_add(w[index - 7])
+                .wrapping_add(s1);
+        }
+        let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut hh] = h;
+        for index in 0..64 {
+            let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
+            let ch = (e & f) ^ ((!e) & g);
+            let temp1 = hh
+                .wrapping_add(s1)
+                .wrapping_add(ch)
+                .wrapping_add(K[index])
+                .wrapping_add(w[index]);
+            let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
+            let maj = (a & b) ^ (a & c) ^ (b & c);
+            let temp2 = s0.wrapping_add(maj);
+            hh = g;
+            g = f;
+            f = e;
+            e = d.wrapping_add(temp1);
+            d = c;
+            c = b;
+            b = a;
+            a = temp1.wrapping_add(temp2);
+        }
+        h[0] = h[0].wrapping_add(a);
+        h[1] = h[1].wrapping_add(b);
+        h[2] = h[2].wrapping_add(c);
+        h[3] = h[3].wrapping_add(d);
+        h[4] = h[4].wrapping_add(e);
+        h[5] = h[5].wrapping_add(f);
+        h[6] = h[6].wrapping_add(g);
+        h[7] = h[7].wrapping_add(hh);
+    }
+    h.iter().map(|word| format!("{word:08x}")).collect()
+}
+
+#[tokio::test]
+async fn get_archives_reports_valid_invalid_and_staging_or_unknown() {
+    let (_directory, app, _archive_root) = test_app_with_archive_root();
+    let response = app
+        .oneshot(
+            request("/api/v1/archives")
+                .header("x-synapse-local-token", "a".repeat(64))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers().get(CONTENT_TYPE).unwrap(),
+        "application/json"
+    );
+    let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+    let list: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let archives = list["archives"].as_array().unwrap();
+    assert_eq!(archives.len(), 3);
+    assert_eq!(archives[0]["archive_name"], "aaa-valid");
+    assert_eq!(archives[0]["state"], "valid");
+    assert_eq!(
+        archives[0]["manifest_checksum"],
+        EMPTY_ARCHIVE_MANIFEST_CHECKSUM
+    );
+    assert_eq!(archives[1]["archive_name"], "bbb-invalid");
+    assert_eq!(archives[1]["state"], "invalid");
+    assert_eq!(archives[1]["manifest_checksum"], serde_json::Value::Null);
+    assert_eq!(archives[2]["archive_name"], "ccc-staging");
+    assert_eq!(archives[2]["state"], "staging_or_unknown");
+    assert_eq!(archives[2]["manifest_checksum"], serde_json::Value::Null);
+}
+
+/// A manifest that checksum-verifies and parses as JSON, but whose sole
+/// object row has a structurally invalid OID, must be reported `invalid`
+/// (a confirmed structural violation `ArchiveManifest::validate` rejects)
+/// rather than `staging_or_unknown` (reserved for archives that could not
+/// even be read/parsed/checksum-verified, e.g. mid-export staging).
+#[tokio::test]
+async fn get_archives_reports_bad_oid_manifest_as_invalid() {
+    let (_directory, app) = test_app_with_bad_oid_archive();
+    let response = app
+        .oneshot(
+            request("/api/v1/archives")
+                .header("x-synapse-local-token", "a".repeat(64))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+    let list: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let archives = list["archives"].as_array().unwrap();
+    assert_eq!(archives.len(), 1);
+    assert_eq!(archives[0]["archive_name"], "ddd-bad-oid");
+    assert_eq!(archives[0]["state"], "invalid");
+    assert_eq!(archives[0]["manifest_checksum"], serde_json::Value::Null);
+}
+
+#[tokio::test]
+async fn get_archives_without_a_configured_root_is_an_empty_200() {
+    let (_directory, app) = test_app();
+    let response = app
+        .oneshot(
+            request("/api/v1/archives")
+                .header("x-synapse-local-token", "a".repeat(64))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+    let list: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(list, serde_json::json!({"archives": []}));
+}
+
+#[tokio::test]
+async fn index_page_renders_a_bounded_archives_section() {
+    let (_directory, app, archive_root) = test_app_with_archive_root();
+    let page = app
+        .oneshot(request("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(page.status(), StatusCode::OK);
+    let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
+    let page = std::str::from_utf8(&page).unwrap();
+    assert!(page.contains("Archives"));
+    assert!(page.contains("aaa-valid"));
+    assert!(page.contains("bbb-invalid"));
+    assert!(page.contains("ccc-staging"));
+    assert!(
+        !page.contains(archive_root.to_str().unwrap()),
+        "the rendered dashboard must never leak the server-owned archive root path"
+    );
+}
+
+#[tokio::test]
+async fn index_page_renders_an_empty_archives_state_without_a_configured_root() {
+    let (_directory, app) = test_app();
+    let page = app
+        .oneshot(request("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(page.status(), StatusCode::OK);
+    let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
+    let page = std::str::from_utf8(&page).unwrap();
+    assert!(page.contains("表示できるarchiveがありません"));
+}
+
+/// If the server-owned archive root becomes unreadable after startup (here,
+/// removed out from under a configured `--archive-root`), the dashboard must
+/// still return `200` with every other section intact: archive listing
+/// degrades independently of the rest of the page into an inline notice in
+/// the archives section, rather than turning the whole dashboard into a page
+/// failure. See the `run_dashboard`/`index_page` "Archive listing degrades
+/// independently of the project dashboard" comment in `handlers.rs`.
+#[tokio::test]
+async fn index_page_degrades_the_archives_section_when_the_archive_root_is_unreadable() {
+    let (_directory, app, archive_root) = test_app_with_archive_root();
+    fs::remove_dir_all(&archive_root).unwrap();
+
+    let page = app
+        .oneshot(request("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(page.status(), StatusCode::OK);
+    let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
+    let page = std::str::from_utf8(&page).unwrap();
+
+    // The archives section renders its inline failure notice instead of any
+    // archive card or the empty-root state.
+    assert!(page.contains("Archive listingを読み込めません"));
+    assert!(!page.contains("aaa-valid"));
+    assert!(!page.contains("表示できるarchiveがありません"));
+
+    // The rest of the dashboard, in particular the unrelated projects
+    // section, still renders normally.
+    assert!(page.contains("プロジェクト"));
+    assert!(page.contains("Demo project"));
 }

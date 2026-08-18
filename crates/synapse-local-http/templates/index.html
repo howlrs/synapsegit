@@ -44,4 +44,40 @@
   </div>
   {% endif %}
 </section>
+
+<section aria-labelledby="archives-heading">
+  <div class="section-heading">
+    <div>
+      <h2 id="archives-heading">Archives</h2>
+      <p class="muted">server-owned archive root直下のbounded read-onlyな一覧です。export／restoreはCLIのみ対応です。</p>
+      <p class="muted">各状態はmanifest checksumと構造のみを確認したmanifest-level evidenceであり、object内容の再検証やrestore成功を保証するものではありません。</p>
+    </div>
+    <span class="badge">{{ archives.len() }} 件</span>
+  </div>
+  {% if let Some(error) = archives_error %}
+  <div class="notice" data-tone="danger">
+    <h3>Archive listingを読み込めません</h3>
+    <p>{{ error }}</p>
+  </div>
+  {% else if archives.is_empty() %}
+  <div class="empty-state">
+    <h3>表示できるarchiveがありません</h3>
+    <p>サーバー起動時に <code>--archive-root PATH</code> を指定し、そのディレクトリ直下にexport済みarchiveを配置してください。</p>
+  </div>
+  {% else %}
+  <div class="card-grid">
+    {% for archive in archives %}
+    <article class="card">
+      <div class="card__header">
+        <div>
+          <p class="eyebrow">{{ archive.archive_name }}</p>
+          <h3><code>{{ archive.checksum_preview }}</code></h3>
+        </div>
+        <span class="status-badge" data-tone="{{ archive.tone }}">{{ archive.state_label }}</span>
+      </div>
+    </article>
+    {% endfor %}
+  </div>
+  {% endif %}
+</section>
 {% endblock %}

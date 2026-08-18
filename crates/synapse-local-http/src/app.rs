@@ -10,7 +10,7 @@ use synapse_local_service::LocalService;
 use tokio::sync::Semaphore;
 
 use crate::handlers::{
-    api_begin_creator_session, api_creator_image, api_creator_session,
+    api_archives, api_begin_creator_session, api_creator_image, api_creator_session,
     api_creator_session_diagnostics, api_creator_sessions, api_decide_creator_session, api_health,
     api_operation, api_project_reflog, api_project_refs, api_project_status, api_projects,
     api_start_fsck, index_page, method_not_allowed, not_found, project_page, session_page,
@@ -145,6 +145,7 @@ pub(crate) fn build_with_identity(
             axum::routing::post(api_start_fsck),
         )
         .route("/api/v1/operations/{operation_id}", get(api_operation))
+        .route("/api/v1/archives", get(api_archives))
         .fallback(not_found)
         .method_not_allowed_fallback(method_not_allowed)
         .with_state(state)

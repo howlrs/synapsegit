@@ -173,7 +173,7 @@ session. See the
 | Three-file creator Pilot with `adopt`, `reject`, and `defer` | Implemented as a bounded local CLI flow |
 | Human/AI-attributed provenance and a comparison-aware report | Implemented; AI output remains caller-supplied |
 | Original/current comparison | Primary blob byte identity only; always partial comparability |
-| Local browser interface | Read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, and confirmed background `fsck`; archive maintenance remains CLI-only |
+| Local browser interface | Read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, and confirmed background `fsck`. Current-`main` (not yet tagged) adds a bounded, read-only archive listing view (`GET /archives`) behind an optional `--archive-root` startup flag; archive export and restore remain CLI-only |
 | Generic regular-file artifact building blocks | Tagged v0.5.1 source/workspace libraries include a bounded deterministic mapper and checkout, sequential Proposal/Decision workflow, host-authenticated one-shot approval, a SQLite journal-integrated restart/reconciliation boundary, a frozen v1 public-safe contract, and a separate local public projection. The packaged three binaries do not expose these capabilities through HTTP, CLI, or browser UI; no model invocation, multi-process control plane, or production service is provided |
 | Content-addressed objects, typed closure, Ref CAS, and reflog | Implemented and covered by repository tests |
 | `fsck`, checksum-bound directory export, and verified restore | Implemented for the local repository format |

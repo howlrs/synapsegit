@@ -2,10 +2,15 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt::{self, Write as _};
+use std::fs;
 use std::mem;
 use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
-use synapse_core::{FsckLimits, Repository, RepositoryError, TombstoneScanLimits};
+use synapse_core::{
+    ArchiveInspectionLimits, ArchiveInspectionState, FsckLimits, Repository, RepositoryError,
+    TombstoneScanLimits, inspect_archive_with_limits,
+};
 use synapse_creator::{
     CREATOR_RESERVED_PENDING_DECISIONS, CreatorBeginOptions,
     CreatorComparisonReport as CoreComparisonReport, CreatorDecisionOptions,
@@ -51,6 +56,38 @@ const _: () = assert!(
     MAX_PENDING_CREATOR_SESSIONS_PER_PROJECT <= CREATOR_RESERVED_PENDING_DECISIONS,
     "service pending capacity must fit the creator decision reservation"
 );
+
+/// Resource limits for one HTTP-facing bounded archive listing.
+///
+/// `max_root_entries` bounds the server-owned archive root's direct entry
+/// count before any per-archive inspection begins; `inspection` is threaded
+/// unchanged into `synapse_core::inspect_archive_with_limits` for each
+/// candidate archive. Kept server-fixed for the same reason as
+/// [`MAINTENANCE_FSCK_LIMITS`]: a Core default change must not silently
+/// change what the localhost application admits.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ArchiveListLimits {
+    /// Maximum number of direct entries read from the archive root,
+    /// counting every raw `readdir` entry regardless of whether it is a
+    /// slug name, a directory, or ultimately admitted as a candidate
+    /// archive.
+    pub max_root_entries: usize,
+    /// Per-archive inspection limits applied to each candidate entry.
+    pub inspection: ArchiveInspectionLimits,
+}
+
+/// Server-fixed work ceiling for one HTTP-facing archive listing.
+///
+/// `max_root_entries` matches `ArchiveList`'s openapi `maxItems: 100000`
+/// (`api/local/v1/openapi.json`), so a root that itself fits within the
+/// contractual response size cannot separately be rejected by this ceiling.
+pub const ARCHIVE_LIST_LIMITS: ArchiveListLimits = ArchiveListLimits {
+    max_root_entries: 100_000,
+    inspection: ArchiveInspectionLimits {
+        max_objects: 100_000,
+        max_object_bytes: 1024 * 1024 * 1024 * 1024,
+    },
+};
 
 /// A safe application-facing failure. Nested repository paths, SQL details,
 /// and raw dependency errors are intentionally not retained.
@@ -302,6 +339,7 @@ pub struct LocalService {
     pending: Mutex<PendingRegistry>,
     last_fsck: Mutex<BTreeMap<String, FsckResult>>,
     project_writers: BTreeMap<String, Mutex<()>>,
+    archive_root: Option<PathBuf>,
 }
 
 impl fmt::Debug for LocalService {
@@ -329,7 +367,21 @@ impl LocalService {
             pending: Mutex::new(PendingRegistry::default()),
             last_fsck: Mutex::new(BTreeMap::new()),
             project_writers,
+            archive_root: None,
         })
+    }
+
+    /// Attach a server-owned archive root for read-only archive listing.
+    ///
+    /// The root is caller-canonicalized configuration input, matching the
+    /// exact-catalog project paths: `list_archives` never accepts an
+    /// HTTP-supplied path and this builder is the only way to set it. Not
+    /// calling this leaves archive listing configured-empty, which
+    /// `list_archives` reports as an empty list rather than an error.
+    #[must_use]
+    pub fn with_archive_root(mut self, archive_root: PathBuf) -> Self {
+        self.archive_root = Some(archive_root);
+        self
     }
 
     pub fn health(&self, server_instance: impl Into<String>) -> HealthResponse {
@@ -409,6 +461,121 @@ impl LocalService {
         };
         lock_last_fsck(&self.last_fsck).insert(project_key.to_owned(), result.clone());
         Ok(result)
+    }
+
+    /// List server-owned archive-root entries with their bounded inspection
+    /// state, using the server-fixed [`ARCHIVE_LIST_LIMITS`] profile.
+    pub fn list_archives(&self) -> Result<ArchiveList, ServiceError> {
+        self.list_archives_with_limits(ARCHIVE_LIST_LIMITS)
+    }
+
+    /// As [`Self::list_archives`], with an explicit limits profile.
+    ///
+    /// No archive root configured (`with_archive_root` was never called) is
+    /// reported as an empty list, not an error: this keeps `GET /archives`
+    /// itself always a positive `200` response, matching the openapi
+    /// contract and the route-parity test's expectation that every
+    /// implemented route is reachable regardless of server configuration.
+    /// This also means a configured-but-empty root and an unconfigured root
+    /// are indistinguishable from the response alone.
+    pub fn list_archives_with_limits(
+        &self,
+        limits: ArchiveListLimits,
+    ) -> Result<ArchiveList, ServiceError> {
+        let Some(archive_root) = &self.archive_root else {
+            return Ok(ArchiveList {
+                archives: Vec::new(),
+            });
+        };
+        let entries = fs::read_dir(archive_root).map_err(|error| {
+            ServiceError::new(
+                "storage_error",
+                "The server-owned archive root could not be read.",
+                true,
+            )
+            .with_diagnostic(error.to_string())
+        })?;
+
+        let mut archive_names = Vec::new();
+        let mut root_entries_read = 0_usize;
+        for entry in entries {
+            let entry = entry.map_err(|error| {
+                ServiceError::new(
+                    "storage_error",
+                    "The server-owned archive root could not be read.",
+                    true,
+                )
+                .with_diagnostic(error.to_string())
+            })?;
+            // Count every raw entry read from the root, independent of
+            // whether it is ultimately admitted as a candidate archive.
+            // Counting only accepted slug names would make success/failure
+            // depend on readdir order whenever accepted and excluded entries
+            // coexist near the limit, and would leave non-slug entries
+            // unbounded, contradicting this field's doc comment.
+            root_entries_read += 1;
+            if root_entries_read > limits.max_root_entries {
+                return Err(ServiceError::new(
+                    "resource_limit",
+                    format!(
+                        "The archive root exceeds the {} entry limit.",
+                        limits.max_root_entries
+                    ),
+                    false,
+                ));
+            }
+            // A non-slug name (including any dot-prefixed staging directory
+            // left behind by a concurrent export), and any entry whose file
+            // type is not a directory (including a slug-named plain file or
+            // a symlink, which is never followed) is silently excluded
+            // rather than reported: it is never a candidate archive under
+            // this server's own naming convention.
+            let Some(name) = entry.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            if !is_slug(&name) {
+                continue;
+            }
+            let Ok(file_type) = entry.file_type() else {
+                continue;
+            };
+            if !file_type.is_dir() {
+                continue;
+            }
+            archive_names.push(name);
+        }
+        archive_names.sort();
+
+        let archives = archive_names
+            .into_iter()
+            .map(|archive_name| {
+                let archive_path = archive_root.join(&archive_name);
+                let (state, manifest_checksum) =
+                    match inspect_archive_with_limits(&archive_path, &limits.inspection) {
+                        Ok(inspection) => {
+                            let ArchiveInspectionState::Valid { manifest_checksum } =
+                                inspection.state;
+                            (ArchiveState::Valid, Some(manifest_checksum))
+                        }
+                        Err(RepositoryError::ArchiveInvalid(_) | RepositoryError::Json(_)) => {
+                            (ArchiveState::Invalid, None)
+                        }
+                        // A resource-limit rejection for one candidate archive
+                        // reports that archive as unknown rather than failing
+                        // the whole listing: only the root-entry count above
+                        // fails the request closed, matching the plan's
+                        // documented "unknown" treatment for a
+                        // limits-exceeding individual archive.
+                        Err(_) => (ArchiveState::StagingOrUnknown, None),
+                    };
+                ArchiveSummary {
+                    archive_name,
+                    state,
+                    manifest_checksum,
+                }
+            })
+            .collect();
+        Ok(ArchiveList { archives })
     }
 
     pub fn list_refs(&self, project_key: &str) -> Result<RefList, ServiceError> {

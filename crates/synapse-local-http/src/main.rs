@@ -31,9 +31,34 @@ async fn run() -> Result<(), RunError> {
             ProjectRegistration::new(key, label, path)
         })
         .collect::<Vec<_>>();
-    let service = Arc::new(
-        LocalService::new(registrations).map_err(|error| RunError::failure(error.to_string()))?,
-    );
+    let mut service =
+        LocalService::new(registrations).map_err(|error| RunError::failure(error.to_string()))?;
+    if let Some(archive_root) = cli.archive_root {
+        // Fail closed at startup, matching the exact-catalog project paths:
+        // an archive root that does not exist or is not a directory is a
+        // misconfiguration, not "no archives yet" (an existing-but-empty
+        // directory is the supported way to say that).
+        let metadata = std::fs::metadata(&archive_root).map_err(|error| {
+            RunError::failure(format!(
+                "--archive-root {} is not accessible: {error}",
+                archive_root.display()
+            ))
+        })?;
+        if !metadata.is_dir() {
+            return Err(RunError::failure(format!(
+                "--archive-root {} is not a directory",
+                archive_root.display()
+            )));
+        }
+        let canonical = std::fs::canonicalize(&archive_root).map_err(|error| {
+            RunError::failure(format!(
+                "--archive-root {} could not be canonicalized: {error}",
+                archive_root.display()
+            ))
+        })?;
+        service = service.with_archive_root(canonical);
+    }
+    let service = Arc::new(service);
 
     // The host is deliberately not configurable. Port zero is accepted only
     // as an OS-selected development port and is resolved before router setup.
@@ -69,6 +94,7 @@ struct Cli {
     port: u16,
     projects: Vec<(String, PathBuf)>,
     labels: BTreeMap<String, String>,
+    archive_root: Option<PathBuf>,
 }
 
 fn parse_args(arguments: impl IntoIterator<Item = String>) -> Result<Cli, RunError> {
@@ -76,6 +102,7 @@ fn parse_args(arguments: impl IntoIterator<Item = String>) -> Result<Cli, RunErr
     let mut port = DEFAULT_PORT;
     let mut projects = Vec::new();
     let mut labels = BTreeMap::new();
+    let mut archive_root = None;
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
             "-h" | "--help" => return Err(RunError::Help),
@@ -110,6 +137,15 @@ fn parse_args(arguments: impl IntoIterator<Item = String>) -> Result<Cli, RunErr
                     return Err(RunError::failure("duplicate --label project key"));
                 }
             }
+            "--archive-root" => {
+                let value = arguments
+                    .next()
+                    .ok_or_else(|| RunError::failure("--archive-root requires a value"))?;
+                if archive_root.is_some() {
+                    return Err(RunError::failure("--archive-root may only be given once"));
+                }
+                archive_root = Some(PathBuf::from(value));
+            }
             _ => return Err(RunError::failure("unknown command-line option")),
         }
     }
@@ -129,6 +165,7 @@ fn parse_args(arguments: impl IntoIterator<Item = String>) -> Result<Cli, RunErr
         port,
         projects,
         labels,
+        archive_root,
     })
 }
 
@@ -157,7 +194,7 @@ impl RunError {
 
 fn print_help() {
     println!(
-        "SynapseGit Local\n\nUsage:\n  synapse-local --project KEY=PATH [--label KEY=LABEL] [--port PORT]\n\nThe server always binds to 127.0.0.1. --project may be repeated."
+        "SynapseGit Local\n\nUsage:\n  synapse-local --project KEY=PATH [--label KEY=LABEL] [--archive-root PATH] [--port PORT]\n\nThe server always binds to 127.0.0.1. --project may be repeated.\n--archive-root PATH enables read-only GET /api/v1/archives listing of the\ndirectories directly under PATH; the path must already exist and be a\ndirectory. Without it, archive listing always returns an empty list."
     );
 }
 
@@ -187,6 +224,36 @@ mod tests {
         assert_eq!(cli.port, 0);
         assert_eq!(cli.projects, [("demo".into(), PathBuf::from("/tmp/demo"))]);
         assert_eq!(cli.labels.get("demo").unwrap(), "Demo project");
+        assert_eq!(cli.archive_root, None);
+    }
+
+    #[test]
+    fn cli_accepts_an_archive_root_and_rejects_a_repeated_one() {
+        let cli = parse_args(strings(&[
+            "--project",
+            "demo=/tmp/demo",
+            "--archive-root",
+            "/tmp/archives",
+        ]))
+        .unwrap();
+        assert_eq!(cli.archive_root, Some(PathBuf::from("/tmp/archives")));
+
+        assert!(matches!(
+            parse_args(strings(&[
+                "--project",
+                "demo=/tmp/demo",
+                "--archive-root",
+                "/tmp/archives",
+                "--archive-root",
+                "/tmp/other-archives",
+            ])),
+            Err(RunError::Failure(_))
+        ));
+
+        assert!(matches!(
+            parse_args(strings(&["--project", "demo=/tmp/demo", "--archive-root"])),
+            Err(RunError::Failure(_))
+        ));
     }
 
     #[test]

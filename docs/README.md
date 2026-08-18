@@ -44,7 +44,9 @@ slices 1-4/6、slice 7のbounded `fsck`／job基盤、slice 8のread-only diagno
 server、route、UIまで実装されている。project status、Refs／reflog、creator sessionの
 report／timeline／evidence／画像を閲覧でき、boundedな三file import、same-process Human review、project keyの
 明示確認を伴うbackground `fsck`を実行できる。incomplete sessionではcurrent creator Ref／headと推奨actionを
-表示するが、resume、cleanup、history書換えは行わない。archive list／export／restoreのAPI／UIは未実装である。
+表示するが、resume、cleanup、history書換えは行わない。archive listはbounded read-only API／UI（`GET /archives`、
+`--archive-root`起動flag）としてcurrent `main`で実装済みだが、tagged v0.5.1 binaryには含まれない。
+archive export／restoreのAPI／UIは未実装である。
 diagnosticsとbrowser `fsck`はv0.3.0でbinaryへ導入され、tagged v0.4.0 binaryにも含まれる。この
 application sliceはformal Core Stage 1ではなく、Core v0.1は引き続きStage 0 draftである。
 public multi-tenant serviceについては、Google Cloudを主系、AWSをportability profileとする
@@ -144,7 +146,7 @@ flowchart LR
 | local single-creator Pilot（3 opaque画像、imported CaptureProfile、byte-identity Analysis、AI／Human route、adopt／reject／defer、timeline／report） | 実装済み / production integration対象外 | `synapse-creator`、`synapse-cli creator-run`／`creator-report`、creator／CLI process tests |
 | provider-neutral PublicProjection／PublicationBundle（canonical JSON、Markdown、JavaScriptなしHTML、manifest、checksum、Synapse／GitHub local target） | v0.3.0で導入、v0.4.0にも収録 / remote publish対象外 | `synapse-publication`、`synapse-present export`／`preview`、publication integration tests、[CLI reference](./cli_reference.md#synapse-present-companion-cli) |
 | publication理解度評価コーパス（complete adopt／reject／deferとincomplete-onlyを分離、固定質問／oracle／privacy canary） | corpusと自動hard gateを実装済み / Human・AI・実accessibility評価は未実施 | [Publication comprehension corpus](./evaluation/publication-comprehension/v1/) |
-| single-user localhost image application（safe facade、loopback HTTP、server-rendered UI） | slices 1-4/6、slice 7のbounded fsck／job基盤、slice 8のread-only diagnostics部分を実装済み。archive API／UIは未実装 | [Localhost runbook](../deploy/local/README.md)、[Localhost application architecture](./localhost_application_architecture.md)、[OpenAPI contract](../api/local/v1/openapi.json) |
+| single-user localhost image application（safe facade、loopback HTTP、server-rendered UI） | slices 1-4/6、slice 7のbounded fsck／job基盤、slice 8のread-only diagnostics部分を実装済み。bounded read-only archive listingはcurrent `main`で実装済みだがtagged v0.5.1 binaryには含まれない。archive export／restoreのAPI／UIは未実装 | [Localhost runbook](../deploy/local/README.md)、[Localhost application architecture](./localhost_application_architecture.md)、[OpenAPI contract](../api/local/v1/openapi.json) |
 | public multi-tenant cloud service（GCP主系、AWS portability profile） | production architecture完了、実装未着手 | [Cloud service architecture](./cloud_service_architecture.md) |
 | private non-production GCP CLI packaging smoke（one-shot Cloud Run Job） | OCI build／Terraform／digest-pinned実行を検証済み、public endpoint／永続化なし | [GCP CLI smoke deployment](../deploy/gcp/README.md) |
 | deterministic Observation byte-identity baseline（ordered primary Blob OID、`partial`／`byte_identity_only`） | 実装済み / 意味解析対象外 | `synapse-observation`、Observation integration tests |

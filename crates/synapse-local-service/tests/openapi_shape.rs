@@ -31,15 +31,15 @@
 use serde_json::Value;
 use std::fs;
 use synapse_local_service::{
-    ArchiveResult, ArchiveResultKind, CommittedCreatorSession, CommittedState, ComparisonEvidence,
-    CompleteCreatorSession, CompleteState, CreatorDecision, CreatorDecisionReceipt,
-    CreatorDecisionRequest, CreatorReport, CreatorSessionCounts, CreatorSessionDiagnostic,
-    CreatorSessionList, CreatorSessionState, CreatorSessionSummary, FsckResult, HealthResponse,
-    IncompleteCreatorSession, IncompleteState, OperationAccepted, OperationKind, OperationResult,
-    OperationState, OperationStatus, PendingCreatorSession, PendingReviewState, Problem,
-    ProjectCapabilities, ProjectConfirmation, ProjectList, ProjectState, ProjectStatus,
-    ProjectSummary, ProjectionState, RefList, RefRecord, ReflogEntry, ReflogPage, SnapshotContext,
-    TimelineEntry,
+    ArchiveList, ArchiveResult, ArchiveResultKind, ArchiveState, ArchiveSummary,
+    CommittedCreatorSession, CommittedState, ComparisonEvidence, CompleteCreatorSession,
+    CompleteState, CreatorDecision, CreatorDecisionReceipt, CreatorDecisionRequest, CreatorReport,
+    CreatorSessionCounts, CreatorSessionDiagnostic, CreatorSessionList, CreatorSessionState,
+    CreatorSessionSummary, FsckResult, HealthResponse, IncompleteCreatorSession, IncompleteState,
+    OperationAccepted, OperationKind, OperationResult, OperationState, OperationStatus,
+    PendingCreatorSession, PendingReviewState, Problem, ProjectCapabilities, ProjectConfirmation,
+    ProjectList, ProjectState, ProjectStatus, ProjectSummary, ProjectionState, RefList, RefRecord,
+    ReflogEntry, ReflogPage, SnapshotContext, TimelineEntry,
 };
 
 /// Loads `api/local/v1/openapi.json` once per test process invocation (each
@@ -506,6 +506,39 @@ fn fsck_result_matches_the_openapi_schema() {
         &document,
         "FsckResult",
         &serde_json::to_value(result).unwrap(),
+    );
+}
+
+#[test]
+fn archive_summary_and_archive_list_match_the_openapi_schema() {
+    let document = openapi_document();
+    let valid = ArchiveSummary {
+        archive_name: "nightly-2026-08-17".into(),
+        state: ArchiveState::Valid,
+        manifest_checksum: Some("a".repeat(64)),
+    };
+    assert_matches_openapi_schema(
+        &document,
+        "ArchiveSummary",
+        &serde_json::to_value(valid.clone()).unwrap(),
+    );
+    let staging = ArchiveSummary {
+        archive_name: "in-progress".into(),
+        state: ArchiveState::StagingOrUnknown,
+        manifest_checksum: None,
+    };
+    assert_matches_openapi_schema(
+        &document,
+        "ArchiveSummary",
+        &serde_json::to_value(staging.clone()).unwrap(),
+    );
+    let list = ArchiveList {
+        archives: vec![staging, valid],
+    };
+    assert_matches_openapi_schema(
+        &document,
+        "ArchiveList",
+        &serde_json::to_value(list).unwrap(),
     );
 }
 

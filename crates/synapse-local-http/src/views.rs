@@ -1,7 +1,7 @@
 use axum::http::StatusCode;
 use synapse_local_service::{
-    CreatorReport, CreatorSessionDetail, CreatorSessionDiagnostic, CreatorSessionState,
-    ProjectState, ServiceError,
+    ArchiveState, CreatorReport, CreatorSessionDetail, CreatorSessionDiagnostic,
+    CreatorSessionState, ProjectState, ServiceError,
 };
 
 use crate::state::AppState;
@@ -134,6 +134,22 @@ pub(crate) fn session_state_tone(state: CreatorSessionState) -> &'static str {
         CreatorSessionState::Complete => "success",
         CreatorSessionState::PendingReview => "info",
         CreatorSessionState::Incomplete => "warning",
+    }
+}
+
+pub(crate) fn archive_state_label(state: ArchiveState) -> &'static str {
+    match state {
+        ArchiveState::Valid => "valid",
+        ArchiveState::Invalid => "invalid",
+        ArchiveState::StagingOrUnknown => "staging または unknown",
+    }
+}
+
+pub(crate) fn archive_state_tone(state: ArchiveState) -> &'static str {
+    match state {
+        ArchiveState::Valid => "success",
+        ArchiveState::Invalid => "danger",
+        ArchiveState::StagingOrUnknown => "warning",
     }
 }
 
@@ -418,6 +434,25 @@ pub(crate) struct ProjectCardView {
     pub(crate) complete_sessions: usize,
     pub(crate) pending_sessions: usize,
     pub(crate) incomplete_sessions: usize,
+}
+
+pub(crate) struct ArchiveView {
+    pub(crate) archive_name: String,
+    pub(crate) state_label: &'static str,
+    pub(crate) tone: &'static str,
+    pub(crate) checksum_preview: String,
+}
+
+const ARCHIVE_CHECKSUM_PREVIEW_LEN: usize = 12;
+
+pub(crate) fn archive_checksum_preview(manifest_checksum: Option<&str>) -> String {
+    match manifest_checksum {
+        Some(checksum) if checksum.len() > ARCHIVE_CHECKSUM_PREVIEW_LEN => {
+            format!("{}…", &checksum[..ARCHIVE_CHECKSUM_PREVIEW_LEN])
+        }
+        Some(checksum) => checksum.to_owned(),
+        None => "—".into(),
+    }
 }
 
 pub(crate) struct RefView {
