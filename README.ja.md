@@ -165,7 +165,7 @@ resume、cleanup、history書換えを行いません。
 | `adopt`、`reject`、`defer`を含む3-file creator Pilot | boundedなlocal CLI flowとして実装済み |
 | 人／AI帰属provenanceと比較情報を含むreport | 実装済み。AI outputはcaller-supplied |
 | original／current比較 | primary Blobのbyte identityのみ。comparabilityは常にpartial |
-| local browser UI | read表示、boundedな三file import／same-process `adopt`・`reject`・`defer`、read-only incomplete-session diagnostics、確認付きbackground `fsck`を実装済み。archive maintenanceはCLIのみ |
+| local browser UI | read表示、boundedな三file import／same-process `adopt`・`reject`・`defer`、read-only incomplete-session diagnostics、確認付きbackground `fsck`を実装済み。Current-`main`（未tag）では`--archive-root`起動flagによるboundedなread-only archive listing表示（`GET /archives`）を追加。archive export／restoreはCLIのみ |
 | generic regular-file artifact building block | tagged v0.5.1のsource／workspace libraryにbounded deterministic mapper／checkout、sequential Proposal／Decision、host-authenticated one-shot approval、SQLite journal統合済みrestart／reconciliation境界、固定v1 public-safe contract、別local public projectionを収録。配布する3 binaryはこれらをHTTP、CLI、browser UIから提供せず、model invocation、multi-process control plane、production serviceも提供しない |
 | content-addressed object、typed closure、Ref CAS、reflog | 実装済み、repository test対象 |
 | `fsck`、checksum付きdirectory export、verified restore | local repository formatで実装済み |

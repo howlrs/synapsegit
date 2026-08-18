@@ -42,8 +42,11 @@ that process. Do not run another service instance, the CLI, or a direct
 Repository writer against the same repository while this service owns it.
 
 The tagged v0.5.1 UI does **not** yet provide archive list/export/restore,
-automatic resume, or cleanup. Archive export/restore remain CLI/library-only;
-archive inspection/listing is still planned.
+automatic resume, or cleanup. Current-`main` (not yet tagged) adds a bounded,
+read-only archive listing view (`GET /archives` plus a dashboard section)
+behind an optional `--archive-root PATH` startup flag; the path must already
+exist and be a directory. Archive export/restore remain CLI/library-only in
+every case, tagged or current-`main`.
 The dedicated diagnostics route and server-rendered view are read-only: displayed
 Ref/head values are never accepted back as review authority and history is not
 rewritten. The tagged v0.5.1 project page also runs read-only `fsck` only after
@@ -117,6 +120,24 @@ OS-selected development port.
   --project "mural=$HOME/SynapseGit/mural" \
   --project "restoration=$HOME/SynapseGit/restoration" \
   --port 8788
+```
+
+`--archive-root PATH` is optional and may be given at most once. It enables
+the current-`main` (not yet tagged) read-only archive listing view
+(`GET /archives` plus a dashboard section), which bounded-scans the
+directories directly under `PATH` and reports each as `valid`, `invalid`, or
+`staging_or_unknown`. `PATH` must already exist and be a directory at
+startup; a missing or non-directory path fails startup rather than starting
+with an empty listing. Without `--archive-root`, archive listing always
+returns an empty list — this is the same as a configured-but-empty root, so
+the response alone cannot distinguish "not configured" from "configured but
+empty".
+
+```bash
+mkdir -p "$HOME/SynapseGit/archives"
+./target/release/synapse-local \
+  --project "demo=$HOME/SynapseGit/demo" \
+  --archive-root "$HOME/SynapseGit/archives"
 ```
 
 There is deliberately no `--host` option. The executable always binds to

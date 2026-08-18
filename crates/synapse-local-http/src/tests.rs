@@ -1472,12 +1472,14 @@ async fn blocking_gates_bound_known_projects_and_route_unknown_projects_through_
 //      business logic itself returns.
 //   2. Unimplemented-route 404 contract (`UNIMPLEMENTED_ARCHIVE_OPERATIONS`,
 //      asserted below): for exactly the 2 archive operations
-//      `docs/localhost_application_architecture.md` documents as
-//      remaining unimplemented in the browser application (line 14-15;
-//      see also line 512's "export, and empty-target restore remain
-//      planned"), the same substituted request must currently return 404.
-//      `listArchives` moved into positive parity coverage above once its
-//      route was implemented. This
+//      `docs/localhost_application_architecture.md` documents as still
+//      remaining unimplemented in the browser application (line 20:
+//      "Archive export and restore remain unimplemented in the ...
+//      application"; see also line 534's "Archive export and
+//      empty-target restore remain planned"), the same substituted
+//      request must currently return 404. `listArchives` moved into
+//      positive parity coverage above once its route was implemented.
+//      This
 //      makes the list self-maintaining: the day someone implements one
 //      of these routes, this assertion fails (404 stops being true) and
 //      the failure forces that operationId's removal from the skip list
@@ -1486,10 +1488,12 @@ async fn blocking_gates_bound_known_projects_and_route_unknown_projects_through_
 //
 // `startFsck` and `getOperation` both carry openapi's
 // `x-synapse-implementation-slice: 7` tag too, but that tag is a
-// compound "slice 7" label spanning the implemented fsck/job foundation
-// (`docs/localhost_application_architecture.md` line 3, 7-8: "the
-// fsck/job part of slice 7 ... implemented in v0.3.0") and the
-// unimplemented archive portion (same doc, line 14-15) without
+// compound "slice 7" label spanning the implemented fsck/job foundation,
+// the now also-implemented read-only archive listing, and the still
+// unimplemented archive export/restore portion
+// (`docs/localhost_application_architecture.md` line 3: "the fsck/job
+// part of slice 7 ... implemented in v0.3.0; the read-only archive
+// listing part of slice 7 implemented in current `main`") without
 // distinguishing them. Both routes are genuinely wired
 // (`.route("/api/v1/projects/{project_key}/operations/fsck",
 // post(api_start_fsck))` and `.route("/api/v1/operations/{operation_id}",

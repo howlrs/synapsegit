@@ -91,7 +91,7 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 - capture client、repeatable／calibrated capture workflow
 - pixel registration、visual difference、physical change interpretation
 - model／connector invocationとpre-execution OS sandbox／egress control
-- localhostのarchive list・export・restore API／UI
+- localhostのarchive export・restore API／UI（listは実装済み）
 - durable generic Rust boundaryのHTTP／Creator／localhost UI統合、automatic worker resume／cleanup、継続session編集
 - HTTP/JWT／MFA、durable/distributed ACL・permit・publication fence
 - organization／quorum／release approval、modified／partial adoption
@@ -129,7 +129,8 @@ production／distribution／brand制限も変更しない。
 
 1. 分離済みの[publication comprehension corpus](./evaluation/publication-comprehension/v1/)で、
    zero-context AI、実Human、axe／keyboard／screen reader理解・accessibility評価を実施する。
-2. 実装済みlocalhost import／review／diagnostics／bounded `fsck`を、archive list／export／restoreへ拡張する。
+2. 実装済みlocalhost import／review／diagnostics／bounded `fsck`／bounded archive listingを、archive
+   export／restoreへ拡張する。
 3. fixed-point Observation datasetとpixel-level adapterを別contractとして検証する。
 4. durable admission transactionを含むproduction control planeを実装する。
 5. 追加platformの再現可能なbuild／artifact smokeを整備する。

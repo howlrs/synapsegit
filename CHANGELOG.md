@@ -31,6 +31,15 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   through, instead of leaving a partial corpus behind. An existing output
   directory is still refused outright and is never touched by this
   cleanup.
+- localhost browser: read-only archive listing (`GET /archives` plus a
+  server-rendered dashboard section) with a new `--archive-root PATH`
+  `synapse-local` startup flag. Listing bounded-scans the server-owned
+  archive root's direct slug-named entries and reports each as
+  `valid` (with its manifest checksum), `invalid`, or
+  `staging_or_unknown`, from a manifest-level Core inspection that
+  verifies the manifest checksum, structure, and per-object
+  presence/length but does not read object content. Archive export and
+  restore remain CLI-only.
 
 ## [0.5.1] - 2026-08-17
 

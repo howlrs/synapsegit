@@ -1,6 +1,6 @@
 # SynapseGit localhost application architecture
 
-Status: approved implementation design; slices 1-4/6, the fsck/job part of slice 7, and the read-only diagnostics part of slice 8 implemented in v0.3.0
+Status: approved implementation design; slices 1-4/6, the fsck/job part of slice 7, and the read-only diagnostics part of slice 8 implemented in v0.3.0; the read-only archive listing part of slice 7 implemented in current `main` (not yet tagged)
 
 Decision date: 2026-07-14
 
@@ -11,9 +11,16 @@ project catalog, bounded read facade, loopback HTTP boundary, server-rendered
 project/session views, bounded three-file staging, process-local pending
 authority, Human `adopt` / `reject` / `defer`, a dedicated read-only diagnosis,
 and an explicitly confirmed background `fsck` with pollable process-local state.
-The third file remains caller-supplied; no model is invoked. Archive list, export,
-and restore remain unimplemented in the browser application. The diagnostics and
-browser `fsck` additions are included in the tagged v0.3.0 binary. Core v0.1
+The third file remains caller-supplied; no model is invoked. Current `main`
+(not yet tagged) additionally implements a read-only, server-fixed bounded
+archive listing (`GET /archives` plus a dashboard section) behind an optional
+`--archive-root` startup flag: it reports each server-owned archive-root
+entry as `valid` (with its manifest checksum), `invalid`, or
+`staging_or_unknown` from a manifest-level Core inspection, without reading
+object content. Archive export and restore remain unimplemented in the
+browser application. The diagnostics and browser `fsck` additions are
+included in the tagged v0.3.0 binary; the archive listing addition is not yet
+included in any tagged release. Core v0.1
 remains a Stage 0 draft; this application slice is
 not the formal Core roadmap's Stage 1.
 
@@ -174,7 +181,8 @@ an implemented one.
 | 4 | `POST .../creator-sessions` | stream the three files and publish through the creator proposal boundary |
 | 6 | `POST .../creator-sessions/{session}/decisions` | Human `adopt` / `reject` / `defer` through the admitted proposal route |
 | 7 | `POST .../operations/fsck`; `GET .../operations/{id}` | implemented in v0.3.0: explicit, confirmed bounded fsck job and process-local polling |
-| 7 | `POST .../archive-exports`, `archive-restores`; `GET /archives` | planned: archive jobs and inspected archive summaries |
+| 7 | `GET /archives` | implemented in current `main` (not yet tagged): bounded, read-only inspected archive summaries |
+| 7 | `POST .../archive-exports`, `archive-restores` | planned: archive export/restore jobs |
 | 8 | `GET .../creator-sessions/{session}/diagnostics` | implemented in v0.3.0: incomplete-session diagnosis without automatic mutation |
 
 There is intentionally no generic object PUT/GET, no generic Commit route, no
@@ -463,11 +471,22 @@ dirty check is a successful job with `clean=false` and aggregate counts, not a
 failed worker; path and issue details are not returned. The most recent completed
 result is exposed as process-local `last_fsck` and is lost on restart.
 
-Archive listing must not duplicate Core's private manifest parser in the
-facade. The remaining archive portion of slice 7 must first add a read-only Core
-archive inspection function that reuses the restore parser, checksum checks, and
-resource limits without writing objects or Refs. `GET /archives` reports
-`valid`, `invalid`, or `staging_or_unknown` only from that inspected result.
+Archive listing does not duplicate Core's private manifest parser in the
+facade. `synapse-core::inspect_archive_with_limits` is a read-only, bounded
+function that reuses the exact manifest checksum verification and structural
+validation `Repository::restore_from` applies (via a shared
+`read_verified_manifest` helper), then confirms each manifest-listed object
+file exists as a regular, non-symlink file with the manifest-declared byte
+length — without reading object content or computing a per-object content
+hash, and without writing objects or Refs or opening a `Repository`. `GET
+/archives` reports `valid` (with the manifest checksum), `invalid`, or
+`staging_or_unknown` only from that inspected result: a manifest or checksum
+file that cannot be read (for example, mid-export staging) is
+`staging_or_unknown`; any other inspection failure, including a per-archive
+resource-limit rejection, is also `staging_or_unknown` rather than failing
+the whole listing. Only the archive root's own entry count exceeding its
+limit fails the whole `GET /archives` request closed. A `valid` result is
+manifest-level evidence, not a restore-success guarantee.
 
 The inspection, listing, and restore paths share server-fixed operation-wide
 limits for archive-root entries, manifest/object count, aggregate object bytes,
@@ -509,8 +528,11 @@ sequencing and does not advance the formal Core stage.
    exact admitted application route, including exclusive decision state and fail-closed ambiguity.
 7. **Partially implemented:** v0.3.0 implements exact project confirmation, server-fixed
    bounded `fsck`, a finite process-local operation registry/poll route, `last_fsck`, and the
-   confirmation/poll/result UI. Archive inspection/listing, export, and empty-target restore remain
-   planned. The browser `fsck` addition is included in the tagged v0.3.0 binary.
+   confirmation/poll/result UI; the browser `fsck` addition is included in the tagged v0.3.0
+   binary. Current `main` (not yet tagged) additionally implements read-only, bounded archive
+   inspection/listing (Core `inspect_archive_with_limits`, `GET /archives`, and a dashboard
+   section) behind an optional `--archive-root` startup flag. Archive export and empty-target
+   restore remain planned.
 8. **Partially implemented:** tagged Linux x86_64 packaging, checksum publication, and release
    documentation are implemented. v0.3.0 also implements the dedicated read-only
    incomplete-session diagnostics service DTO/method, GET route, and server-rendered
