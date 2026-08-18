@@ -1194,7 +1194,12 @@ impl ArchiveManifest {
         let mut paths = HashSet::with_capacity(self.objects.len());
         let mut previous_oid: Option<&str> = None;
         for (index, object) in self.objects.iter().enumerate() {
-            let kind = parse_oid(&object.oid)?;
+            let kind = parse_oid(&object.oid).map_err(|error| {
+                RepositoryError::ArchiveInvalid(format!(
+                    "invalid object OID {:?}: {error}",
+                    object.oid
+                ))
+            })?;
             let expected_path = format!("objects/{index:08}");
             if object.path != expected_path {
                 return Err(RepositoryError::ArchiveInvalid(format!(
@@ -1911,6 +1916,39 @@ mod archive_tests {
             }
             other => panic!("expected Io, got {other:?}"),
         }
+
+        cleanup_fixture(&repository_path, &archive_path);
+    }
+
+    #[test]
+    fn inspection_reports_invalid_for_a_structurally_invalid_object_oid() {
+        // A manifest whose checksum matches and whose JSON parses, but whose
+        // object row carries a structurally invalid OID, must be rejected as
+        // `archive_invalid` by `ArchiveManifest::validate` just like every
+        // other structural violation (bad path, duplicate row, malformed
+        // checksum, out-of-order rows) — not silently fall through to a
+        // generic `Core`-wrapped error that a caller's catch-all would
+        // misclassify as merely unreadable/unknown.
+        let (repository_path, archive_path, _) = exported_archive_fixture("inspect-bad-object-oid");
+        let manifest_path = archive_path.join(MANIFEST_FILE);
+        let manifest_text = fs::read_to_string(&manifest_path).unwrap();
+        let mut manifest: serde_json::Value = serde_json::from_str(&manifest_text).unwrap();
+        manifest["objects"][0]["oid"] = serde_json::Value::String("junk".to_owned());
+        let tampered_bytes = serde_json::to_vec(&manifest).unwrap();
+        fs::write(&manifest_path, &tampered_bytes).unwrap();
+        fs::write(
+            archive_path.join(MANIFEST_CHECKSUM_FILE),
+            format!("{}\n", sha256_hex(&tampered_bytes)),
+        )
+        .unwrap();
+
+        let error = inspect_archive_with_limits(&archive_path, &ArchiveInspectionLimits::default())
+            .unwrap_err();
+        assert_eq!(error.code(), "archive_invalid");
+        assert!(
+            matches!(error, RepositoryError::ArchiveInvalid(_)),
+            "expected ArchiveInvalid, got {error:?}"
+        );
 
         cleanup_fixture(&repository_path, &archive_path);
     }

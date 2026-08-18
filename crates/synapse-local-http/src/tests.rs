@@ -105,6 +105,43 @@ fn write_valid_archive_fixture(archive_root: &Path, name: &str) {
     .unwrap();
 }
 
+/// The exact bytes of one hand-written archive manifest whose checksum
+/// matches and is otherwise well-formed JSON, but whose single object row
+/// carries a structurally invalid OID (`"junk"`, matching neither the
+/// `kind:hex` blob form nor any other recognized OID shape). Paired with its
+/// own precomputed SHA-256 checksum the same way as the empty-manifest
+/// fixture above, and re-verified by
+/// `list_archives_bad_oid_manifest_fixture_checksum_is_correct`.
+///
+/// This exercises the `ArchiveManifest::validate` code path that rejects a
+/// syntactically well-formed but semantically invalid OID: the manifest
+/// checksum matches and the JSON parses, so only structural validation (not
+/// the checksum or JSON gates) can catch it. It must be classified `invalid`
+/// like every other structural violation `validate` rejects, not
+/// `staging_or_unknown`.
+const BAD_OID_ARCHIVE_MANIFEST_BYTES: &[u8] = br#"{"format":"synapsegit-core-archive-v0.1","objects":[{"oid":"junk","path":"objects/00000000","byte_length":0,"sha256":"0000000000000000000000000000000000000000000000000000000000000000"}],"refs":[],"reflog":[]}"#;
+const BAD_OID_ARCHIVE_MANIFEST_CHECKSUM: &str =
+    "137d18faba43b38297f71686ad186937d0a78c50eab51a9a7a1f784fd0d636d7";
+
+/// Write one archive fixture directory named `name` directly under
+/// `archive_root` whose manifest checksum matches and JSON parses, but whose
+/// sole object row has a structurally invalid OID. See
+/// `BAD_OID_ARCHIVE_MANIFEST_BYTES` for why this fixture exists.
+fn write_bad_oid_archive_fixture(archive_root: &Path, name: &str) {
+    let archive_path = archive_root.join(name);
+    fs::create_dir(&archive_path).unwrap();
+    fs::write(
+        archive_path.join("manifest.json"),
+        BAD_OID_ARCHIVE_MANIFEST_BYTES,
+    )
+    .unwrap();
+    fs::write(
+        archive_path.join("manifest.sha256"),
+        format!("{BAD_OID_ARCHIVE_MANIFEST_CHECKSUM}\n"),
+    )
+    .unwrap();
+}
+
 fn test_app_with_archive_root() -> (TestDirectory, Router, PathBuf) {
     let directory = TestDirectory::new();
     let repository = directory.0.join("repository");
@@ -138,6 +175,32 @@ fn test_app_with_archive_root() -> (TestDirectory, Router, PathBuf) {
     let application =
         build_with_identity(service, 43123, "a".repeat(64), "local-test-instance".into());
     (directory, application.into_router(), archive_root)
+}
+
+/// A second archive-root test app carrying only the bad-OID fixture, kept
+/// separate from `test_app_with_archive_root` so its assertions do not
+/// depend on (or perturb) that fixture's fixed three-entry ordering.
+fn test_app_with_bad_oid_archive() -> (TestDirectory, Router) {
+    let directory = TestDirectory::new();
+    let repository = directory.0.join("repository");
+    fs::create_dir(&repository).unwrap();
+    let archive_root = directory.0.join("archives");
+    fs::create_dir(&archive_root).unwrap();
+
+    write_bad_oid_archive_fixture(&archive_root, "ddd-bad-oid");
+
+    let service = Arc::new(
+        LocalService::new([synapse_local_service::ProjectRegistration::new(
+            "demo",
+            "Demo project",
+            repository,
+        )])
+        .unwrap()
+        .with_archive_root(archive_root),
+    );
+    let application =
+        build_with_identity(service, 43123, "a".repeat(64), "local-test-instance".into());
+    (directory, application.into_router())
 }
 
 struct CreatorFixture {
@@ -1830,6 +1893,15 @@ fn list_archives_manifest_fixture_checksum_is_correct() {
     );
 }
 
+#[test]
+fn list_archives_bad_oid_manifest_fixture_checksum_is_correct() {
+    // Same guard as above, for the checksum-valid-but-bad-OID fixture.
+    assert_eq!(
+        sha256_hex_for_test(BAD_OID_ARCHIVE_MANIFEST_BYTES),
+        BAD_OID_ARCHIVE_MANIFEST_CHECKSUM
+    );
+}
+
 /// Minimal self-contained SHA-256 (FIPS 180-4), used only to independently
 /// verify the hand-computed manifest fixture checksum above without adding a
 /// `sha2` dev-dependency to this crate.
@@ -1941,6 +2013,33 @@ async fn get_archives_reports_valid_invalid_and_staging_or_unknown() {
     assert_eq!(archives[2]["archive_name"], "ccc-staging");
     assert_eq!(archives[2]["state"], "staging_or_unknown");
     assert_eq!(archives[2]["manifest_checksum"], serde_json::Value::Null);
+}
+
+/// A manifest that checksum-verifies and parses as JSON, but whose sole
+/// object row has a structurally invalid OID, must be reported `invalid`
+/// (a confirmed structural violation `ArchiveManifest::validate` rejects)
+/// rather than `staging_or_unknown` (reserved for archives that could not
+/// even be read/parsed/checksum-verified, e.g. mid-export staging).
+#[tokio::test]
+async fn get_archives_reports_bad_oid_manifest_as_invalid() {
+    let (_directory, app) = test_app_with_bad_oid_archive();
+    let response = app
+        .oneshot(
+            request("/api/v1/archives")
+                .header("x-synapse-local-token", "a".repeat(64))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+    let list: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let archives = list["archives"].as_array().unwrap();
+    assert_eq!(archives.len(), 1);
+    assert_eq!(archives[0]["archive_name"], "ddd-bad-oid");
+    assert_eq!(archives[0]["state"], "invalid");
+    assert_eq!(archives[0]["manifest_checksum"], serde_json::Value::Null);
 }
 
 #[tokio::test]
