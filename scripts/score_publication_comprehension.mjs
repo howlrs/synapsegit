@@ -74,15 +74,53 @@ function requirePercent(value, label) {
   return value;
 }
 
-function expectedValueHasType(value, answerType) {
+/**
+ * Validate a top-level corpus document's `schema` identity object. Scope is
+ * intentionally limited to the schema object's own two properties (name,
+ * version) — this does not whitelist the rest of the document. A blanket
+ * unknown-key rejection across the whole frozen v1 document would require
+ * enumerating every real key already present in the corpus (instructions,
+ * prompt, bundle, accessibility, etc.) for no hardening value.
+ */
+function requireSchemaIdentity(schema, expectedName, label) {
+  requireCondition(isObject(schema), `${label} schema must be an object`);
+  requireCondition(
+    schema.name === expectedName && schema.version === 1,
+    `${label} schema must identify ${expectedName} version 1`,
+  );
+  for (const property of Object.keys(schema)) {
+    requireCondition(
+      ["name", "version"].includes(property),
+      `${label} schema has an unknown property: ${property}`,
+    );
+  }
+}
+
+/**
+ * Type check for oracle.json expected answers. Oracle integers are required
+ * to be safe integers: the oracle is authored/frozen data, not untrusted
+ * evaluator input, so this can be stricter than response scoring without
+ * changing score-report output for any response.
+ */
+function oracleValueHasType(value, answerType) {
   if (answerType === "boolean") return typeof value === "boolean";
-  if (answerType === "integer") return typeof value === "number" && Number.isInteger(value);
+  if (answerType === "integer") return typeof value === "number" && Number.isSafeInteger(value);
   if (answerType === "enum") return typeof value === "string";
   return false;
 }
 
+/**
+ * Type check for a response's submitted answer. Kept as plain
+ * Number.isInteger (not Number.isSafeInteger) so invalid response scoring
+ * (question_results.answer_type_correct) stays byte-identical to prior
+ * releases; validateResponse already rejects non-safe-integer answer values
+ * separately via invalid_answer_value.
+ */
 function answerHasType(value, answerType) {
-  return expectedValueHasType(value, answerType);
+  if (answerType === "boolean") return typeof value === "boolean";
+  if (answerType === "integer") return typeof value === "number" && Number.isInteger(value);
+  if (answerType === "enum") return typeof value === "string";
+  return false;
 }
 
 function loadHtmlDigest(corpusDir, caseId, oracleCase) {
@@ -125,6 +163,17 @@ export function loadPublicationComprehensionCorpus(corpusDir = publicationCompre
   requireCondition(isObject(questionnaire), "questionnaire.json must contain an object");
   requireCondition(isObject(oracle), "oracle.json must contain an object");
   requireCondition(isObject(protocol), "protocol.json must contain an object");
+  requireSchemaIdentity(
+    questionnaire.schema,
+    "org.synapsegit.publication-comprehension-questionnaire",
+    "questionnaire",
+  );
+  requireSchemaIdentity(oracle.schema, "org.synapsegit.publication-comprehension-oracle", "oracle");
+  requireSchemaIdentity(
+    protocol.schema,
+    "org.synapsegit.publication-comprehension-protocol",
+    "protocol",
+  );
   requireCondition(
     Number.isSafeInteger(questionnaire.corpus_version) && questionnaire.corpus_version > 0,
     "questionnaire corpus_version must be a positive integer",
@@ -138,6 +187,26 @@ export function loadPublicationComprehensionCorpus(corpusDir = publicationCompre
   requireCondition(isObject(oracle.cases), "oracle cases must be an object");
   requireCondition(isObject(protocol.zero_context_ai), "protocol zero_context_ai must be an object");
   requireCondition(isObject(protocol.human), "protocol human must be an object");
+  requireCondition(isObject(protocol.context), "protocol context must be an object");
+  requireCondition(
+    Array.isArray(protocol.context.track_matrix) &&
+      protocol.context.track_matrix.length === groupKinds.length &&
+      protocol.context.track_matrix.every(
+        (entry, index) =>
+          isObject(entry) &&
+          entry.evaluator_kind === groupKinds[index].evaluator_kind &&
+          entry.track === groupKinds[index].track,
+      ),
+    "protocol context.track_matrix must exactly match the scorer's fixed group order",
+  );
+  for (const entry of protocol.context.track_matrix) {
+    for (const property of Object.keys(entry)) {
+      requireCondition(
+        ["evaluator_kind", "track"].includes(property),
+        `protocol context.track_matrix entry has an unknown property: ${property}`,
+      );
+    }
+  }
 
   const cases = Object.keys(oracle.cases).sort();
   requireCondition(cases.length > 0, "oracle must define at least one case");
@@ -165,10 +234,18 @@ export function loadPublicationComprehensionCorpus(corpusDir = publicationCompre
       `question ${question.id} names an unknown case`,
     );
     requireCondition(
+      new Set(question.cases).size === question.cases.length,
+      `question ${question.id} names a duplicate case`,
+    );
+    requireCondition(
       Array.isArray(question.tracks) &&
         question.tracks.length > 0 &&
         question.tracks.every((track) => ["json", "html"].includes(track)),
       `question ${question.id} must name supported tracks`,
+    );
+    requireCondition(
+      new Set(question.tracks).size === question.tracks.length,
+      `question ${question.id} names a duplicate track`,
     );
     if (question.answer_type === "enum") {
       requireCondition(
@@ -208,7 +285,7 @@ export function loadPublicationComprehensionCorpus(corpusDir = publicationCompre
         `oracle and questionnaire critical flags differ for ${caseId}/${question.id}`,
       );
       requireCondition(
-        expectedValueHasType(oracleAnswer.value, question.answer_type),
+        oracleValueHasType(oracleAnswer.value, question.answer_type),
         `oracle answer ${caseId}/${question.id} has the wrong primitive type`,
       );
       if (question.answer_type === "enum") {
@@ -230,14 +307,14 @@ export function loadPublicationComprehensionCorpus(corpusDir = publicationCompre
     }
 
     for (const track of ["json", "html"]) {
-      questionsByCaseTrack.set(
-        `${caseId}\u0000${track}`,
-        Object.freeze(
-          scoredQuestions.filter((question) =>
-            questionsById.get(question.id).tracks.includes(track),
-          ),
-        ),
+      const applicableForTrack = scoredQuestions.filter((question) =>
+        questionsById.get(question.id).tracks.includes(track),
       );
+      requireCondition(
+        applicableForTrack.length > 0,
+        `case ${caseId} track ${track} has no applicable questions`,
+      );
+      questionsByCaseTrack.set(`${caseId}\u0000${track}`, Object.freeze(applicableForTrack));
     }
     artifactDigests.set(
       `${caseId}\u0000json`,
