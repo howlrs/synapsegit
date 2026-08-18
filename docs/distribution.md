@@ -155,6 +155,29 @@ git diff --check
    read-only local publication bundleのexport／previewを確認する。archiveに第四のbinaryや
    generic-artifact HTTP／CLI／UI surfaceが紛れ込んでいないことも確認する。
 
+   `gh attestation verify`はnon-TTY実行時（パイプ経由・スクリプト内実行時など）、plain formatの
+   human-readable出力を表示しない（v0.5.1 releaseの検証で実測）。exit code 0だけでは確認内容が
+   残らないため、script実行や別directoryでの検証では`--format json`を付け、JSON出力から次の3点を
+   確認する。
+
+   - workflow identityが`https://github.com/howlrs/synapsegit/.github/workflows/release.yml@refs/tags/<tag>`で
+     あること（repository識別部を含む完全一致で確認する。suffixのみの確認はforkの同名workflowも通してしまう）
+   - 対象artifactのdigestが`SHA256SUMS`の値と一致すること
+   - runnerが`github-hosted`であること
+
+   ```bash
+   gh attestation verify <archive> \
+     --repo howlrs/synapsegit \
+     --signer-workflow howlrs/synapsegit/.github/workflows/release.yml \
+     --source-ref refs/tags/<tag> \
+     --deny-self-hosted-runners \
+     --format json
+   ```
+
+   workflow identityとrunnerは`verificationResult.signature.certificate`配下の`buildSignerURI`／
+   `runnerEnvironment`で、digestは`verificationResult.statement.subject[].digest.sha256`で確認できる
+   （gh CLI 2.78.0での実測。fieldの厳密なpathはgh CLIのversionで変わりうるため、あくまで参考とする）。
+
 ## 公開後check
 
 - Release URLをsign-out状態で開ける
