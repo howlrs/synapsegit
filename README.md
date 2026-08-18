@@ -334,6 +334,18 @@ See the [changelog](./CHANGELOG.md) and the
 [v0.6.0 release notes](./docs/releases/v0.6.0.md) before evaluating the
 preview with important data.
 
+Per-tag release notes on `main`:
+
+| Tag | Release notes |
+|-----|---------------|
+| `v0.6.0` | [docs/releases/v0.6.0.md](./docs/releases/v0.6.0.md) |
+| `v0.5.1` | [docs/releases/v0.5.1.md](./docs/releases/v0.5.1.md) |
+| `v0.5.0` | [docs/releases/v0.5.0.md](./docs/releases/v0.5.0.md) |
+| `v0.4.0` | [docs/releases/v0.4.0.md](./docs/releases/v0.4.0.md) |
+| `v0.3.0` | [docs/releases/v0.3.0.md](./docs/releases/v0.3.0.md) |
+| `v0.2.0` | [docs/releases/v0.2.0.md](./docs/releases/v0.2.0.md) |
+| `v0.1.0` | [docs/releases/v0.1.0.md](./docs/releases/v0.1.0.md) |
+
 ## Security, support, and license
 
 Keep `synapse-local` on loopback; do not put it behind a reverse proxy or treat

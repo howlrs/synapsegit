@@ -300,6 +300,18 @@ application route、archive verificationはRustが担当します。componentの
 評価前に[changelog](./CHANGELOG.md)と
 [v0.6.0 release notes](./docs/releases/v0.6.0.md)を確認してください。
 
+タグごとのrelease notes（`main`上のfile）:
+
+| Tag | Release notes |
+|-----|---------------|
+| `v0.6.0` | [docs/releases/v0.6.0.md](./docs/releases/v0.6.0.md) |
+| `v0.5.1` | [docs/releases/v0.5.1.md](./docs/releases/v0.5.1.md) |
+| `v0.5.0` | [docs/releases/v0.5.0.md](./docs/releases/v0.5.0.md) |
+| `v0.4.0` | [docs/releases/v0.4.0.md](./docs/releases/v0.4.0.md) |
+| `v0.3.0` | [docs/releases/v0.3.0.md](./docs/releases/v0.3.0.md) |
+| `v0.2.0` | [docs/releases/v0.2.0.md](./docs/releases/v0.2.0.md) |
+| `v0.1.0` | [docs/releases/v0.1.0.md](./docs/releases/v0.1.0.md) |
+
 ## Security、support、license
 
 `synapse-local`はloopbackのまま利用し、reverse proxyの背後へ公開したり、process-local browser
