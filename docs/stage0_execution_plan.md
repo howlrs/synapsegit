@@ -164,7 +164,8 @@ local single-creator経路を実装する。library境界はproposal-onlyの`beg
 staging、proposal公開前に上限を確保するprocess registry、同じprocess内のreview UI、read-only
 incomplete diagnostics、server-fixed bounded `fsck`のbackground job／poll UIまでtagged v0.3.0で実装済みである。
 process restart後のcapability／job state復元、
-automatic resume／cleanup、archive list／export／restore UIは未実装である。
+automatic resume／cleanup、archive export／restore UIは未実装である
+（archive listはcurrent `main`でboundedなread-only API／UIとして実装済み）。
 `creator-run`はoriginal／current／AI outputの3 fileをopaque Blobとして
 格納し、Subject、imported／reference-only CaptureProfile、2 Observation、import Activity、専用`software_tool`
 Actor、byte-identity AnalysisResultとimplementation／configuration Blob、ContextPack、Policy、DelegationGrant、AI Activity、
