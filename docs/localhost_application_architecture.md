@@ -1,6 +1,6 @@
 # SynapseGit localhost application architecture
 
-Status: approved implementation design; slices 1-4/6, the fsck/job part of slice 7, and the read-only diagnostics part of slice 8 implemented in v0.3.0; the read-only archive listing part of slice 7 implemented in current `main` (not yet tagged)
+Status: approved implementation design; slices 1-4/6, the fsck/job part of slice 7, and the read-only diagnostics part of slice 8 implemented in v0.3.0; the read-only archive listing part of slice 7 implemented in tagged v0.6.0
 
 Decision date: 2026-07-14
 
@@ -11,8 +11,8 @@ project catalog, bounded read facade, loopback HTTP boundary, server-rendered
 project/session views, bounded three-file staging, process-local pending
 authority, Human `adopt` / `reject` / `defer`, a dedicated read-only diagnosis,
 and an explicitly confirmed background `fsck` with pollable process-local state.
-The third file remains caller-supplied; no model is invoked. Current `main`
-(not yet tagged) additionally implements a read-only, server-fixed bounded
+The third file remains caller-supplied; no model is invoked. Tagged v0.6.0
+additionally implements a read-only, server-fixed bounded
 archive listing (`GET /archives` plus a dashboard section) behind an optional
 `--archive-root` startup flag: it reports each server-owned archive-root
 entry as `valid` (with its manifest checksum), `invalid`, or
@@ -181,7 +181,7 @@ an implemented one.
 | 4 | `POST .../creator-sessions` | stream the three files and publish through the creator proposal boundary |
 | 6 | `POST .../creator-sessions/{session}/decisions` | Human `adopt` / `reject` / `defer` through the admitted proposal route |
 | 7 | `POST .../operations/fsck`; `GET .../operations/{id}` | implemented in v0.3.0: explicit, confirmed bounded fsck job and process-local polling |
-| 7 | `GET /archives` | implemented in current `main` (not yet tagged): bounded, read-only inspected archive summaries |
+| 7 | `GET /archives` | implemented in tagged v0.6.0: bounded, read-only inspected archive summaries |
 | 7 | `POST .../archive-exports`, `archive-restores` | planned: archive export/restore jobs |
 | 8 | `GET .../creator-sessions/{session}/diagnostics` | implemented in v0.3.0: incomplete-session diagnosis without automatic mutation |
 
@@ -554,7 +554,7 @@ sequencing and does not advance the formal Core stage.
 7. **Partially implemented:** v0.3.0 implements exact project confirmation, server-fixed
    bounded `fsck`, a finite process-local operation registry/poll route, `last_fsck`, and the
    confirmation/poll/result UI; the browser `fsck` addition is included in the tagged v0.3.0
-   binary. Current `main` (not yet tagged) additionally implements read-only, bounded archive
+   binary. Tagged v0.6.0 additionally implements read-only, bounded archive
    inspection/listing (Core `inspect_archive_with_limits`, `GET /archives`, and a dashboard
    section) behind an optional `--archive-root` startup flag. Archive export and empty-target
    restore remain planned.

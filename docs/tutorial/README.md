@@ -183,7 +183,7 @@ repository.
 - **The browser cannot connect** — keep the terminal process running and open
   the exact loopback URL it prints.
 - **A session becomes incomplete after restart** — pending Human review
-  authority is same-process in the tagged v0.5.1 binary. Diagnose it from the UI; do not reconstruct
+  authority is same-process in the tagged v0.6.0 binary. Diagnose it from the UI; do not reconstruct
   authority from displayed identifiers.
 - **The images look visually different but the report says only
   `byte_identity=different`** — that is the current conservative boundary.

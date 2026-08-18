@@ -14,11 +14,11 @@ review authority, resume, clean up, or rewrite history. Confirmed maintenance
 `fsck` runs as a detached bounded job with a 256-entry / 64-active process-local
 registry, pollable states, and project-page result display; dirty is a succeeded
 result with `clean=false`. Bounded read-only archive listing (server-owned
-archive root, dashboard section, and `GET /api/v1/archives`) is implemented in
-current `main`; it is not in the tagged v0.5.1 binary. Archive export/restore
+archive root, dashboard section, and `GET /api/v1/archives`) is included in
+the tagged v0.6.0 binary. Archive export/restore
 UI/routes are not yet implemented. The diagnostics and browser `fsck`
-additions were introduced in v0.3.0 and remain unchanged in the tagged v0.5.1
-binary. The generic-artifact libraries present in the tagged v0.5.1 source do
+additions were introduced in v0.3.0 and remain unchanged in the tagged v0.6.0
+binary. The generic-artifact libraries present in the tagged v0.6.0 source do
 not add routes, DTOs, UI, or a new binary here.
 
 Write forms require the embedded JavaScript module. Native HTML form submission
