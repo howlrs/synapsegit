@@ -2,8 +2,8 @@
 
 Audience: maintainer、release担当、公開文書を更新するcontributor
 Status: Stage 0運用runbook
-Applies to: v0.5.x
-Last verified: 2026-08-17
+Applies to: v0.6.x
+Last verified: 2026-08-18
 
 この文書は、SynapseGitを「GitHub上で見つける」「現在の用途を判断する」「安全に試す」までの
 公開導線とrelease手順を定義する。protocolの規範仕様ではない。
@@ -18,11 +18,15 @@ boundedな三file import、same-process Human review、read-only diagnostics、�
 `fsck`はv0.4.0にも収録される。この範囲に限ってwrite-capable／maintenance-capableである。
 
 v0.5.0でgeneric-artifact v1 workflow／schema／local projectionはtagged sourceのworkspace
-libraryとして固定され、v0.5.1にも変更なく引き継がれるが、release archiveの利用者向けsurfaceには
-追加しない。generic-artifact用のHTTP／CLI／browser UI、新binary、remote publish adapterは
-提供しない。
+libraryとして固定され、v0.5.1、v0.6.0にも変更なく引き継がれるが、release archiveの利用者向け
+surfaceには追加しない。generic-artifact用のHTTP／CLI／browser UI、新binary、remote publish
+adapterは提供しない。
 
-公開文面では、将来の利用構想とv0.5で実行できる能力を同じものとして表示しない。
+v0.6.0はlocalhost UIへbounded read-only archive listing（`GET /archives`、任意の
+`--archive-root`起動flag指定時のみ）を追加するが、archive export／restoreは引き続きCLIのみで
+あり、既存三binary構成に変更はない。
+
+公開文面では、将来の利用構想とv0.6で実行できる能力を同じものとして表示しない。
 
 ## 公開surface
 
@@ -97,9 +101,10 @@ GitHub SettingsのSocial previewへ明示的にuploadしない限り、repositor
 
 ## Release asset構成
 
-v0.5.1 archiveは、v0.5.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
+v0.6.0 archiveは、v0.5.1と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
 generic-artifact v1のworkflow／schema／local projectionはtagged sourceに含まれるworkspace libraryであり、
 archiveへ第四のbinaryや既存binaryのgeneric HTTP／CLI／UI surfaceを追加しない。
+公開済みv0.5.1 archiveも同じ三binary構成であり、後から内容を変更しない。
 公開済みv0.5.0 archiveも同じ三binary構成であり、後から内容を変更しない。
 v0.3.0 archiveは`synapse-present`を初めて追加した三binary構成であり、後から内容を変更しない。
 公開済みv0.2.0 archiveは`synapse`と`synapse-local`の二binaryだけを含み、後から内容を変更しない。
@@ -219,7 +224,7 @@ license変更時は少なくとも次を同じPull Requestで更新する。
 
 - [Installation](./install.md)
 - [Project status](./project_status.md)
-- [Release notes](./releases/v0.5.1.md)
+- [Release notes](./releases/v0.6.0.md)
 - [Security model](./security_model.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Documentation index](./README.md)
