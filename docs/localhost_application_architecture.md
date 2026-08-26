@@ -472,13 +472,16 @@ failed worker; path and issue details are not returned. The most recent complete
 result is exposed as process-local `last_fsck` and is lost on restart.
 
 Archive listing does not duplicate Core's private manifest parser in the
-facade. `synapse-core::inspect_archive_with_limits` is a read-only, bounded
-function that reuses the exact manifest checksum verification and structural
-validation `Repository::restore_from` applies (via a shared
-`read_verified_manifest` helper), then confirms each manifest-listed object
-file exists as a regular, non-symlink file with the manifest-declared byte
-length — without reading object content or computing a per-object content
-hash, and without writing objects or Refs or opening a `Repository`. `GET
+facade. `synapse-core::inspect_archive_with_limits` is the standalone
+read-only entry point; the listing uses the equivalent
+`inspect_archive_with_budget` entry point with one cumulative
+`ArchiveInspectionBudget` shared across every candidate. Both reuse the exact
+manifest checksum verification and structural validation
+`Repository::restore_from` applies (via a shared `read_verified_manifest`
+helper), then confirm each manifest-listed object file exists as a regular,
+non-symlink file with the manifest-declared byte length — without reading
+object content or computing a per-object content hash, and without writing
+objects or Refs or opening a `Repository`. `GET
 /archives` only lists a directory-typed, slug-named entry directly under the
 archive root; a slug-named plain file or symlink there is silently excluded
 rather than reported. Each listed candidate reports exactly one of three
@@ -505,13 +508,15 @@ states from the inspected result:
   could be opened.
 - `staging_or_unknown` when the candidate cannot be judged either way: its
   manifest or checksum file itself cannot be read (for example, mid-export
-  staging, or an unrelated directory), or inspection is rejected by the
-  per-archive resource limit.
+  staging, or an unrelated directory).
 
-Only the archive root's own entry count exceeding its limit fails the whole
-`GET /archives` request closed; a per-archive resource-limit rejection
-affects only that one candidate's reported state. A `valid` result is
-manifest-level evidence, not a restore-success guarantee.
+The archive root entry ceiling and the cumulative manifest object-count and
+declared-object-byte ceilings each fail the whole `GET /archives` request
+closed with `resource_limit`. A checksum-verified, structurally valid manifest
+reserves its entire inventory before object checks begin, and keeps that
+reservation if a later object check makes the candidate `invalid`; invalid
+archives therefore cannot repeatedly reuse the same operation allowance. A
+`valid` result is manifest-level evidence, not a restore-success guarantee.
 
 The inspection, listing, and restore paths share server-fixed operation-wide
 limits for archive-root entries, manifest/object count, aggregate object bytes,
@@ -555,9 +560,9 @@ sequencing and does not advance the formal Core stage.
    bounded `fsck`, a finite process-local operation registry/poll route, `last_fsck`, and the
    confirmation/poll/result UI; the browser `fsck` addition is included in the tagged v0.3.0
    binary. Tagged v0.6.0 additionally implements read-only, bounded archive
-   inspection/listing (Core `inspect_archive_with_limits`, `GET /archives`, and a dashboard
-   section) behind an optional `--archive-root` startup flag. Archive export and empty-target
-   restore remain planned.
+   inspection/listing (Core standalone `inspect_archive_with_limits`, cumulative
+   `inspect_archive_with_budget`, `GET /archives`, and a dashboard section) behind an optional
+   `--archive-root` startup flag. Archive export and empty-target restore remain planned.
 8. **Partially implemented:** tagged Linux x86_64 packaging, checksum publication, and release
    documentation are implemented. v0.3.0 also implements the dedicated read-only
    incomplete-session diagnostics service DTO/method, GET route, and server-rendered

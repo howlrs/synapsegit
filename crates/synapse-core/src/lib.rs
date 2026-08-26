@@ -1308,7 +1308,8 @@ fn read_verified_manifest(archive: &Path) -> Result<(ArchiveManifest, String)> {
 
 /// Resource limits for one read-only, synchronous archive inspection.
 ///
-/// These bound `inspect_archive_with_limits` alone; they are deliberately
+/// These bound one standalone [`inspect_archive_with_limits`] call or
+/// initialize a cumulative [`ArchiveInspectionBudget`]. They are deliberately
 /// separate from [`ArchiveExportLimits`] and [`FsckLimits`] so a caller
 /// exposing inspection over a synchronous HTTP GET can pin a narrower ceiling
 /// than export or fsck without affecting either. [`Default`] supplies the
@@ -1327,6 +1328,66 @@ impl Default for ArchiveInspectionLimits {
             max_objects: DEFAULT_MAX_ARCHIVE_OBJECTS,
             max_object_bytes: DEFAULT_MAX_ARCHIVE_OBJECT_BYTES,
         }
+    }
+}
+
+/// Remaining operation-wide work available to one or more archive
+/// inspections.
+///
+/// A caller that inspects a collection of archives should construct one
+/// budget and pass it to every [`inspect_archive_with_budget`] call. A
+/// checksum-verified, structurally valid manifest reserves its complete
+/// object inventory before any object path is opened. The reservation remains
+/// consumed if a later object check reports that archive as invalid, so a
+/// collection of late-failing archives cannot repeatedly spend the same
+/// allowance. If the declared byte total cannot be represented as `u64`, the
+/// inspection fails before opening an object and the caller must abort that
+/// aggregate operation.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ArchiveInspectionBudget {
+    max_objects: usize,
+    max_object_bytes: u64,
+    remaining_objects: usize,
+    remaining_object_bytes: u64,
+}
+
+impl ArchiveInspectionBudget {
+    /// Create a fresh operation-wide budget from an inspection limit profile.
+    pub const fn new(limits: ArchiveInspectionLimits) -> Self {
+        Self {
+            max_objects: limits.max_objects,
+            max_object_bytes: limits.max_object_bytes,
+            remaining_objects: limits.max_objects,
+            remaining_object_bytes: limits.max_object_bytes,
+        }
+    }
+
+    /// Object rows that may still be reserved by this operation.
+    pub const fn remaining_objects(&self) -> usize {
+        self.remaining_objects
+    }
+
+    /// Manifest-declared object bytes that may still be reserved.
+    pub const fn remaining_object_bytes(&self) -> u64 {
+        self.remaining_object_bytes
+    }
+
+    fn reserve(&mut self, object_count: usize, object_bytes: u64) -> Result<()> {
+        if object_count > self.remaining_objects {
+            return Err(resource_limit(format!(
+                "archive inspection object count exceeds remaining operation budget {}",
+                self.remaining_objects
+            )));
+        }
+        if object_bytes > self.remaining_object_bytes {
+            return Err(resource_limit(format!(
+                "archive inspection object bytes exceed remaining operation budget {}",
+                self.remaining_object_bytes
+            )));
+        }
+        self.remaining_objects -= object_count;
+        self.remaining_object_bytes -= object_bytes;
+        Ok(())
     }
 }
 
@@ -1391,21 +1452,36 @@ pub fn inspect_archive_with_limits(
     archive: &Path,
     limits: &ArchiveInspectionLimits,
 ) -> Result<ArchiveInspection> {
-    if limits.max_objects == 0 {
+    let mut budget = ArchiveInspectionBudget::new(*limits);
+    inspect_archive_with_budget(archive, &mut budget)
+}
+
+/// Inspect one directory archive while charging a caller-owned cumulative
+/// budget.
+///
+/// This has the same validation and error behavior as
+/// [`inspect_archive_with_limits`], but it does not replenish the allowance
+/// between calls. Use it for a bounded listing or any other operation that may
+/// inspect multiple archives.
+pub fn inspect_archive_with_budget(
+    archive: &Path,
+    budget: &mut ArchiveInspectionBudget,
+) -> Result<ArchiveInspection> {
+    if budget.max_objects == 0 {
         return Err(resource_limit(
             "archive inspection max_objects must be greater than zero",
         ));
     }
-    if limits.max_object_bytes == 0 {
+    if budget.max_object_bytes == 0 {
         return Err(resource_limit(
             "archive inspection max_object_bytes must be greater than zero",
         ));
     }
     let (manifest, manifest_checksum) = read_verified_manifest(archive)?;
-    if manifest.objects.len() > limits.max_objects {
+    if manifest.objects.len() > budget.remaining_objects {
         return Err(resource_limit(format!(
-            "archive inspection object count exceeds max_objects {}",
-            limits.max_objects
+            "archive inspection object count exceeds remaining operation budget {}",
+            budget.remaining_objects
         )));
     }
     let mut total_object_bytes = 0_u64;
@@ -1413,12 +1489,9 @@ pub fn inspect_archive_with_limits(
         total_object_bytes = total_object_bytes
             .checked_add(object.byte_length)
             .ok_or_else(|| resource_limit("archive inspection object byte total overflowed u64"))?;
-        if total_object_bytes > limits.max_object_bytes {
-            return Err(resource_limit(format!(
-                "archive inspection object bytes exceed max_object_bytes {}",
-                limits.max_object_bytes
-            )));
-        }
+    }
+    budget.reserve(manifest.objects.len(), total_object_bytes)?;
+    for object in &manifest.objects {
         let object_path = archive.join(&object.path);
         // `open_regular_limited` performs the same symlink/non-regular-file
         // rejection `restore_from` relies on, so inspection cannot report
@@ -2013,6 +2086,68 @@ mod archive_tests {
         assert_eq!(error.code(), "resource_limit");
 
         cleanup_fixture(&repository_path, &archive_path);
+    }
+
+    #[test]
+    fn inspection_budget_is_cumulative_across_archives() {
+        let (first_repository, first_archive, _) = exported_archive_fixture("inspect-budget-first");
+        let (second_repository, second_archive, _) =
+            exported_archive_fixture("inspect-budget-second");
+        let mut budget = ArchiveInspectionBudget::new(ArchiveInspectionLimits {
+            max_objects: 1,
+            max_object_bytes: DEFAULT_MAX_ARCHIVE_OBJECT_BYTES,
+        });
+
+        inspect_archive_with_budget(&first_archive, &mut budget).unwrap();
+        assert_eq!(budget.remaining_objects(), 0);
+        let error = inspect_archive_with_budget(&second_archive, &mut budget).unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+
+        cleanup_fixture(&first_repository, &first_archive);
+        cleanup_fixture(&second_repository, &second_archive);
+    }
+
+    #[test]
+    fn exhausted_inspection_budget_still_admits_an_empty_archive() {
+        let (full_repository, full_archive, _) = exported_archive_fixture("inspect-budget-full");
+        let empty_repository = unique_test_path("inspect-budget-empty-repository");
+        let empty_archive = unique_test_path("inspect-budget-empty-archive");
+        let mut empty = Repository::open(&empty_repository).unwrap();
+        empty.export_archive(&empty_archive).unwrap();
+        let mut budget = ArchiveInspectionBudget::new(ArchiveInspectionLimits {
+            max_objects: 1,
+            max_object_bytes: b"inspected archive fixture blob".len() as u64,
+        });
+
+        inspect_archive_with_budget(&full_archive, &mut budget).unwrap();
+        assert_eq!(budget.remaining_objects(), 0);
+        assert_eq!(budget.remaining_object_bytes(), 0);
+        inspect_archive_with_budget(&empty_archive, &mut budget).unwrap();
+
+        cleanup_fixture(&full_repository, &full_archive);
+        cleanup_fixture(&empty_repository, &empty_archive);
+    }
+
+    #[test]
+    fn inspection_budget_keeps_a_late_invalid_archive_reservation() {
+        let (invalid_repository, invalid_archive, _) =
+            exported_archive_fixture("inspect-budget-invalid");
+        let (valid_repository, valid_archive, _) =
+            exported_archive_fixture("inspect-budget-after-invalid");
+        fs::remove_file(invalid_archive.join("objects/00000000")).unwrap();
+        let mut budget = ArchiveInspectionBudget::new(ArchiveInspectionLimits {
+            max_objects: 1,
+            max_object_bytes: DEFAULT_MAX_ARCHIVE_OBJECT_BYTES,
+        });
+
+        let invalid_error = inspect_archive_with_budget(&invalid_archive, &mut budget).unwrap_err();
+        assert_eq!(invalid_error.code(), "archive_invalid");
+        assert_eq!(budget.remaining_objects(), 0);
+        let limited_error = inspect_archive_with_budget(&valid_archive, &mut budget).unwrap_err();
+        assert_eq!(limited_error.code(), "resource_limit");
+
+        cleanup_fixture(&invalid_repository, &invalid_archive);
+        cleanup_fixture(&valid_repository, &valid_archive);
     }
 
     #[test]

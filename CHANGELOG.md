@@ -6,6 +6,15 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+### Changed
+
+- localhost archive listing now shares one cumulative 100,000-object / 1 TiB
+  manifest-declared-byte inspection budget across all candidate archives in a
+  request. Exceeding either ceiling fails the request closed with the existing
+  `resource_limit` code; a late-invalid archive retains its reserved inventory
+  so repeated failures cannot reuse the same allowance. Archive format, OIDs,
+  and the successful response schema are unchanged.
+
 ## [0.6.0] - 2026-08-18
 
 ### Added
