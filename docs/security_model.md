@@ -5,7 +5,7 @@
 
 Status: **Stage 0 draft**<br>
 Implemented scope: local object / Ref / archive integrity path, process-local authenticated Creative AI and narrow Human Decision routes, Core admissions, provider-neutral bounded regular-file mapping/checkout and sequential generic Proposal/Decision workflow, host-authenticated artifact approval, checked Human review re-registration from a trusted durable binding, separate SQLite artifact review intents/outcomes with explicit restart reconciliation, disposable SQLite projection libraries, read-only creator and generic-artifact local publication bundles, and the single-user IPv4-loopback image application with bounded three-file import、same-process Human review、read-only incomplete diagnostics、bounded background `fsck`、bounded read-only archive listing<br>
-Planned scope: localhost archive export／restore, remote publication adapters, and a production application boundary<br>
+Planned scope: localhost archive export UI／restore, remote publication adapters, and a production application boundary<br>
 Production target: GCP primary / AWS portability architecture is specified; cloud implementation is not started<br>
 Out of current implementation scope: concrete HTTP/JWT identity、durable/distributed authorization state、OS sandbox/egress、production tenant isolation
 
@@ -23,7 +23,7 @@ Out of current implementation scope: concrete HTTP/JWT identity、durable/distri
 | `synapse-artifact` mapper / sequential workflow / approval / checkout / generic contract v1 | bounded regular-file manifestをdeterministic Treeへ写像し、exact Decision headごとのfresh Proposal、one active review、verified accepted base、3 dispositionをApplication／Coreへ通す。host approvalをactor/session・ACL epoch・exact intentへ束縛し、one Ref snapshotからprotected authority／selected site／digestをbounded検証する | host path収集の安全性、identity provider自体、model実行証明、HTTP／CLI／UI、durable ACL／multi-process ordering、production deployment、tagged distribution |
 | `synapse-artifact-journal` + durable artifact orchestration | Proposal／Decision CAS前intent、verified publication後のopaque `ReviewId`、exact outcomeをseparate SQLiteへ保存し、fresh auth／ACL後にtrusted config・immutable graph・live Ref／reflog・checkoutでrestart crash windowをreconcileする | portable credential／approval／permit、Core+journal atomic transaction、durable identity／ACL、multi-process linearizability、raw idempotency key／rationaleの保存、automatic background resume |
 | `synapse-creator` Pilot / report | fixed local stateからCore-validなbase、AI proposal、Human Decisionを作り、取得した一つのRef snapshotに対するcurrent lineageとtimelineを監査表示する | OS userや`--creator`の本人性、caller-supplied fileのAI生成、Application routeを実際に通ったこと、cross-Ref transaction、reportをauthorization sourceとして使うこと |
-| current localhost application | exact startup catalog、safe facade、loopback／Host／Origin／browser-token boundaryを通し、read model、boundedな三file import／same-process Human review、read-only diagnostics、server-fixed bounded `fsck`、server-owned archive rootのbounded read-only archive listing（manifest checksum・構造・per-object存在／長さのみ検証、object contentは未読）を公開する | OS-user authentication、AI outputのmodel生成証明、restartを越えるreview／job authority、archive export／restore UI、same-user process isolation、public／multi-user service、malicious media sandbox |
+| current localhost application | exact startup catalog、safe facade、loopback／Host／Origin／browser-token boundaryを通し、read model、boundedな三file import／same-process Human review、read-only diagnostics、server-fixed bounded `fsck`、server-owned archive rootのbounded read-only archive listing（manifest checksum・構造・per-object存在／長さのみ検証、object contentは未読）、exact project確認と論理slugに限定したbounded atomic no-replace archive export APIを公開する | OS-user authentication、AI outputのmodel生成証明、restartを越えるreview／job authority、archive export UI／archive restore、same-user process isolation、public／multi-user service、malicious media sandbox |
 | planned cloud service | tenant-scoped immutable CAS、PostgreSQL Ref/reflog transaction、durable command、OIDC、single-writer regional DRをGCP主系／AWS移植profileで要求する設計 | 現時点ではruntime保証なし。cloud adapter、public API、tenant isolation、durable admission、deploymentは未実装 |
 | `SqliteProjectionStore` | supplied Ref snapshotのcurrent closure、derived query row、Analysis lineage／prerequisite availability、missing診断とtombstoned availability／count、source fingerprint | authorization、ACL／tenant isolation、exact replay、最新Refとの自動同期、objectの正本性、archive／recovery completeness |
 | `synapse-publication` / `synapse-present` | creator historyではstable private Ref copyから、generic artifactではbounded Decision checkoutから、private rationale／internal authority／path／raw assetを除外したversioned deterministic local bundleとchecksumを生成・検証する | 作者性、真実、権利、公開許可の自動判定、OIDの非機密性、Git provenance、remote publication、training-use policyの技術的強制 |
@@ -203,8 +203,8 @@ flowchart LR
 | generated or verified publication file | 16 MiB |
 | publication directory entries | 16 per directory |
 
-現在の CLI からこれらを変更できない。creator input、二つのfsck profile、archive listing profileは
-localhost transport inputから変更できないserver-fixed ceilingである。maintenance／archive listing profileは
+現在の CLI からこれらを変更できない。creator input、二つのfsck profile、archive listing／export profileは
+localhost transport inputから変更できないserver-fixed ceilingである。maintenance／archive listing／export profileは
 現Core defaultと同値をservice境界へcopyし、Core defaultの将来変更でHTTP workが暗黙に拡大しないようにする。
 library caller は`FsckLimits`で別のbounded
 profileを構成できるが、互換用`Repository::fsck`はunbounded inventoryを維持するためHTTPから使用しない。

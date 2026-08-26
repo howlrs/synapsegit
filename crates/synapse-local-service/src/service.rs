@@ -8,8 +8,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use synapse_core::{
-    ArchiveInspectionBudget, ArchiveInspectionLimits, ArchiveInspectionState, FsckLimits,
-    Repository, RepositoryError, TombstoneScanLimits, inspect_archive_with_budget,
+    ArchiveExportLimits, ArchiveInspectionBudget, ArchiveInspectionLimits, ArchiveInspectionState,
+    FsckLimits, Repository, RepositoryError, TombstoneScanLimits, inspect_archive_with_budget,
 };
 use synapse_creator::{
     CREATOR_RESERVED_PENDING_DECISIONS, CreatorBeginOptions,
@@ -22,8 +22,8 @@ use synapse_creator::{
     creator_report_from_snapshot, decide_creator_session as core_decide, discover_creator_sessions,
 };
 use synapse_sqlite::{
-    MAX_REF_SNAPSHOT_ENTRIES, MAX_REFLOG_PAGE_ENTRIES, RefSnapshot, RefStoreError,
-    ReflogEntry as CoreReflogEntry,
+    MAX_REF_SNAPSHOT_ENTRIES, MAX_REFLOG_PAGE_ENTRIES, RefArchiveExportLimits, RefSnapshot,
+    RefStoreError, ReflogEntry as CoreReflogEntry,
 };
 
 use crate::CatalogError;
@@ -50,6 +50,26 @@ pub const MAINTENANCE_FSCK_LIMITS: FsckLimits = FsckLimits {
     tombstone_scan: TombstoneScanLimits {
         max_record_objects: 100_000,
         max_record_bytes: 1024 * 1024 * 1024,
+    },
+};
+/// Server-fixed work ceiling for one HTTP-facing archive export.
+///
+/// These values intentionally mirror the current Core local profile without
+/// calling `ArchiveExportLimits::default()`, so a future Core default change
+/// cannot silently expand work admitted by the localhost transport.
+pub const MAINTENANCE_ARCHIVE_EXPORT_LIMITS: ArchiveExportLimits = ArchiveExportLimits {
+    max_objects: 100_000,
+    max_object_bytes: 1024 * 1024 * 1024 * 1024,
+    max_head_validation_nodes: 1_000_000,
+    max_head_validation_edges: 10_000_000,
+    tombstone_scan: TombstoneScanLimits {
+        max_record_objects: 100_000,
+        max_record_bytes: 1024 * 1024 * 1024,
+    },
+    ref_archive: RefArchiveExportLimits {
+        max_refs: 100_000,
+        max_reflog_entries: 100_000,
+        max_text_bytes: 64 * 1024 * 1024,
     },
 };
 const _: () = assert!(
@@ -392,7 +412,11 @@ impl LocalService {
 
     pub fn list_projects(&self) -> ProjectList {
         ProjectList {
-            projects: self.catalog.values().map(project_summary).collect(),
+            projects: self
+                .catalog
+                .values()
+                .map(|entry| project_summary(entry, self.archive_root.is_some()))
+                .collect(),
         }
     }
 
@@ -414,7 +438,7 @@ impl LocalService {
             }
         }
         Ok(ProjectStatus {
-            project: project_summary(entry),
+            project: project_summary(entry, self.archive_root.is_some()),
             snapshot: snapshot_context(&snapshot, None),
             creator_session_counts: counts,
             projection_state: ProjectionState::NotBuilt,
@@ -463,6 +487,86 @@ impl LocalService {
         };
         lock_last_fsck(&self.last_fsck).insert(project_key.to_owned(), result.clone());
         Ok(result)
+    }
+
+    /// Validate an archive export request before a transport reserves a job.
+    ///
+    /// The request supplies only a logical slug and an exact project
+    /// confirmation. The destination remains rooted in server configuration,
+    /// and existence is checked again by Core's no-replace publication when
+    /// the blocking worker runs.
+    pub fn validate_archive_export_request(
+        &self,
+        project_key: &str,
+        request: &ArchiveExportRequest,
+    ) -> Result<(), ServiceError> {
+        self.entry(project_key)?;
+        if request.confirm_project_key != project_key {
+            return Err(ServiceError::new(
+                "local_request_denied",
+                "The project confirmation did not exactly match the requested project.",
+                false,
+            ));
+        }
+        if !is_slug(&request.archive_name) {
+            return Err(ServiceError::new(
+                "local_request_denied",
+                "The archive name must match [a-z][a-z0-9-]{0,63}.",
+                false,
+            ));
+        }
+        let archive_root = self.archive_root.as_ref().ok_or_else(|| {
+            ServiceError::new(
+                "service_unavailable",
+                "Archive export is unavailable because no archive root is configured.",
+                false,
+            )
+        })?;
+        let destination = archive_root.join(&request.archive_name);
+        match fs::symlink_metadata(&destination) {
+            Ok(_) => Err(ServiceError::new(
+                "archive_invalid",
+                "The requested archive name already exists.",
+                false,
+            )),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+            Err(error) => Err(ServiceError::new(
+                "storage_error",
+                "The archive destination could not be inspected.",
+                true,
+            )
+            .with_diagnostic(error.to_string())),
+        }
+    }
+
+    /// Run one bounded, synchronous no-replace archive export for a blocking
+    /// worker. Creator publication and other project writers are excluded for
+    /// the complete Ref snapshot and archive publication window.
+    pub fn run_archive_export(
+        &self,
+        project_key: &str,
+        archive_name: &str,
+    ) -> Result<ArchiveResult, ServiceError> {
+        let request = ArchiveExportRequest {
+            archive_name: archive_name.to_owned(),
+            confirm_project_key: project_key.to_owned(),
+        };
+        self.validate_archive_export_request(project_key, &request)?;
+        let archive_root = self
+            .archive_root
+            .as_ref()
+            .expect("archive root was validated above");
+        let destination = archive_root.join(archive_name);
+        let _writer = self.acquire_project_writer(project_key)?;
+        let mut repository = self.open_repository(project_key)?;
+        repository
+            .export_archive_with_limits(&destination, MAINTENANCE_ARCHIVE_EXPORT_LIMITS)
+            .map_err(archive_export_error)?;
+        Ok(ArchiveResult {
+            archive_name: archive_name.to_owned(),
+            result_kind: ArchiveResultKind::Exported,
+            report_equivalence_required: false,
+        })
     }
 
     /// List server-owned archive-root entries with their bounded inspection
@@ -1676,6 +1780,33 @@ fn maintenance_fsck_error(error: RepositoryError) -> ServiceError {
     service_error.with_diagnostic(diagnostic)
 }
 
+fn archive_export_error(error: RepositoryError) -> ServiceError {
+    let diagnostic = error.to_string();
+    let service_error = match error {
+        RepositoryError::ArchiveDestinationExists(_) => ServiceError::new(
+            "archive_invalid",
+            "The requested archive name already exists.",
+            false,
+        ),
+        error if error.code() == "resource_limit" => ServiceError::new(
+            "resource_limit",
+            "The archive export exceeded the server resource limit.",
+            false,
+        ),
+        error if error.code() == "storage_error" => ServiceError::new(
+            "storage_error",
+            "The archive export could not access local storage.",
+            true,
+        ),
+        _ => ServiceError::new(
+            "archive_invalid",
+            "The local project could not be exported as a valid archive.",
+            false,
+        ),
+    };
+    service_error.with_diagnostic(diagnostic)
+}
+
 pub fn snapshot_watermark(snapshot: &RefSnapshot) -> String {
     let mut hasher = Sha256::new();
     hash_field(&mut hasher, b"synapse-local-ref-snapshot-v1");
@@ -1707,12 +1838,14 @@ pub fn classify_image_media_type(bytes: &[u8]) -> ImageMediaType {
     }
 }
 
-fn project_summary(entry: &CatalogEntry) -> ProjectSummary {
+fn project_summary(entry: &CatalogEntry, archive_export: bool) -> ProjectSummary {
+    let mut capabilities = ProjectCapabilities::creator_workflow();
+    capabilities.archive_export = archive_export;
     ProjectSummary {
         project_key: entry.project_key.clone(),
         display_label: entry.display_label.clone(),
         state: ProjectState::Ready,
-        capabilities: ProjectCapabilities::creator_workflow(),
+        capabilities,
     }
 }
 
@@ -2027,6 +2160,7 @@ fn problem_title(code: &str) -> &'static str {
         "creator_review_state_lost" => "Creator review state lost",
         "creator_outcome_unknown" => "Creator outcome unknown",
         "fsck_failed" => "Integrity check failed",
+        "archive_invalid" => "Archive invalid",
         "resource_limit" => "Resource limit exceeded",
         "usage_error" => "Invalid creator request",
         "local_request_denied" => "Local request denied",

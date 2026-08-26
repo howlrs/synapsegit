@@ -3,7 +3,7 @@
 Audience: preview evaluators、contributors、maintainers
 Status: public project snapshot
 Applies to: current main and tagged v0.6.0
-Last verified: 2026-08-18
+Last verified: 2026-08-26
 
 SynapseGit Coreは**Stage 0 draft**である。v0.6.0は、v0.3.0で配布したlocal repository、bounded
 creator Pilot、localhost import／review／diagnostics／`fsck`、read-only publication bundleの三binary
@@ -32,6 +32,8 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 - boundedな三file importとsame-process Human reviewを行うlocalhost creator UI
 - current creator Ref／headと推奨actionを表示するread-only incomplete-session diagnostics
 - exact project確認、server-fixed limit、process-local job pollingを持つlocalhost `fsck` UI
+- exact project確認と論理archive slugだけを受け、server-owned archive rootへCoreのbounded
+  atomic no-replace publicationを行うlocalhost archive export API
 - process-local authenticated AI routeとnarrow Human Decision library boundary
 - bounded regular-file manifestをRef更新なしでdeterministicなnested ManifestTreeへ変換する
   `synapse-artifact` mapperと固定`generic-artifact` v1 application contract
@@ -91,7 +93,7 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 - capture client、repeatable／calibrated capture workflow
 - pixel registration、visual difference、physical change interpretation
 - model／connector invocationとpre-execution OS sandbox／egress control
-- localhostのarchive export・restore API／UI（listは実装済み）
+- localhostのarchive export UIとarchive restore API／UI（listとexport APIは実装済み）
 - durable generic Rust boundaryのHTTP／Creator／localhost UI統合、automatic worker resume／cleanup、継続session編集
 - HTTP/JWT／MFA、durable/distributed ACL・permit・publication fence
 - organization／quorum／release approval、modified／partial adoption
@@ -129,8 +131,8 @@ production／distribution／brand制限も変更しない。
 
 1. 分離済みの[publication comprehension corpus](./evaluation/publication-comprehension/v1/)で、
    zero-context AI、実Human、axe／keyboard／screen reader理解・accessibility評価を実施する。
-2. 実装済みlocalhost import／review／diagnostics／bounded `fsck`／bounded archive listingを、archive
-   export／restoreへ拡張する。
+2. 実装済みlocalhost import／review／diagnostics／bounded `fsck`／bounded archive listing／archive
+   export APIを、export UIとempty-target restoreへ拡張する。
 3. fixed-point Observation datasetとpixel-level adapterを別contractとして検証する。
 4. durable admission transactionを含むproduction control planeを実装する。
 5. 追加platformの再現可能なbuild／artifact smokeを整備する。

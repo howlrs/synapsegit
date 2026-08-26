@@ -6,6 +6,16 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+### Added
+
+- localhost archive export API: authenticated `POST
+  /api/v1/projects/{projectKey}/archive-exports` accepts only a server-rooted
+  logical slug plus exact project confirmation, reserves a process-local
+  maintenance job, and publishes through Core's bounded atomic no-replace
+  directory export. The project capability is enabled only when
+  `--archive-root` is configured; restore and archive browser controls remain
+  unimplemented.
+
 ### Changed
 
 - localhost archive listing now shares one cumulative 100,000-object / 1 TiB

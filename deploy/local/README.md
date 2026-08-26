@@ -45,8 +45,13 @@ The tagged v0.6.0 UI adds a bounded, read-only archive listing view
 (`GET /archives` plus a dashboard section) behind an optional
 `--archive-root PATH` startup flag; the path must already exist and be a
 directory. Without `--archive-root`, the UI behaves as before and does not
-provide archive listing. Archive export/restore remain CLI/library-only in
-every case.
+provide archive listing. A current `main` source build also enables
+authenticated `POST /api/v1/projects/{projectKey}/archive-exports` when this
+root is configured. The request accepts only an exact project confirmation and
+a logical archive slug; the server uses its fixed Core-equivalent limits and
+atomic no-replace publication. There is no export browser control yet, and the
+tagged v0.6.0 binary remains CLI/library-only for export. Restore remains
+CLI/library-only in every case.
 The dedicated diagnostics route and server-rendered view are read-only: displayed
 Ref/head values are never accepted back as review authority and history is not
 rewritten. The tagged v0.6.0 project page also runs read-only `fsck` only after
@@ -61,6 +66,12 @@ and 100,000 Records / 1 GiB for Tombstone discovery. The process retains at most
 capacity; unknown, evicted, or post-restart IDs return `operation_state_lost`.
 A browser disconnect does not cancel or retry the job, and `last_fsck` is also
 process-local.
+
+Archive export uses the same fixed Ref, object, byte, closure, and Tombstone
+ceilings, plus at most 100,000 reflog entries and 64 MiB of Ref/reflog variable
+text. It returns the shared process-local operation poll path. A failed or lost
+job is never retried automatically; inspect the archive listing before choosing
+a new logical name.
 
 The tagged v0.6.0 binary includes the diagnostics and browser `fsck` additions
 (introduced in v0.3.0 and unchanged since) alongside three-file import/same-process
@@ -133,6 +144,10 @@ with an empty listing. Without `--archive-root`, archive listing always
 returns an empty list — this is the same as a configured-but-empty root, so
 the response alone cannot distinguish "not configured" from "configured but
 empty".
+
+On current `main`, the same option also enables the archive export API and sets
+`archive_export=true` in each project capability response. Without it, export
+requests fail before job reservation with `service_unavailable`.
 
 ```bash
 mkdir -p "$HOME/SynapseGit/archives"

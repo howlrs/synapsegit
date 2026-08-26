@@ -19,9 +19,12 @@ profile, and retains the latest clean or dirty aggregate result in process-local
 bounded read-only listing of the root's direct entries with an operation-wide
 object-count/declared-byte budget shared by every manifest-level inspection
 (`valid`/`invalid`/`staging_or_unknown`); it is configured-empty by default and
-never accepts a caller-supplied path. Archive
-export, restore, restart-durable review, and automatic incomplete-session
-recovery are not implemented here. The diagnostics and maintenance `fsck`
+never accepts a caller-supplied path. With that root configured, the service
+also validates exact project confirmation and a logical archive slug, then
+runs Core's server-fixed bounded atomic no-replace export for the maintenance
+job transport. Archive restore, browser archive controls, restart-durable
+review, and automatic incomplete-session recovery are not implemented here.
+The diagnostics and maintenance `fsck`
 additions were introduced in v0.3.0 and remain unchanged in the tagged v0.6.0
 binary. Archive listing was added on `main` after v0.5.1 and is included in
 the tagged v0.6.0 binary. The generic-artifact workflow in the tagged v0.6.0

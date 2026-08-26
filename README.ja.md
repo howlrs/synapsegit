@@ -153,7 +153,8 @@ synapse-local \
 processが表示した正確な`http://127.0.0.1:...`を開きます。上記でinstallしたv0.6.0のUIでは、
 boundedな三file import、same-process Human review、creator Ref／headと安全な推奨actionを示す
 read-only diagnostics、project keyの明示確認を必要とするserver-boundedなbackground `fsck`を
-利用できます。export／restoreは引き続きCLIのみです。diagnosticsとmaintenanceはsessionの
+利用できます。current `main`では確認付きbounded no-replace archive export APIも利用できますが、
+export UIとrestore API／UIは未実装です。diagnosticsとmaintenanceはsessionの
 resume、cleanup、history書換えを行いません。
 [local application runbook](./deploy/local/README.md)、[install guide](./docs/install.md)、
 [source Quickstart](./docs/quickstart.md)を参照してください。
@@ -165,7 +166,7 @@ resume、cleanup、history書換えを行いません。
 | `adopt`、`reject`、`defer`を含む3-file creator Pilot | boundedなlocal CLI flowとして実装済み |
 | 人／AI帰属provenanceと比較情報を含むreport | 実装済み。AI outputはcaller-supplied |
 | original／current比較 | primary Blobのbyte identityのみ。comparabilityは常にpartial |
-| local browser UI | read表示、boundedな三file import／same-process `adopt`・`reject`・`defer`、read-only incomplete-session diagnostics、確認付きbackground `fsck`を実装済み。tagged v0.6.0では任意の`--archive-root`起動flag指定時のみ、boundedなread-only archive listing表示（`GET /archives`）を追加。archive export／restoreはCLIのみ |
+| local browser UI | read表示、boundedな三file import／same-process `adopt`・`reject`・`defer`、read-only incomplete-session diagnostics、確認付きbackground `fsck`を実装済み。tagged v0.6.0では任意の`--archive-root`起動flag指定時のみ、boundedなread-only archive listing表示（`GET /archives`）を追加。current `main`は確認付きbounded no-replace archive export APIも実装済み。export UIとrestore API／UIは未実装 |
 | generic regular-file artifact building block | tagged v0.6.0のsource／workspace libraryにbounded deterministic mapper／checkout、sequential Proposal／Decision、host-authenticated one-shot approval、SQLite journal統合済みrestart／reconciliation境界、固定v1 public-safe contract、別local public projectionを収録。配布する3 binaryはこれらをHTTP、CLI、browser UIから提供せず、model invocation、multi-process control plane、production serviceも提供しない |
 | content-addressed object、typed closure、Ref CAS、reflog | 実装済み、repository test対象 |
 | `fsck`、checksum付きdirectory export、verified restore | local repository formatで実装済み |

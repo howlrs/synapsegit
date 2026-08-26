@@ -33,6 +33,7 @@ impl HttpFailure {
             | "ref_conflict"
             | "stale_base" => StatusCode::CONFLICT,
             "creator_report_invalid" | "fsck_failed" => StatusCode::UNPROCESSABLE_ENTITY,
+            "archive_invalid" => StatusCode::CONFLICT,
             "service_unavailable" | "storage_error" => StatusCode::SERVICE_UNAVAILABLE,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
