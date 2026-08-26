@@ -7,7 +7,7 @@ deployment, or a Docker workload.
 
 ## Current implementation boundary
 
-The tagged v0.6.0 implementation provides:
+The tagged v0.7.0 implementation provides:
 
 - a startup-owned catalog of local repositories;
 - project status, current Refs, and bounded reflog pages;
@@ -26,8 +26,8 @@ The tagged v0.6.0 implementation provides:
 
 The import, review, diagnostics, and browser `fsck` slices were introduced as
 the v0.3.0 localhost milestone and remain the same image-specific application
-surface in the tagged v0.6.0 binary. The generic-artifact workflow included in
-the v0.6.0 tagged source is not connected to this service or UI. The release archive remains
+surface in the tagged v0.7.0 binary. The generic-artifact workflow included in
+the v0.7.0 tagged source is not connected to this service or UI. The release archive remains
 `synapse`, `synapse-local`, and `synapse-present`; it adds no generic-artifact
 HTTP/CLI/UI, new binary, or remote publish path.
 
@@ -41,11 +41,11 @@ Creator begin and decision mutations are serialized per catalog project inside
 that process. Do not run another service instance, the CLI, or a direct
 Repository writer against the same repository while this service owns it.
 
-The tagged v0.6.0 UI adds a bounded, read-only archive listing view
+The tagged v0.6.0 UI added a bounded, read-only archive listing view
 (`GET /archives` plus a dashboard section) behind an optional
 `--archive-root PATH` startup flag; the path must already exist and be a
 directory. Without `--archive-root`, the UI behaves as before and does not
-provide archive listing. A current `main` source build also enables
+provide archive listing. The tagged v0.7.0 binary also enables
 authenticated `POST /api/v1/projects/{projectKey}/archive-exports` when this
 root is configured. The request accepts only an exact project confirmation and
 a logical archive slug; the server uses its fixed Core-equivalent limits and
@@ -53,11 +53,11 @@ atomic no-replace publication. It also enables authenticated `POST
 /api/v1/projects/{projectKey}/archive-restores`, which requires the logical
 archive slug, exact target-project confirmation, and explicit empty-target
 confirmation, then runs Core's server-fixed bounded exact-subset restore. There
-are no export or restore browser controls yet, and the tagged v0.6.0 binary
+are no export or restore browser controls yet, and the tagged v0.7.0 binary
 remains CLI/library-only for both operations.
 The dedicated diagnostics route and server-rendered view are read-only: displayed
 Ref/head values are never accepted back as review authority and history is not
-rewritten. The tagged v0.6.0 project page also runs read-only `fsck` only after
+rewritten. The tagged v0.7.0 project page also runs read-only `fsck` only after
 the user types the exact project key. It returns `202 Accepted`, polls a random
 process-local operation ID, and displays clean/dirty aggregate counts. A dirty
 repository is a completed result with `clean=false`, not a failed job.
@@ -98,13 +98,14 @@ diagnostics views remain available without it.
 
 ## Build and start
 
-Linux x86_64では、[`v0.6.0` preview release](../../docs/releases/v0.6.0.md)に
+Linux x86_64では、[`v0.7.0` preview release](../../docs/releases/v0.7.0.md)に
 `synapse-local`を含む検証済みbinary archiveがある。downloadとchecksum検証は
 [Installation guide](../../docs/install.md#install-the-linux-x86-64-release)を参照する。その他のplatformでは、
-下記のsource buildを使用する。v0.6.0の配布済みbinaryには、三file import／same-process
+下記のsource buildを使用する。v0.7.0の配布済みbinaryには、三file import／same-process
 Human reviewに加え、dedicated read-only diagnostics、bounded browser `fsck`
 （いずれもv0.3.0で導入し、v0.6.0でも変更なし）、任意の`--archive-root`起動flag指定時のみ
-有効なbounded read-only archive listing（v0.6.0で追加）が含まれる。
+有効なbounded read-only archive listing（v0.6.0で追加）、および認証付きbounded archive
+export／empty-target restore API（v0.7.0で追加）が含まれる。
 
 Use a Rust toolchain compatible with the workspace MSRV, then run these
 commands from the repository root:
@@ -157,9 +158,10 @@ returns an empty list — this is the same as a configured-but-empty root, so
 the response alone cannot distinguish "not configured" from "configured but
 empty".
 
-On current `main`, the same option also enables the archive export API and sets
-`archive_export=true` in each project capability response. Without it, export
-requests fail before job reservation with `service_unavailable`.
+On the tagged v0.7.0 binary, the same option also enables the archive export
+and empty-target restore APIs and sets `archive_export=true` and
+`archive_restore=true` in each project capability response. Without it, export
+and restore requests fail before job reservation with `service_unavailable`.
 
 ```bash
 mkdir -p "$HOME/SynapseGit/archives"
