@@ -10,7 +10,7 @@ process-localなauthenticated one-shot AI execution routeとadmitted-proposal-bo
 narrow `decision/*` admissionはRust library境界まで実装されている。
 verified ObjectStoreとcaller-supplied Ref snapshotから作るdisposable SQLite query projectionも
 Rust library境界まで実装されている。
-tagged v0.6.0 sourceには、bounded regular-file manifestをportable NFC pathとして検証し、Refを更新せず
+tagged v0.7.0 sourceには、bounded regular-file manifestをportable NFC pathとして検証し、Refを更新せず
 deterministicなnested ManifestTreeへ変換する`synapse-artifact`と、固定された
 [`synapsegit.generic-artifact` v1 application contract](../spec/application/generic-artifact/v1/README.md)がある。
 同crateのtrusted workflowはprofile-owned repositoryをbootstrapし、Application／Coreを通したProposalと
@@ -23,7 +23,7 @@ bounded state／outcomeとして保持できる。explicit durable orchestration
 fresh authentication／ACLとtrusted `DurableProposalBinding`からimmutable graph、current Ref／reflogを確認して
 ordinary Human authorityを作り直し、final publicationを`HumanDecisionRuntime`へ、terminal outcomeをbounded
 checkoutへ渡す。これらはHTTP／CLI／browser UI、model invocation、durable identity／ACL、multi-process
-authority、production serviceを提供しないsource-level application building blockである。v0.6.0のrelease
+authority、production serviceを提供しないsource-level application building blockである。v0.7.0のrelease
 archiveは`synapse`、`synapse-local`、`synapse-present`の三binaryだけで、generic-artifact用の新binaryや
 既存binary上のtransport surfaceはない。
 またv1はcaller-supplied AI attribution／execution未検証だけを扱い、verified execution modeを持たない。
@@ -32,8 +32,8 @@ v0.3.0で導入されv0.4.0 archiveにも収録される`synapse-publication`／
 作者外の人とAI向けにcanonical `projection.json`、Markdown、JavaScriptなしHTML、manifest、checksum、Synapse／GitHub target
 layoutを最大100 creator sessionsからlocal生成する。source SQLiteを直接openしない。private rationale、
 internal Actor ID、repository path、raw assetは除外し、raw asset rendering、upload、network accessは行わない。
-このbinaryはv0.6.0 archiveに含まれる。
-tagged v0.6.0 sourceにはこれと分離した
+このbinaryはv0.7.0 archiveに含まれる。
+tagged v0.7.0 sourceにはこれと分離した
 [`generic-artifact-publication` v1 profile](../spec/application/generic-artifact-publication/v1/README.md)もある。
 complete outcomeは上記bounded checkoutからだけ構築し、pending／incomplete表示はtrustedなpublic-safe factsに
 限定する。detached canonical JSON、escaped Markdown、script-free HTML、manifest／checksum、local
@@ -46,7 +46,7 @@ report／timeline／evidence／画像を閲覧でき、boundedな三file import�
 明示確認を伴うbackground `fsck`を実行できる。incomplete sessionではcurrent creator Ref／headと推奨actionを
 表示するが、resume、cleanup、history書換えは行わない。archive listはbounded read-only API／UI（`GET /archives`、
 `--archive-root`起動flag指定時のみ有効）としてtagged v0.6.0 binaryに含まれる。
-current `main`はarchive export APIとempty-target restore APIまで実装済みである。両操作のUIは未実装である。
+tagged v0.7.0はarchive export APIとempty-target restore APIまで実装済みである。両操作のUIは未実装である。
 diagnosticsとbrowser `fsck`はv0.3.0でbinaryへ導入され、tagged v0.4.0 binaryにも含まれる。この
 application sliceはformal Core Stage 1ではなく、Core v0.1は引き続きStage 0 draftである。
 public multi-tenant serviceについては、Google Cloudを主系、AWSをportability profileとする
@@ -67,7 +67,7 @@ creator PilotのidentityとAI outputはtrusted local integrationが供給し、�
 |---|---|---|
 | 生成sample画像と実画面で最初のDecisionを記録する | [15分 壁画チュートリアル](./tutorial/README.ja.md) | [English tutorial](./tutorial/README.md) |
 | Releaseをinstallし3分で試す | [Installation](./install.md) | [root README](../README.md#try-it-in-three-minutes) |
-| v0.6.0の変更と配布境界を確認する | [Release notes](./releases/v0.6.0.md) | [Project status](./project_status.md) |
+| v0.7.0の変更と配布境界を確認する | [Release notes](./releases/v0.7.0.md) | [Project status](./project_status.md) |
 | sourceからCore全体を動かす | [Quickstart](./quickstart.md) | [使用ガイド](./usage_guide.md) |
 | native localhost UIを起動する | [Localhost application runbook](../deploy/local/README.md) | [Localhost application architecture](./localhost_application_architecture.md) |
 | 3画像のcreator Pilotを動かす | [使用ガイド](./usage_guide.md#現在このリポジトリで実行できること) | [CLI reference](./cli_reference.md) |
@@ -146,7 +146,7 @@ flowchart LR
 | local single-creator Pilot（3 opaque画像、imported CaptureProfile、byte-identity Analysis、AI／Human route、adopt／reject／defer、timeline／report） | 実装済み / production integration対象外 | `synapse-creator`、`synapse-cli creator-run`／`creator-report`、creator／CLI process tests |
 | provider-neutral PublicProjection／PublicationBundle（canonical JSON、Markdown、JavaScriptなしHTML、manifest、checksum、Synapse／GitHub local target） | v0.3.0で導入、v0.4.0にも収録 / remote publish対象外 | `synapse-publication`、`synapse-present export`／`preview`、publication integration tests、[CLI reference](./cli_reference.md#synapse-present-companion-cli) |
 | publication理解度評価コーパス（complete adopt／reject／deferとincomplete-onlyを分離、固定質問／oracle／privacy canary） | corpusと自動hard gateを実装済み / Human・AI・実accessibility評価は未実施 | [Publication comprehension corpus](./evaluation/publication-comprehension/v1/) |
-| single-user localhost image application（safe facade、loopback HTTP、server-rendered UI） | slices 1-4/6、slice 7のbounded fsck／job基盤、slice 8のread-only diagnostics部分を実装済み。bounded read-only archive listing（`--archive-root`起動flag指定時のみ有効）はtagged v0.6.0 binaryに含まれ、current `main`はexact confirmation付きbounded no-replace archive export APIとempty-target restore APIも実装する。両archive操作のUIは未実装 | [Localhost runbook](../deploy/local/README.md)、[Localhost application architecture](./localhost_application_architecture.md)、[OpenAPI contract](../api/local/v1/openapi.json) |
+| single-user localhost image application（safe facade、loopback HTTP、server-rendered UI） | slices 1-4/6、slice 7のbounded fsck／job基盤、slice 8のread-only diagnostics部分を実装済み。bounded read-only archive listing（`--archive-root`起動flag指定時のみ有効）はtagged v0.6.0 binaryに含まれ、tagged v0.7.0はexact confirmation付きbounded no-replace archive export APIとempty-target restore APIも実装する。両archive操作のUIは未実装 | [Localhost runbook](../deploy/local/README.md)、[Localhost application architecture](./localhost_application_architecture.md)、[OpenAPI contract](../api/local/v1/openapi.json) |
 | public multi-tenant cloud service（GCP主系、AWS portability profile） | production architecture完了、実装未着手 | [Cloud service architecture](./cloud_service_architecture.md) |
 | private non-production GCP CLI packaging smoke（one-shot Cloud Run Job） | OCI build／Terraform／digest-pinned実行を検証済み、public endpoint／永続化なし | [GCP CLI smoke deployment](../deploy/gcp/README.md) |
 | deterministic Observation byte-identity baseline（ordered primary Blob OID、`partial`／`byte_identity_only`） | 実装済み / 意味解析対象外 | `synapse-observation`、Observation integration tests |
@@ -154,16 +154,16 @@ flowchart LR
 | AI proposal admission、exact capability、snapshot/output binding、transaction-time expiry／`stale_base` | library境界を実装済み / integration partial | `synapse-core::CreativeAiRuntime`、[Stage 0 Workstream D](./stage0_execution_plan.md#workstream-d-creator--creative-ai-value-slice) |
 | authenticated one-shot AI execution、exact project map／ACL、Core preflight、post-execution reauthorization | process-local library境界を実装済み / production integration partial | `synapse-application`、[Operations §7.1](../spec/core/v0.1/operations.md#71-initial-local-authenticated-application-profile) |
 | authenticated narrow Human Decision、admitted proposal handle、server-fixed candidate、one-shot permit | process-local library境界を実装済み / production integration partial | `synapse-application`、[Operations §8.1](../spec/core/v0.1/operations.md#81-initial-process-local-authenticated-human-decision-route) |
-| generic regular-file mapper／sequential Proposal workflow／frozen public-safe v1 contract | tagged v0.6.0 sourceのlibrary／application contractとして実装済み。fresh attempt、one-active-review、accepted manifest再検証、host approvalを含む。HTTP／CLI／UI／新binaryは未実装 | `synapse-artifact`、[Generic artifact v1](../spec/application/generic-artifact/v1/README.md) |
+| generic regular-file mapper／sequential Proposal workflow／frozen public-safe v1 contract | tagged v0.7.0 sourceのlibrary／application contractとして実装済み。fresh attempt、one-active-review、accepted manifest再検証、host approvalを含む。HTTP／CLI／UI／新binaryは未実装 | `synapse-artifact`、[Generic artifact v1](../spec/application/generic-artifact/v1/README.md) |
 | durable Proposal binding recovery registration | trusted server bindingのcurrent Proposal／Decision Refをproject fence内で確認し、ordinary one-shot registrationを再作成。permit／handleの復元ではない | `synapse-application::DurableProposalBinding`／`register_recovered_human_decision` |
 | SQLite artifact review journal + explicit durable orchestration | Proposal／Decision CAS前intent、verified publication後のopaque `ReviewId`、bounded state／outcomeを永続化し、auth／ACL後にlive Ref／reflogとcheckoutでrestart crash windowをreconcile。journal row単体はauthority／Core receiptではない | `synapse-artifact-journal`、`synapse-artifact` durable API |
-| generic-artifact bounded checkout／local public projection | tagged v0.6.0 source libraryでone Ref snapshot、exact Decision lineage／protected controls／selected site／digestをbounded検証し、versioned canonical JSON／Markdown／script-free HTML／local Synapse・GitHub layoutを生成。HTTP／CLI／UI／新binary／remote publishではない | `synapse-artifact`、`synapse-publication`、[profile](../spec/application/generic-artifact-publication/v1/README.md)、[roadmap](./generic_artifact_publication_roadmap.md) |
+| generic-artifact bounded checkout／local public projection | tagged v0.7.0 source libraryでone Ref snapshot、exact Decision lineage／protected controls／selected site／digestをbounded検証し、versioned canonical JSON／Markdown／script-free HTML／local Synapse・GitHub layoutを生成。HTTP／CLI／UI／新binary／remote publishではない | `synapse-artifact`、`synapse-publication`、[profile](../spec/application/generic-artifact-publication/v1/README.md)、[roadmap](./generic_artifact_publication_roadmap.md) |
 | narrow Human Decision admission、duplicate rejection、atomic proposal + decision/base check | library境界を実装済み / integration partial | `synapse-core::HumanDecisionRuntime`、[Operations §8](../spec/core/v0.1/operations.md#8-human-decision-admission-boundary) |
 | SQLite ProjectionStore baseline（closure／timeline／Observation dependency／Analysis lineage） | library境界を実装済み | `synapse-projection::SqliteProjectionStore`、3 unit + 19 integration tests、[Runtime architecture](./runtime_architecture.md#sqlite-projectionstore-baseline) |
 | SurrealDB adapter / 8-query・benchmark比較 | 未実装 | [Runtime architecture](./runtime_architecture.md#surrealdb採用spike) |
 
 「実装済み」は、この repository の test で検証されている範囲を指す。production deployment、
-認証、network transport、運用監視まで完成したという意味ではない。tagged v0.6.0 source／workspace
+認証、network transport、運用監視まで完成したという意味ではない。tagged v0.7.0 source／workspace
 libraryと明記したrowは固定tagのsource／schemaに含まれることを示すが、release archiveの三binaryから
 利用できることやtransport contract test完了を意味しない。
 generic artifact v1はCore v0.1とは別のapplication contractである。`ReviewId`は認証済みproject lookup用の
@@ -186,7 +186,7 @@ manifest／context digest、attribution、disposition、selected snapshotをgett
 現workflowの`execution_verified`は常にfalseで、model invocationを行わない。
 
 このgeneric source-level boundaryをv0.3.0で導入されたCreator Pilot／localhost UIのresume機能と混同しない。
-v0.6.0のtagged UIも引き続き三画像専用で、保持中のpending reviewをrestart後に再開しない。generic boundaryにも
+v0.7.0のtagged UIも引き続き三画像専用で、保持中のpending reviewをrestart後に再開しない。generic boundaryにも
 HTTP／CLI／browser UI、新binary、model provider実行、remote publication、production deployment、追加の
 配布許可は含まれない。
 AI application libraryはcredentialをproject lookupより先にAuthenticatorへ渡し、server-owned exact mapと

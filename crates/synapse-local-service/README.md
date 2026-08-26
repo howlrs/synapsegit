@@ -27,11 +27,13 @@ by Core's server-fixed bounded exact-subset restore with Ref publication last.
 Browser archive controls, restart-durable
 review, and automatic incomplete-session recovery are not implemented here.
 The diagnostics and maintenance `fsck`
-additions were introduced in v0.3.0 and remain unchanged in the tagged v0.6.0
+additions were introduced in v0.3.0 and remain unchanged in the tagged v0.7.0
 binary. Archive listing was added on `main` after v0.5.1 and is included in
-the tagged v0.6.0 binary. The generic-artifact workflow in the tagged v0.6.0
-source is a separate Rust library boundary; this facade does not expose it
-through HTTP/CLI/UI or remote publication.
+the tagged v0.6.0 binary. Archive export and empty-target restore were added
+on `main` after v0.6.0 and are included in the tagged v0.7.0 binary. The
+generic-artifact workflow in the tagged v0.7.0 source is a separate Rust
+library boundary; this facade does not expose it through HTTP/CLI/UI or
+remote publication.
 
 Run its tests with:
 

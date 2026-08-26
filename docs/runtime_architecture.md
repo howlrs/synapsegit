@@ -2,7 +2,7 @@
 
 Status: Stage 0 decision draft
 
-Applies to: tagged v0.6.0 source/workspace libraries
+Applies to: tagged v0.7.0 source/workspace libraries
 
 Decision date: 2026-07-11
 
@@ -316,7 +316,7 @@ Core proofとして扱わない。binding／journal／trusted configは改竄さ
 特定processのruntime capability intersectionを通過したことを暗号学的に証明しない。process ACL／profile／permit／
 FairGateもrestartを越えて保存されず、multi-process linearizabilityは提供しない。
 
-このC1 boundaryはtagged v0.6.0 sourceに含まれるworkspace Rust libraryである。release archiveは
+このC1 boundaryはtagged v0.7.0 sourceに含まれるworkspace Rust libraryである。release archiveは
 `synapse`、`synapse-local`、`synapse-present`の三binaryだけを維持し、このboundary向けのHTTP／CLI、
 generic browser UI、新binary、model provider invocation、automatic background worker、durable identity／ACL、
 multi-process linearizability、remote publish、production deployment、新たな配布許可を提供しない。
