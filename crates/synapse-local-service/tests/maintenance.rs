@@ -2,12 +2,14 @@ use serde_json::{Value, json};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use synapse_core::{FsckLimits, Repository, TombstoneScanLimits};
+use synapse_core::{ArchiveExportLimits, FsckLimits, Repository, TombstoneScanLimits};
 use synapse_local_service::{
-    ARCHIVE_LIST_LIMITS, ArchiveList, ArchiveResult, ArchiveResultKind, ArchiveState, FsckResult,
-    LocalService, MAINTENANCE_FSCK_LIMITS, OperationAccepted, OperationKind, OperationResult,
-    OperationState, OperationStatus, ProjectConfirmation, ProjectRegistration,
+    ARCHIVE_LIST_LIMITS, ArchiveExportRequest, ArchiveList, ArchiveResult, ArchiveResultKind,
+    ArchiveState, FsckResult, LocalService, MAINTENANCE_ARCHIVE_EXPORT_LIMITS,
+    MAINTENANCE_FSCK_LIMITS, OperationAccepted, OperationKind, OperationResult, OperationState,
+    OperationStatus, ProjectConfirmation, ProjectRegistration,
 };
+use synapse_sqlite::RefArchiveExportLimits;
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
 
@@ -111,6 +113,93 @@ fn maintenance_profile_confirmation_and_capabilities_are_server_fixed() {
     assert!(capabilities.fsck);
     assert!(!capabilities.archive_export);
     assert!(!capabilities.archive_restore);
+}
+
+#[test]
+fn archive_export_is_confirmed_bounded_no_replace_and_root_scoped() {
+    assert_eq!(
+        MAINTENANCE_ARCHIVE_EXPORT_LIMITS,
+        ArchiveExportLimits {
+            max_objects: 100_000,
+            max_object_bytes: 1024_u64 * 1024 * 1024 * 1024,
+            max_head_validation_nodes: 1_000_000,
+            max_head_validation_edges: 10_000_000,
+            tombstone_scan: TombstoneScanLimits {
+                max_record_objects: 100_000,
+                max_record_bytes: 1024_u64 * 1024 * 1024,
+            },
+            ref_archive: RefArchiveExportLimits {
+                max_refs: 100_000,
+                max_reflog_entries: 100_000,
+                max_text_bytes: 64_u64 * 1024 * 1024,
+            },
+        }
+    );
+
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let archive_root = temporary.directory("archives");
+    let service = service_with_archive_root(&repository, &archive_root);
+    assert!(
+        service.list_projects().projects[0]
+            .capabilities
+            .archive_export
+    );
+
+    let request = ArchiveExportRequest {
+        archive_name: "nightly".into(),
+        confirm_project_key: "project".into(),
+    };
+    service
+        .validate_archive_export_request("project", &request)
+        .unwrap();
+    assert_eq!(
+        service.run_archive_export("project", "nightly").unwrap(),
+        ArchiveResult {
+            archive_name: "nightly".into(),
+            result_kind: ArchiveResultKind::Exported,
+            report_equivalence_required: false,
+        }
+    );
+    assert!(archive_root.join("nightly/manifest.json").is_file());
+    assert_eq!(
+        service.list_archives().unwrap().archives[0].state,
+        ArchiveState::Valid
+    );
+
+    let duplicate = service
+        .validate_archive_export_request("project", &request)
+        .unwrap_err();
+    assert_eq!(duplicate.code(), "archive_invalid");
+    assert!(duplicate.diagnostic().is_none());
+
+    for (archive_name, confirm_project_key) in [
+        ("../outside", "project"),
+        ("not/inside", "project"),
+        ("nightly-2", "other"),
+    ] {
+        let rejected = service
+            .validate_archive_export_request(
+                "project",
+                &ArchiveExportRequest {
+                    archive_name: archive_name.into(),
+                    confirm_project_key: confirm_project_key.into(),
+                },
+            )
+            .unwrap_err();
+        assert_eq!(rejected.code(), "local_request_denied");
+    }
+
+    let unavailable = service_for(&repository)
+        .validate_archive_export_request(
+            "project",
+            &ArchiveExportRequest {
+                archive_name: "nightly-2".into(),
+                confirm_project_key: "project".into(),
+            },
+        )
+        .unwrap_err();
+    assert_eq!(unavailable.code(), "service_unavailable");
 }
 
 #[test]

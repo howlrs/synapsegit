@@ -31,15 +31,16 @@
 use serde_json::Value;
 use std::fs;
 use synapse_local_service::{
-    ArchiveList, ArchiveResult, ArchiveResultKind, ArchiveState, ArchiveSummary,
-    CommittedCreatorSession, CommittedState, ComparisonEvidence, CompleteCreatorSession,
-    CompleteState, CreatorDecision, CreatorDecisionReceipt, CreatorDecisionRequest, CreatorReport,
-    CreatorSessionCounts, CreatorSessionDiagnostic, CreatorSessionList, CreatorSessionState,
-    CreatorSessionSummary, FsckResult, HealthResponse, IncompleteCreatorSession, IncompleteState,
-    OperationAccepted, OperationKind, OperationResult, OperationState, OperationStatus,
-    PendingCreatorSession, PendingReviewState, Problem, ProjectCapabilities, ProjectConfirmation,
-    ProjectList, ProjectState, ProjectStatus, ProjectSummary, ProjectionState, RefList, RefRecord,
-    ReflogEntry, ReflogPage, SnapshotContext, TimelineEntry,
+    ArchiveExportRequest, ArchiveList, ArchiveResult, ArchiveResultKind, ArchiveState,
+    ArchiveSummary, CommittedCreatorSession, CommittedState, ComparisonEvidence,
+    CompleteCreatorSession, CompleteState, CreatorDecision, CreatorDecisionReceipt,
+    CreatorDecisionRequest, CreatorReport, CreatorSessionCounts, CreatorSessionDiagnostic,
+    CreatorSessionList, CreatorSessionState, CreatorSessionSummary, FsckResult, HealthResponse,
+    IncompleteCreatorSession, IncompleteState, OperationAccepted, OperationKind, OperationResult,
+    OperationState, OperationStatus, PendingCreatorSession, PendingReviewState, Problem,
+    ProjectCapabilities, ProjectConfirmation, ProjectList, ProjectState, ProjectStatus,
+    ProjectSummary, ProjectionState, RefList, RefRecord, ReflogEntry, ReflogPage, SnapshotContext,
+    TimelineEntry,
 };
 
 /// Loads `api/local/v1/openapi.json` once per test process invocation (each
@@ -150,6 +151,20 @@ fn sample_fsck_result() -> FsckResult {
         closure_count: 4,
         issue_count: 0,
     }
+}
+
+#[test]
+fn archive_export_request_matches_the_openapi_schema() {
+    let document = openapi_document();
+    assert_matches_openapi_schema(
+        &document,
+        "ArchiveExportRequest",
+        &serde_json::to_value(ArchiveExportRequest {
+            archive_name: "nightly".into(),
+            confirm_project_key: "demo".into(),
+        })
+        .unwrap(),
+    );
 }
 
 fn sample_comparison_evidence() -> ComparisonEvidence {

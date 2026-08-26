@@ -988,6 +988,103 @@ async fn bounded_fsck_is_confirmed_queued_polled_and_reflected_in_project_status
 }
 
 #[tokio::test]
+async fn archive_export_is_confirmed_queued_polled_and_no_replace() {
+    let (_directory, app, archive_root) = test_app_with_archive_root();
+    let start = app
+        .clone()
+        .oneshot(unsafe_api_request(
+            "/api/v1/projects/demo/archive-exports",
+            "application/json",
+            Body::from(r#"{"archive_name":"nightly","confirm_project_key":"demo"}"#),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(start.status(), StatusCode::ACCEPTED);
+    let start = to_bytes(start.into_body(), 64 * 1024).await.unwrap();
+    let accepted: serde_json::Value = serde_json::from_slice(&start).unwrap();
+    assert_eq!(accepted["state"], "queued");
+    let operation_id = accepted["operation_id"].as_str().unwrap();
+    assert!(valid_operation_id(operation_id));
+    let poll_path = accepted["poll_path"].as_str().unwrap();
+
+    let mut terminal = None;
+    for _ in 0..2_000 {
+        let response = app
+            .clone()
+            .oneshot(
+                request(poll_path)
+                    .header("x-synapse-local-token", "a".repeat(64))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+        let status: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        if matches!(
+            status["state"].as_str(),
+            Some("succeeded" | "failed" | "outcome_unknown")
+        ) {
+            terminal = Some(status);
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    let terminal = terminal.expect("the empty-repository archive export did not finish");
+    assert_eq!(terminal["kind"], "archive_export");
+    assert_eq!(terminal["project_key"], "demo");
+    assert_eq!(terminal["state"], "succeeded");
+    assert_eq!(terminal["result"]["archive_name"], "nightly");
+    assert_eq!(terminal["result"]["result_kind"], "exported");
+    assert_eq!(terminal["result"]["report_equivalence_required"], false);
+    assert_eq!(terminal["error"], serde_json::Value::Null);
+    assert!(archive_root.join("nightly/manifest.json").is_file());
+
+    let duplicate = app
+        .clone()
+        .oneshot(unsafe_api_request(
+            "/api/v1/projects/demo/archive-exports",
+            "application/json",
+            Body::from(r#"{"archive_name":"nightly","confirm_project_key":"demo"}"#),
+        ))
+        .await
+        .unwrap();
+    assert_problem(duplicate, StatusCode::CONFLICT, "archive_invalid").await;
+
+    for body in [
+        r#"{"archive_name":"../outside","confirm_project_key":"demo"}"#,
+        r#"{"archive_name":"nightly-2","confirm_project_key":"other"}"#,
+        r#"{"archive_name":"nightly-2","confirm_project_key":"demo","unknown":true}"#,
+    ] {
+        let rejected = app
+            .clone()
+            .oneshot(unsafe_api_request(
+                "/api/v1/projects/demo/archive-exports",
+                "application/json",
+                Body::from(body),
+            ))
+            .await
+            .unwrap();
+        assert_problem(rejected, StatusCode::BAD_REQUEST, "local_request_denied").await;
+    }
+
+    let status = app
+        .oneshot(
+            request("/api/v1/projects/demo/status")
+                .header("x-synapse-local-token", "a".repeat(64))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let status = to_bytes(status.into_body(), 64 * 1024).await.unwrap();
+    let status: serde_json::Value = serde_json::from_slice(&status).unwrap();
+    assert_eq!(status["project"]["capabilities"]["archive_export"], true);
+    assert_eq!(status["project"]["capabilities"]["archive_restore"], false);
+}
+
+#[tokio::test]
 async fn unsafe_routes_require_browser_security_and_known_writes_reject_invalid_bodies() {
     let (_directory, app) = test_app();
     let no_origin = app
@@ -1538,13 +1635,12 @@ async fn blocking_gates_bound_known_projects_and_route_unknown_projects_through_
 //      exists and the method is wired, regardless of what status the
 //      business logic itself returns.
 //   2. Unimplemented-route 404 contract (`UNIMPLEMENTED_ARCHIVE_OPERATIONS`,
-//      asserted below): for exactly the 2 archive operations
+//      asserted below): for the remaining archive restore operation
 //      `docs/localhost_application_architecture.md` documents as still
-//      remaining unimplemented in the browser application ("Archive export
-//      and restore remain unimplemented in the ... application" near the
+//      unimplemented in the browser application (archive export is API-only,
+//      while restore and both browser controls remain planned) near the
 //      top-level Status/Implementation-status summary; see also the
-//      "Implementation slices" list's slice 7 entry, "Archive export
-//      and empty-target restore remain planned"), the same
+//      "Implementation slices" list's slice 7 entry), the same
 //      substituted request must currently return 404. `listArchives` moved into
 //      positive parity coverage above once its route was implemented.
 //      This
@@ -1557,8 +1653,8 @@ async fn blocking_gates_bound_known_projects_and_route_unknown_projects_through_
 // `startFsck` and `getOperation` both carry openapi's
 // `x-synapse-implementation-slice: 7` tag too, but that tag is a
 // compound "slice 7" label spanning the implemented fsck/job foundation,
-// the now also-implemented read-only archive listing, and the still
-// unimplemented archive export/restore portion
+// the now also-implemented read-only archive listing and archive export API,
+// and the still-unimplemented archive restore portion
 // (`docs/localhost_application_architecture.md` line 3: "the fsck/job
 // part of slice 7 ... implemented in v0.3.0; the read-only archive
 // listing part of slice 7 implemented in current `main`") without
@@ -1579,7 +1675,7 @@ async fn blocking_gates_bound_known_projects_and_route_unknown_projects_through_
 // hand-maintained inverse listing that itself could drift; the canary
 // test below only proves 404 is distinguishable from a wired route, not
 // that every wired route is documented.
-const UNIMPLEMENTED_ARCHIVE_OPERATIONS: [&str; 2] = ["startArchiveExport", "startArchiveRestore"];
+const UNIMPLEMENTED_ARCHIVE_OPERATIONS: [&str; 1] = ["startArchiveRestore"];
 
 #[tokio::test]
 async fn every_documented_openapi_route_matches_its_implementation_status() {
@@ -1819,6 +1915,15 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
                         .await
                         .unwrap()
                 }
+                "post" if resolved_path.ends_with("/archive-exports") => app
+                    .clone()
+                    .oneshot(unsafe_api_request(
+                        &full_path,
+                        "application/json",
+                        Body::from(r#"{"archive_name":"nightly","confirm_project_key":"demo"}"#),
+                    ))
+                    .await
+                    .unwrap(),
                 other => panic!(
                     "unhandled implemented-operation method {other} for {path_template}; \
                      add a substitution branch above"
@@ -1851,8 +1956,8 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
     // would fail loudly instead of this test quietly checking nothing.
     assert_eq!(
         checked.len(),
-        14,
-        "expected 14 implemented operations, checked: {checked:?}"
+        15,
+        "expected 15 implemented operations, checked: {checked:?}"
     );
     assert_eq!(
         skipped_unimplemented_archive.len(),

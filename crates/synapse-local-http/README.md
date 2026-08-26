@@ -15,8 +15,10 @@ review authority, resume, clean up, or rewrite history. Confirmed maintenance
 registry, pollable states, and project-page result display; dirty is a succeeded
 result with `clean=false`. Bounded read-only archive listing (server-owned
 archive root, dashboard section, and `GET /api/v1/archives`) is included in
-the tagged v0.6.0 binary. Archive export/restore
-UI/routes are not yet implemented. The diagnostics and browser `fsck`
+the tagged v0.6.0 binary. Current `main` additionally exposes authenticated,
+confirmed `POST /api/v1/projects/{project_key}/archive-exports` as a bounded
+no-replace background job when the archive root is configured. Archive export
+UI and archive restore UI/route are not yet implemented. The diagnostics and browser `fsck`
 additions were introduced in v0.3.0 and remain unchanged in the tagged v0.6.0
 binary. The generic-artifact libraries present in the tagged v0.6.0 source do
 not add routes, DTOs, UI, or a new binary here.

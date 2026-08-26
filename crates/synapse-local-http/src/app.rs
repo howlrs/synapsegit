@@ -13,7 +13,8 @@ use crate::handlers::{
     api_archives, api_begin_creator_session, api_creator_image, api_creator_session,
     api_creator_session_diagnostics, api_creator_sessions, api_decide_creator_session, api_health,
     api_operation, api_project_reflog, api_project_refs, api_project_status, api_projects,
-    api_start_fsck, index_page, method_not_allowed, not_found, project_page, session_page,
+    api_start_archive_export, api_start_fsck, index_page, method_not_allowed, not_found,
+    project_page, session_page,
 };
 use crate::security::{SecurityPolicy, enforce_local_request};
 use crate::staging::MAX_CREATOR_FILE_AGGREGATE_BYTES;
@@ -143,6 +144,10 @@ pub(crate) fn build_with_identity(
         .route(
             "/api/v1/projects/{project_key}/operations/fsck",
             axum::routing::post(api_start_fsck),
+        )
+        .route(
+            "/api/v1/projects/{project_key}/archive-exports",
+            axum::routing::post(api_start_archive_export),
         )
         .route("/api/v1/operations/{operation_id}", get(api_operation))
         .route("/api/v1/archives", get(api_archives))
