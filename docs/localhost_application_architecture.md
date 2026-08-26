@@ -1,6 +1,6 @@
 # SynapseGit localhost application architecture
 
-Status: approved implementation design; slices 1-4/6, the fsck/job part of slice 7, and the read-only diagnostics part of slice 8 implemented in v0.3.0; read-only archive listing implemented in tagged v0.6.0; archive export and empty-target restore APIs implemented on current `main`
+Status: approved implementation design; slices 1-4/6, the fsck/job part of slice 7, and the read-only diagnostics part of slice 8 implemented in v0.3.0; read-only archive listing implemented in tagged v0.6.0; archive export and empty-target restore APIs implemented in tagged v0.7.0
 
 Decision date: 2026-07-14
 
@@ -17,13 +17,13 @@ archive listing (`GET /archives` plus a dashboard section) behind an optional
 `--archive-root` startup flag: it reports each server-owned archive-root
 entry as `valid` (with its manifest checksum), `invalid`, or
 `staging_or_unknown` from a manifest-level Core inspection, without reading
-object content. Current `main` additionally implements authenticated,
+object content. Tagged v0.7.0 additionally implements authenticated,
 confirmed archive export as a bounded process-local job and Core atomic
 no-replace publication under that server-owned root, plus confirmed empty-target
 archive restore through Core's server-fixed bounded exact-subset path. Archive
 export and restore browser controls remain unimplemented. The diagnostics and browser `fsck` additions are
 included in the tagged v0.3.0 binary, archive listing is included in tagged
-v0.6.0, and the export API is not yet included in a tagged release. Core v0.1
+v0.6.0, and archive export and restore are included in tagged v0.7.0. Core v0.1
 remains a Stage 0 draft; this application slice is
 not the formal Core roadmap's Stage 1.
 
@@ -185,8 +185,8 @@ an implemented one.
 | 6 | `POST .../creator-sessions/{session}/decisions` | Human `adopt` / `reject` / `defer` through the admitted proposal route |
 | 7 | `POST .../operations/fsck`; `GET .../operations/{id}` | implemented in v0.3.0: explicit, confirmed bounded fsck job and process-local polling |
 | 7 | `GET /archives` | implemented in tagged v0.6.0: bounded, read-only inspected archive summaries |
-| 7 | `POST .../archive-exports` | implemented on current `main`: confirmed bounded no-replace export job |
-| 7 | `POST .../archive-restores` | implemented on current `main`: confirmed bounded empty-target restore job |
+| 7 | `POST .../archive-exports` | implemented in tagged v0.7.0: confirmed bounded no-replace export job |
+| 7 | `POST .../archive-restores` | implemented in tagged v0.7.0: confirmed bounded empty-target restore job |
 | 8 | `GET .../creator-sessions/{session}/diagnostics` | implemented in v0.3.0: incomplete-session diagnosis without automatic mutation |
 
 There is intentionally no generic object PUT/GET, no generic Commit route, no
@@ -443,7 +443,7 @@ still local/session-scoped.
 
 ## Maintenance operations
 
-v0.3.0 implements this contract for `fsck`; current `main` also implements it
+v0.3.0 implements this contract for `fsck`; tagged v0.7.0 also implements it
 for archive export and restore. Maintenance POST operations use project-scoped concurrency gates and
 confirmation values. A POST validates and reserves the operation, starts the
 synchronous Core method through a bounded blocking worker, and returns
@@ -568,7 +568,7 @@ sequencing and does not advance the formal Core stage.
    binary. Tagged v0.6.0 additionally implements read-only, bounded archive
    inspection/listing (Core standalone `inspect_archive_with_limits`, cumulative
    `inspect_archive_with_budget`, `GET /archives`, and a dashboard section) behind an optional
-   `--archive-root` startup flag. Current `main` additionally implements the
+   `--archive-root` startup flag. Tagged v0.7.0 additionally implements the
    authenticated archive export API with a server-fixed profile and no-replace
    publication, and the authenticated empty-target restore API with server-fixed
    Core limits and exact-subset retry. Export and restore UI remain planned.
@@ -606,9 +606,9 @@ existing documentation/Mermaid checks. Later slices add:
 Current service/route/template tests cover the fixed maintenance profiles,
 exact confirmation, clean and dirty count-only fsck results, registry
 capacity/state loss, polling, process-local `last_fsck`, the rendered `fsck`
-form/result, read-only archive inspection, and API-to-Core no-replace export.
-Empty-target restore, archive browser controls, and complete browser end-to-end
-coverage remain pending.
+form/result, read-only archive inspection, API-to-Core no-replace export, and
+API-to-Core empty-target restore. Archive browser controls and complete
+browser end-to-end coverage remain pending.
 
 The localhost milestone is complete only when the executable refuses
 non-loopback binding, no caller authors JSON or raw Ref mutations, the restored
