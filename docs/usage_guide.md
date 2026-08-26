@@ -43,7 +43,7 @@ UIで現在読めるのはproject status、Refs／reflog、creator sessionのrep
 v0.7.0ではoriginal／current／caller-supplied AI outputの三fileをbounded stagingへuploadし、proposalを
 同じprocess内でHuman `adopt`／`reject`／`defer`できる。review前にprocessを終了するとauthorityは復元できず、
 sessionはincompleteになる。read-only incomplete diagnosticsと、exact project確認付きの
-server-bounded background `fsck`／poll UIもtagged v0.6.0の`synapse-local`に含まれる。
+server-bounded background `fsck`／poll UIもtagged v0.7.0の`synapse-local`に含まれる。
 archive export／restoreとautomatic recoveryのUIは未実装なので、対話操作には対応するCLIを使う。tagged v0.7.0は
 `--archive-root`指定時のexact confirmation付きarchive export／empty-target restore APIも提供する。詳しいoption、limit、
 localhost security boundary、GCP CLI smokeとの違いは[native localhost runbook](../deploy/local/README.md)を参照する。

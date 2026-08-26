@@ -53,8 +53,9 @@ atomic no-replace publication. It also enables authenticated `POST
 /api/v1/projects/{projectKey}/archive-restores`, which requires the logical
 archive slug, exact target-project confirmation, and explicit empty-target
 confirmation, then runs Core's server-fixed bounded exact-subset restore. There
-are no export or restore browser controls yet, and the tagged v0.7.0 binary
-remains CLI/library-only for both operations.
+are no export or restore browser controls yet; on the tagged v0.7.0 binary,
+both operations are reachable only through the authenticated API above or the
+CLI/library.
 The dedicated diagnostics route and server-rendered view are read-only: displayed
 Ref/head values are never accepted back as review authority and history is not
 rewritten. The tagged v0.7.0 project page also runs read-only `fsck` only after
@@ -103,7 +104,7 @@ Linux x86_64では、[`v0.7.0` preview release](../../docs/releases/v0.7.0.md)�
 [Installation guide](../../docs/install.md#install-the-linux-x86-64-release)を参照する。その他のplatformでは、
 下記のsource buildを使用する。v0.7.0の配布済みbinaryには、三file import／same-process
 Human reviewに加え、dedicated read-only diagnostics、bounded browser `fsck`
-（いずれもv0.3.0で導入し、v0.6.0でも変更なし）、任意の`--archive-root`起動flag指定時のみ
+（いずれもv0.3.0で導入し、v0.7.0でも変更なし）、任意の`--archive-root`起動flag指定時のみ
 有効なbounded read-only archive listing（v0.6.0で追加）、および認証付きbounded archive
 export／empty-target restore API（v0.7.0で追加）が含まれる。
 
