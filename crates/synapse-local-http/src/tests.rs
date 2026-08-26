@@ -1081,7 +1081,111 @@ async fn archive_export_is_confirmed_queued_polled_and_no_replace() {
     let status = to_bytes(status.into_body(), 64 * 1024).await.unwrap();
     let status: serde_json::Value = serde_json::from_slice(&status).unwrap();
     assert_eq!(status["project"]["capabilities"]["archive_export"], true);
-    assert_eq!(status["project"]["capabilities"]["archive_restore"], false);
+    assert_eq!(status["project"]["capabilities"]["archive_restore"], true);
+}
+
+#[tokio::test]
+async fn archive_restore_is_confirmed_queued_polled_and_root_scoped() {
+    let (_directory, app, _archive_root) = test_app_with_archive_root();
+    let start = app
+        .clone()
+        .oneshot(unsafe_api_request(
+            "/api/v1/projects/demo/archive-restores",
+            "application/json",
+            Body::from(
+                r#"{"archive_name":"aaa-valid","confirm_target_project_key":"demo","confirm_empty_target":true}"#,
+            ),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(start.status(), StatusCode::ACCEPTED);
+    let start = to_bytes(start.into_body(), 64 * 1024).await.unwrap();
+    let accepted: serde_json::Value = serde_json::from_slice(&start).unwrap();
+    assert_eq!(accepted["state"], "queued");
+    let operation_id = accepted["operation_id"].as_str().unwrap();
+    assert!(valid_operation_id(operation_id));
+    let poll_path = accepted["poll_path"].as_str().unwrap();
+
+    let mut terminal = None;
+    for _ in 0..2_000 {
+        let response = app
+            .clone()
+            .oneshot(
+                request(poll_path)
+                    .header("x-synapse-local-token", "a".repeat(64))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+        let status: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        if matches!(
+            status["state"].as_str(),
+            Some("succeeded" | "failed" | "outcome_unknown")
+        ) {
+            terminal = Some(status);
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+    let terminal = terminal.expect("the empty-target archive restore did not finish");
+    assert_eq!(terminal["kind"], "archive_restore");
+    assert_eq!(terminal["project_key"], "demo");
+    assert_eq!(terminal["state"], "succeeded");
+    assert_eq!(terminal["result"]["archive_name"], "aaa-valid");
+    assert_eq!(terminal["result"]["result_kind"], "restored");
+    assert_eq!(terminal["result"]["report_equivalence_required"], true);
+    assert_eq!(terminal["error"], serde_json::Value::Null);
+
+    for body in [
+        r#"{"archive_name":"aaa-valid","confirm_target_project_key":"other","confirm_empty_target":true}"#,
+        r#"{"archive_name":"aaa-valid","confirm_target_project_key":"demo","confirm_empty_target":false}"#,
+        r#"{"archive_name":"aaa-valid","confirm_target_project_key":"demo","confirm_empty_target":true,"unknown":true}"#,
+    ] {
+        let rejected = app
+            .clone()
+            .oneshot(unsafe_api_request(
+                "/api/v1/projects/demo/archive-restores",
+                "application/json",
+                Body::from(body),
+            ))
+            .await
+            .unwrap();
+        assert_problem(rejected, StatusCode::BAD_REQUEST, "local_request_denied").await;
+    }
+
+    let missing = app
+        .clone()
+        .oneshot(unsafe_api_request(
+            "/api/v1/projects/demo/archive-restores",
+            "application/json",
+            Body::from(
+                r#"{"archive_name":"missing","confirm_target_project_key":"demo","confirm_empty_target":true}"#,
+            ),
+        ))
+        .await
+        .unwrap();
+    assert_problem(missing, StatusCode::CONFLICT, "archive_invalid").await;
+
+    let (_directory, no_root) = test_app();
+    let unavailable = no_root
+        .oneshot(unsafe_api_request(
+            "/api/v1/projects/demo/archive-restores",
+            "application/json",
+            Body::from(
+                r#"{"archive_name":"aaa-valid","confirm_target_project_key":"demo","confirm_empty_target":true}"#,
+            ),
+        ))
+        .await
+        .unwrap();
+    assert_problem(
+        unavailable,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "service_unavailable",
+    )
+    .await;
 }
 
 #[tokio::test]
@@ -1635,30 +1739,15 @@ async fn blocking_gates_bound_known_projects_and_route_unknown_projects_through_
 //      exists and the method is wired, regardless of what status the
 //      business logic itself returns.
 //   2. Unimplemented-route 404 contract (`UNIMPLEMENTED_ARCHIVE_OPERATIONS`,
-//      asserted below): for the remaining archive restore operation
-//      `docs/localhost_application_architecture.md` documents as still
-//      unimplemented in the browser application (archive export is API-only,
-//      while restore and both browser controls remain planned) near the
-//      top-level Status/Implementation-status summary; see also the
-//      "Implementation slices" list's slice 7 entry), the same
-//      substituted request must currently return 404. `listArchives` moved into
-//      positive parity coverage above once its route was implemented.
-//      This
-//      makes the list self-maintaining: the day someone implements one
-//      of these routes, this assertion fails (404 stops being true) and
-//      the failure forces that operationId's removal from the skip list
-//      into ordinary positive coverage above, rather than the operation
-//      silently staying unchecked forever.
+//      asserted below): currently empty because every documented operation is
+//      wired. Future designed-but-not-yet-wired operations must be listed here
+//      explicitly until their route is implemented.
 //
 // `startFsck` and `getOperation` both carry openapi's
 // `x-synapse-implementation-slice: 7` tag too, but that tag is a
 // compound "slice 7" label spanning the implemented fsck/job foundation,
-// the now also-implemented read-only archive listing and archive export API,
-// and the still-unimplemented archive restore portion
-// (`docs/localhost_application_architecture.md` line 3: "the fsck/job
-// part of slice 7 ... implemented in v0.3.0; the read-only archive
-// listing part of slice 7 implemented in current `main`") without
-// distinguishing them. Both routes are genuinely wired
+// the now also-implemented read-only archive listing, archive export API, and
+// archive restore API. Both routes are genuinely wired
 // (`.route("/api/v1/projects/{project_key}/operations/fsck",
 // post(api_start_fsck))` and `.route("/api/v1/operations/{operation_id}",
 // get(api_operation))`, both above in this file's router construction),
@@ -1675,7 +1764,7 @@ async fn blocking_gates_bound_known_projects_and_route_unknown_projects_through_
 // hand-maintained inverse listing that itself could drift; the canary
 // test below only proves 404 is distinguishable from a wired route, not
 // that every wired route is documented.
-const UNIMPLEMENTED_ARCHIVE_OPERATIONS: [&str; 1] = ["startArchiveRestore"];
+const UNIMPLEMENTED_ARCHIVE_OPERATIONS: [&str; 0] = [];
 
 #[tokio::test]
 async fn every_documented_openapi_route_matches_its_implementation_status() {
@@ -1924,6 +2013,17 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
                     ))
                     .await
                     .unwrap(),
+                "post" if resolved_path.ends_with("/archive-restores") => app
+                    .clone()
+                    .oneshot(unsafe_api_request(
+                        &full_path,
+                        "application/json",
+                        Body::from(
+                            r#"{"archive_name":"missing","confirm_target_project_key":"demo","confirm_empty_target":true}"#,
+                        ),
+                    ))
+                    .await
+                    .unwrap(),
                 other => panic!(
                     "unhandled implemented-operation method {other} for {path_template}; \
                      add a substitution branch above"
@@ -1956,8 +2056,8 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
     // would fail loudly instead of this test quietly checking nothing.
     assert_eq!(
         checked.len(),
-        15,
-        "expected 15 implemented operations, checked: {checked:?}"
+        16,
+        "expected 16 implemented operations, checked: {checked:?}"
     );
     assert_eq!(
         skipped_unimplemented_archive.len(),

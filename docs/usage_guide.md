@@ -45,7 +45,7 @@ v0.6.0ではoriginal／current／caller-supplied AI outputの三fileをbounded s
 sessionはincompleteになる。read-only incomplete diagnosticsと、exact project確認付きの
 server-bounded background `fsck`／poll UIもtagged v0.6.0の`synapse-local`に含まれる。
 archive export／restoreとautomatic recoveryのUIは未実装なので、対話操作には対応するCLIを使う。current `main`は
-`--archive-root`指定時のexact confirmation付きarchive export APIも提供するが、restoreはCLIのみである。詳しいoption、limit、
+`--archive-root`指定時のexact confirmation付きarchive export／empty-target restore APIも提供する。詳しいoption、limit、
 localhost security boundary、GCP CLI smokeとの違いは[native localhost runbook](../deploy/local/README.md)を参照する。
 
 ![SynapseGit Localのcreator session詳細。Human Decision、AI output selected、三つの画像roleを表示](./assets/synapse-local/creator-session.png)

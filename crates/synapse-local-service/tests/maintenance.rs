@@ -2,12 +2,14 @@ use serde_json::{Value, json};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
-use synapse_core::{ArchiveExportLimits, FsckLimits, Repository, TombstoneScanLimits};
+use synapse_core::{
+    ArchiveExportLimits, ArchiveRestoreLimits, FsckLimits, Repository, TombstoneScanLimits,
+};
 use synapse_local_service::{
-    ARCHIVE_LIST_LIMITS, ArchiveExportRequest, ArchiveList, ArchiveResult, ArchiveResultKind,
-    ArchiveState, FsckResult, LocalService, MAINTENANCE_ARCHIVE_EXPORT_LIMITS,
-    MAINTENANCE_FSCK_LIMITS, OperationAccepted, OperationKind, OperationResult, OperationState,
-    OperationStatus, ProjectConfirmation, ProjectRegistration,
+    ARCHIVE_LIST_LIMITS, ArchiveExportRequest, ArchiveList, ArchiveRestoreRequest, ArchiveResult,
+    ArchiveResultKind, ArchiveState, FsckResult, LocalService, MAINTENANCE_ARCHIVE_EXPORT_LIMITS,
+    MAINTENANCE_ARCHIVE_RESTORE_LIMITS, MAINTENANCE_FSCK_LIMITS, OperationAccepted, OperationKind,
+    OperationResult, OperationState, OperationStatus, ProjectConfirmation, ProjectRegistration,
 };
 use synapse_sqlite::RefArchiveExportLimits;
 
@@ -135,6 +137,24 @@ fn archive_export_is_confirmed_bounded_no_replace_and_root_scoped() {
             },
         }
     );
+    assert_eq!(
+        MAINTENANCE_ARCHIVE_RESTORE_LIMITS,
+        ArchiveRestoreLimits {
+            max_objects: 100_000,
+            max_object_bytes: 1024_u64 * 1024 * 1024 * 1024,
+            max_head_validation_nodes: 1_000_000,
+            max_head_validation_edges: 10_000_000,
+            tombstone_scan: TombstoneScanLimits {
+                max_record_objects: 100_000,
+                max_record_bytes: 1024_u64 * 1024 * 1024,
+            },
+            ref_archive: RefArchiveExportLimits {
+                max_refs: 100_000,
+                max_reflog_entries: 100_000,
+                max_text_bytes: 64_u64 * 1024 * 1024,
+            },
+        }
+    );
 
     let temporary = TempDirectory::new();
     let repository = temporary.directory("repository");
@@ -144,6 +164,11 @@ fn archive_export_is_confirmed_bounded_no_replace_and_root_scoped() {
         service.list_projects().projects[0]
             .capabilities
             .archive_export
+    );
+    assert!(
+        service.list_projects().projects[0]
+            .capabilities
+            .archive_restore
     );
 
     let request = ArchiveExportRequest {
@@ -198,6 +223,129 @@ fn archive_export_is_confirmed_bounded_no_replace_and_root_scoped() {
                 confirm_project_key: "project".into(),
             },
         )
+        .unwrap_err();
+    assert_eq!(unavailable.code(), "service_unavailable");
+}
+
+#[test]
+fn archive_restore_is_confirmed_bounded_root_scoped_and_exact_subset_retryable() {
+    let temporary = TempDirectory::new();
+    let source_path = temporary.directory("source");
+    let mut source = Repository::open(&source_path).unwrap();
+    source.put_blob(b"bounded restore".as_slice()).unwrap();
+    let expected_oids = source.objects().list_oids().unwrap();
+    let archive_root = temporary.directory("archives");
+    source.export_archive(archive_root.join("nightly")).unwrap();
+    let target = temporary.directory("target");
+    let service = service_with_archive_root(&target, &archive_root);
+    service.run_maintenance_fsck("project").unwrap();
+    assert!(
+        service
+            .project_status("project")
+            .unwrap()
+            .last_fsck
+            .is_some()
+    );
+    let request = ArchiveRestoreRequest {
+        archive_name: "nightly".into(),
+        confirm_target_project_key: "project".into(),
+        confirm_empty_target: true,
+    };
+    service
+        .validate_archive_restore_request("project", &request)
+        .unwrap();
+    assert_eq!(
+        service.run_archive_restore("project", "nightly").unwrap(),
+        ArchiveResult {
+            archive_name: "nightly".into(),
+            result_kind: ArchiveResultKind::Restored,
+            report_equivalence_required: true,
+        }
+    );
+    assert_eq!(
+        Repository::open(&target)
+            .unwrap()
+            .objects()
+            .list_oids()
+            .unwrap(),
+        expected_oids
+    );
+    assert!(
+        service
+            .project_status("project")
+            .unwrap()
+            .last_fsck
+            .is_none()
+    );
+
+    // A successful object-only archive remains an exact archive subset and
+    // demonstrates that the service delegates retry semantics to Core.
+    service.run_archive_restore("project", "nightly").unwrap();
+    service.run_maintenance_fsck("project").unwrap();
+    assert!(
+        service
+            .project_status("project")
+            .unwrap()
+            .last_fsck
+            .is_some()
+    );
+    Repository::open(&target)
+        .unwrap()
+        .put_blob(b"unrelated".as_slice())
+        .unwrap();
+    let unrelated = service
+        .run_archive_restore("project", "nightly")
+        .unwrap_err();
+    assert_eq!(unrelated.code(), "archive_not_empty");
+    assert!(!unrelated.detail().contains(target.to_str().unwrap()));
+    assert!(
+        service
+            .project_status("project")
+            .unwrap()
+            .last_fsck
+            .is_none()
+    );
+
+    for request in [
+        ArchiveRestoreRequest {
+            archive_name: "../outside".into(),
+            confirm_target_project_key: "project".into(),
+            confirm_empty_target: true,
+        },
+        ArchiveRestoreRequest {
+            archive_name: "nightly".into(),
+            confirm_target_project_key: "other".into(),
+            confirm_empty_target: true,
+        },
+        ArchiveRestoreRequest {
+            archive_name: "nightly".into(),
+            confirm_target_project_key: "project".into(),
+            confirm_empty_target: false,
+        },
+    ] {
+        let error = service
+            .validate_archive_restore_request("project", &request)
+            .unwrap_err();
+        assert_eq!(error.code(), "local_request_denied");
+        assert!(error.diagnostic().is_none());
+    }
+
+    fs::write(archive_root.join("plain-file"), b"not an archive").unwrap();
+    let unavailable = service
+        .validate_archive_restore_request(
+            "project",
+            &ArchiveRestoreRequest {
+                archive_name: "plain-file".into(),
+                confirm_target_project_key: "project".into(),
+                confirm_empty_target: true,
+            },
+        )
+        .unwrap_err();
+    assert_eq!(unavailable.code(), "archive_invalid");
+
+    let service_without_root = service_for(&target);
+    let unavailable = service_without_root
+        .validate_archive_restore_request("project", &request)
         .unwrap_err();
     assert_eq!(unavailable.code(), "service_unavailable");
 }

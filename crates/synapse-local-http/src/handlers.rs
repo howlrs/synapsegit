@@ -9,9 +9,10 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
 use serde::de::DeserializeOwned;
 use synapse_local_service::{
-    ArchiveExportRequest, ArchiveResultKind, CreatorDecisionRequest, CreatorDecisionResponse,
-    CreatorImage, HealthResponse, ImageRole, LocalService, OperationKind, OperationResult,
-    OperationState, Problem as ServiceProblem, ProjectConfirmation, ReflogQuery, ServiceError,
+    ArchiveExportRequest, ArchiveRestoreRequest, ArchiveResultKind, CreatorDecisionRequest,
+    CreatorDecisionResponse, CreatorImage, HealthResponse, ImageRole, LocalService, OperationKind,
+    OperationResult, OperationState, Problem as ServiceProblem, ProjectConfirmation, ReflogQuery,
+    ServiceError,
 };
 
 use crate::problem::problem_response;
@@ -421,6 +422,115 @@ pub(crate) async fn api_start_archive_export(
                     StatusCode::INTERNAL_SERVER_ERROR,
                     "storage_error",
                     "The archive-export worker stopped before its final state was recorded.",
+                    false,
+                )),
+            ),
+        }
+    });
+
+    (StatusCode::ACCEPTED, Json(accepted)).into_response()
+}
+
+pub(crate) async fn api_start_archive_restore(
+    State(state): State<AppState>,
+    Path(project_key): Path<String>,
+    request: AxumRequest,
+) -> Response {
+    if !is_exact_json_content_type(request.headers()) {
+        return failure_response(HttpFailure::request(
+            &state,
+            "local_request_denied",
+            "The request Content-Type must be exactly application/json.",
+        ));
+    }
+    let body = match to_bytes(request.into_body(), MAX_MAINTENANCE_JSON_BYTES).await {
+        Ok(body) => body,
+        Err(_) => {
+            return failure_response(HttpFailure::limit(
+                &state,
+                "The maintenance request exceeds the 8 KiB wire limit.",
+            ));
+        }
+    };
+    let restore = match serde_json::from_slice::<ArchiveRestoreRequest>(&body) {
+        Ok(restore) => restore,
+        Err(_) => {
+            return failure_response(HttpFailure::request(
+                &state,
+                "local_request_denied",
+                "The maintenance JSON is invalid or contains an unknown or duplicate field.",
+            ));
+        }
+    };
+    if let Err(error) = state
+        .service
+        .validate_archive_restore_request(&project_key, &restore)
+    {
+        return failure_response(HttpFailure::service(&state, error));
+    }
+
+    let accepted = match state
+        .operations
+        .reserve(OperationKind::ArchiveRestore, project_key.clone())
+    {
+        Ok(accepted) => accepted,
+        Err(OperationRegistryError::Capacity) => {
+            return failure_response(HttpFailure {
+                status: StatusCode::TOO_MANY_REQUESTS,
+                code: "resource_limit".into(),
+                title: "Maintenance capacity reached".into(),
+                detail: "The process-local maintenance operation registry is full.".into(),
+                request_id: state.security.request_id(),
+                retryable: true,
+            });
+        }
+        Err(OperationRegistryError::Entropy | OperationRegistryError::Clock) => {
+            return failure_response(HttpFailure::internal(
+                &state,
+                "The maintenance operation could not be reserved.",
+            ));
+        }
+    };
+
+    let operation_id = accepted.operation_id.clone();
+    let archive_name = restore.archive_name;
+    let worker_state = state.clone();
+    tokio::spawn(async move {
+        let gate_key = project_key.clone();
+        let running_operations = worker_state.operations.clone();
+        let running_operation_id = operation_id.clone();
+        let outcome = run_blocking_after_acquire(
+            worker_state.clone(),
+            Some(gate_key),
+            move || running_operations.mark_running(&running_operation_id),
+            move |service| service.run_archive_restore(&project_key, &archive_name),
+        )
+        .await;
+        match outcome {
+            Ok(result) => {
+                debug_assert_eq!(result.result_kind, ArchiveResultKind::Restored);
+                worker_state.operations.finish(
+                    &operation_id,
+                    OperationState::Succeeded,
+                    Some(OperationResult::Archive(result)),
+                    None,
+                );
+            }
+            Err(BlockingError::Service(error)) => worker_state.operations.finish(
+                &operation_id,
+                OperationState::Failed,
+                None,
+                Some(service_operation_problem(&worker_state, error)),
+            ),
+            Err(BlockingError::Task) => worker_state.operations.finish(
+                &operation_id,
+                OperationState::OutcomeUnknown,
+                None,
+                Some(operation_problem(
+                    &worker_state,
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "storage_error",
+                    "The archive-restore worker stopped before its final state was recorded.",
                     false,
                 )),
             ),

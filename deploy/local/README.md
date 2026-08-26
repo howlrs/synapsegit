@@ -49,9 +49,12 @@ provide archive listing. A current `main` source build also enables
 authenticated `POST /api/v1/projects/{projectKey}/archive-exports` when this
 root is configured. The request accepts only an exact project confirmation and
 a logical archive slug; the server uses its fixed Core-equivalent limits and
-atomic no-replace publication. There is no export browser control yet, and the
-tagged v0.6.0 binary remains CLI/library-only for export. Restore remains
-CLI/library-only in every case.
+atomic no-replace publication. It also enables authenticated `POST
+/api/v1/projects/{projectKey}/archive-restores`, which requires the logical
+archive slug, exact target-project confirmation, and explicit empty-target
+confirmation, then runs Core's server-fixed bounded exact-subset restore. There
+are no export or restore browser controls yet, and the tagged v0.6.0 binary
+remains CLI/library-only for both operations.
 The dedicated diagnostics route and server-rendered view are read-only: displayed
 Ref/head values are never accepted back as review authority and history is not
 rewritten. The tagged v0.6.0 project page also runs read-only `fsck` only after
@@ -72,6 +75,15 @@ ceilings, plus at most 100,000 reflog entries and 64 MiB of Ref/reflog variable
 text. It returns the shared process-local operation poll path. A failed or lost
 job is never retried automatically; inspect the archive listing before choosing
 a new logical name.
+
+Archive restore uses the same fixed inventory, byte, Ref/reflog, closure, and
+Tombstone ceilings. It accepts no target path: the project must already be in
+the startup catalog, have no Ref/reflog history, and contain either no objects
+or only the exact subset left by an earlier attempt with the same archive.
+Objects are restored before Refs, and Refs/reflog are published last in one
+transaction. Poll a failed job before deciding whether to retry; never select a
+different archive for a partial target. Starting restore also clears that
+project's process-local `last_fsck`, including when the restore later fails.
 
 The tagged v0.6.0 binary includes the diagnostics and browser `fsck` additions
 (introduced in v0.3.0 and unchanged since) alongside three-file import/same-process

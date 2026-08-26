@@ -161,8 +161,9 @@ binary supports bounded three-file import, same-process Human review, read-only
 incomplete-session diagnostics, and an explicitly confirmed, server-bounded
 background `fsck` with pollable results. A current `main` source build with
 `--archive-root` also exposes the confirmed bounded no-replace archive export
-API; the tagged v0.6.0 binary remains CLI-only for export, and restore has no
-localhost API or UI.
+API and the confirmed bounded empty-target archive restore API; the tagged
+v0.6.0 binary remains CLI-only for export and restore, and neither operation
+has a localhost browser control.
 Diagnostics and maintenance do not resume, clean up, or rewrite a creator
 session. See the
 [local application runbook](./deploy/local/README.md), the
@@ -176,7 +177,7 @@ session. See the
 | Three-file creator Pilot with `adopt`, `reject`, and `defer` | Implemented as a bounded local CLI flow |
 | Human/AI-attributed provenance and a comparison-aware report | Implemented; AI output remains caller-supplied |
 | Original/current comparison | Primary blob byte identity only; always partial comparability |
-| Local browser interface | Read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, and confirmed background `fsck`. Tagged v0.6.0 adds a bounded, read-only archive listing view (`GET /archives`) behind an optional `--archive-root` startup flag. Current `main` also implements a confirmed bounded no-replace archive export API; export UI and restore API/UI remain unavailable |
+| Local browser interface | Read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, and confirmed background `fsck`. Tagged v0.6.0 adds a bounded, read-only archive listing view (`GET /archives`) behind an optional `--archive-root` startup flag. Current `main` also implements confirmed bounded archive export and empty-target restore APIs; their browser controls remain unavailable |
 | Generic regular-file artifact building blocks | Tagged v0.6.0 source/workspace libraries include a bounded deterministic mapper and checkout, sequential Proposal/Decision workflow, host-authenticated one-shot approval, a SQLite journal-integrated restart/reconciliation boundary, a frozen v1 public-safe contract, and a separate local public projection. The packaged three binaries do not expose these capabilities through HTTP, CLI, or browser UI; no model invocation, multi-process control plane, or production service is provided |
 | Content-addressed objects, typed closure, Ref CAS, and reflog | Implemented and covered by repository tests |
 | `fsck`, checksum-bound directory export, and verified restore | Implemented for the local repository format |

@@ -9,7 +9,8 @@ use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use synapse_core::{
     ArchiveExportLimits, ArchiveInspectionBudget, ArchiveInspectionLimits, ArchiveInspectionState,
-    FsckLimits, Repository, RepositoryError, TombstoneScanLimits, inspect_archive_with_budget,
+    ArchiveRestoreLimits, FsckLimits, Repository, RepositoryError, TombstoneScanLimits,
+    inspect_archive_with_budget,
 };
 use synapse_creator::{
     CREATOR_RESERVED_PENDING_DECISIONS, CreatorBeginOptions,
@@ -58,6 +59,26 @@ pub const MAINTENANCE_FSCK_LIMITS: FsckLimits = FsckLimits {
 /// calling `ArchiveExportLimits::default()`, so a future Core default change
 /// cannot silently expand work admitted by the localhost transport.
 pub const MAINTENANCE_ARCHIVE_EXPORT_LIMITS: ArchiveExportLimits = ArchiveExportLimits {
+    max_objects: 100_000,
+    max_object_bytes: 1024 * 1024 * 1024 * 1024,
+    max_head_validation_nodes: 1_000_000,
+    max_head_validation_edges: 10_000_000,
+    tombstone_scan: TombstoneScanLimits {
+        max_record_objects: 100_000,
+        max_record_bytes: 1024 * 1024 * 1024,
+    },
+    ref_archive: RefArchiveExportLimits {
+        max_refs: 100_000,
+        max_reflog_entries: 100_000,
+        max_text_bytes: 64 * 1024 * 1024,
+    },
+};
+/// Server-fixed work ceiling for one HTTP-facing archive restore.
+///
+/// These values intentionally mirror the current Core local profile without
+/// calling `ArchiveRestoreLimits::default()`, so a future Core default change
+/// cannot silently expand work admitted by the localhost transport.
+pub const MAINTENANCE_ARCHIVE_RESTORE_LIMITS: ArchiveRestoreLimits = ArchiveRestoreLimits {
     max_objects: 100_000,
     max_object_bytes: 1024 * 1024 * 1024 * 1024,
     max_head_validation_nodes: 1_000_000,
@@ -566,6 +587,115 @@ impl LocalService {
             archive_name: archive_name.to_owned(),
             result_kind: ArchiveResultKind::Exported,
             report_equivalence_required: false,
+        })
+    }
+
+    /// Validate a restore request before a transport reserves a job.
+    ///
+    /// Both selectors are logical slugs rooted in trusted startup
+    /// configuration. A failed earlier restore may have left an exact object
+    /// subset, so only Ref/reflog emptiness is rejected here; Core checks the
+    /// destination object inventory against the selected archive in the
+    /// blocking worker and again publishes Refs last.
+    pub fn validate_archive_restore_request(
+        &self,
+        project_key: &str,
+        request: &ArchiveRestoreRequest,
+    ) -> Result<(), ServiceError> {
+        let entry = self.entry(project_key)?;
+        if request.confirm_target_project_key != project_key || !request.confirm_empty_target {
+            return Err(ServiceError::new(
+                "local_request_denied",
+                "The empty-target confirmation did not exactly match the requested project.",
+                false,
+            ));
+        }
+        if !is_slug(&request.archive_name) {
+            return Err(ServiceError::new(
+                "local_request_denied",
+                "The archive name must match [a-z][a-z0-9-]{0,63}.",
+                false,
+            ));
+        }
+        let archive_root = self.archive_root.as_ref().ok_or_else(|| {
+            ServiceError::new(
+                "service_unavailable",
+                "Archive restore is unavailable because no archive root is configured.",
+                false,
+            )
+        })?;
+        let archive = archive_root.join(&request.archive_name);
+        match fs::symlink_metadata(&archive) {
+            Ok(metadata) if metadata.file_type().is_dir() => {}
+            Ok(_) => {
+                return Err(ServiceError::new(
+                    "archive_invalid",
+                    "The requested archive is not available for restore.",
+                    false,
+                ));
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                return Err(ServiceError::new(
+                    "archive_invalid",
+                    "The requested archive is not available for restore.",
+                    false,
+                ));
+            }
+            Err(error) => {
+                return Err(ServiceError::new(
+                    "storage_error",
+                    "The archive source could not be inspected.",
+                    true,
+                )
+                .with_diagnostic(error.to_string()));
+            }
+        }
+        let repository = open_repository(entry)?;
+        if !repository.refs().is_empty().map_err(ref_store_error)? {
+            return Err(ServiceError::new(
+                "archive_not_empty",
+                "The target project already contains Ref or reflog history.",
+                false,
+            ));
+        }
+        Ok(())
+    }
+
+    /// Run one bounded archive restore for a blocking worker.
+    ///
+    /// The project writer lock excludes creator publication for the complete
+    /// object-copy and Ref-publication window. Core rechecks target emptiness,
+    /// accepts only an exact object subset from the same archive, and restores
+    /// all Refs/reflog in its final transaction.
+    pub fn run_archive_restore(
+        &self,
+        project_key: &str,
+        archive_name: &str,
+    ) -> Result<ArchiveResult, ServiceError> {
+        let request = ArchiveRestoreRequest {
+            archive_name: archive_name.to_owned(),
+            confirm_target_project_key: project_key.to_owned(),
+            confirm_empty_target: true,
+        };
+        self.validate_archive_restore_request(project_key, &request)?;
+        let archive_root = self
+            .archive_root
+            .as_ref()
+            .expect("archive root was validated above");
+        let archive = archive_root.join(archive_name);
+        let _writer = self.acquire_project_writer(project_key)?;
+        let mut repository = self.open_repository(project_key)?;
+        // Object restore is intentionally resumable rather than transactional:
+        // even a failed attempt may have changed the CAS exact subset, so an
+        // earlier integrity result is stale as soon as Core begins.
+        lock_last_fsck(&self.last_fsck).remove(project_key);
+        repository
+            .restore_from_with_limits(&archive, MAINTENANCE_ARCHIVE_RESTORE_LIMITS)
+            .map_err(archive_restore_error)?;
+        Ok(ArchiveResult {
+            archive_name: archive_name.to_owned(),
+            result_kind: ArchiveResultKind::Restored,
+            report_equivalence_required: true,
         })
     }
 
@@ -1807,6 +1937,43 @@ fn archive_export_error(error: RepositoryError) -> ServiceError {
     service_error.with_diagnostic(diagnostic)
 }
 
+fn archive_restore_error(error: RepositoryError) -> ServiceError {
+    let diagnostic = error.to_string();
+    let code = error.code();
+    let service_error = match code {
+        "archive_not_empty" => ServiceError::new(
+            "archive_not_empty",
+            "The target project is not empty or contains unrelated objects.",
+            false,
+        ),
+        "resource_limit" => ServiceError::new(
+            "resource_limit",
+            "The archive restore exceeded the server resource limit.",
+            false,
+        ),
+        "storage_error" => ServiceError::new(
+            "storage_error",
+            "The archive restore could not access local storage.",
+            true,
+        ),
+        "archive_invalid"
+        | "oid_mismatch"
+        | "closure_missing"
+        | "reference_type_mismatch"
+        | "schema_invalid" => ServiceError::new(
+            code,
+            "The selected archive failed restore validation.",
+            false,
+        ),
+        _ => ServiceError::new(
+            "archive_invalid",
+            "The selected archive could not be restored.",
+            false,
+        ),
+    };
+    service_error.with_diagnostic(diagnostic)
+}
+
 pub fn snapshot_watermark(snapshot: &RefSnapshot) -> String {
     let mut hasher = Sha256::new();
     hash_field(&mut hasher, b"synapse-local-ref-snapshot-v1");
@@ -1838,9 +2005,10 @@ pub fn classify_image_media_type(bytes: &[u8]) -> ImageMediaType {
     }
 }
 
-fn project_summary(entry: &CatalogEntry, archive_export: bool) -> ProjectSummary {
+fn project_summary(entry: &CatalogEntry, archive_operations: bool) -> ProjectSummary {
     let mut capabilities = ProjectCapabilities::creator_workflow();
-    capabilities.archive_export = archive_export;
+    capabilities.archive_export = archive_operations;
+    capabilities.archive_restore = archive_operations;
     ProjectSummary {
         project_key: entry.project_key.clone(),
         display_label: entry.display_label.clone(),

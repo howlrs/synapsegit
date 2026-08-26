@@ -22,7 +22,9 @@ object-count/declared-byte budget shared by every manifest-level inspection
 never accepts a caller-supplied path. With that root configured, the service
 also validates exact project confirmation and a logical archive slug, then
 runs Core's server-fixed bounded atomic no-replace export for the maintenance
-job transport. Archive restore, browser archive controls, restart-durable
+job transport. The same root enables exact target/empty confirmation followed
+by Core's server-fixed bounded exact-subset restore with Ref publication last.
+Browser archive controls, restart-durable
 review, and automatic incomplete-session recovery are not implemented here.
 The diagnostics and maintenance `fsck`
 additions were introduced in v0.3.0 and remain unchanged in the tagged v0.6.0
