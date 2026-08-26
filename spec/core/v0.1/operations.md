@@ -851,8 +851,18 @@ replace a destination created by a concurrent process. The local writer stages
 each export in a unique sibling directory on the destination filesystem and
 removes it on an ordinary error return. This profile does not yet claim
 process-crash fault injection or startup recovery of orphan staging directories.
+The local restore profile MUST bound both the existing destination inventory
+and manifest inventory, cumulative manifest-declared object bytes, Ref and
+reflog entry counts, retained Ref/reflog variable text, the shared Tombstone
+Record scan, and cumulative closure nodes and edges visited across all distinct
+archived heads. Limits are inclusive; zero, overflow, or excess MUST return
+`resource_limit`. Different heads that re-traverse a shared node or edge are
+charged again. The manifest retains its fixed 64 MiB hard ceiling. These local
+restore limits are caller-changeable defaults rather than protocol hard
+ceilings.
+
 A conforming restore into a repository with no Refs or reflog, and with either
-an empty ObjectStore or an exact subset left by the same failed restore, must:
+an empty ObjectStore or an exact subset left by the same failed restore, MUST:
 
 1. recalculate every OID rather than trust filenames;
 2. reject duplicate OIDs with different bytes;

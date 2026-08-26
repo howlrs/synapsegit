@@ -126,6 +126,18 @@ fn create_sample_archive() -> RefArchive {
 }
 
 #[test]
+fn bounded_empty_check_observes_refs_and_reflog_without_materializing_them() {
+    let mut store = SqliteRefStore::open_in_memory().unwrap();
+    assert!(store.is_empty().unwrap());
+
+    let head = commit_oid('a');
+    store
+        .compare_and_swap(update("proposal/non-empty", None, &head, 1), &allow_all)
+        .unwrap();
+    assert!(!store.is_empty().unwrap());
+}
+
+#[test]
 fn existing_read_only_store_matches_normal_reads_without_touching_source() {
     let temporary = TestDirectory::new("existing-read-only");
     let path = temporary.database_path();

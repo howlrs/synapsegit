@@ -21,7 +21,7 @@ pub use human_decision::{
 
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::collections::HashSet;
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
@@ -128,6 +128,42 @@ pub struct ArchiveExportLimits {
 }
 
 impl Default for ArchiveExportLimits {
+    fn default() -> Self {
+        Self {
+            max_objects: DEFAULT_MAX_ARCHIVE_OBJECTS,
+            max_object_bytes: DEFAULT_MAX_ARCHIVE_OBJECT_BYTES,
+            max_head_validation_nodes: DEFAULT_MAX_ARCHIVE_HEAD_VALIDATION_NODES,
+            max_head_validation_edges: DEFAULT_MAX_ARCHIVE_HEAD_VALIDATION_EDGES,
+            tombstone_scan: TombstoneScanLimits::default(),
+            ref_archive: RefArchiveExportLimits::default(),
+        }
+    }
+}
+
+/// Resource limits for one local directory archive restore.
+///
+/// These limits are inclusive and apply to the complete destination inventory,
+/// manifest inventory, manifest-declared object bytes, Ref/reflog payload, and
+/// cumulative validation work across every distinct archived head. [`Default`]
+/// mirrors the local export profile; callers exposing restore through a
+/// transport should pin their own server-owned values.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ArchiveRestoreLimits {
+    /// Maximum existing destination objects and manifest object rows.
+    pub max_objects: usize,
+    /// Maximum cumulative manifest-declared object bytes.
+    pub max_object_bytes: u64,
+    /// Maximum nodes visited across all distinct archived heads.
+    pub max_head_validation_nodes: usize,
+    /// Maximum edges visited across all distinct archived heads.
+    pub max_head_validation_edges: usize,
+    /// Limits for the one shared Tombstone Record catalog used by head checks.
+    pub tombstone_scan: TombstoneScanLimits,
+    /// Limits for the archived Ref/reflog payload.
+    pub ref_archive: RefArchiveExportLimits,
+}
+
+impl Default for ArchiveRestoreLimits {
     fn default() -> Self {
         Self {
             max_objects: DEFAULT_MAX_ARCHIVE_OBJECTS,
@@ -451,12 +487,13 @@ impl Repository {
     pub fn update_ref(&mut self, update: RefUpdate<'_>) -> Result<ReflogEntry> {
         self.ensure_writable()?;
         let objects = &self.objects;
-        let limits = self.graph_limits;
+        let graph_limits = self.graph_limits;
         let tombstone_scan_limits = self.tombstone_scan_limits;
         // SqliteRefStore performs lexical Ref/head/metadata validation before
         // invoking this closure, so malformed requests cannot force the
         // bounded-but-potentially-large Tombstone inventory scan.
-        let validator = |head: &str| validate_head(objects, head, limits, tombstone_scan_limits);
+        let validator =
+            |head: &str| validate_head(objects, head, graph_limits, tombstone_scan_limits);
         Ok(self.refs.compare_and_swap(update, &validator)?)
     }
 
@@ -833,20 +870,53 @@ impl Repository {
         archive: impl AsRef<Path>,
         repository: impl AsRef<Path>,
     ) -> Result<Self> {
+        Self::restore_archive_with_limits(archive, repository, ArchiveRestoreLimits::default())
+    }
+
+    pub fn restore_archive_with_limits(
+        archive: impl AsRef<Path>,
+        repository: impl AsRef<Path>,
+        limits: ArchiveRestoreLimits,
+    ) -> Result<Self> {
+        validate_archive_restore_limits(limits)?;
         let mut result = Self::open(repository)?;
-        result.restore_from(archive)?;
+        result.restore_from_bounded(archive, limits)?;
         Ok(result)
     }
 
     pub fn restore_from(&mut self, archive: impl AsRef<Path>) -> Result<()> {
+        self.restore_from_bounded(
+            archive,
+            ArchiveRestoreLimits {
+                tombstone_scan: self.tombstone_scan_limits,
+                ..ArchiveRestoreLimits::default()
+            },
+        )
+    }
+
+    pub fn restore_from_with_limits(
+        &mut self,
+        archive: impl AsRef<Path>,
+        limits: ArchiveRestoreLimits,
+    ) -> Result<()> {
+        validate_archive_restore_limits(limits)?;
+        self.restore_from_bounded(archive, limits)
+    }
+
+    fn restore_from_bounded(
+        &mut self,
+        archive: impl AsRef<Path>,
+        limits: ArchiveRestoreLimits,
+    ) -> Result<()> {
         self.ensure_writable()?;
-        if !self.refs.snapshot()?.is_empty() || !self.refs.reflog()?.is_empty() {
+        if !self.refs.is_empty()? {
             return Err(RepositoryError::RepositoryNotEmpty);
         }
-        let existing_oids = self.objects.list_oids()?;
+        let existing_oids = self.objects.list_oids_limited(limits.max_objects)?;
 
         let archive = archive.as_ref();
         let (manifest, _manifest_checksum) = read_verified_manifest(archive)?;
+        manifest.validate_restore_limits(limits)?;
         let archived_oids = manifest
             .objects
             .iter()
@@ -906,7 +976,7 @@ impl Repository {
             }
         }
 
-        let stored = self.objects.list_oids()?;
+        let stored = self.objects.list_oids_limited(limits.max_objects)?;
         let expected = manifest
             .objects
             .iter()
@@ -920,24 +990,53 @@ impl Repository {
 
         let ref_archive = manifest.into_ref_archive();
         let objects = &self.objects;
-        let limits = self.graph_limits;
-        let tombstone_scan_limits = self.tombstone_scan_limits;
+        let graph_limits = self.graph_limits;
         let verifier = RefCell::new(None);
+        let validated_head_nodes = Cell::new(0_usize);
+        let validated_head_edges = Cell::new(0_usize);
         let validator = |head: &str| {
             let mut verifier = verifier.borrow_mut();
             if verifier.is_none() {
                 *verifier = Some(
-                    PreparedClosureVerifier::new(objects, limits, tombstone_scan_limits).map_err(
-                        |error| ValidationError::new(store_error_code(&error), error.to_string()),
-                    )?,
+                    PreparedClosureVerifier::new(objects, graph_limits, limits.tombstone_scan)
+                        .map_err(|error| {
+                            ValidationError::new(store_error_code(&error), error.to_string())
+                        })?,
                 );
             }
-            validate_prepared_head(
+            let remaining_nodes = limits
+                .max_head_validation_nodes
+                .checked_sub(validated_head_nodes.get())
+                .expect("restore head node work stays within its configured limit");
+            let remaining_edges = limits
+                .max_head_validation_edges
+                .checked_sub(validated_head_edges.get())
+                .expect("restore head edge work stays within its configured limit");
+            let (nodes, edges) = validate_prepared_head_with_work_limits(
                 verifier
                     .as_ref()
                     .expect("the archive verifier is initialized above"),
                 head,
-            )
+                remaining_nodes,
+                remaining_edges,
+            )?;
+            validated_head_nodes.set(validated_head_nodes.get().checked_add(nodes).ok_or_else(
+                || {
+                    ValidationError::new(
+                        "resource_limit",
+                        "archive restore head node total overflowed usize",
+                    )
+                },
+            )?);
+            validated_head_edges.set(validated_head_edges.get().checked_add(edges).ok_or_else(
+                || {
+                    ValidationError::new(
+                        "resource_limit",
+                        "archive restore head edge total overflowed usize",
+                    )
+                },
+            )?);
+            Ok(())
         };
         self.refs.restore_archive(&ref_archive, &validator)?;
         Ok(())
@@ -980,6 +1079,19 @@ fn validate_prepared_head(
         .verify_uncached(head)
         .map_err(|error| ValidationError::new(store_error_code(&error), error.to_string()))?;
     validate_closure_report(&report)
+}
+
+fn validate_prepared_head_with_work_limits(
+    verifier: &PreparedClosureVerifier<'_, FileObjectStore>,
+    head: &str,
+    max_objects: usize,
+    max_edges: usize,
+) -> std::result::Result<(usize, usize), ValidationError> {
+    let report = verifier
+        .verify_uncached_with_work_limits(head, max_objects, max_edges)
+        .map_err(|error| ValidationError::new(store_error_code(&error), error.to_string()))?;
+    validate_closure_report(&report)?;
+    Ok((report.nodes.len(), report.edges.len()))
 }
 
 fn validate_archive_head(
@@ -1074,6 +1186,53 @@ fn validate_fsck_limits(limits: FsckLimits) -> Result<()> {
     Ok(())
 }
 
+fn validate_archive_restore_limits(limits: ArchiveRestoreLimits) -> Result<()> {
+    for (name, value) in [
+        ("max_objects", limits.max_objects),
+        (
+            "max_head_validation_nodes",
+            limits.max_head_validation_nodes,
+        ),
+        (
+            "max_head_validation_edges",
+            limits.max_head_validation_edges,
+        ),
+        (
+            "tombstone_scan.max_record_objects",
+            limits.tombstone_scan.max_record_objects,
+        ),
+        ("ref_archive.max_refs", limits.ref_archive.max_refs),
+        (
+            "ref_archive.max_reflog_entries",
+            limits.ref_archive.max_reflog_entries,
+        ),
+    ] {
+        if value == 0 {
+            return Err(resource_limit(format!(
+                "archive restore {name} must be greater than zero"
+            )));
+        }
+    }
+    for (name, value) in [
+        ("max_object_bytes", limits.max_object_bytes),
+        (
+            "tombstone_scan.max_record_bytes",
+            limits.tombstone_scan.max_record_bytes,
+        ),
+        (
+            "ref_archive.max_text_bytes",
+            limits.ref_archive.max_text_bytes,
+        ),
+    ] {
+        if value == 0 {
+            return Err(resource_limit(format!(
+                "archive restore {name} must be greater than zero"
+            )));
+        }
+    }
+    Ok(())
+}
+
 fn checked_add_fsck_work(
     current: usize,
     additional: usize,
@@ -1093,6 +1252,21 @@ fn checked_add_fsck_work(
 
 fn resource_limit(message: impl Into<String>) -> RepositoryError {
     CoreError::new(ErrorCode::ResourceLimit, message).into()
+}
+
+fn add_archive_restore_text_bytes(total: &mut u64, additional: usize, limit: u64) -> Result<()> {
+    let additional = u64::try_from(additional)
+        .map_err(|_| resource_limit("archive restore text length does not fit u64"))?;
+    let next = total
+        .checked_add(additional)
+        .ok_or_else(|| resource_limit("archive restore text byte total overflowed u64"))?;
+    if next > limit {
+        return Err(resource_limit(format!(
+            "archive restore text bytes exceed max_text_bytes {limit}"
+        )));
+    }
+    *total = next;
+    Ok(())
 }
 
 fn archive_head_error(error: &ValidationError, message: String) -> RepositoryError {
@@ -1237,6 +1411,65 @@ impl ArchiveManifest {
                 )));
             }
             previous_oid = Some(&object.oid);
+        }
+        Ok(())
+    }
+
+    fn validate_restore_limits(&self, limits: ArchiveRestoreLimits) -> Result<()> {
+        if self.objects.len() > limits.max_objects {
+            return Err(resource_limit(format!(
+                "archive restore object count exceeds max_objects {}",
+                limits.max_objects
+            )));
+        }
+        let mut object_bytes = 0_u64;
+        for object in &self.objects {
+            object_bytes = object_bytes
+                .checked_add(object.byte_length)
+                .ok_or_else(|| {
+                    resource_limit("archive restore object byte total overflowed u64")
+                })?;
+            if object_bytes > limits.max_object_bytes {
+                return Err(resource_limit(format!(
+                    "archive restore object bytes exceed max_object_bytes {}",
+                    limits.max_object_bytes
+                )));
+            }
+        }
+        if self.refs.len() > limits.ref_archive.max_refs {
+            return Err(resource_limit(format!(
+                "archive restore Ref count exceeds max_refs {}",
+                limits.ref_archive.max_refs
+            )));
+        }
+        if self.reflog.len() > limits.ref_archive.max_reflog_entries {
+            return Err(resource_limit(format!(
+                "archive restore reflog count exceeds max_reflog_entries {}",
+                limits.ref_archive.max_reflog_entries
+            )));
+        }
+        let mut text_bytes = 0_u64;
+        for reference in &self.refs {
+            add_archive_restore_text_bytes(
+                &mut text_bytes,
+                reference.name.len(),
+                limits.ref_archive.max_text_bytes,
+            )?;
+        }
+        for event in &self.reflog {
+            let event_text_bytes = event
+                .ref_name
+                .len()
+                .checked_add(event.actor.as_ref().map_or(0, String::len))
+                .and_then(|bytes| bytes.checked_add(event.message.as_ref().map_or(0, String::len)))
+                .ok_or_else(|| {
+                    resource_limit("archive restore reflog text byte total overflowed usize")
+                })?;
+            add_archive_restore_text_bytes(
+                &mut text_bytes,
+                event_text_bytes,
+                limits.ref_archive.max_text_bytes,
+            )?;
         }
         Ok(())
     }

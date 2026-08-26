@@ -8,6 +8,14 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ### Added
 
+- bounded Core archive restore APIs: `ArchiveRestoreLimits`,
+  `Repository::restore_archive_with_limits`, and
+  `Repository::restore_from_with_limits` bound the destination and manifest
+  object inventories, aggregate object bytes, Ref/reflog payload, shared
+  Tombstone scan, and cumulative validation work across distinct archived
+  heads. Existing restore entry points use the documented local defaults (and
+  retain a repository's configured Tombstone scan limit); no archive-format or
+  OID change is introduced.
 - localhost archive export API: authenticated `POST
   /api/v1/projects/{projectKey}/archive-exports` accepts only a server-rooted
   logical slug plus exact project confirmation, reserves a process-local

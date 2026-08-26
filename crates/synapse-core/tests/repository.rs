@@ -7,7 +7,8 @@ use synapse_cas::{
     verify_closure,
 };
 use synapse_core::{
-    ArchiveExportLimits, FsckLimits, RefArchiveExportLimits, Repository, RepositoryError,
+    ArchiveExportLimits, ArchiveRestoreLimits, FsckLimits, RefArchiveExportLimits, Repository,
+    RepositoryError,
 };
 use synapse_schema::ingest;
 use synapse_sqlite::{
@@ -959,6 +960,329 @@ fn bounded_export_rejects_an_oversized_ref_snapshot_before_publication() {
     assert_eq!(error.code(), "resource_limit");
     assert!(!destination.exists());
     assert_no_archive_staging(&temporary, "archive");
+}
+
+#[test]
+fn bounded_restore_rejects_zero_limits_before_reading_the_archive() {
+    let temporary = TempDirectory::new("restore-zero-limits");
+    let mut repository = Repository::open(temporary.join("destination")).unwrap();
+    let missing_archive = temporary.join("missing-archive");
+
+    for limits in [
+        ArchiveRestoreLimits {
+            max_objects: 0,
+            ..ArchiveRestoreLimits::default()
+        },
+        ArchiveRestoreLimits {
+            max_object_bytes: 0,
+            ..ArchiveRestoreLimits::default()
+        },
+        ArchiveRestoreLimits {
+            max_head_validation_nodes: 0,
+            ..ArchiveRestoreLimits::default()
+        },
+        ArchiveRestoreLimits {
+            max_head_validation_edges: 0,
+            ..ArchiveRestoreLimits::default()
+        },
+        ArchiveRestoreLimits {
+            tombstone_scan: TombstoneScanLimits {
+                max_record_objects: 0,
+                ..TombstoneScanLimits::default()
+            },
+            ..ArchiveRestoreLimits::default()
+        },
+        ArchiveRestoreLimits {
+            ref_archive: RefArchiveExportLimits {
+                max_refs: 0,
+                ..RefArchiveExportLimits::default()
+            },
+            ..ArchiveRestoreLimits::default()
+        },
+    ] {
+        let error = repository
+            .restore_from_with_limits(&missing_archive, limits)
+            .unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+    }
+
+    let unopened_destination = temporary.join("unopened-destination");
+    let error = match Repository::restore_archive_with_limits(
+        &missing_archive,
+        &unopened_destination,
+        ArchiveRestoreLimits {
+            max_objects: 0,
+            ..ArchiveRestoreLimits::default()
+        },
+    ) {
+        Ok(_) => panic!("zero restore limit unexpectedly succeeded"),
+        Err(error) => error,
+    };
+    assert_eq!(error.code(), "resource_limit");
+    assert!(!unopened_destination.exists());
+}
+
+#[test]
+fn bounded_restore_enforces_inclusive_object_count_and_bytes_before_copying() {
+    let temporary = TempDirectory::new("restore-object-limits");
+    let mut source = Repository::open(temporary.join("source")).unwrap();
+    source.put_blob(b"abc".as_slice()).unwrap();
+    source.put_blob(b"defg".as_slice()).unwrap();
+    let archive = temporary.join("archive");
+    source.export_archive(&archive).unwrap();
+
+    for (destination_name, limits) in [
+        (
+            "limited-count",
+            ArchiveRestoreLimits {
+                max_objects: 1,
+                max_object_bytes: 7,
+                ..ArchiveRestoreLimits::default()
+            },
+        ),
+        (
+            "limited-bytes",
+            ArchiveRestoreLimits {
+                max_objects: 2,
+                max_object_bytes: 6,
+                ..ArchiveRestoreLimits::default()
+            },
+        ),
+    ] {
+        let destination = temporary.join(destination_name);
+        let mut repository = Repository::open(&destination).unwrap();
+        let error = repository
+            .restore_from_with_limits(&archive, limits)
+            .unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+        assert!(repository.objects().list_oids().unwrap().is_empty());
+    }
+
+    let restored = Repository::restore_archive_with_limits(
+        &archive,
+        temporary.join("exact"),
+        ArchiveRestoreLimits {
+            max_objects: 2,
+            max_object_bytes: 7,
+            ..ArchiveRestoreLimits::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(restored.objects().list_oids().unwrap().len(), 2);
+}
+
+#[test]
+fn bounded_restore_counts_an_existing_exact_subset_in_the_destination_inventory() {
+    let temporary = TempDirectory::new("restore-existing-inventory");
+    let mut source = Repository::open(temporary.join("source")).unwrap();
+    let first = source.put_blob(b"abc".as_slice()).unwrap();
+    source.put_blob(b"defg".as_slice()).unwrap();
+    let archive = temporary.join("archive");
+    source.export_archive(&archive).unwrap();
+
+    let mut destination = Repository::open(temporary.join("destination")).unwrap();
+    destination.put_blob(b"abc".as_slice()).unwrap();
+    let error = destination
+        .restore_from_with_limits(
+            &archive,
+            ArchiveRestoreLimits {
+                max_objects: 1,
+                ..ArchiveRestoreLimits::default()
+            },
+        )
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+    assert_eq!(destination.objects().list_oids().unwrap(), vec![first.oid]);
+
+    destination
+        .restore_from_with_limits(
+            &archive,
+            ArchiveRestoreLimits {
+                max_objects: 2,
+                max_object_bytes: 7,
+                ..ArchiveRestoreLimits::default()
+            },
+        )
+        .unwrap();
+    assert_eq!(destination.objects().list_oids().unwrap().len(), 2);
+}
+
+#[test]
+fn bounded_restore_rejects_oversized_ref_reflog_and_text_payloads_before_copying() {
+    let temporary = TempDirectory::new("restore-ref-limits");
+    let mut source = Repository::open(temporary.join("source")).unwrap();
+    load_fixture_store(&source);
+    let proposal = oid("proposal-commit.json");
+    for (index, ref_name) in ["proposal/one", "proposal/two"].into_iter().enumerate() {
+        source
+            .update_ref(RefUpdate {
+                ref_name,
+                expected_head: None,
+                new_head: &proposal,
+                metadata: ReflogMetadata {
+                    occurred_at_unix_nanos: index as i64 + 1,
+                    actor: Some("bounded-restore-test"),
+                    message: Some("restore payload"),
+                },
+            })
+            .unwrap();
+    }
+    let archive = temporary.join("archive");
+    source.export_archive(&archive).unwrap();
+
+    for (destination_name, ref_archive) in [
+        (
+            "limited-refs",
+            RefArchiveExportLimits {
+                max_refs: 1,
+                ..RefArchiveExportLimits::default()
+            },
+        ),
+        (
+            "limited-reflog",
+            RefArchiveExportLimits {
+                max_reflog_entries: 1,
+                ..RefArchiveExportLimits::default()
+            },
+        ),
+        (
+            "limited-text",
+            RefArchiveExportLimits {
+                max_text_bytes: 1,
+                ..RefArchiveExportLimits::default()
+            },
+        ),
+    ] {
+        let mut destination = Repository::open(temporary.join(destination_name)).unwrap();
+        let error = destination
+            .restore_from_with_limits(
+                &archive,
+                ArchiveRestoreLimits {
+                    ref_archive,
+                    ..ArchiveRestoreLimits::default()
+                },
+            )
+            .unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+        assert!(destination.objects().list_oids().unwrap().is_empty());
+    }
+}
+
+#[test]
+fn bounded_restore_caps_cumulative_head_work_and_supports_exact_subset_retry() {
+    let temporary = TempDirectory::new("restore-head-work-limit");
+    let mut source = Repository::open(temporary.join("source")).unwrap();
+    load_fixture_store(&source);
+    let base = oid("base-commit.json");
+    let proposal = oid("proposal-commit.json");
+    for (index, (ref_name, head)) in [
+        ("proposal/restore-base", base.as_str()),
+        ("proposal/restore-tip", proposal.as_str()),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        source
+            .update_ref(RefUpdate {
+                ref_name,
+                expected_head: None,
+                new_head: head,
+                metadata: ReflogMetadata::at(index as i64 + 1),
+            })
+            .unwrap();
+    }
+    let archive = temporary.join("archive");
+    source.export_archive(&archive).unwrap();
+
+    let base_report = verify_closure(source.objects(), &base, GraphLimits::default()).unwrap();
+    let proposal_report =
+        verify_closure(source.objects(), &proposal, GraphLimits::default()).unwrap();
+    let total_nodes = base_report.nodes.len() + proposal_report.nodes.len();
+    let total_edges = base_report.edges.len() + proposal_report.edges.len();
+    let exact = ArchiveRestoreLimits {
+        max_head_validation_nodes: total_nodes,
+        max_head_validation_edges: total_edges,
+        ..ArchiveRestoreLimits::default()
+    };
+
+    for (destination_name, limits) in [
+        (
+            "limited-nodes",
+            ArchiveRestoreLimits {
+                max_head_validation_nodes: total_nodes - 1,
+                ..exact
+            },
+        ),
+        (
+            "limited-edges",
+            ArchiveRestoreLimits {
+                max_head_validation_edges: total_edges - 1,
+                ..exact
+            },
+        ),
+    ] {
+        let mut destination = Repository::open(temporary.join(destination_name)).unwrap();
+        let error = destination
+            .restore_from_with_limits(&archive, limits)
+            .unwrap_err();
+        assert_eq!(error.code(), "resource_limit");
+        assert!(destination.refs().is_empty().unwrap());
+        assert!(!destination.objects().list_oids().unwrap().is_empty());
+
+        destination
+            .restore_from_with_limits(&archive, exact)
+            .unwrap();
+        assert_eq!(destination.refs().snapshot().unwrap().len(), 2);
+    }
+}
+
+#[test]
+fn bounded_restore_limits_the_shared_tombstone_inventory_scan() {
+    let temporary = TempDirectory::new("restore-tombstone-scan-limit");
+    let mut source = Repository::open(temporary.join("source")).unwrap();
+    load_fixture_store(&source);
+    let proposal = oid("proposal-commit.json");
+    source
+        .update_ref(RefUpdate {
+            ref_name: "proposal/tombstone-limit",
+            expected_head: None,
+            new_head: &proposal,
+            metadata: ReflogMetadata::at(1),
+        })
+        .unwrap();
+    let archive = temporary.join("archive");
+    source.export_archive(&archive).unwrap();
+
+    let mut destination = Repository::open(temporary.join("destination")).unwrap();
+    let error = destination
+        .restore_from_with_limits(
+            &archive,
+            ArchiveRestoreLimits {
+                tombstone_scan: TombstoneScanLimits {
+                    max_record_objects: 1,
+                    max_record_bytes: u64::MAX,
+                },
+                ..ArchiveRestoreLimits::default()
+            },
+        )
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+    assert!(destination.refs().is_empty().unwrap());
+
+    destination.restore_from(&archive).unwrap();
+    assert_eq!(destination.refs().snapshot().unwrap().len(), 1);
+
+    let mut configured = Repository::open_with_tombstone_scan_limits(
+        temporary.join("configured-destination"),
+        TombstoneScanLimits {
+            max_record_objects: 1,
+            max_record_bytes: u64::MAX,
+        },
+    )
+    .unwrap();
+    let error = configured.restore_from(&archive).unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+    assert!(configured.refs().is_empty().unwrap());
 }
 
 #[test]

@@ -194,6 +194,12 @@ flowchart LR
 | archive export Tombstone Record scan | 100,000 Records / 1 GiB |
 | archive export Refs / reflog entries | 100,000 / 100,000 |
 | archive export Ref/reflog variable text | 64 MiB |
+| archive restore destination / manifest objects | 100,000 / 100,000 |
+| archive restore manifest-declared object bytes | 1 TiB |
+| archive restore distinct-head validation nodes / edges | 1,000,000 / 10,000,000 |
+| archive restore Tombstone Record scan | 100,000 Records / 1 GiB |
+| archive restore Refs / reflog entries | 100,000 / 100,000 |
+| archive restore Ref/reflog variable text | 64 MiB |
 | export / restore manifest | 64 MiB |
 | manifest checksum file | 256 bytes |
 | publication Ref SQLite private snapshot | 512 MiB |
@@ -211,6 +217,9 @@ profileを構成できるが、互換用`Repository::fsck`はunbounded inventory
 library caller は `ArchiveExportLimits` により、object件数、
 raw object bytes、distinct-head validation nodes／edges、Tombstone scan、Ref／reflog snapshotの
 archive export既定値を小さくも大きくも置き換えられるため、これらの既定値はhard ceilingではない。
+restoreも`ArchiveRestoreLimits`でdestination／manifest object件数、manifest-declared bytes、
+distinct-head validation work、Tombstone scan、Ref／reflog payloadの既定値を置き換えられる。
+互換entry pointとCLIはlocal defaultを使うが、Repositoryに設定済みのTombstone scan limitは維持する。
 生成manifestの64 MiBとclosureのdynamic reference-role metadata 64 MiBは固定のhard ceilingである。
 後者はTree path、RecordのJSON Pointer、Record constraintなど、closure report内で同時に保持し得る
 copyをallocation前に課金する。

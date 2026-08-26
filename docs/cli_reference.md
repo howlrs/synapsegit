@@ -449,6 +449,9 @@ directory archive を検証し、object、reflog、Refs を復元する。
 - unrelated object が一つでもあれば `archive_not_empty`。
 - object、checksum、OID、schema、closure を再検証する。
 - Ref / reflog は object phase と closure 検証の後に公開する。
+- destination／manifest object inventory、manifest-declared object bytes、Ref／reflog payload、
+  Tombstone scan、全distinct archived headの累積検証workにはexportと同じ既定上限を使う。
+  current CLIはoverride optionを提供せず、0、overflow、超過は`resource_limit`になる。
 - 成功時は `restored <repo>` を出力する。
 
 ## Ref name constraints

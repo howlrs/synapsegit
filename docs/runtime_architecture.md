@@ -503,6 +503,12 @@ closureの再走査は再課金する。各headの実効limitは残りoperation 
 hard ceilingがある。CLI process同士のexport/update競合testは、復元可能な一貫した
 Ref／reflog prefixを検査するstress／smokeであり、SQLite transaction overlapのdeterministic proofではない。
 
+archive restoreも`ArchiveRestoreLimits`でdestination／manifest inventory、manifest-declared bytes、
+Ref／reflog payload、共有Tombstone catalog、全distinct archived headの累積node／edge workを
+operation-wideにboundする。Ref／reflog payloadとmanifest inventoryはobject copy前に検査し、closure
+検証の失敗時もRefsは未公開のままなので、残ったexact object subsetへ同じarchiveを再試行できる。
+互換APIとCLIはexportと同じlocal defaultを使い、Repository固有のTombstone scan limitは維持する。
+
 archive exportはdestinationと同じparentにprocess IDと時刻nonceを含むper-export staging directoryを作り、
 通常のerror returnでは`Drop` cleanupする。final publicationはLinux、Android、Apple、Redoxでatomic
 `RENAME_NOREPLACE`を使い、それ以外のtarget（Windowsを含む）は`storage_error`でfail closedする。

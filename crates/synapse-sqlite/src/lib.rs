@@ -568,6 +568,20 @@ impl SqliteRefStore {
         load_snapshot(&self.connection)
     }
 
+    /// Check whether both the current Ref set and complete reflog are empty
+    /// without materializing either collection.
+    pub fn is_empty(&self) -> Result<bool> {
+        let transaction = self.connection.unchecked_transaction()?;
+        let empty = transaction.query_row(
+            "SELECT NOT EXISTS(SELECT 1 FROM refs LIMIT 1)
+                    AND NOT EXISTS(SELECT 1 FROM ref_events LIMIT 1)",
+            [],
+            |row| row.get(0),
+        )?;
+        transaction.commit()?;
+        Ok(empty)
+    }
+
     /// Capture at most `max_refs` Refs, inspecting only one additional row to
     /// detect overflow before returning an oversized response.
     pub fn snapshot_limited(&self, max_refs: usize) -> Result<RefSnapshot> {
