@@ -8,6 +8,13 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ### Added
 
+- localhost archive restore API: authenticated `POST
+  /api/v1/projects/{projectKey}/archive-restores` accepts only a server-rooted
+  archive slug, exact target-project confirmation, and an explicit empty-target
+  confirmation. It runs as a process-local maintenance job with a server-fixed
+  `ArchiveRestoreLimits` profile, rechecks target emptiness in Core, supports
+  only the documented exact-subset retry, and publishes Refs/reflog last.
+  Restore UI remains unimplemented.
 - bounded Core archive restore APIs: `ArchiveRestoreLimits`,
   `Repository::restore_archive_with_limits`, and
   `Repository::restore_from_with_limits` bound the destination and manifest

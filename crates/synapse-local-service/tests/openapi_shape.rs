@@ -31,8 +31,8 @@
 use serde_json::Value;
 use std::fs;
 use synapse_local_service::{
-    ArchiveExportRequest, ArchiveList, ArchiveResult, ArchiveResultKind, ArchiveState,
-    ArchiveSummary, CommittedCreatorSession, CommittedState, ComparisonEvidence,
+    ArchiveExportRequest, ArchiveList, ArchiveRestoreRequest, ArchiveResult, ArchiveResultKind,
+    ArchiveState, ArchiveSummary, CommittedCreatorSession, CommittedState, ComparisonEvidence,
     CompleteCreatorSession, CompleteState, CreatorDecision, CreatorDecisionReceipt,
     CreatorDecisionRequest, CreatorReport, CreatorSessionCounts, CreatorSessionDiagnostic,
     CreatorSessionList, CreatorSessionState, CreatorSessionSummary, FsckResult, HealthResponse,
@@ -162,6 +162,21 @@ fn archive_export_request_matches_the_openapi_schema() {
         &serde_json::to_value(ArchiveExportRequest {
             archive_name: "nightly".into(),
             confirm_project_key: "demo".into(),
+        })
+        .unwrap(),
+    );
+}
+
+#[test]
+fn archive_restore_request_matches_the_openapi_schema() {
+    let document = openapi_document();
+    assert_matches_openapi_schema(
+        &document,
+        "ArchiveRestoreRequest",
+        &serde_json::to_value(ArchiveRestoreRequest {
+            archive_name: "nightly".into(),
+            confirm_target_project_key: "demo".into(),
+            confirm_empty_target: true,
         })
         .unwrap(),
     );

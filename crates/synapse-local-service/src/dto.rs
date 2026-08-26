@@ -113,6 +113,14 @@ pub struct ArchiveExportRequest {
     pub confirm_project_key: String,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ArchiveRestoreRequest {
+    pub archive_name: String,
+    pub confirm_target_project_key: String,
+    pub confirm_empty_target: bool,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum OperationKind {
