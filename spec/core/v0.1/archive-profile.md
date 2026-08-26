@@ -214,6 +214,15 @@ flowchart TD
 8. reflog の全 distinct `new_head` について typed closure を検査する。
 9. complete reflog と current Refs を一つの SQLite transaction で復元する。
 
+restore readerの既定上限はexport writerと同じく、destinationとmanifestのcomplete CAS inventory
+各100,000 objects、manifest-declared object bytes累積1 TiB、全distinct archived headの検証累積
+1,000,000 nodes／10,000,000 edges、共有Tombstone Record scan 100,000件／1 GiB、Refs／reflog
+各100,000 entries、Ref名／actor／message累積64 MiBである。各値はinclusiveで、0、超過、算術
+overflowは`resource_limit`になる。異なるheadが共有closureを再走査したworkも再課金する。
+`ArchiveRestoreLimits`を使うlibrary callerは固定64 MiBのmanifest ceilingを除く既定値を置き換えられる。
+互換entry pointの`Repository::restore_from`とCLIはこのprofileを使い、Repositoryに設定済みの
+Tombstone scan limitは維持する。
+
 object phase は複数 object 全体の transaction ではない。途中失敗時には manifest subset が残り得るが、
 Ref は0件のままである。同じ archive を修復して再実行できる。
 unrelated object、既存 Ref、既存 reflog があれば再開として受理しない。
@@ -239,7 +248,7 @@ unrelated object、既存 Ref、既存 reflog があれば再開として受理�
 - current Unix implementation は open 前後の device / inode identity を照合する。
 - non-Unix の directory sync は現在 no-op。
 - ObjectStore と export は immutable / append-only な協調的 writer を前提とする。
-- object inventory、raw object bytes、Tombstone Record scan、manifest bytesはexport側でもboundedである。
+- object inventory、raw object bytes、Tombstone Record scan、manifest bytesはexport／restore双方でboundedである。
 - SQLite Ref/reflog snapshotはentry数とvariable text bytesを読みながらboundする。各上限検出では最大一rowだけ追加でdecodeし、返却値には保持しない。
 - current／reflogの全distinct head traversalはoperation-wide node／edge budgetで合算し、異なるheadが
   共有closureを再走査するworkも再課金する。
