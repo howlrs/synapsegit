@@ -3,7 +3,7 @@
 Audience: maintainer、release担当、公開文書を更新するcontributor
 Status: Stage 0運用runbook
 Applies to: v0.6.x
-Last verified: 2026-08-18
+Last verified: 2026-08-26
 
 この文書は、SynapseGitを「GitHub上で見つける」「現在の用途を判断する」「安全に試す」までの
 公開導線とrelease手順を定義する。protocolの規範仕様ではない。
@@ -182,6 +182,25 @@ git diff --check
    workflow identityとrunnerは`verificationResult.signature.certificate`配下の`buildSignerURI`／
    `runnerEnvironment`で、digestは`verificationResult.statement.subject[].digest.sha256`で確認できる
    （gh CLI 2.78.0での実測。fieldの厳密なpathはgh CLIのversionで変わりうるため、あくまで参考とする）。
+
+   `GET /api/v1/archives`をsmoke testするときは、health endpointと異なり
+   `X-Synapse-Local-Token`が必須である。起動済みdashboardのHTMLからprocess-local tokenを取得し、
+   headerで送信する。tokenをURL、log、process argumentへ残さない。
+
+   ```bash
+   (
+     SYNAPSE_LOCAL_ORIGIN=http://127.0.0.1:8787
+     SYNAPSE_LOCAL_TOKEN="$(
+       curl --fail --silent --show-error "$SYNAPSE_LOCAL_ORIGIN/" \
+         | sed -n 's/.*<meta name="synapse-local-token" content="\([^"]*\)".*/\1/p'
+     )"
+     test -n "$SYNAPSE_LOCAL_TOKEN" || exit 1
+     printf '%s\n' \
+       "header = \"X-Synapse-Local-Token: $SYNAPSE_LOCAL_TOKEN\"" \
+       "url = \"$SYNAPSE_LOCAL_ORIGIN/api/v1/archives\"" \
+       | curl --fail --silent --show-error --config -
+   )
+   ```
 
 ## 公開後check
 
