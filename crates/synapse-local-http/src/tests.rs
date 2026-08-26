@@ -385,6 +385,11 @@ fn browser_write_enhancement_preserves_submitter_before_disabling_controls() {
         .expect("the form disables controls while busy");
     assert!(prepare < disable);
     assert!(APP_JS.contains("data.append(submitter.name, submitter.value)"));
+    assert!(
+        APP_JS.contains(
+            "submitter?.hasAttribute(\"formaction\") ? submitter.formAction : form.action"
+        )
+    );
     assert!(APP_JS.contains("event.submitter?.name === \"disposition\""));
     assert!(APP_JS.contains("window.confirm("));
     assert!(APP_JS.contains("form.hidden = false"));
@@ -399,6 +404,9 @@ fn browser_write_enhancement_preserves_submitter_before_disabling_controls() {
     );
     assert!(APP_JS.contains("data?.state === \"queued\""));
     assert!(APP_JS.contains("form.dataset.confirmMaintenance"));
+    assert!(APP_JS.contains("form.dataset.confirmMaintenance === \"archive-export\""));
+    assert!(APP_JS.contains("operation.kind === \"archive_export\""));
+    assert!(APP_JS.contains("result.result_kind !== \"exported\""));
 }
 
 #[test]
@@ -958,6 +966,7 @@ async fn bounded_fsck_is_confirmed_queued_polled_and_reflected_in_project_status
     assert!(page.contains("Repository integrity check"));
     assert!(page.contains("name=\"confirm_project_key\""));
     assert!(page.contains("直近のprocess-local結果: clean"));
+    assert!(!page.contains("Archive export"));
 
     for body in [
         r#"{"confirm_project_key":"other"}"#,
@@ -1070,6 +1079,7 @@ async fn archive_export_is_confirmed_queued_polled_and_no_replace() {
     }
 
     let status = app
+        .clone()
         .oneshot(
             request("/api/v1/projects/demo/status")
                 .header("x-synapse-local-token", "a".repeat(64))
@@ -1082,6 +1092,21 @@ async fn archive_export_is_confirmed_queued_polled_and_no_replace() {
     let status: serde_json::Value = serde_json::from_slice(&status).unwrap();
     assert_eq!(status["project"]["capabilities"]["archive_export"], true);
     assert_eq!(status["project"]["capabilities"]["archive_restore"], true);
+
+    let page = app
+        .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(page.status(), StatusCode::OK);
+    let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
+    let page = std::str::from_utf8(&page).unwrap();
+    assert!(page.contains("Archive export"));
+    assert!(page.contains("action=\"/api/v1/projects/demo/archive-exports\""));
+    assert!(page.contains("data-confirm-maintenance=\"archive-export\""));
+    assert!(page.contains("data-success-location=\"/#archives-heading\""));
+    assert!(page.contains("name=\"archive_name\""));
+    assert!(page.contains("name=\"confirm_project_key\""));
+    assert!(!page.contains(archive_root.to_str().unwrap()));
 }
 
 #[tokio::test]

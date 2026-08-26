@@ -154,6 +154,19 @@ function operationSuccessMessage(operation) {
       ? `Integrity check completed cleanly after verifying ${result.objects_verified} objects.`
       : `Integrity check completed with ${result.issue_count} issues.`;
   }
+  if (operation.kind === "archive_export") {
+    const result = operation.result;
+    if (
+      !result ||
+      typeof result.archive_name !== "string" ||
+      !/^[a-z][a-z0-9-]{0,63}$/u.test(result.archive_name) ||
+      result.result_kind !== "exported" ||
+      result.report_equivalence_required !== false
+    ) {
+      throw new TypeError("The archive-export result is invalid.");
+    }
+    return `Archive “${result.archive_name}” was exported.`;
+  }
   return "Maintenance operation completed.";
 }
 
@@ -470,7 +483,10 @@ function creatorMultipart(form, submitter) {
 
 function formRequest(form, submitter) {
   const method = (submitter?.formMethod || form.method || "get").toUpperCase();
-  const action = submitter?.formAction || form.action;
+  // Chrome resolves a button without a `formaction` attribute to the current
+  // document URL, not to its owning form's action. Only an explicit submitter
+  // override may replace the API form action.
+  const action = submitter?.hasAttribute("formaction") ? submitter.formAction : form.action;
   const url = resolveApiUrl(action);
 
   if (method === "GET") {
@@ -610,6 +626,21 @@ async function submitEnhancedForm(event) {
     );
     if (!confirmed) {
       setStatus(form, "Integrity checkは開始されませんでした。", null);
+      return;
+    }
+  }
+
+  if (form.dataset.confirmMaintenance === "archive-export") {
+    const archiveName = new FormData(form).get("archive_name");
+    if (typeof archiveName !== "string" || !/^[a-z][a-z0-9-]{0,63}$/u.test(archiveName)) {
+      setStatus(form, "Archive exportは開始されませんでした。", null);
+      return;
+    }
+    const confirmed = window.confirm(
+      `新しいarchive “${archiveName}” を作成します。既存archiveは上書きされません。続行しますか？`,
+    );
+    if (!confirmed) {
+      setStatus(form, "Archive exportは開始されませんでした。", null);
       return;
     }
   }

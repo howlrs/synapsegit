@@ -163,6 +163,8 @@ On the tagged v0.7.0 binary, the same option also enables the archive export
 and empty-target restore APIs and sets `archive_export=true` and
 `archive_restore=true` in each project capability response. Without it, export
 and restore requests fail before job reservation with `service_unavailable`.
+Current main also renders a confirmed no-replace export form on each project
+page when that capability is enabled; restore remains API/CLI-only.
 
 ```bash
 mkdir -p "$HOME/SynapseGit/archives"
