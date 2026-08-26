@@ -16,9 +16,10 @@ from Ref/head IDs. The service also validates exact project confirmation, runs
 only `fsck_with_limits` with a server-fixed Core-default-equivalent maintenance
 profile, and retains the latest clean or dirty aggregate result in process-local
 `last_fsck`. An optional server-owned archive root enables `list_archives`, a
-bounded read-only listing of the root's direct entries with per-archive
-manifest-level inspection (`valid`/`invalid`/`staging_or_unknown`); it is
-configured-empty by default and never accepts a caller-supplied path. Archive
+bounded read-only listing of the root's direct entries with an operation-wide
+object-count/declared-byte budget shared by every manifest-level inspection
+(`valid`/`invalid`/`staging_or_unknown`); it is configured-empty by default and
+never accepts a caller-supplied path. Archive
 export, restore, restart-durable review, and automatic incomplete-session
 recovery are not implemented here. The diagnostics and maintenance `fsck`
 additions were introduced in v0.3.0 and remain unchanged in the tagged v0.6.0

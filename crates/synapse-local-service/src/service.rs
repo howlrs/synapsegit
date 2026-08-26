@@ -8,8 +8,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use synapse_core::{
-    ArchiveInspectionLimits, ArchiveInspectionState, FsckLimits, Repository, RepositoryError,
-    TombstoneScanLimits, inspect_archive_with_limits,
+    ArchiveInspectionBudget, ArchiveInspectionLimits, ArchiveInspectionState, FsckLimits,
+    Repository, RepositoryError, TombstoneScanLimits, inspect_archive_with_budget,
 };
 use synapse_creator::{
     CREATOR_RESERVED_PENDING_DECISIONS, CreatorBeginOptions,
@@ -60,9 +60,9 @@ const _: () = assert!(
 /// Resource limits for one HTTP-facing bounded archive listing.
 ///
 /// `max_root_entries` bounds the server-owned archive root's direct entry
-/// count before any per-archive inspection begins; `inspection` is threaded
-/// unchanged into `synapse_core::inspect_archive_with_limits` for each
-/// candidate archive. Kept server-fixed for the same reason as
+/// count before inspection begins; `inspection` supplies one cumulative
+/// [`ArchiveInspectionBudget`] shared by every candidate archive in the
+/// listing. Kept server-fixed for the same reason as
 /// [`MAINTENANCE_FSCK_LIMITS`]: a Core default change must not silently
 /// change what the localhost application admits.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -72,7 +72,7 @@ pub struct ArchiveListLimits {
     /// slug name, a directory, or ultimately admitted as a candidate
     /// archive.
     pub max_root_entries: usize,
-    /// Per-archive inspection limits applied to each candidate entry.
+    /// Operation-wide inspection limits shared across all candidate entries.
     pub inspection: ArchiveInspectionLimits,
 }
 
@@ -81,6 +81,8 @@ pub struct ArchiveListLimits {
 /// `max_root_entries` matches `ArchiveList`'s openapi `maxItems: 100000`
 /// (`api/local/v1/openapi.json`), so a root that itself fits within the
 /// contractual response size cannot separately be rejected by this ceiling.
+/// The inspection object and byte ceilings apply once across the complete
+/// listing rather than being replenished for every root entry.
 pub const ARCHIVE_LIST_LIMITS: ArchiveListLimits = ArchiveListLimits {
     max_root_entries: 100_000,
     inspection: ArchiveInspectionLimits {
@@ -546,35 +548,35 @@ impl LocalService {
         }
         archive_names.sort();
 
-        let archives = archive_names
-            .into_iter()
-            .map(|archive_name| {
-                let archive_path = archive_root.join(&archive_name);
-                let (state, manifest_checksum) =
-                    match inspect_archive_with_limits(&archive_path, &limits.inspection) {
-                        Ok(inspection) => {
-                            let ArchiveInspectionState::Valid { manifest_checksum } =
-                                inspection.state;
-                            (ArchiveState::Valid, Some(manifest_checksum))
-                        }
-                        Err(RepositoryError::ArchiveInvalid(_) | RepositoryError::Json(_)) => {
-                            (ArchiveState::Invalid, None)
-                        }
-                        // A resource-limit rejection for one candidate archive
-                        // reports that archive as unknown rather than failing
-                        // the whole listing: only the root-entry count above
-                        // fails the request closed, matching the plan's
-                        // documented "unknown" treatment for a
-                        // limits-exceeding individual archive.
-                        Err(_) => (ArchiveState::StagingOrUnknown, None),
-                    };
-                ArchiveSummary {
-                    archive_name,
-                    state,
-                    manifest_checksum,
-                }
-            })
-            .collect();
+        let mut inspection_budget = ArchiveInspectionBudget::new(limits.inspection);
+        let mut archives = Vec::with_capacity(archive_names.len());
+        for archive_name in archive_names {
+            let archive_path = archive_root.join(&archive_name);
+            let (state, manifest_checksum) =
+                match inspect_archive_with_budget(&archive_path, &mut inspection_budget) {
+                    Ok(inspection) => {
+                        let ArchiveInspectionState::Valid { manifest_checksum } = inspection.state;
+                        (ArchiveState::Valid, Some(manifest_checksum))
+                    }
+                    Err(error) if error.code() == "resource_limit" => {
+                        return Err(ServiceError::new(
+                            "resource_limit",
+                            "Archive inspection exceeded the server resource limit.",
+                            false,
+                        )
+                        .with_diagnostic(error.to_string()));
+                    }
+                    Err(RepositoryError::ArchiveInvalid(_) | RepositoryError::Json(_)) => {
+                        (ArchiveState::Invalid, None)
+                    }
+                    Err(_) => (ArchiveState::StagingOrUnknown, None),
+                };
+            archives.push(ArchiveSummary {
+                archive_name,
+                state,
+                manifest_checksum,
+            });
+        }
         Ok(ArchiveList { archives })
     }
 

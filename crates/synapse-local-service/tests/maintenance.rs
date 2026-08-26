@@ -394,7 +394,7 @@ fn list_archives_reports_valid_invalid_and_staging_or_unknown_in_name_order() {
 }
 
 #[test]
-fn list_archives_treats_limit_exceeded_archives_as_staging_or_unknown() {
+fn list_archives_fails_closed_when_the_inspection_profile_is_exhausted() {
     let temporary = TempDirectory::new();
     let repository = temporary.directory("repository");
     let source = temporary.directory("archive-source");
@@ -402,18 +402,119 @@ fn list_archives_treats_limit_exceeded_archives_as_staging_or_unknown() {
     export_named_archive(&source, &archive_root, "over-limit");
 
     let service = service_with_archive_root(&repository, &archive_root);
-    let list = service.list_archives_with_limits(synapse_local_service::ArchiveListLimits {
-        max_root_entries: ARCHIVE_LIST_LIMITS.max_root_entries,
-        inspection: synapse_core::ArchiveInspectionLimits {
-            max_objects: 0,
-            max_object_bytes: 1,
-        },
-    });
-    let list = list.unwrap();
-    assert_eq!(list.archives.len(), 1);
-    assert_eq!(list.archives[0].archive_name, "over-limit");
-    assert_eq!(list.archives[0].state, ArchiveState::StagingOrUnknown);
-    assert_eq!(list.archives[0].manifest_checksum, None);
+    let error = service
+        .list_archives_with_limits(synapse_local_service::ArchiveListLimits {
+            max_root_entries: ARCHIVE_LIST_LIMITS.max_root_entries,
+            inspection: synapse_core::ArchiveInspectionLimits {
+                max_objects: 0,
+                max_object_bytes: 1,
+            },
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+}
+
+#[test]
+fn list_archives_enforces_the_cumulative_object_limit() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let source = temporary.directory("archive-source");
+    let archive_root = temporary.directory("archives");
+    export_named_archive(&source, &archive_root, "aaa");
+    export_named_archive(&source, &archive_root, "bbb");
+
+    let service = service_with_archive_root(&repository, &archive_root);
+    let error = service
+        .list_archives_with_limits(synapse_local_service::ArchiveListLimits {
+            max_root_entries: ARCHIVE_LIST_LIMITS.max_root_entries,
+            inspection: synapse_core::ArchiveInspectionLimits {
+                max_objects: 1,
+                max_object_bytes: ARCHIVE_LIST_LIMITS.inspection.max_object_bytes,
+            },
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+}
+
+#[test]
+fn list_archives_admits_the_exact_cumulative_inventory_limit() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let source = temporary.directory("archive-source");
+    let empty_source = temporary.directory("empty-archive-source");
+    let archive_root = temporary.directory("archives");
+    export_named_archive(&source, &archive_root, "aaa");
+    export_named_archive(&source, &archive_root, "bbb");
+    let mut empty_repository = Repository::open(&empty_source).unwrap();
+    empty_repository
+        .export_archive(archive_root.join("zzz-empty"))
+        .unwrap();
+
+    let service = service_with_archive_root(&repository, &archive_root);
+    let list = service
+        .list_archives_with_limits(synapse_local_service::ArchiveListLimits {
+            max_root_entries: ARCHIVE_LIST_LIMITS.max_root_entries,
+            inspection: synapse_core::ArchiveInspectionLimits {
+                max_objects: 2,
+                max_object_bytes: (b"archive listing fixture blob".len() * 2) as u64,
+            },
+        })
+        .unwrap();
+    assert_eq!(list.archives.len(), 3);
+    assert!(
+        list.archives
+            .iter()
+            .all(|archive| archive.state == ArchiveState::Valid)
+    );
+}
+
+#[test]
+fn list_archives_enforces_the_cumulative_object_byte_limit() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let source = temporary.directory("archive-source");
+    let archive_root = temporary.directory("archives");
+    export_named_archive(&source, &archive_root, "aaa");
+    export_named_archive(&source, &archive_root, "bbb");
+
+    let service = service_with_archive_root(&repository, &archive_root);
+    let error = service
+        .list_archives_with_limits(synapse_local_service::ArchiveListLimits {
+            max_root_entries: ARCHIVE_LIST_LIMITS.max_root_entries,
+            inspection: synapse_core::ArchiveInspectionLimits {
+                max_objects: 2,
+                max_object_bytes: b"archive listing fixture blob".len() as u64,
+            },
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+}
+
+#[test]
+fn list_archives_charges_an_invalid_archive_reserved_inventory() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let source = temporary.directory("archive-source");
+    let archive_root = temporary.directory("archives");
+    export_named_archive(&source, &archive_root, "aaa-invalid");
+    export_named_archive(&source, &archive_root, "bbb-valid");
+    fs::write(
+        archive_root.join("aaa-invalid/objects/00000000"),
+        b"wrong length",
+    )
+    .unwrap();
+
+    let service = service_with_archive_root(&repository, &archive_root);
+    let error = service
+        .list_archives_with_limits(synapse_local_service::ArchiveListLimits {
+            max_root_entries: ARCHIVE_LIST_LIMITS.max_root_entries,
+            inspection: synapse_core::ArchiveInspectionLimits {
+                max_objects: 1,
+                max_object_bytes: ARCHIVE_LIST_LIMITS.inspection.max_object_bytes,
+            },
+        })
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
 }
 
 #[test]

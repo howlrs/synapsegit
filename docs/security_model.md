@@ -184,6 +184,8 @@ flowchart LR
 | localhost maintenance fsck cumulative closure nodes / edges | 1,000,000 / 10,000,000 |
 | localhost maintenance fsck Tombstone Record scan | 100,000 Records / 1 GiB |
 | localhost maintenance operation registry | 256 entries / 64 active jobs |
+| localhost archive listing root entries / cumulative manifest objects | 100,000 / 100,000 |
+| localhost archive listing cumulative manifest-declared object bytes | 1 TiB |
 | creator input Blob / aggregate | 64 MiB / 192 MiB |
 | archive export objects | 100,000 |
 | archive export raw object bytes | 1 TiB |
@@ -201,9 +203,10 @@ flowchart LR
 | generated or verified publication file | 16 MiB |
 | publication directory entries | 16 per directory |
 
-現在の CLI からこれらを変更できない。creator inputと二つのfsck profileはlocalhost transport inputから
-変更できないserver-fixed ceilingである。maintenance profileは現Core defaultと同値をservice境界へcopyし、
-Core defaultの将来変更でHTTP workが暗黙に拡大しないようにする。library caller は`FsckLimits`で別のbounded
+現在の CLI からこれらを変更できない。creator input、二つのfsck profile、archive listing profileは
+localhost transport inputから変更できないserver-fixed ceilingである。maintenance／archive listing profileは
+現Core defaultと同値をservice境界へcopyし、Core defaultの将来変更でHTTP workが暗黙に拡大しないようにする。
+library caller は`FsckLimits`で別のbounded
 profileを構成できるが、互換用`Repository::fsck`はunbounded inventoryを維持するためHTTPから使用しない。
 library caller は `ArchiveExportLimits` により、object件数、
 raw object bytes、distinct-head validation nodes／edges、Tombstone scan、Ref／reflog snapshotの
