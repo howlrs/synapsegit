@@ -385,11 +385,6 @@ fn browser_write_enhancement_preserves_submitter_before_disabling_controls() {
         .expect("the form disables controls while busy");
     assert!(prepare < disable);
     assert!(APP_JS.contains("data.append(submitter.name, submitter.value)"));
-    assert!(
-        APP_JS.contains(
-            "submitter?.hasAttribute(\"formaction\") ? submitter.formAction : form.action"
-        )
-    );
     assert!(APP_JS.contains("event.submitter?.name === \"disposition\""));
     assert!(APP_JS.contains("window.confirm("));
     assert!(APP_JS.contains("form.hidden = false"));
@@ -404,9 +399,6 @@ fn browser_write_enhancement_preserves_submitter_before_disabling_controls() {
     );
     assert!(APP_JS.contains("data?.state === \"queued\""));
     assert!(APP_JS.contains("form.dataset.confirmMaintenance"));
-    assert!(APP_JS.contains("form.dataset.confirmMaintenance === \"archive-export\""));
-    assert!(APP_JS.contains("operation.kind === \"archive_export\""));
-    assert!(APP_JS.contains("result.result_kind !== \"exported\""));
 }
 
 #[test]

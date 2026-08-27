@@ -138,7 +138,7 @@ function validOperationAccepted(value) {
   return value.poll_path === `/api/v1/operations/${value.operation_id}`;
 }
 
-function operationSuccessMessage(operation) {
+export function operationSuccessMessage(operation) {
   if (operation?.state !== "succeeded") return null;
   if (operation.kind === "fsck") {
     const result = operation.result;
@@ -481,7 +481,7 @@ function creatorMultipart(form, submitter) {
   return normalized;
 }
 
-function formRequest(form, submitter) {
+export function formRequest(form, submitter) {
   const method = (submitter?.formMethod || form.method || "get").toUpperCase();
   // Chrome resolves a button without a `formaction` attribute to the current
   // document URL, not to its owning form's action. Only an explicit submitter
@@ -587,7 +587,7 @@ function showCommittedReceipt(form, data) {
   output.hidden = false;
 }
 
-async function submitEnhancedForm(event) {
+export async function submitEnhancedForm(event) {
   const form = event.currentTarget;
   if (!(form instanceof HTMLFormElement)) return;
 
