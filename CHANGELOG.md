@@ -6,6 +6,23 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+### Added
+
+- localhost archive export UI: when `--archive-root` is configured, each
+  project page now exposes the existing bounded no-replace export API through
+  a progressively enhanced form. The control requires a new logical archive
+  slug, exact project-key confirmation, a final browser confirmation, and
+  polls the process-local job before returning to the archive list. Restore UI
+  remains unimplemented.
+
+### Fixed
+
+- localhost enhanced forms now use a submit button's action only when it has
+  an explicit `formaction` attribute. Chrome otherwise resolves
+  `button.formAction` to the current page, which made ordinary fsck, creator,
+  and archive-export buttons fail the same-origin API-base check before any
+  request was sent.
+
 ## [0.7.0] - 2026-08-26
 
 ### Added

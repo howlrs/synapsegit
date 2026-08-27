@@ -19,7 +19,10 @@ the tagged v0.6.0 binary. The tagged v0.7.0 binary additionally exposes authenti
 confirmed `POST /api/v1/projects/{project_key}/archive-exports` as a bounded
 no-replace background job when the archive root is configured, plus confirmed
 `POST /api/v1/projects/{project_key}/archive-restores` as a bounded empty-target
-restore job. Archive export and restore UI are not yet implemented. The diagnostics and browser `fsck`
+restore job. Current main adds a project-page archive export form that requires
+the logical slug and exact project-key confirmation, polls that same bounded
+job, and returns to the archive list on success. Restore UI is not yet
+implemented. The diagnostics and browser `fsck`
 additions were introduced in v0.3.0 and remain unchanged in the tagged v0.7.0
 binary. The generic-artifact libraries present in the tagged v0.7.0 source do
 not add routes, DTOs, UI, or a new binary here.

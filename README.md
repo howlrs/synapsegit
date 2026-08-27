@@ -161,8 +161,9 @@ binary supports bounded three-file import, same-process Human review, read-only
 incomplete-session diagnostics, and an explicitly confirmed, server-bounded
 background `fsck` with pollable results. With `--archive-root` configured, it
 also exposes the authenticated confirmed bounded no-replace archive export API
-and the confirmed bounded empty-target archive restore API; neither operation
-has a localhost browser control yet.
+and the confirmed bounded empty-target archive restore API; tagged v0.7.0 has
+no browser control for either operation. Current main additionally provides a
+confirmed project-page export control; restore remains API/CLI-only.
 Diagnostics and maintenance do not resume, clean up, or rewrite a creator
 session. See the
 [local application runbook](./deploy/local/README.md), the
@@ -171,12 +172,12 @@ session. See the
 
 ## What works now
 
-| Capability | v0.7.0 release status |
+| Capability | Current repository status |
 |---|---|
 | Three-file creator Pilot with `adopt`, `reject`, and `defer` | Implemented as a bounded local CLI flow |
 | Human/AI-attributed provenance and a comparison-aware report | Implemented; AI output remains caller-supplied |
 | Original/current comparison | Primary blob byte identity only; always partial comparability |
-| Local browser interface | Read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, and confirmed background `fsck`. A bounded, read-only archive listing view (`GET /archives`) and, new in tagged v0.7.0, authenticated confirmed bounded archive export and empty-target restore APIs (`POST /archive-exports`, `POST /archive-restores`) are available behind the optional `--archive-root` startup flag; export/restore browser controls remain unavailable |
+| Local browser interface | Read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, and confirmed background `fsck`. A bounded, read-only archive listing view (`GET /archives`) and, new in tagged v0.7.0, authenticated confirmed bounded archive export and empty-target restore APIs (`POST /archive-exports`, `POST /archive-restores`) are available behind the optional `--archive-root` startup flag. Current main adds a confirmed no-replace export control on each project page; restore has no browser control |
 | Generic regular-file artifact building blocks | Tagged v0.7.0 source/workspace libraries include a bounded deterministic mapper and checkout, sequential Proposal/Decision workflow, host-authenticated one-shot approval, a SQLite journal-integrated restart/reconciliation boundary, a frozen v1 public-safe contract, and a separate local public projection. The packaged three binaries do not expose these capabilities through HTTP, CLI, or browser UI; no model invocation, multi-process control plane, or production service is provided |
 | Content-addressed objects, typed closure, Ref CAS, and reflog | Implemented and covered by repository tests |
 | `fsck`, checksum-bound directory export, and verified restore | Implemented for the local repository format |
