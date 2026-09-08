@@ -153,6 +153,37 @@ OS-selected development port.
   --port 8788
 ```
 
+### Check selected files before import (current main)
+
+![Selected files with local previews, sizes, and clear controls in the actual import form](../../docs/assets/synapse-local/import-preview.png)
+
+In **Creator session を開始**, choose the Original, Current, and caller-supplied
+AI output files. Each card shows the selected name and exact byte size. A
+local preview and decoded pixel dimensions appear for displayable rasters.
+**選択を解除** clears just that role and returns focus to its file chooser.
+The summary shows how many of the three files are selected and their total
+size. File selection and previewing do not send an API request or save data.
+
+Creator name and Subject label show their UTF-8 byte counts as you type. For
+example, 100 copies of `あ` occupy 300 bytes; 101 copies exceed the Creator
+name limit. Oversized text or a file larger than 64 MiB gets immediate inline
+feedback and blocks submission until corrected. The existing server and
+multipart limits still apply independently.
+
+Preview eligibility uses a short PNG/JPEG/GIF/WebP signature check followed
+by browser decoding, not the filename or browser-supplied MIME type. SVG,
+other opaque data, empty files, and damaged rasters are never forced into an
+inline preview; a preview failure does not reject their import. These are
+local viewing hints, not server-verified evidence. The actual upload still
+submits unchanged bytes through the existing authenticated multipart route.
+
+Select **Proposalを作成** to start the import. Inputs and file-clear buttons
+are disabled while the request is pending. A failed request restores those
+controls and preserves the selection; it is not retried automatically.
+Replacing or clearing a file, resetting the form, or leaving the page releases
+its preview URL. This preflight UI requires JavaScript and is available on
+current main, not in the tagged v0.7.0 binary.
+
 ### Inspect image details before deciding (current main)
 
 ![Current and AI output in the actual localhost image comparison dialog](../../docs/assets/synapse-local/image-comparison.png)

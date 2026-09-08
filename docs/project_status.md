@@ -31,6 +31,7 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 - project、session、evidence、画像を読むloopback-only localhost UI
 - current mainのpending／complete sessionで、表示可能な2画像の選択、全体表示／100%／200%拡大、keyboard操作、狭い画面の縦配置を提供するread-only比較ビュー（位置合わせ・差分解析は行わない）
 - boundedな三file importとsame-process Human reviewを行うlocalhost creator UI
+- current mainの取り込み前ローカル画像プレビュー、サイズ・選択数表示、ファイル解除、UTF-8バイト上限の即時feedback、送信中の入力固定
 - current creator Ref／headと推奨actionを表示するread-only incomplete-session diagnostics
 - exact project確認、server-fixed limit、process-local job pollingを持つlocalhost `fsck` UI
 - exact project確認と論理archive slugだけを受け、server-owned archive rootへCoreのbounded

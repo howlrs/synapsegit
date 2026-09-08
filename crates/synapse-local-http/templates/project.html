@@ -161,7 +161,7 @@
   </div>
   <div class="notice" data-tone="warning">
     <h3>AI output は caller-supplied です</h3>
-    <p>この画面やlocalhost processがAI出力を生成したという意味ではありません。選択前に必ず3つの内容とbyte identity evidenceを確認してください。</p>
+    <p>この画面やlocalhost processがAI出力を生成したという意味ではありません。判断前に必ず3つの内容とbyte identity evidenceを確認してください。</p>
   </div>
   <form
     hidden
@@ -169,42 +169,61 @@
     action="/api/v1/projects/{{ project_key }}/creator-sessions"
     enctype="multipart/form-data"
     data-synapse-api-form="multipart"
+    data-synapse-creator-upload
     data-success-session-base="/projects/{{ project_key }}/creator-sessions/"
     data-busy-message="ファイルを取り込み、proposalを公開しています…"
     data-success-message="Proposalを公開しました。レビュー画面へ移動します。"
   >
     <div class="form-grid">
-      <label class="field">
-        <span>Session</span>
-        <input name="session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="first-review">
-        <span class="field__hint">小文字英数字とハイフン、1–64文字。create-onlyです。</span>
-      </label>
-      <label class="field">
-        <span>Creator name</span>
-        <input name="creator_name" required maxlength="300" autocomplete="name">
-        <span class="field__hint">UTF-8で300 bytes以内。</span>
-      </label>
-      <label class="field form-grid__wide">
-        <span>Subject label</span>
-        <input name="subject_label" required maxlength="500" autocomplete="off">
-        <span class="field__hint">UTF-8で500 bytes以内。</span>
-      </label>
-      <label class="field">
-        <span>Original image</span>
-        <input type="file" name="original_image" required>
-        <span class="field__hint">raw bytes、64 MiB以内。</span>
-      </label>
-      <label class="field">
-        <span>Current image</span>
-        <input type="file" name="current_image" required>
-        <span class="field__hint">raw bytes、64 MiB以内。</span>
-      </label>
-      <label class="field form-grid__wide">
-        <span>AI output (caller-supplied)</span>
-        <input type="file" name="ai_output" required>
-        <span class="field__hint">raw bytes、64 MiB以内。3ファイル合計192 MiB以内。</span>
-      </label>
+      <div class="field">
+        <label for="creator-session">Session</label>
+        <input id="creator-session" name="session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" aria-describedby="creator-session-hint" autocomplete="off" placeholder="first-review">
+        <span id="creator-session-hint" class="field__hint">小文字英数字とハイフン、1–64文字。create-onlyです。</span>
+      </div>
+      <div class="field">
+        <label for="creator-name">Creator name</label>
+        <input id="creator-name" name="creator_name" required maxlength="300" aria-describedby="creator-name-hint creator-name-count" autocomplete="name">
+        <span id="creator-name-hint" class="field__hint">UTF-8で300 bytes以内。</span>
+        <span id="creator-name-count" class="field__hint" data-creator-text-count="creator_name" aria-live="polite" hidden></span>
+      </div>
+      <div class="field form-grid__wide">
+        <label for="creator-subject">Subject label</label>
+        <input id="creator-subject" name="subject_label" required maxlength="500" aria-describedby="creator-subject-hint creator-subject-count" autocomplete="off">
+        <span id="creator-subject-hint" class="field__hint">UTF-8で500 bytes以内。</span>
+        <span id="creator-subject-count" class="field__hint" data-creator-text-count="subject_label" aria-live="polite" hidden></span>
+      </div>
     </div>
+    <p class="field__hint upload-hint" data-creator-preview-note hidden>ローカルプレビューです。ファイルを選ぶだけでは送信・保存されません。Original／Current／AI outputの取り違えがないか確認してください。</p>
+    <div class="upload-grid">
+      <div class="upload-file" data-creator-file>
+        <label for="creator-original_image">Original image</label>
+        <input id="creator-original_image" type="file" name="original_image" required aria-describedby="creator-original_image-hint creator-original_image-info creator-original_image-status">
+        <p id="creator-original_image-hint" class="field__hint">raw bytes、64 MiB以内。</p>
+        <p id="creator-original_image-info" data-creator-file-info class="field__hint" hidden></p>
+        <img data-creator-preview class="upload-file__preview" alt="Original imageのローカルプレビュー" hidden>
+        <p id="creator-original_image-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
+        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="Original imageの選択を解除" hidden>選択を解除</button>
+      </div>
+      <div class="upload-file" data-creator-file>
+        <label for="creator-current_image">Current image</label>
+        <input id="creator-current_image" type="file" name="current_image" required aria-describedby="creator-current_image-hint creator-current_image-info creator-current_image-status">
+        <p id="creator-current_image-hint" class="field__hint">raw bytes、64 MiB以内。</p>
+        <p id="creator-current_image-info" data-creator-file-info class="field__hint" hidden></p>
+        <img data-creator-preview class="upload-file__preview" alt="Current imageのローカルプレビュー" hidden>
+        <p id="creator-current_image-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
+        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="Current imageの選択を解除" hidden>選択を解除</button>
+      </div>
+      <div class="upload-file" data-creator-file>
+        <label for="creator-ai_output">AI output (caller-supplied)</label>
+        <input id="creator-ai_output" type="file" name="ai_output" required aria-describedby="creator-ai_output-hint creator-ai_output-info creator-ai_output-status">
+        <p id="creator-ai_output-hint" class="field__hint">raw bytes、64 MiB以内。</p>
+        <p id="creator-ai_output-info" data-creator-file-info class="field__hint" hidden></p>
+        <img data-creator-preview class="upload-file__preview" alt="AI output (caller-supplied)のローカルプレビュー" hidden>
+        <p id="creator-ai_output-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
+        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="AI output (caller-supplied)の選択を解除" hidden>選択を解除</button>
+      </div>
+    </div>
+    <p data-creator-file-summary class="field__hint" role="status" hidden></p>
     <div class="actions"><button type="submit" data-synapse-submit>Proposalを作成</button></div>
     <p class="field__hint">安全なwriteには、このページのJavaScriptとprocess-local tokenが必要です。</p>
     <p data-synapse-status hidden></p>
