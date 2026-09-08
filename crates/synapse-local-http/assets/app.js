@@ -18,6 +18,7 @@ const CREATOR_TEXT_FIELDS = new Map([
   ["subject_label", 500],
   ["creator_name", 300],
 ]);
+const CREATOR_UPLOADS = new Map();
 const CREATOR_FILE_FIELDS = new Set(["original_image", "current_image", "ai_output"]);
 const UTF8_ENCODER = new TextEncoder();
 
@@ -525,6 +526,140 @@ export function enhanceImageComparison(root = document) {
   refresh();
 }
 
+// The local chooser hint matches the server's raster signature allowlist.
+// It grants no authority: the server still verifies/classifies the submitted bytes.
+function localPreviewMediaType(bytes) {
+  const starts = (signature) => signature.every((value, index) => bytes[index] === value);
+  if (starts([137, 80, 78, 71, 13, 10, 26, 10])) return "image/png";
+  if (starts([255, 216, 255])) return "image/jpeg";
+  const text = String.fromCharCode(...bytes);
+  if (text.startsWith("GIF87a") || text.startsWith("GIF89a")) return "image/gif";
+  if (bytes.length >= 12 && text.startsWith("RIFF") && text.slice(8, 12) === "WEBP") return "image/webp";
+  return null;
+}
+
+function fileSizeLabel(bytes) {
+  return `${bytes.toLocaleString("en-US")} bytes (${(bytes / 1024 / 1024).toFixed(2)} MiB)`;
+}
+
+/** Optional preflight feedback only; multipart/server validation remains authoritative. */
+export function enhanceCreatorUploads(root = document) {
+  for (const form of root.querySelectorAll("form[data-synapse-creator-upload]")) {
+    if (!(form instanceof HTMLFormElement) || CREATOR_UPLOADS.has(form)) continue;
+    let active = true;
+    const states = new Map();
+    const fields = [...form.querySelectorAll("[data-creator-file]")].map((field) => ({
+      input: field.querySelector('input[type="file"]'),
+      image: field.querySelector("[data-creator-preview]"),
+      info: field.querySelector("[data-creator-file-info]"),
+      status: field.querySelector("[data-creator-preview-status]"),
+      clear: field.querySelector("[data-creator-file-clear]"),
+    }));
+    const release = (field) => {
+      const state = states.get(field.input);
+      states.delete(field.input);
+      field.image.removeAttribute("src");
+      field.image.hidden = true;
+      if (state?.url) URL.revokeObjectURL(state.url);
+    };
+    const summary = () => {
+      const files = fields.flatMap(({ input }) => [...input.files]);
+      const target = form.querySelector("[data-creator-file-summary]");
+      target.textContent = `選択済み ${files.length} / 3 ファイル · 合計 ${fileSizeLabel(files.reduce((total, file) => total + file.size, 0))} / 192 MiB`;
+      target.hidden = false;
+    };
+    const update = async (field) => {
+      if (!active) return;
+      release(field);
+      const file = field.input.files[0];
+      const state = {};
+      states.set(field.input, state);
+      const isCurrent = () => active && states.get(field.input) === state;
+      field.info.hidden = !file;
+      field.info.textContent = file ? `${file.name} · ${fileSizeLabel(file.size)}` : "";
+      field.clear.hidden = !file;
+      field.status.hidden = !file;
+      field.status.textContent = "";
+      delete field.status.dataset.tone;
+      const error = file?.size > MAX_IMAGE_BYTES ? "64 MiB以内のファイルを選び直してください。" : "";
+      field.input.setCustomValidity(error);
+      field.input.setAttribute("aria-invalid", String(Boolean(error)));
+      summary();
+      if (!file) return;
+      if (error) {
+        field.status.textContent = error;
+        field.status.dataset.tone = "error";
+        return;
+      }
+      field.status.textContent = "取り込み前のプレビューを読み込んでいます…";
+      try {
+        // Read only the signature before allocating a URL. File.type and the
+        // filename are caller supplied and never authorize inline rendering.
+        const type = localPreviewMediaType(new Uint8Array(await file.slice(0, 12).arrayBuffer()));
+        if (!isCurrent()) return;
+        if (!type) {
+          field.status.textContent = "この形式はプレビューできません。ファイルはそのまま取り込めます。";
+          return;
+        }
+        state.url = URL.createObjectURL(file.slice(0, file.size, type));
+        field.image.src = state.url;
+        await field.image.decode();
+        if (!isCurrent()) return;
+        field.image.hidden = false;
+        field.status.textContent = `${field.image.naturalWidth} × ${field.image.naturalHeight} px · ローカルプレビュー`;
+      } catch {
+        if (!isCurrent()) return;
+        release(field);
+        field.status.textContent = "プレビューを表示できません。ファイルの内容を確認してください。そのまま取り込むこともできます。";
+      }
+    };
+    const updateText = () => {
+      for (const counter of form.querySelectorAll("[data-creator-text-count]")) {
+        const name = counter.dataset.creatorTextCount;
+        const input = form.elements.namedItem(name);
+        const limit = CREATOR_TEXT_FIELDS.get(name);
+        const count = UTF8_ENCODER.encode(input.value).byteLength;
+        const error = count > limit ? `${limit} bytes以内に短くしてください（現在 ${count} bytes）。` : "";
+        input.setCustomValidity(error);
+        input.setAttribute("aria-invalid", String(Boolean(error)));
+        counter.hidden = false;
+        counter.textContent = `${count} / ${limit} bytes${error ? ` · ${error}` : ""}`;
+        if (error) counter.dataset.tone = "error";
+        else delete counter.dataset.tone;
+      }
+    };
+    const refresh = () => {
+      active = true;
+      updateText();
+      for (const field of fields) void update(field);
+    };
+    for (const field of fields) {
+      field.input.addEventListener("change", () => void update(field));
+      field.clear.addEventListener("click", () => {
+        field.input.value = "";
+        void update(field);
+        field.input.focus();
+      });
+    }
+    form.addEventListener("input", updateText);
+    // The reset event fires before the browser restores the controls' values.
+    form.addEventListener("reset", () => window.setTimeout(() => { if (active) refresh(); }, 0));
+    form.querySelector("[data-creator-preview-note]").hidden = false;
+    CREATOR_UPLOADS.set(form, {
+      refresh,
+      release() {
+        active = false;
+        for (const field of fields) release(field);
+      },
+    });
+    refresh();
+  }
+}
+
+function releaseCreatorPreviews() {
+  for (const upload of CREATOR_UPLOADS.values()) upload.release();
+}
+
 function formJson(form, submitter) {
   const payload = Object.create(null);
   const data = formDataWithSubmitter(form, submitter);
@@ -728,7 +863,8 @@ function setStatus(form, message, tone) {
 
 function setBusy(form, busy) {
   form.setAttribute("aria-busy", String(busy));
-  for (const control of form.querySelectorAll("[data-synapse-submit]")) {
+  const controls = form.dataset.synapseCreatorUpload !== undefined ? "input, button" : "[data-synapse-submit]";
+  for (const control of form.querySelectorAll(controls)) {
     if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) {
       if (busy) {
         CONTROL_DISABLED_STATE.set(control, control.disabled);
@@ -967,6 +1103,7 @@ export function enhanceApiForms(root = document) {
 function start() {
   document.documentElement.classList.add("has-js");
   enhanceApiForms();
+  enhanceCreatorUploads();
   enhanceImageComparison();
   enhanceApiImages();
 }
@@ -978,6 +1115,10 @@ if (document.readyState === "loading") {
 }
 
 window.addEventListener("pagehide", releaseImageResources);
+window.addEventListener("pagehide", releaseCreatorPreviews);
 window.addEventListener("pageshow", (event) => {
-  if (event.persisted) enhanceApiImages();
+  if (event.persisted) {
+    enhanceApiImages();
+    for (const upload of CREATOR_UPLOADS.values()) upload.refresh();
+  }
 });

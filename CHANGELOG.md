@@ -8,6 +8,13 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ### Added
 
+- localhost import preflight: local raster previews, file names and byte sizes,
+  selected-file counts, per-role clearing, and immediate UTF-8 byte-limit
+  feedback. Choosing files sends no upload. Unsupported or corrupt preview
+  data remains importable under the existing opaque-file contract. The import
+  form holds its inputs fixed while a request is pending and retains the
+  chosen content when the request fails.
+
 - localhost read-only image comparison for pending and complete creator sessions:
   choose two decoded inline raster images, inspect them at fit/100%/200%, and
   scroll each image independently. The dialog supports keyboard focus, Escape,

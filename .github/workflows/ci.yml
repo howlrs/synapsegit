@@ -63,7 +63,7 @@ jobs:
           node scripts/manage_github_security.mjs --validate
           git diff --check
 
-      - name: Verify localhost image comparison in Chromium
+      - name: Verify localhost browser workflows in Chromium
         run: |
           cargo build -p synapse-cli -p synapse-local-http --locked
           npm ci --prefix scripts/browser --ignore-scripts

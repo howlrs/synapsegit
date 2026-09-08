@@ -1423,3 +1423,41 @@ details[open] > summary {
     display: none !important;
   }
 }
+
+.upload-hint {
+  margin-block: var(--space-4);
+}
+
+.upload-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr));
+  gap: var(--space-4);
+  margin-block: var(--space-4);
+}
+
+.upload-file {
+  min-width: 0;
+  align-content: start;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+  overflow-wrap: anywhere;
+}
+
+.upload-file__preview {
+  width: 100%;
+  height: 12rem;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+[data-creator-preview-status][data-tone="error"],
+[data-creator-text-count][data-tone="error"] {
+  color: var(--danger);
+  font-weight: 650;
+}
