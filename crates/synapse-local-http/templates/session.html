@@ -30,12 +30,53 @@
 {% endif %}
 
 {% if show_evidence %}
-<section aria-labelledby="images-heading">
+<section aria-labelledby="images-heading" data-synapse-comparison>
   <div class="section-heading"><div><h2 id="images-heading">画像と出力</h2><p class="muted">画像は現在の検証済みセッションからroleを解決し、認証付きfetchで読み込みます。</p></div></div>
+  <div class="actions">
+    <button type="button" data-synapse-compare-open aria-haspopup="dialog" aria-controls="image-comparison" hidden>画像を拡大して比較</button>
+  </div>
+  <p data-synapse-compare-status class="field__hint" role="status" hidden></p>
+  <dialog id="image-comparison" class="image-comparison" aria-labelledby="comparison-title" aria-describedby="comparison-help">
+    <div class="image-comparison__header">
+      <h2 id="comparison-title">画像を見比べる</h2>
+      <button type="button" data-synapse-compare-close data-variant="secondary" autofocus>閉じる</button>
+    </div>
+    <p id="comparison-help" class="field__hint">目視確認用です。位置合わせ・差分解析は行いません。100%は画像の1 pixelを1 CSS pixelで表示します。拡大時は各画像をスクロールできます。Escで閉じます。</p>
+    <div class="image-comparison__zoom">
+      <label for="comparison-zoom">表示倍率</label>
+      <select id="comparison-zoom" data-synapse-compare-zoom>
+        <option value="fit">全体を表示</option>
+        <option value="1">100%</option>
+        <option value="2">200%</option>
+      </select>
+    </div>
+    <div class="image-comparison__panes">
+      <figure class="image-comparison__pane" data-synapse-compare-pane>
+        <div class="field">
+          <label for="comparison-source-a">比較画像 A</label>
+          <select id="comparison-source-a" data-synapse-compare-source>
+            {% for image in images %}<option value="{{ loop.index0 }}">{{ image.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="image-comparison__viewport" data-synapse-compare-viewport tabindex="0" role="region" aria-label="比較画像 Aの表示領域"><img data-synapse-compare-image alt="" hidden></div>
+        <figcaption data-synapse-compare-caption class="field__hint" aria-live="polite"></figcaption>
+      </figure>
+      <figure class="image-comparison__pane" data-synapse-compare-pane>
+        <div class="field">
+          <label for="comparison-source-b">比較画像 B</label>
+          <select id="comparison-source-b" data-synapse-compare-source>
+            {% for image in images %}<option value="{{ loop.index0 }}">{{ image.label }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="image-comparison__viewport" data-synapse-compare-viewport tabindex="0" role="region" aria-label="比較画像 Bの表示領域"><img data-synapse-compare-image alt="" hidden></div>
+        <figcaption data-synapse-compare-caption class="field__hint" aria-live="polite"></figcaption>
+      </figure>
+    </div>
+  </dialog>
   <div class="media-grid">
     {% for image in images %}
     <figure class="media-card">
-      <div class="media-card__preview"><img data-synapse-image data-url="{{ image.url }}" alt="{{ image.alt }}"></div>
+      <div class="media-card__preview"><img data-synapse-image data-label="{{ image.label }}" data-url="{{ image.url }}" alt="{{ image.alt }}"></div>
       <figcaption>
         <strong>{{ image.label }}</strong>
         <p data-synapse-image-status class="muted">読み込み待ち</p>

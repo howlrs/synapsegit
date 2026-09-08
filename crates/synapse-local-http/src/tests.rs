@@ -850,6 +850,8 @@ async fn incomplete_session_diagnostics_are_read_only_structured_and_rendered() 
     let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
     let page = std::str::from_utf8(&page).unwrap();
     assert!(page.contains("Creator session diagnostics"));
+    assert!(!page.contains("data-synapse-comparison"));
+    assert!(!page.contains("data-synapse-compare-open"));
     assert!(page.contains(&fixture.proposal_ref));
     assert!(page.contains(&fixture.proposal_head));
     assert!(page.contains(&fixture.decision_ref));
@@ -1359,6 +1361,9 @@ async fn creator_multipart_and_decision_complete_the_two_step_transport_workflow
     );
     assert!(pending_html.contains("download=\"web-review-current.bin\" hidden"));
     assert!(pending_html.contains("caller_supplied"));
+    assert!(pending_html.contains("aria-controls=\"image-comparison\" hidden"));
+    assert!(pending_html.contains("data-synapse-compare-zoom"));
+    assert_eq!(pending_html.matches("data-synapse-compare-pane").count(), 2);
     assert!(pending_html.contains("name=\"disposition\" value=\"adopt\""));
     assert!(pending_html.contains("name=\"disposition\" value=\"reject\""));
     assert!(pending_html.contains("name=\"disposition\" value=\"defer\""));

@@ -8,6 +8,7 @@ const CONTROL_DISABLED_STATE = new WeakMap();
 const IMAGE_ELEMENTS = new Set();
 const IMAGE_REQUESTS = new Map();
 const IMAGE_URLS = new Map();
+const INLINE_IMAGES = new WeakSet();
 const ALLOWED_RASTER_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const ATTACHMENT_MEDIA_TYPE = "application/octet-stream";
 const MAX_IMAGE_BYTES = 64 * 1024 * 1024;
@@ -20,6 +21,7 @@ const CREATOR_TEXT_FIELDS = new Map([
 const CREATOR_FILE_FIELDS = new Set(["original_image", "current_image", "ai_output"]);
 const UTF8_ENCODER = new TextEncoder();
 
+let imageComparison;
 let localToken;
 let apiBase;
 
@@ -268,6 +270,7 @@ function resetImageDownload(image) {
 }
 
 function revokeImageUrl(image) {
+  INLINE_IMAGES.delete(image);
   const objectUrl = IMAGE_URLS.get(image);
   if (objectUrl) {
     URL.revokeObjectURL(objectUrl);
@@ -285,10 +288,17 @@ function creatorImageResponseMode(type, disposition) {
   return null;
 }
 
-function installInlineRaster(image, objectUrl) {
+async function installInlineRaster(image, objectUrl) {
   resetImageDownload(image);
   image.src = objectUrl;
-  setImageStatus(image, "", null);
+  try {
+    await image.decode();
+  } catch {
+    throw new TypeError("画像を表示できません。画像データが破損しているか、ブラウザーが対応していません。");
+  }
+  if (IMAGE_URLS.get(image) !== objectUrl) return;
+  INLINE_IMAGES.add(image);
+  setImageStatus(image, `${image.naturalWidth} × ${image.naturalHeight} px`, null);
 }
 
 function installAttachmentDownload(image, objectUrl) {
@@ -372,7 +382,7 @@ async function loadApiImage(image) {
     revokeImageUrl(image);
     const objectUrl = URL.createObjectURL(blob);
     IMAGE_URLS.set(image, objectUrl);
-    if (responseMode === "inline") installInlineRaster(image, objectUrl);
+    if (responseMode === "inline") await installInlineRaster(image, objectUrl);
     else installAttachmentDownload(image, objectUrl);
   } catch (error) {
     if (
@@ -387,6 +397,7 @@ async function loadApiImage(image) {
     if (IMAGE_REQUESTS.get(image) === controller) {
       IMAGE_REQUESTS.delete(image);
       image.setAttribute("aria-busy", "false");
+      imageComparison?.refresh();
     }
   }
 }
@@ -402,6 +413,7 @@ export function enhanceApiImages(root = document) {
 }
 
 function releaseImageResources() {
+  imageComparison?.release();
   for (const controller of IMAGE_REQUESTS.values()) controller.abort();
   IMAGE_REQUESTS.clear();
 
@@ -410,6 +422,107 @@ function releaseImageResources() {
     ENHANCED_IMAGES.delete(image);
   }
   IMAGE_ELEMENTS.clear();
+  imageComparison?.refresh();
+}
+
+/** Compare decoded inline rasters; attachment Blob URLs never enter this view. */
+export function enhanceImageComparison(root = document) {
+  const section = root.querySelector("[data-synapse-comparison]");
+  if (!section || imageComparison || typeof HTMLDialogElement === "undefined") return;
+  const dialog = section.querySelector("dialog");
+  if (!(dialog instanceof HTMLDialogElement) || typeof dialog.showModal !== "function") return;
+  const opener = section.querySelector("[data-synapse-compare-open]");
+  const status = section.querySelector("[data-synapse-compare-status]");
+  const zoom = dialog.querySelector("[data-synapse-compare-zoom]");
+  const sources = [...section.querySelectorAll("img[data-synapse-image]")];
+  const panes = [...dialog.querySelectorAll("[data-synapse-compare-pane]")].map((pane) => ({
+    select: pane.querySelector("[data-synapse-compare-source]"),
+    image: pane.querySelector("[data-synapse-compare-image]"),
+    caption: pane.querySelector("[data-synapse-compare-caption]"),
+    viewport: pane.querySelector("[data-synapse-compare-viewport]"),
+  }));
+  const ready = (source) => source && INLINE_IMAGES.has(source) && IMAGE_URLS.has(source);
+  const clear = () => {
+    for (const pane of panes) {
+      pane.image.removeAttribute("src");
+      pane.image.hidden = true;
+      pane.image.alt = "";
+      pane.caption.textContent = "";
+    }
+  };
+  const render = () => {
+    if (!dialog.open) return;
+    for (const pane of panes) {
+      const source = sources[Number(pane.select.value)];
+      if (!ready(source)) {
+        pane.image.removeAttribute("src");
+        pane.image.hidden = true;
+        pane.caption.textContent = "この画像は表示できません。元のカードの状態を確認してください。";
+        continue;
+      }
+      const url = IMAGE_URLS.get(source);
+      if (pane.image.getAttribute("src") !== url) pane.image.src = url;
+      pane.image.alt = source.alt;
+      pane.image.hidden = false;
+      pane.caption.textContent = `${source.dataset.label} · ${source.naturalWidth} × ${source.naturalHeight} px`;
+      pane.viewport.dataset.zoom = zoom.value === "fit" ? "fit" : "actual";
+      // Width/height attributes work under the existing no-inline-style CSP.
+      const scale = zoom.value === "2" ? 2 : 1;
+      pane.image.width = source.naturalWidth * scale;
+      pane.image.height = source.naturalHeight * scale;
+    }
+  };
+  const refresh = () => {
+    const count = sources.filter(ready).length;
+    opener.disabled = count < 2;
+    status.textContent = count >= 2
+      ? "表示できる画像を2枚選んで、全体表示・100%・200%で確認できます。"
+      : "比較には表示可能な画像が2枚必要です。読み込み中・表示不可の理由は各カードで確認できます。";
+    for (const pane of panes) {
+      for (const option of pane.select.options) option.disabled = !ready(sources[Number(option.value)]);
+    }
+    render();
+  };
+  opener.addEventListener("click", () => {
+    if (opener.disabled || dialog.open) return;
+    const available = sources.map((source, index) => ready(source) ? index : -1).filter((index) => index >= 0);
+    if (available.length < 2) return;
+    // Prefer Current vs AI output. Unavailable roles stay visibly disabled.
+    const current = sources.findIndex((source) => source.dataset.label === "Current" && ready(source));
+    const output = sources.findIndex((source) => source.dataset.label === "AI output" && ready(source));
+    panes[0].select.value = String(current >= 0 ? current : available[0]);
+    panes[1].select.value = String(output >= 0 && output !== Number(panes[0].select.value)
+      ? output : available.find((index) => index !== Number(panes[0].select.value)));
+    zoom.value = "fit";
+    dialog.showModal();
+    render();
+    for (const pane of panes) pane.viewport.scrollTo(0, 0);
+  });
+  dialog.querySelector("[data-synapse-compare-close]").addEventListener("click", () => dialog.close());
+  dialog.addEventListener("close", () => {
+    clear();
+    opener.focus({ preventScroll: true });
+  });
+  for (const pane of panes) {
+    pane.select.addEventListener("change", () => {
+      render();
+      pane.viewport.scrollTo(0, 0);
+    });
+  }
+  zoom.addEventListener("change", () => {
+    render();
+    for (const pane of panes) pane.viewport.scrollTo(0, 0);
+  });
+  imageComparison = {
+    refresh,
+    release() {
+      if (dialog.open) dialog.close();
+      clear();
+    },
+  };
+  opener.hidden = false;
+  status.hidden = false;
+  refresh();
 }
 
 function formJson(form, submitter) {
@@ -854,6 +967,7 @@ export function enhanceApiForms(root = document) {
 function start() {
   document.documentElement.classList.add("has-js");
   enhanceApiForms();
+  enhanceImageComparison();
   enhanceApiImages();
 }
 

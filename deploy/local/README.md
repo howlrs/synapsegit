@@ -153,6 +153,35 @@ OS-selected development port.
   --port 8788
 ```
 
+### Inspect image details before deciding (current main)
+
+![Current and AI output in the actual localhost image comparison dialog](../../docs/assets/synapse-local/image-comparison.png)
+
+On a pending or completed creator session, select **画像を拡大して比較** after
+at least two images finish loading. The dialog starts with Current and AI
+output when both are displayable. Each pane can select Original, Current, or
+AI output; unavailable roles remain disabled. Panes sit side by side on wide
+screens and stack on narrow screens.
+
+Choose **全体を表示**, **100%**, or **200%**. Fit shows each image in its own
+pane without distorting its aspect ratio; it does not imply a shared physical
+scale. At 100%, one browser-decoded image pixel occupies one CSS pixel. At
+200%, that size doubles. Scroll each enlarged image independently with the
+mouse, touch, or arrow keys after focusing its image region. **閉じる** or
+Escape returns focus to the comparison button. Closing and reopening resets
+to fit view. No decision is submitted by these controls.
+
+This is manual visual inspection, not registration, difference analysis, or
+proof of physical change. The viewer reuses the same authenticated, revocable
+Blob URLs as the image cards and performs no additional API request. Only
+successfully decoded inline PNG/JPEG/GIF/WebP responses enter it. Other media
+retain their download-only behavior; corrupt or unsupported raster data shows
+an error on its card. Comparison is unavailable without JavaScript and does
+not add evidence access or recovery to incomplete sessions. The v0.7.0 tagged
+binary does not include this comparison dialog.
+
+### Enable archive maintenance
+
 `--archive-root PATH` is optional and may be given at most once. It enables
 the tagged v0.6.0 read-only archive listing view
 (`GET /archives` plus a dashboard section), which bounded-scans the

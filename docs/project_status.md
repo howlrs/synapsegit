@@ -3,7 +3,7 @@
 Audience: preview evaluators、contributors、maintainers
 Status: public project snapshot
 Applies to: current main after tagged v0.7.0
-Last verified: 2026-08-26
+Last verified: 2026-09-08
 
 SynapseGit Coreは**Stage 0 draft**である。v0.7.0は、v0.3.0で配布したlocal repository、bounded
 creator Pilot、localhost import／review／diagnostics／`fsck`、read-only publication bundleの三binary
@@ -29,6 +29,7 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 - primary Blob OIDだけを比較する保守的なbyte-identity Analysis
 - timeline、decision、evidence、replay prerequisiteを検査するcreator report
 - project、session、evidence、画像を読むloopback-only localhost UI
+- current mainのpending／complete sessionで、表示可能な2画像の選択、全体表示／100%／200%拡大、keyboard操作、狭い画面の縦配置を提供するread-only比較ビュー（位置合わせ・差分解析は行わない）
 - boundedな三file importとsame-process Human reviewを行うlocalhost creator UI
 - current creator Ref／headと推奨actionを表示するread-only incomplete-session diagnostics
 - exact project確認、server-fixed limit、process-local job pollingを持つlocalhost `fsck` UI

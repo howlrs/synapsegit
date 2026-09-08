@@ -20,3 +20,7 @@ coverage/
 
 .idea/
 .vscode/
+
+# Local browser test artifacts
+scripts/browser/test-results/
+scripts/browser/playwright-report/

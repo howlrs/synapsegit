@@ -45,6 +45,26 @@ CARGO_TARGET_DIR=/tmp/synapsegit-$USER-target \
   cargo test --workspace --locked
 ```
 
+## Browser regression tests
+
+The localhost image-comparison suite runs against temporary repositories and a
+real loopback `synapse-local` process. It covers keyboard and narrow-screen
+interaction, import → compare → Human Decision, attachment/decode failures,
+resource cleanup, and automated axe checks. It does not replace manual
+screen-reader or real-device evaluation. The pinned Node development tools are
+isolated in `scripts/browser`; they are not bundled in the Rust binaries.
+
+```bash
+cargo +1.88.0 build -p synapse-cli -p synapse-local-http --locked
+npm ci --prefix scripts/browser --ignore-scripts
+scripts/browser/node_modules/.bin/playwright install --with-deps chromium
+npm --prefix scripts/browser test
+```
+
+If using a dedicated Cargo target directory, pass the same `CARGO_TARGET_DIR`
+to the build and browser test commands. Browser traces and screenshots from
+failures are written to ignored `scripts/browser/test-results/`.
+
 ## workspace map
 
 ```mermaid
