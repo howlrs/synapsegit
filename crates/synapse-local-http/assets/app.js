@@ -138,8 +138,11 @@ function validOperationAccepted(value) {
   return value.poll_path === `/api/v1/operations/${value.operation_id}`;
 }
 
-export function operationSuccessMessage(operation) {
+export function operationSuccessMessage(operation, archiveRestore) {
   if (operation?.state !== "succeeded") return null;
+  if (archiveRestore && operation.kind !== "archive_restore") {
+    throw new TypeError("The archive-restore result is invalid.");
+  }
   if (operation.kind === "fsck") {
     const result = operation.result;
     if (
@@ -167,10 +170,25 @@ export function operationSuccessMessage(operation) {
     }
     return `Archive “${result.archive_name}” was exported.`;
   }
+  if (operation.kind === "archive_restore") {
+    const result = operation.result;
+    if (
+      !archiveRestore ||
+      operation.project_key !== archiveRestore.projectKey ||
+      !result ||
+      result.archive_name !== archiveRestore.archiveName ||
+      !/^[a-z][a-z0-9-]{0,63}$/u.test(result.archive_name) ||
+      result.result_kind !== "restored" ||
+      result.report_equivalence_required !== true
+    ) {
+      throw new TypeError("The archive-restore result is invalid.");
+    }
+    return `アーカイブ「${result.archive_name}」を復元しました。復元した履歴を利用する前に、保存元と復元先の creator-report を比較し、一致を確認して保管してください。`;
+  }
   return "Maintenance operation completed.";
 }
 
-async function pollOperation(form, accepted) {
+async function pollOperation(form, accepted, expectedOperation) {
   if (!validOperationAccepted(accepted)) {
     throw new TypeError("The maintenance operation receipt is invalid.");
   }
@@ -187,13 +205,25 @@ async function pollOperation(form, accepted) {
       pollDelayMs = Math.min(pollDelayMs * 2, 2_000);
       continue;
     }
-    if (operation.state === "succeeded") return operation;
+    if (operation.state === "succeeded") {
+      if (
+        expectedOperation &&
+        (operation.kind !== expectedOperation.kind || operation.project_key !== expectedOperation.projectKey)
+      ) {
+        throw new TypeError("The maintenance operation status is invalid.");
+      }
+      return operation;
+    }
     if (operation.state === "failed" || operation.state === "outcome_unknown") {
       const detail =
         typeof operation.error?.detail === "string"
           ? operation.error.detail
           : "The maintenance operation did not complete successfully.";
-      throw new TypeError(detail);
+      throw new TypeError(
+        expectedOperation?.kind === "archive_restore"
+          ? `${detail} ファイルの一部だけがコピー済みの可能性があります。確認後も同じアーカイブだけを再試行してください。`
+          : detail,
+      );
     }
     throw new TypeError("The maintenance operation status is invalid.");
   }
@@ -405,6 +435,43 @@ function formJson(form, submitter) {
   return payload;
 }
 
+function archiveRestoreJson(form, submitter) {
+  const expectedProjectKey = form.dataset.restoreProjectKey;
+  if (typeof expectedProjectKey !== "string" || !/^[a-z][a-z0-9-]{0,63}$/u.test(expectedProjectKey)) {
+    throw new TypeError("The restore target project is invalid.");
+  }
+
+  const fields = new Map();
+  for (const [name, value] of formDataWithSubmitter(form, submitter)) {
+    if (
+      value instanceof File ||
+      !["archive_name", "confirm_target_project_key", "confirm_empty_target"].includes(name) ||
+      fields.has(name)
+    ) {
+      throw new TypeError("The archive restore confirmation is invalid.");
+    }
+    fields.set(name, value);
+  }
+
+  const archiveName = fields.get("archive_name");
+  const targetProjectKey = fields.get("confirm_target_project_key");
+  if (
+    fields.size !== 3 ||
+    typeof archiveName !== "string" ||
+    !/^[a-z][a-z0-9-]{0,63}$/u.test(archiveName) ||
+    targetProjectKey !== expectedProjectKey ||
+    fields.get("confirm_empty_target") !== "true"
+  ) {
+    throw new TypeError("The archive restore confirmation is invalid.");
+  }
+
+  return {
+    archive_name: archiveName,
+    confirm_target_project_key: targetProjectKey,
+    confirm_empty_target: true,
+  };
+}
+
 function formDataWithSubmitter(form, submitter) {
   const data = new FormData(form);
   if (submitter) {
@@ -519,12 +586,14 @@ export function formRequest(form, submitter) {
     throw new TypeError("The API form enhancement is not recognized.");
   }
 
+  const payload = form.dataset.archiveRestore === "true" ? archiveRestoreJson(form, submitter) : formJson(form, submitter);
+
   return {
     url,
     init: {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formJson(form, submitter)),
+      body: JSON.stringify(payload),
     },
   };
 }
@@ -556,6 +625,16 @@ function setBusy(form, busy) {
       }
     }
   }
+}
+
+function restoreSuccessLink(form) {
+  const link = form.querySelector("[data-synapse-restore-success-link]");
+  return link instanceof HTMLAnchorElement ? link : null;
+}
+
+function hideRestoreSuccessLink(form) {
+  const link = restoreSuccessLink(form);
+  if (link) link.hidden = true;
 }
 
 function publicErrorMessage(error) {
@@ -592,7 +671,9 @@ export async function submitEnhancedForm(event) {
   if (!(form instanceof HTMLFormElement)) return;
 
   event.preventDefault();
-  if (!form.reportValidity() || form.getAttribute("aria-busy") === "true") return;
+  if (form.getAttribute("aria-busy") === "true") return;
+  hideRestoreSuccessLink(form);
+  if (!form.reportValidity()) return;
 
   let prepared;
   try {
@@ -645,6 +726,28 @@ export async function submitEnhancedForm(event) {
     }
   }
 
+  let archiveRestore;
+  if (form.dataset.archiveRestore === "true") {
+    try {
+      const restore = archiveRestoreJson(form, event.submitter);
+      archiveRestore = {
+        archiveName: restore.archive_name,
+        projectKey: restore.confirm_target_project_key,
+        kind: "archive_restore",
+      };
+    } catch (error) {
+      setStatus(form, publicErrorMessage(error), "error");
+      return;
+    }
+    const confirmed = window.confirm(
+      `archive “${archiveRestore.archiveName}” をtarget project “${archiveRestore.projectKey}” へ復元します。失敗時もファイルの一部がコピー済みの可能性があり、自動再試行は行いません。続行しますか？`,
+    );
+    if (!confirmed) {
+      setStatus(form, "Archive restoreは開始されませんでした。", null);
+      return;
+    }
+  }
+
   setBusy(form, true);
   setStatus(form, form.dataset.busyMessage || "Working…", null);
 
@@ -657,7 +760,13 @@ export async function submitEnhancedForm(event) {
     }
 
     let data = await apiJson(prepared.url, prepared.init);
-    if (data?.state === "queued") {
+    if (archiveRestore) {
+      if (!validOperationAccepted(data)) {
+        throw new TypeError("The archive restore receipt is invalid.");
+      }
+      setStatus(form, "Archive restoreを開始しました…", null);
+      data = await pollOperation(form, data, archiveRestore);
+    } else if (data?.state === "queued") {
       setStatus(form, "Maintenance operationを開始しました…", null);
       data = await pollOperation(form, data);
     }
@@ -668,9 +777,13 @@ export async function submitEnhancedForm(event) {
     } else {
       setStatus(
         form,
-        operationSuccessMessage(data) || form.dataset.successMessage || "Completed.",
+        operationSuccessMessage(data, archiveRestore) || form.dataset.successMessage || "Completed.",
         "success",
       );
+      if (archiveRestore) {
+        const link = restoreSuccessLink(form);
+        if (link) link.hidden = false;
+      }
     }
 
     if (form.dataset.successSessionBase) {
@@ -700,6 +813,7 @@ export async function submitEnhancedForm(event) {
       window.location.reload();
     }
   } catch (error) {
+    hideRestoreSuccessLink(form);
     setStatus(form, publicErrorMessage(error), "error");
     form.dispatchEvent(
       new CustomEvent("synapse:api-error", {

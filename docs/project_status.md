@@ -37,6 +37,8 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 - logical archive slug、exact project確認、開始前確認、job pollingを持つlocalhost archive export UI
 - exact target project／empty-target確認と論理archive slugだけを受け、server-fixed limitで
   Coreのexact-subset archive restoreを実行するlocalhost archive restore API
+- Refsとreflogが空の表示中targetに限定し、一覧slug、exact target key、empty-target checkbox、browser確認、
+  queued/polled operation、report一致確認の案内を持つlocalhost archive restore UI
 - process-local authenticated AI routeとnarrow Human Decision library boundary
 - bounded regular-file manifestをRef更新なしでdeterministicなnested ManifestTreeへ変換する
   `synapse-artifact` mapperと固定`generic-artifact` v1 application contract
@@ -96,7 +98,7 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 - capture client、repeatable／calibrated capture workflow
 - pixel registration、visual difference、physical change interpretation
 - model／connector invocationとpre-execution OS sandbox／egress control
-- localhostのarchive restore UI（list、両API、export UIは実装済み）
+- archive restore失敗後のautomatic resume／cleanup／review recovery（list、両API、export UI、restore UIは実装済み）
 - durable generic Rust boundaryのHTTP／Creator／localhost UI統合、automatic worker resume／cleanup、継続session編集
 - HTTP/JWT／MFA、durable/distributed ACL・permit・publication fence
 - organization／quorum／release approval、modified／partial adoption
@@ -134,8 +136,8 @@ production／distribution／brand制限も変更しない。
 
 1. 分離済みの[publication comprehension corpus](./evaluation/publication-comprehension/v1/)で、
    zero-context AI、実Human、axe／keyboard／screen reader理解・accessibility評価を実施する。
-2. 実装済みlocalhost import／review／diagnostics／bounded `fsck`／bounded archive listing／archive
-   export／empty-target restore APIへ、明示確認付きbrowser controlsを追加する。
+2. 実装済みlocalhost import／review／diagnostics／bounded `fsck`／archive browser controlsの
+   実利用者による一連の操作の評価と、browser end-to-end回帰coverageを拡充する。
 3. fixed-point Observation datasetとpixel-level adapterを別contractとして検証する。
 4. durable admission transactionを含むproduction control planeを実装する。
 5. 追加platformの再現可能なbuild／artifact smokeを整備する。

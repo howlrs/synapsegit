@@ -53,9 +53,14 @@ atomic no-replace publication. It also enables authenticated `POST
 /api/v1/projects/{projectKey}/archive-restores`, which requires the logical
 archive slug, exact target-project confirmation, and explicit empty-target
 confirmation, then runs Core's server-fixed bounded exact-subset restore. There
-are no export or restore browser controls yet; on the tagged v0.7.0 binary,
-both operations are reachable only through the authenticated API above or the
-CLI/library.
+are no export or restore browser controls in the tagged v0.7.0 binary; both
+operations are reachable there only through the authenticated API above or the
+CLI/library. Current main adds browser controls. Restore has no dynamic path or
+target selector: it acts only on the open registered project, and its form is
+rendered only when that dashboard snapshot has neither Refs nor reflog entries.
+It requires a logical archive slug, exact target-project key, an explicit
+empty-target checkbox serialized as `true`, and browser confirmation, then uses
+the existing queued/polled operation API.
 The dedicated diagnostics route and server-rendered view are read-only: displayed
 Ref/head values are never accepted back as review authority and history is not
 rewritten. The tagged v0.7.0 project page also runs read-only `fsck` only after
@@ -163,8 +168,13 @@ On the tagged v0.7.0 binary, the same option also enables the archive export
 and empty-target restore APIs and sets `archive_export=true` and
 `archive_restore=true` in each project capability response. Without it, export
 and restore requests fail before job reservation with `service_unavailable`.
-Current main also renders a confirmed no-replace export form on each project
-page when that capability is enabled; restore remains API/CLI-only.
+Current main also renders project-page archive controls when that capability is
+enabled. Its restore form is only shown for the open project while its displayed
+Refs and reflog are empty. The browser cannot select a path or another target:
+it submits the typed slug, exact target key, and explicit empty-target boolean
+to the existing API, asks for confirmation, and polls its operation. On success
+the page remains in place to show the creator-report equivalence reminder and a
+link that explicitly reloads project history.
 
 ```bash
 mkdir -p "$HOME/SynapseGit/archives"
@@ -172,6 +182,48 @@ mkdir -p "$HOME/SynapseGit/archives"
   --project "demo=$HOME/SynapseGit/demo" \
   --archive-root "$HOME/SynapseGit/archives"
 ```
+
+## Browser archive round trip (current main)
+
+Use separate registered repositories for the source and restore target. Stop
+any process that owns either repository before initializing it, then create the
+empty target with the documented CLI spelling:
+
+```bash
+synapse init "$HOME/SynapseGit/restore-target"
+mkdir -p "$HOME/SynapseGit/archives"
+./target/release/synapse-local \
+  --project "source=$HOME/SynapseGit/demo" \
+  --project "restore=$HOME/SynapseGit/restore-target" \
+  --archive-root "$HOME/SynapseGit/archives"
+```
+
+Open the source project and export a new archive through its Archive export
+card. At the dashboard archive listing, manually copy a `valid` archive slug;
+the restore page does not populate or choose it for you. Open the `restore`
+project. If it shows Refs or reflog entries, do not use it: initialize and
+register another empty target. Otherwise enter that slug, type `restore` as the
+target key, check the empty-target confirmation, accept the browser prompt, and
+wait for the queued restore job to reach terminal `archive_restore` / `restored`
+with `report_equivalence_required=true`.
+
+The success panel stays visible. Follow its explicit history reload link. Then
+stop `synapse-local` before opening either repository with the CLI, and write
+the text reports to separate files before comparing them:
+
+```bash
+session="session-1" # Replace with the creator session recorded in the source.
+synapse creator-report "$HOME/SynapseGit/demo" "$session" > source-report.txt
+synapse creator-report "$HOME/SynapseGit/restore-target" "$session" > restored-report.txt
+cmp source-report.txt restored-report.txt
+```
+
+Use the same session name. `creator-report` emits key/value text, so `cmp`
+checks the documented report output directly. A failed restore
+may have copied the same archive's exact object subset. Core remains the
+authority for target emptiness, inventory, and source checks; only retry that
+same archive when its documented exact-subset condition holds. The browser does
+not resume, clean up, or recover a failed, unknown, or review operation.
 
 There is deliberately no `--host` option. The executable always binds to
 `127.0.0.1` and rejects foreign Host/Origin/forwarding headers. Do not expose it

@@ -9,11 +9,16 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 ### Added
 
 - localhost archive export UI: when `--archive-root` is configured, each
-  project page now exposes the existing bounded no-replace export API through
-  a progressively enhanced form. The control requires a new logical archive
+  project page exposes the existing bounded no-replace export API through a
+  progressively enhanced form. The control requires a new logical archive
   slug, exact project-key confirmation, a final browser confirmation, and
-  polls the process-local job before returning to the archive list. Restore UI
-  remains unimplemented.
+  polls the process-local job before returning to the archive list.
+- localhost archive restore UI: a registered project with no Refs or reflog
+  entries exposes the existing bounded restore API. The form requires a logical
+  archive slug, exact typed target-project key, explicit empty-target checkbox,
+  and browser confirmation, then polls the process-local job. A successful
+  restore remains visible with the required source/restored creator-report
+  equivalence reminder and an explicit history reload link.
 
 ### Fixed
 

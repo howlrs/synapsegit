@@ -959,6 +959,7 @@ async fn bounded_fsck_is_confirmed_queued_polled_and_reflected_in_project_status
     assert!(page.contains("name=\"confirm_project_key\""));
     assert!(page.contains("直近のprocess-local結果: clean"));
     assert!(!page.contains("Archive export"));
+    assert!(!page.contains("Archive restore"));
 
     for body in [
         r#"{"confirm_project_key":"other"}"#,
@@ -1098,6 +1099,61 @@ async fn archive_export_is_confirmed_queued_polled_and_no_replace() {
     assert!(page.contains("data-success-location=\"/#archives-heading\""));
     assert!(page.contains("name=\"archive_name\""));
     assert!(page.contains("name=\"confirm_project_key\""));
+    assert!(!page.contains(archive_root.to_str().unwrap()));
+}
+
+#[tokio::test]
+async fn archive_restore_card_requires_an_empty_consistent_dashboard_target() {
+    let (directory, app, archive_root) = test_app_with_archive_root();
+    let page = app
+        .clone()
+        .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(page.status(), StatusCode::OK);
+    let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
+    let page = std::str::from_utf8(&page).unwrap();
+    assert!(page.contains("Archive restore"));
+    assert!(page.contains("action=\"/api/v1/projects/demo/archive-restores\""));
+    assert!(page.contains("data-archive-restore=\"true\""));
+    assert!(page.contains("name=\"archive_name\""));
+    assert!(page.contains("name=\"confirm_target_project_key\""));
+    assert!(page.contains("name=\"confirm_empty_target\""));
+    assert!(page.contains("value=\"true\""));
+    assert!(page.contains("href=\"/#archives-heading\""));
+    assert!(!page.contains(archive_root.to_str().unwrap()));
+    assert!(!page.contains(directory.0.join("repository").to_str().unwrap()));
+
+    let original = directory.0.join("restore-card-original.png");
+    let current = directory.0.join("restore-card-current.png");
+    let ai_output = directory.0.join("restore-card-ai-output.png");
+    fs::write(&original, b"\x89PNG\r\n\x1a\nrestore-card-original").unwrap();
+    fs::write(&current, b"\x89PNG\r\n\x1a\nrestore-card-current").unwrap();
+    fs::write(&ai_output, b"\x89PNG\r\n\x1a\nrestore-card-ai-output").unwrap();
+    run_creator_session(&CreatorRunOptions {
+        repository: directory.0.join("repository"),
+        session: "restore-card-history".into(),
+        original_image: original,
+        current_image: current,
+        ai_output,
+        subject_label: "Restore card history fixture".into(),
+        creator_name: "Test creator".into(),
+        disposition: CreatorDisposition::Adopt,
+        rationale: Some("Make the target ineligible for restore.".into()),
+    })
+    .unwrap();
+
+    let page = app
+        .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(page.status(), StatusCode::OK);
+    let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
+    let page = std::str::from_utf8(&page).unwrap();
+    assert!(page.contains("このプロジェクトは復元先にできません"));
+    assert!(page.contains("別の空のプロジェクトを初期化・登録"));
+    assert!(!page.contains("action=\"/api/v1/projects/demo/archive-restores\""));
+    assert!(!page.contains("name=\"confirm_empty_target\""));
     assert!(!page.contains(archive_root.to_str().unwrap()));
 }
 

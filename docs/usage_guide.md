@@ -45,8 +45,9 @@ v0.7.0ではoriginal／current／caller-supplied AI outputの三fileをbounded s
 sessionはincompleteになる。read-only incomplete diagnosticsと、exact project確認付きの
 server-bounded background `fsck`／poll UIもtagged v0.7.0の`synapse-local`に含まれる。
 tagged v0.7.0は`--archive-root`指定時のexact confirmation付きarchive export／empty-target restore APIも提供する。
-current mainはproject画面からlogical archive slugとexact project確認を送るno-replace export UIを追加している。
-restoreとautomatic recoveryのUIは未実装なので、restoreの対話操作には対応するCLIを使う。詳しいoption、limit、
+current mainはproject画面にarchive UIを追加した。restoreは空の表示中登録projectに固定され、一覧slug、exact target key、
+empty-target checkbox、browser確認、queued/polled jobを必要とする。成功後はreport一致確認とhistory再読込linkを表示する。
+automatic recoveryのUIは未実装である。詳しいoption、limit、
 localhost security boundary、GCP CLI smokeとの違いは[native localhost runbook](../deploy/local/README.md)を参照する。
 
 ![SynapseGit Localのcreator session詳細。Human Decision、AI output selected、三つの画像roleを表示](./assets/synapse-local/creator-session.png)
@@ -142,7 +143,7 @@ visual change、physical changeを判定しない。`identical`でも物理対�
 
 ### 7. 報告・引き継ぎ・archiveへ返す
 
-選択した履歴から、進捗、制作process、処置記録、As-recorded、引き継ぎ資料を構成する。現在のlocal Coreはchecksum付きdirectory archiveをexportし、空repository、または同じarchiveの失敗restoreが残したexact object subsetへrestoreできる。localhost UIは既存sessionのreport／timeline／evidence／画像と、boundedな三file upload／same-process reviewを統合するが、capture、画像registration・visual比較、archive操作、restart後のreview再開は未実装である。
+選択した履歴から、進捗、制作process、処置記録、As-recorded、引き継ぎ資料を構成する。現在のlocal Coreはchecksum付きdirectory archiveをexportし、空repository、または同じarchiveの失敗restoreが残したexact object subsetへrestoreできる。localhost UIは既存sessionのreport／timeline／evidence／画像、boundedな三file upload／same-process review、archive export／固定empty-target restoreを統合する。restoreはpathやdynamic targetを選ばず、失敗時に自動resume、cleanup、review recoveryを行わない。capture、画像registration・visual比較、restart後のreview再開は未実装である。具体的なbrowser round tripは[native localhost runbook](../deploy/local/README.md#browser-archive-round-trip-current-main)を参照する。
 
 `creator-report`はUIではないが、一つのconsistent Ref snapshotからcurrent proposal／decisionを解決し、
 同じsnapshotで一時SQLite Projectionをrebuildする。Subject extensionのsession manifestからEntityIdを復元し、

@@ -1,6 +1,6 @@
 # SynapseGit localhost application architecture
 
-Status: approved implementation design; slices 1-4/6, the fsck/job part of slice 7, and the read-only diagnostics part of slice 8 implemented in v0.3.0; read-only archive listing implemented in tagged v0.6.0; archive export and empty-target restore APIs implemented in tagged v0.7.0; archive export UI implemented on current main
+Status: approved implementation design; slices 1-4/6, the fsck/job part of slice 7, and the read-only diagnostics part of slice 8 implemented in v0.3.0; read-only archive listing implemented in tagged v0.6.0; archive export and empty-target restore APIs implemented in tagged v0.7.0; archive browser controls implemented on current main
 
 Decision date: 2026-07-14
 
@@ -21,10 +21,13 @@ object content. Tagged v0.7.0 additionally implements authenticated,
 confirmed archive export as a bounded process-local job and Core atomic
 no-replace publication under that server-owned root, plus confirmed empty-target
 archive restore through Core's server-fixed bounded exact-subset path. Current
-main additionally implements the project-page export control with a logical
-slug, exact project-key confirmation, explicit browser confirmation, job
-polling, and post-success archive-list navigation. Restore browser controls
-remain unimplemented. The diagnostics and browser `fsck` additions are
+main additionally implements project-page archive controls. Restore fixes the
+target to the open catalog project and renders only when that dashboard snapshot
+has neither Refs nor reflog entries. It accepts a manually entered archive slug,
+exact typed target key, explicit empty-target boolean, and browser confirmation,
+then polls the existing job. Its success state stays visible with the required
+source/restored creator-report equivalence reminder and an explicit project
+history reload link. The diagnostics and browser `fsck` additions are
 included in the tagged v0.3.0 binary, archive listing is included in tagged
 v0.6.0, and archive export and restore are included in tagged v0.7.0. Core v0.1
 remains a Stage 0 draft; this application slice is
@@ -189,7 +192,7 @@ an implemented one.
 | 7 | `POST .../operations/fsck`; `GET .../operations/{id}` | implemented in v0.3.0: explicit, confirmed bounded fsck job and process-local polling |
 | 7 | `GET /archives` | implemented in tagged v0.6.0: bounded, read-only inspected archive summaries |
 | 7 | `POST .../archive-exports` | implemented in tagged v0.7.0: confirmed bounded no-replace export job |
-| 7 | `POST .../archive-restores` | implemented in tagged v0.7.0: confirmed bounded empty-target restore job |
+| 7 | `POST .../archive-restores` | implemented in tagged v0.7.0: confirmed bounded empty-target restore job; current main adds its fixed-target browser control |
 | 8 | `GET .../creator-sessions/{session}/diagnostics` | implemented in v0.3.0: incomplete-session diagnosis without automatic mutation |
 
 There is intentionally no generic object PUT/GET, no generic Commit route, no
@@ -544,9 +547,11 @@ exposure.
 
 The implemented `fsck` UI requires the exact project key and polls the returned
 operation ID. The implemented export API requires exact project confirmation
-and a logical archive slug; planned export and restore UI likewise requires the
-user to type or select the exact project/archive logical name. It never offers “overwrite” or
-edits object/SQLite files to recover an error.
+and a logical archive slug. The current restore UI accepts no path or dynamic
+target: while the displayed target has no Refs or reflog, the operator manually
+enters a slug from the archive listing, types that fixed project key, checks the
+empty-target confirmation, and accepts browser confirmation. It never offers
+“overwrite” or edits object/SQLite files to recover an error.
 
 ## Implementation slices
 
@@ -574,8 +579,9 @@ sequencing and does not advance the formal Core stage.
    `--archive-root` startup flag. Tagged v0.7.0 additionally implements the
    authenticated archive export API with a server-fixed profile and no-replace
    publication, and the authenticated empty-target restore API with server-fixed
-   Core limits and exact-subset retry. Current main adds the project-page export
-   confirmation/poll UI; restore UI remains planned.
+   Core limits and exact-subset retry. Current main adds project-page archive
+   confirmation/poll UI. Restore is fixed to the empty displayed project and
+   preserves its terminal report-equivalence warning until explicit reload.
 8. **Partially implemented:** tagged Linux x86_64 packaging, checksum publication, and release
    documentation are implemented. v0.3.0 also implements the dedicated read-only
    incomplete-session diagnostics service DTO/method, GET route, and server-rendered
@@ -611,8 +617,8 @@ Current service/route/template tests cover the fixed maintenance profiles,
 exact confirmation, clean and dirty count-only fsck results, registry
 capacity/state loss, polling, process-local `last_fsck`, the rendered `fsck`
 form/result, read-only archive inspection, API-to-Core no-replace export, and
-API-to-Core empty-target restore. Archive browser controls and complete
-browser end-to-end coverage remain pending.
+API-to-Core empty-target restore, and the rendered fixed-target archive restore
+form. Complete browser end-to-end coverage remains pending.
 
 The localhost milestone is complete only when the executable refuses
 non-loopback binding, no caller authors JSON or raw Ref mutations, the restored
