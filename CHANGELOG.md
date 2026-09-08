@@ -17,8 +17,9 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   entries exposes the existing bounded restore API. The form requires a logical
   archive slug, exact typed target-project key, explicit empty-target checkbox,
   and browser confirmation, then polls the process-local job. A successful
-  restore remains visible with the required source/restored creator-report
-  equivalence reminder and an explicit history reload link.
+  restore locks the form against resubmission and remains visible with the
+  required source/restored creator-report equivalence reminder and an explicit
+  history reload link.
 
 ### Fixed
 

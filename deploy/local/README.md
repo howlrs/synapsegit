@@ -207,7 +207,9 @@ target key, check the empty-target confirmation, accept the browser prompt, and
 wait for the queued restore job to reach terminal `archive_restore` / `restored`
 with `report_equivalence_required=true`.
 
-The success panel stays visible. Follow its explicit history reload link. Then
+The successful form disables its inputs and submit button to prevent a repeated
+restore from replacing the result with an error. The success panel stays
+visible. Follow its explicit history reload link. Then
 stop `synapse-local` before opening either repository with the CLI, and write
 the text reports to separate files before comparing them:
 

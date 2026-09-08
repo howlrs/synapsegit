@@ -2,6 +2,7 @@ const TOKEN_HEADER = "X-Synapse-Local-Token";
 const TOKEN_SELECTOR = 'meta[name="synapse-local-token"]';
 const API_BASE_SELECTOR = 'meta[name="synapse-api-base"]';
 const ENHANCED_FORMS = new WeakSet();
+const COMPLETED_ARCHIVE_RESTORES = new WeakSet();
 const ENHANCED_IMAGES = new WeakSet();
 const CONTROL_DISABLED_STATE = new WeakMap();
 const IMAGE_ELEMENTS = new Set();
@@ -637,6 +638,12 @@ function hideRestoreSuccessLink(form) {
   if (link) link.hidden = true;
 }
 
+function lockCompletedArchiveRestore(form) {
+  for (const control of form.querySelectorAll("input, button, select, textarea")) {
+    if ("disabled" in control) control.disabled = true;
+  }
+}
+
 function publicErrorMessage(error) {
   if (error instanceof SynapseApiError) return error.message;
   if (error instanceof TypeError) return error.message;
@@ -671,6 +678,7 @@ export async function submitEnhancedForm(event) {
   if (!(form instanceof HTMLFormElement)) return;
 
   event.preventDefault();
+  if (form.dataset.archiveRestore === "true" && COMPLETED_ARCHIVE_RESTORES.has(form)) return;
   if (form.getAttribute("aria-busy") === "true") return;
   hideRestoreSuccessLink(form);
   if (!form.reportValidity()) return;
@@ -783,6 +791,7 @@ export async function submitEnhancedForm(event) {
       if (archiveRestore) {
         const link = restoreSuccessLink(form);
         if (link) link.hidden = false;
+        COMPLETED_ARCHIVE_RESTORES.add(form);
       }
     }
 
@@ -823,6 +832,7 @@ export async function submitEnhancedForm(event) {
     );
   } finally {
     setBusy(form, false);
+    if (COMPLETED_ARCHIVE_RESTORES.has(form)) lockCompletedArchiveRestore(form);
   }
 }
 

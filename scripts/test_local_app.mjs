@@ -38,6 +38,7 @@ class FakeForm extends FakeElement {
     this.status = new FakeElement();
     this.hidden = true;
     this.listeners = new Map();
+    this.controls = [];
   }
 
   addEventListener(name, listener) {
@@ -52,7 +53,11 @@ class FakeForm extends FakeElement {
     return selector === "[data-synapse-status]" ? this.status : null;
   }
 
-  querySelectorAll() {
+  querySelectorAll(selector) {
+    if (selector === "[data-synapse-submit]") {
+      return this.controls.filter((control) => control.getAttribute("data-synapse-submit") !== null);
+    }
+    if (selector === "input, button, select, textarea") return this.controls;
     return [];
   }
 
@@ -71,6 +76,7 @@ class FakeButton extends FakeElement {
     this.value = "";
     this.disabled = false;
     if (explicitAction) this.setAttribute("formaction", action);
+    form.controls.push(this);
   }
 
   hasAttribute(name) {
@@ -123,6 +129,7 @@ globalThis.document = {
 };
 
 let confirmPrompt = null;
+let confirmationCount = 0;
 let fetchCalled = false;
 let confirmResult = false;
 let locationAssigns = 0;
@@ -130,6 +137,7 @@ let locationReloads = 0;
 globalThis.window = {
   addEventListener() {},
   confirm(prompt) {
+    confirmationCount += 1;
     confirmPrompt = prompt;
     return confirmResult;
   },
@@ -239,19 +247,24 @@ const restoreFields = [
   ["confirm_target_project_key", "demo"],
   ["confirm_empty_target", "true"],
 ];
-const restoreForm = new FakeForm({
-  action: `${ORIGIN}/api/v1/projects/demo/archive-restores`,
-  fields: restoreFields,
-  dataset: {
-    synapseApiForm: "json",
-    archiveRestore: "true",
-    restoreProjectKey: "demo",
-  },
-});
-restoreForm.restoreLink = new FakeAnchor();
-const originalQuerySelector = restoreForm.querySelector.bind(restoreForm);
-restoreForm.querySelector = (selector) =>
-  selector === "[data-synapse-restore-success-link]" ? restoreForm.restoreLink : originalQuerySelector(selector);
+function makeRestoreForm() {
+  const restoreForm = new FakeForm({
+    action: `${ORIGIN}/api/v1/projects/demo/archive-restores`,
+    fields: restoreFields,
+    dataset: {
+      synapseApiForm: "json",
+      archiveRestore: "true",
+      restoreProjectKey: "demo",
+    },
+  });
+  restoreForm.restoreLink = new FakeAnchor();
+  const originalQuerySelector = restoreForm.querySelector.bind(restoreForm);
+  restoreForm.querySelector = (selector) =>
+    selector === "[data-synapse-restore-success-link]" ? restoreForm.restoreLink : originalQuerySelector(selector);
+  return restoreForm;
+}
+
+const restoreForm = makeRestoreForm();
 
 const restoreRequest = formRequest(restoreForm, new FakeButton(restoreForm));
 assert.deepEqual(JSON.parse(restoreRequest.init.body), {
@@ -283,15 +296,16 @@ for (const invalidFields of [
 
 confirmResult = false;
 fetchCalled = false;
+const cancelledRestoreForm = makeRestoreForm();
 await submitEnhancedForm({
-  currentTarget: restoreForm,
-  submitter: new FakeButton(restoreForm),
+  currentTarget: cancelledRestoreForm,
+  submitter: new FakeButton(cancelledRestoreForm),
   preventDefault() {},
 });
 assert.equal(fetchCalled, false);
 assert.match(confirmPrompt, /aaa-valid/u);
 assert.match(confirmPrompt, /demo/u);
-assert.equal(restoreForm.status.textContent, "Archive restoreは開始されませんでした。");
+assert.equal(cancelledRestoreForm.status.textContent, "Archive restoreは開始されませんでした。");
 assert.equal(locationAssigns, 0);
 assert.equal(locationReloads, 0);
 
@@ -320,9 +334,15 @@ window.fetch = async (url, init) => {
   return successfulResponses.shift();
 };
 confirmResult = true;
+const successfulRestoreForm = makeRestoreForm();
+const successfulButton = new FakeButton(successfulRestoreForm);
+successfulButton.setAttribute("data-synapse-submit", "");
+const successfulInput = new HTMLInputElement();
+successfulInput.disabled = false;
+successfulRestoreForm.controls.push(successfulInput);
 await submitEnhancedForm({
-  currentTarget: restoreForm,
-  submitter: new FakeButton(restoreForm),
+  currentTarget: successfulRestoreForm,
+  submitter: successfulButton,
   preventDefault() {},
 });
 assert.deepEqual(JSON.parse(capturedRequests[0].init.body), {
@@ -342,9 +362,28 @@ assert.deepEqual(
   ],
 );
 assert.equal(successfulResponses.length, 0);
-assert.equal(restoreForm.restoreLink.hidden, false);
-assert.match(restoreForm.status.textContent, /creator-report/u);
-assert.equal(restoreForm.getAttribute("aria-busy"), "false");
+assert.equal(successfulRestoreForm.restoreLink.hidden, false);
+assert.match(successfulRestoreForm.status.textContent, /creator-report/u);
+assert.equal(successfulRestoreForm.getAttribute("aria-busy"), "false");
+assert.equal(successfulButton.disabled, true);
+assert.equal(successfulInput.disabled, true);
+assert.equal(locationAssigns, 0);
+assert.equal(locationReloads, 0);
+
+const successfulStatus = successfulRestoreForm.status.textContent;
+const successfulLink = successfulRestoreForm.restoreLink.hidden;
+const requestCountAfterSuccess = capturedRequests.length;
+const confirmationsAfterSuccess = confirmationCount;
+await submitEnhancedForm({
+  currentTarget: successfulRestoreForm,
+  submitter: successfulButton,
+  preventDefault() {},
+});
+assert.equal(capturedRequests.length, requestCountAfterSuccess);
+assert.equal(confirmationCount, confirmationsAfterSuccess);
+assert.equal(successfulRestoreForm.status.textContent, successfulStatus);
+assert.equal(successfulRestoreForm.restoreLink.hidden, successfulLink);
+assert.equal(successfulButton.disabled, true);
 assert.equal(locationAssigns, 0);
 assert.equal(locationReloads, 0);
 
@@ -387,21 +426,22 @@ for (const [terminal, expectedStatus] of [
     result: { archive_name: "aaa-valid", result_kind: "restored", report_equivalence_required: true },
   }, /maintenance operation status is invalid/u],
 ]) {
-  restoreForm.restoreLink.hidden = false;
+  const failingForm = makeRestoreForm();
+  failingForm.restoreLink.hidden = false;
   const sequence = [
     jsonResponse({ state: "queued", operation_id: operationId, poll_path: `/api/v1/operations/${operationId}` }),
     jsonResponse(terminal),
   ];
   window.fetch = async () => sequence.shift();
   await submitEnhancedForm({
-    currentTarget: restoreForm,
-    submitter: new FakeButton(restoreForm),
+    currentTarget: failingForm,
+    submitter: new FakeButton(failingForm),
     preventDefault() {},
   });
-  assert.equal(restoreForm.restoreLink.hidden, true);
-  assert.equal(restoreForm.status.dataset.tone, "error");
-  assert.match(restoreForm.status.textContent, expectedStatus);
-  assert.equal(restoreForm.getAttribute("aria-busy"), "false");
+  assert.equal(failingForm.restoreLink.hidden, true);
+  assert.equal(failingForm.status.dataset.tone, "error");
+  assert.match(failingForm.status.textContent, expectedStatus);
+  assert.equal(failingForm.getAttribute("aria-busy"), "false");
   assert.equal(locationAssigns, 0);
   assert.equal(locationReloads, 0);
 }
@@ -416,16 +456,17 @@ for (const initial of [
   },
   { state: "succeeded", kind: "fsck", project_key: "demo", result: {} },
 ]) {
-  restoreForm.restoreLink.hidden = false;
+  const invalidReceiptForm = makeRestoreForm();
+  invalidReceiptForm.restoreLink.hidden = false;
   window.fetch = async () => jsonResponse(initial);
   await submitEnhancedForm({
-    currentTarget: restoreForm,
-    submitter: new FakeButton(restoreForm),
+    currentTarget: invalidReceiptForm,
+    submitter: new FakeButton(invalidReceiptForm),
     preventDefault() {},
   });
-  assert.equal(restoreForm.restoreLink.hidden, true);
-  assert.match(restoreForm.status.textContent, /archive restore receipt is invalid/u);
-  assert.equal(restoreForm.status.dataset.tone, "error");
+  assert.equal(invalidReceiptForm.restoreLink.hidden, true);
+  assert.match(invalidReceiptForm.status.textContent, /archive restore receipt is invalid/u);
+  assert.equal(invalidReceiptForm.status.dataset.tone, "error");
   assert.equal(locationAssigns, 0);
   assert.equal(locationReloads, 0);
 }
