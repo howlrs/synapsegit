@@ -98,6 +98,59 @@
 </section>
 {% endif %}
 
+{% if archive_restore_supported %}
+<section class="card" aria-labelledby="archive-restore-heading">
+  <div class="card__header">
+    <div>
+      <p class="eyebrow">Maintenance</p>
+      <h2 id="archive-restore-heading">Archive restore</h2>
+      <p class="muted">保存したアーカイブを、このプロジェクトへ復元します。</p>
+    </div>
+  </div>
+  {% if archive_restore_target_ready %}
+  <div class="notice" data-tone="warning">
+    <h3>履歴がないプロジェクトへ復元します</h3>
+    <p>アーカイブの状態は<a href="/#archives-heading">Archives一覧</a>で確認してください。</p>
+  </div>
+  <form
+    hidden
+    method="post"
+    action="/api/v1/projects/{{ project_key }}/archive-restores"
+    data-synapse-api-form="json"
+    data-archive-restore="true"
+    data-restore-project-key="{{ project_key }}"
+    data-busy-message="アーカイブの復元を開始しています…"
+  >
+    <div class="form-grid">
+      <label class="field">
+        <span>Archive name</span>
+        <input name="archive_name" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="nightly-2026-08-26">
+        <span class="field__hint">Archives一覧の名前を小文字のまま入力してください。</span>
+      </label>
+      <label class="field">
+        <span>確認のため復元先の project key <code>{{ project_key }}</code> を入力</span>
+        <input name="confirm_target_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
+      </label>
+      <label class="check-field form-grid__wide">
+        <input type="checkbox" name="confirm_empty_target" value="true" required>
+        <span>このプロジェクトに既存の履歴がないことを確認しました。</span>
+      </label>
+    </div>
+    <div class="actions"><button type="submit" data-synapse-submit>Archiveを復元</button></div>
+    <p class="field__hint">失敗時や結果不明の場合は、ファイルの一部がコピー済みの可能性があります。自動では再試行しません。再試行する場合は同じアーカイブを使ってください。</p>
+    <p data-synapse-status hidden></p>
+    <a hidden data-synapse-restore-success-link href="/projects/{{ project_key }}">復元した履歴を確認</a>
+  </form>
+  {% else %}
+  <div class="notice" data-tone="warning">
+    <h3>このプロジェクトは復元先にできません</h3>
+    <p>既存の履歴があります。復元用には別の空のプロジェクトを初期化・登録してから開いてください。</p>
+  </div>
+  {% endif %}
+  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、archive restoreは開始できません。</p></div></noscript>
+</section>
+{% endif %}
+
 <section class="card" aria-labelledby="creator-upload-heading">
   <div class="card__header">
     <div>

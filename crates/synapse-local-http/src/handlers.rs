@@ -890,6 +890,12 @@ pub(crate) async fn project_page(
         .collect::<Vec<_>>();
     let fsck_supported = dashboard.status.project.capabilities.fsck;
     let archive_export_supported = dashboard.status.project.capabilities.archive_export;
+    let archive_restore_supported = dashboard.status.project.capabilities.archive_restore;
+    // `run_dashboard` has already established that these views came from one
+    // snapshot. A target is eligible for the browser workflow only when its
+    // visible Ref and reflog histories are both empty. The restore worker
+    // remains authoritative and repeats its own checks before copying data.
+    let archive_restore_target_ready = refs.is_empty() && reflog.is_empty();
     let has_last_fsck = dashboard.status.last_fsck.is_some();
     let last_fsck_clean = dashboard
         .status
@@ -921,6 +927,8 @@ pub(crate) async fn project_page(
             incomplete_sessions: dashboard.status.creator_session_counts.incomplete,
             fsck_supported,
             archive_export_supported,
+            archive_restore_supported,
+            archive_restore_target_ready,
             has_last_fsck,
             last_fsck_clean,
             last_fsck_objects,

@@ -155,8 +155,10 @@ boundedな三file import、same-process Human review、creator Ref／headと安�
 read-only diagnostics、project keyの明示確認を必要とするserver-boundedなbackground `fsck`を
 利用できます。`--archive-root`を設定すると、認証付きの確認付きbounded no-replace archive export
 APIと確認付きbounded empty-target archive restore APIも利用できますが、いずれもlocalhost browser
-controlはtagged v0.7.0にはありません。current mainはproject画面に確認付きno-replace export controlも
-提供しますが、restoreは引き続きAPI／CLIのみです。diagnosticsとmaintenanceはsessionの
+controlはtagged v0.7.0にはありません。current mainはproject画面にarchive controlを提供します。restoreは
+表示中のRefsとreflogが空の登録済みprojectだけに固定され、一覧で確認したslug、target project keyの完全入力、
+empty-target checkbox、browser確認を必要とし、queue/poll完了後もcreator-report一致確認とhistory再読込linkを表示します。
+diagnosticsとmaintenanceはsessionの
 resume、cleanup、history書換えを行いません。
 [local application runbook](./deploy/local/README.md)、[install guide](./docs/install.md)、
 [source Quickstart](./docs/quickstart.md)を参照してください。
@@ -168,7 +170,7 @@ resume、cleanup、history書換えを行いません。
 | `adopt`、`reject`、`defer`を含む3-file creator Pilot | boundedなlocal CLI flowとして実装済み |
 | 人／AI帰属provenanceと比較情報を含むreport | 実装済み。AI outputはcaller-supplied |
 | original／current比較 | primary Blobのbyte identityのみ。comparabilityは常にpartial |
-| local browser UI | read表示、boundedな三file import／same-process `adopt`・`reject`・`defer`、read-only incomplete-session diagnostics、確認付きbackground `fsck`を実装済み。任意の`--archive-root`起動flag指定時のみ、boundedなread-only archive listing表示（`GET /archives`）に加え、tagged v0.7.0で認証付きの確認付きbounded archive export API（`POST /archive-exports`）とempty-target restore API（`POST /archive-restores`）を追加。current mainはproject画面に確認付きno-replace export controlも追加し、restoreのbrowser controlは未実装 |
+| local browser UI | read表示、boundedな三file import／same-process `adopt`・`reject`・`defer`、read-only incomplete-session diagnostics、確認付きbackground `fsck`を実装済み。任意の`--archive-root`起動flag指定時のみ、boundedなread-only archive listing表示（`GET /archives`）に加え、tagged v0.7.0で認証付きの確認付きbounded archive export API（`POST /archive-exports`）とempty-target restore API（`POST /archive-restores`）を追加。current mainはproject画面にarchive controlを追加。restore先は表示中の空の登録済みprojectに固定され、一覧のslug、target key完全入力、checkbox、browser確認、job polling、report一致確認表示を必要とする |
 | generic regular-file artifact building block | tagged v0.7.0のsource／workspace libraryにbounded deterministic mapper／checkout、sequential Proposal／Decision、host-authenticated one-shot approval、SQLite journal統合済みrestart／reconciliation境界、固定v1 public-safe contract、別local public projectionを収録。配布する3 binaryはこれらをHTTP、CLI、browser UIから提供せず、model invocation、multi-process control plane、production serviceも提供しない |
 | content-addressed object、typed closure、Ref CAS、reflog | 実装済み、repository test対象 |
 | `fsck`、checksum付きdirectory export、verified restore | local repository formatで実装済み |

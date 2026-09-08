@@ -4,8 +4,8 @@
 脅威モデルの完成版や production deployment guide ではない。
 
 Status: **Stage 0 draft**<br>
-Implemented scope: local object / Ref / archive integrity path, process-local authenticated Creative AI and narrow Human Decision routes, Core admissions, provider-neutral bounded regular-file mapping/checkout and sequential generic Proposal/Decision workflow, host-authenticated artifact approval, checked Human review re-registration from a trusted durable binding, separate SQLite artifact review intents/outcomes with explicit restart reconciliation, disposable SQLite projection libraries, read-only creator and generic-artifact local publication bundles, and the single-user IPv4-loopback image application with bounded three-file import、same-process Human review、read-only incomplete diagnostics、bounded background `fsck`、bounded read-only archive listing、bounded archive export／empty-target restore APIs、archive export UI<br>
-Planned scope: localhost archive restore UI, remote publication adapters, and a production application boundary<br>
+Implemented scope: local object / Ref / archive integrity path, process-local authenticated Creative AI and narrow Human Decision routes, Core admissions, provider-neutral bounded regular-file mapping/checkout and sequential generic Proposal/Decision workflow, host-authenticated artifact approval, checked Human review re-registration from a trusted durable binding, separate SQLite artifact review intents/outcomes with explicit restart reconciliation, disposable SQLite projection libraries, read-only creator and generic-artifact local publication bundles, and the single-user IPv4-loopback image application with bounded three-file import、same-process Human review、read-only incomplete diagnostics、bounded background `fsck`、bounded read-only archive listing、bounded archive export／empty-target restore APIs、archive browser controls<br>
+Planned scope: remote publication adapters and a production application boundary<br>
 Production target: GCP primary / AWS portability architecture is specified; cloud implementation is not started<br>
 Out of current implementation scope: concrete HTTP/JWT identity、durable/distributed authorization state、OS sandbox/egress、production tenant isolation
 
@@ -23,7 +23,7 @@ Out of current implementation scope: concrete HTTP/JWT identity、durable/distri
 | `synapse-artifact` mapper / sequential workflow / approval / checkout / generic contract v1 | bounded regular-file manifestをdeterministic Treeへ写像し、exact Decision headごとのfresh Proposal、one active review、verified accepted base、3 dispositionをApplication／Coreへ通す。host approvalをactor/session・ACL epoch・exact intentへ束縛し、one Ref snapshotからprotected authority／selected site／digestをbounded検証する | host path収集の安全性、identity provider自体、model実行証明、HTTP／CLI／UI、durable ACL／multi-process ordering、production deployment、tagged distribution |
 | `synapse-artifact-journal` + durable artifact orchestration | Proposal／Decision CAS前intent、verified publication後のopaque `ReviewId`、exact outcomeをseparate SQLiteへ保存し、fresh auth／ACL後にtrusted config・immutable graph・live Ref／reflog・checkoutでrestart crash windowをreconcileする | portable credential／approval／permit、Core+journal atomic transaction、durable identity／ACL、multi-process linearizability、raw idempotency key／rationaleの保存、automatic background resume |
 | `synapse-creator` Pilot / report | fixed local stateからCore-validなbase、AI proposal、Human Decisionを作り、取得した一つのRef snapshotに対するcurrent lineageとtimelineを監査表示する | OS userや`--creator`の本人性、caller-supplied fileのAI生成、Application routeを実際に通ったこと、cross-Ref transaction、reportをauthorization sourceとして使うこと |
-| current localhost application | exact startup catalog、safe facade、loopback／Host／Origin／browser-token boundaryを通し、read model、boundedな三file import／same-process Human review、read-only diagnostics、server-fixed bounded `fsck`、server-owned archive rootのbounded read-only archive listing（manifest checksum・構造・per-object存在／長さのみ検証、object contentは未読）、exact project／論理slug確認付きbounded atomic no-replace archive exportとempty-target exact-subset restore API、exportの確認／poll UIを公開する | OS-user authentication、AI outputのmodel生成証明、restartを越えるreview／job authority、archive restore UI、same-user process isolation、public／multi-user service、malicious media sandbox |
+| current localhost application | exact startup catalog、safe facade、loopback／Host／Origin／browser-token boundaryを通し、read model、boundedな三file import／same-process Human review、read-only diagnostics、server-fixed bounded `fsck`、server-owned archive rootのbounded read-only archive listing（manifest checksum・構造・per-object存在／長さのみ検証、object contentは未読）、exact project／論理slug確認付きbounded atomic no-replace archive exportとempty-target exact-subset restore API、export確認／poll UI、Refsとreflogが空の表示中targetへ固定したrestore確認／poll UIを公開する | OS-user authentication、AI outputのmodel生成証明、restartを越えるreview／job authority、same-user process isolation、public／multi-user service、malicious media sandbox |
 | planned cloud service | tenant-scoped immutable CAS、PostgreSQL Ref/reflog transaction、durable command、OIDC、single-writer regional DRをGCP主系／AWS移植profileで要求する設計 | 現時点ではruntime保証なし。cloud adapter、public API、tenant isolation、durable admission、deploymentは未実装 |
 | `SqliteProjectionStore` | supplied Ref snapshotのcurrent closure、derived query row、Analysis lineage／prerequisite availability、missing診断とtombstoned availability／count、source fingerprint | authorization、ACL／tenant isolation、exact replay、最新Refとの自動同期、objectの正本性、archive／recovery completeness |
 | `synapse-publication` / `synapse-present` | creator historyではstable private Ref copyから、generic artifactではbounded Decision checkoutから、private rationale／internal authority／path／raw assetを除外したversioned deterministic local bundleとchecksumを生成・検証する | 作者性、真実、権利、公開許可の自動判定、OIDの非機密性、Git provenance、remote publication、training-use policyの技術的強制 |
@@ -347,7 +347,7 @@ projectionを呼ぶ前にauthoritative project／Ref accessを検査し、認可
   APIは`storage_error`を返し得るため、これはcommitted-but-errorでありcrash durabilityは不確定である。
 - restore は pathname を信用せず、regular file、checksum、claimed OID、schema、closure を再検証する。
 - object phase の途中失敗は archive OID 集合の subset を残し得るが、Ref はまだ公開しない。
-- 同じ archive の完全な subset なら restore を再開できる。Refs / reflog は最後に一 transaction で復元する。
+- 同じ archive の完全な subset なら restore を再試行できる。Refs / reflog は最後に一 transaction で復元する。browserは自動resume／cleanup／recoveryを行わない。
 
 archive は単一 file や圧縮形式ではなく directory である。現在のlayoutとvalidation ruleは
 [Local directory archive profile](../spec/core/v0.1/archive-profile.md)にnormative draftとして定義する。
@@ -589,6 +589,8 @@ Tombstone は「target payload が利用不能である」という履歴を残�
 ## archive を扱うとき
 
 - restore 先には専用の空 repository、または同じ archive の失敗 restore だけが残した exact subset を使う。
+- browser restoreではpathや別targetを選べない。表示中のprojectのRefsとreflogが空の場合だけ、一覧から手入力したslug、exact target key、explicit empty-target確認を受ける。Coreが開始時にtarget inventoryとarchive sourceを再検査する。
+- terminal `archive_restore` / `restored` で `report_equivalence_required=true` のとき、成功panelにsourceとrestoredの`creator-report`比較が必要な旨を表示する。history再読込は利用者の明示操作で行い、成功panelを自動redirectで隠さない。
 - restore 実行 user に不要な filesystem 権限を与えない。
 - restricted data は archive 配布前に別途暗号化し、access / retention を管理する。
 - checksum を sender signature と表示しない。
