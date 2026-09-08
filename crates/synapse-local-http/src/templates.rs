@@ -69,6 +69,8 @@ pub(crate) struct SessionTemplate<'a> {
     pub(crate) review_id: &'a str,
     pub(crate) decision_url: &'a str,
     pub(crate) disposition: &'a str,
+    pub(crate) decision_outcome: &'a str,
+    pub(crate) rationale: &'a str,
     pub(crate) selected: &'a str,
     pub(crate) fsck_objects: usize,
     pub(crate) images: &'a [ImageView],

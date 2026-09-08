@@ -50,7 +50,8 @@ CARGO_TARGET_DIR=/tmp/synapsegit-$USER-target \
 The localhost browser suite runs against temporary repositories and a
 real loopback `synapse-local` process. It covers keyboard and narrow-screen
 interaction, local import previews and byte-limit feedback, import → compare →
-Human Decision, attachment/decode failures,
+Human Decision with recorded-rationale display and input-limit checks,
+attachment/decode failures,
 resource cleanup, and automated axe checks. It does not replace manual
 screen-reader or real-device evaluation. The pinned Node development tools are
 isolated in `scripts/browser`; they are not bundled in the Rust binaries.

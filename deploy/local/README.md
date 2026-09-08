@@ -153,6 +153,41 @@ OS-selected development port.
   --port 8788
 ```
 
+### Record and revisit a Human Decision (current main)
+
+![Decision form with rationale byte count and described Adopt, Reject, and Defer choices](../../docs/assets/synapse-local/decision-review.png)
+
+After creating a Proposal, inspect the three inputs and the byte-identity
+limitations on its session page. The decision area explains each choice:
+
+| Choice | Recorded outcome |
+|---|---|
+| Adopt | Select the supplied AI output unchanged |
+| Reject | Record that the AI output is not adopted |
+| Defer | Record that adoption is deferred; the AI output is not selected |
+
+Write an optional rationale. The counter uses UTF-8 bytes, so Japanese text can
+reach the 5000-byte limit before the 5000-character HTML limit. Oversized text
+is marked invalid before confirmation or a request. Choosing a disposition
+opens a confirmation with the project key, session, and outcome. Canceling
+sends no decision and retains the rationale. While submitting, the form holds
+its inputs fixed; a failed request restores the controls and preserves the
+text. It does not automatically retry.
+
+After a successful decision, **記録した判断** shows the outcome and the recorded
+rationale. Newlines are preserved, markup is escaped, and an empty rationale
+has an explicit empty state. This is the text returned by the verified local
+report, which can include a CLI-supplied default; displaying it does not verify
+its claims or establish who authored the text. The completed summary is also
+available without JavaScript. It is a localhost read view, not a new public
+publication of source-private rationale.
+
+All three choices complete the single decision flow. **Defer does not allow
+changing or reopening that session's decision in this Pilot.** Pending review
+still requires the same server process, and restart recovery is unchanged.
+These review and rationale display improvements are on current main and are
+not included in tagged v0.7.0.
+
 ### Check selected files before import (current main)
 
 ![Selected files with local previews, sizes, and clear controls in the actual import form](../../docs/assets/synapse-local/import-preview.png)

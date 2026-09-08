@@ -1461,3 +1461,34 @@ details[open] > summary {
   color: var(--danger);
   font-weight: 650;
 }
+
+/* Decision choices retain explicit button labels and descriptions at every width. */
+.decision-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: var(--space-4);
+}
+
+.decision-choice {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: var(--space-4);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
+}
+
+.decision-choice button {
+  margin-block-start: auto;
+}
+
+.decision-summary {
+  margin-block: var(--space-5);
+}
+
+.decision-rationale {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

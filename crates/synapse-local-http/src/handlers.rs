@@ -1044,6 +1044,8 @@ pub(crate) async fn session_page(
             review_id: &view.review_id,
             decision_url: &view.decision_url,
             disposition: &view.disposition,
+            decision_outcome: &view.decision_outcome,
+            rationale: &view.rationale,
             selected: &view.selected,
             fsck_objects: view.fsck_objects,
             images: &view.images,

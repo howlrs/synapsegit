@@ -8,6 +8,12 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ### Added
 
+- localhost decision review: explicit adopt/reject/defer outcome descriptions
+  and confirmation, live rationale UTF-8 byte-limit feedback, and input locking
+  during submission. Completed sessions display the recorded rationale as
+  escaped multiline text, including without JavaScript, and make clear that
+  defer does not reopen a session for another decision.
+
 - localhost import preflight: local raster previews, file names and byte sizes,
   selected-file counts, per-role clearing, and immediate UTF-8 byte-limit
   feedback. Choosing files sends no upload. Unsupported or corrupt preview

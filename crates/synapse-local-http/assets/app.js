@@ -542,6 +542,17 @@ function fileSizeLabel(bytes) {
   return `${bytes.toLocaleString("en-US")} bytes (${(bytes / 1024 / 1024).toFixed(2)} MiB)`;
 }
 
+function updateUtf8Counter(input, counter, limit) {
+  const count = UTF8_ENCODER.encode(input.value).byteLength;
+  const error = count > limit ? `${limit} bytes以内に短くしてください（現在 ${count} bytes）。` : "";
+  input.setCustomValidity(error);
+  input.setAttribute("aria-invalid", String(Boolean(error)));
+  counter.hidden = false;
+  counter.textContent = `${count} / ${limit} bytes${error ? ` · ${error}` : ""}`;
+  if (error) counter.dataset.tone = "error";
+  else delete counter.dataset.tone;
+}
+
 /** Optional preflight feedback only; multipart/server validation remains authoritative. */
 export function enhanceCreatorUploads(root = document) {
   for (const form of root.querySelectorAll("form[data-synapse-creator-upload]")) {
@@ -618,14 +629,7 @@ export function enhanceCreatorUploads(root = document) {
         const name = counter.dataset.creatorTextCount;
         const input = form.elements.namedItem(name);
         const limit = CREATOR_TEXT_FIELDS.get(name);
-        const count = UTF8_ENCODER.encode(input.value).byteLength;
-        const error = count > limit ? `${limit} bytes以内に短くしてください（現在 ${count} bytes）。` : "";
-        input.setCustomValidity(error);
-        input.setAttribute("aria-invalid", String(Boolean(error)));
-        counter.hidden = false;
-        counter.textContent = `${count} / ${limit} bytes${error ? ` · ${error}` : ""}`;
-        if (error) counter.dataset.tone = "error";
-        else delete counter.dataset.tone;
+        updateUtf8Counter(input, counter, limit);
       }
     };
     const refresh = () => {
@@ -863,9 +867,10 @@ function setStatus(form, message, tone) {
 
 function setBusy(form, busy) {
   form.setAttribute("aria-busy", String(busy));
-  const controls = form.dataset.synapseCreatorUpload !== undefined ? "input, button" : "[data-synapse-submit]";
+  const lockInputs = form.dataset.synapseCreatorUpload !== undefined || form.dataset.synapseDecision === "true";
+  const controls = lockInputs ? "input, button, select, textarea" : "[data-synapse-submit]";
   for (const control of form.querySelectorAll(controls)) {
-    if (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) {
+    if ("disabled" in control) {
       if (busy) {
         CONTROL_DISABLED_STATE.set(control, control.disabled);
         control.disabled = true;
@@ -949,9 +954,13 @@ export async function submitEnhancedForm(event) {
   if (event.submitter?.name === "disposition") {
     const disposition = event.submitter.value;
     const session = form.dataset.confirmSession || "this session";
-    const confirmed = window.confirm(
-      `Creator session “${session}” に ${disposition} decisionを公開します。この操作を続けますか？`,
-    );
+    const project = form.dataset.confirmProject;
+    const summary = event.submitter.dataset.decisionSummary;
+    const confirmed = window.confirm([
+      `${project ? `Project “${project}” / ` : ""}Creator session “${session}” に ${disposition} decisionを公開します。`,
+      ...(summary ? [summary, "記録後にこのセッションの判断を変更・再開する機能はありません。"] : []),
+      "この操作を続けますか？",
+    ].join("\n"));
     if (!confirmed) {
       setStatus(form, "Decisionは送信されませんでした。", null);
       return;
@@ -1095,6 +1104,14 @@ export function enhanceApiForms(root = document) {
       status.setAttribute("aria-live", "polite");
     }
     ENHANCED_FORMS.add(form);
+    if (form.dataset.synapseDecision === "true") {
+      const input = form.elements.namedItem("rationale");
+      const counter = form.querySelector("[data-decision-text-count]");
+      const update = () => updateUtf8Counter(input, counter, 5000);
+      input.addEventListener("input", update);
+      form.addEventListener("reset", () => window.setTimeout(update, 0));
+      update();
+    }
     form.addEventListener("submit", submitEnhancedForm);
     form.hidden = false;
   }

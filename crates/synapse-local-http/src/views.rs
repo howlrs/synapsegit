@@ -171,6 +171,8 @@ pub(crate) struct SessionPageView {
     pub(crate) review_id: String,
     pub(crate) decision_url: String,
     pub(crate) disposition: String,
+    pub(crate) decision_outcome: String,
+    pub(crate) rationale: String,
     pub(crate) selected: String,
     pub(crate) fsck_objects: usize,
     pub(crate) images: Vec<ImageView>,
@@ -224,6 +226,8 @@ impl SessionPageView {
                         "/api/v1/projects/{project_key}/creator-sessions/{session}/decisions"
                     ),
                     disposition: "—".into(),
+                    decision_outcome: String::new(),
+                    rationale: String::new(),
                     selected: "—".into(),
                     fsck_objects: 0,
                     images,
@@ -289,6 +293,8 @@ impl SessionPageView {
                     review_id: String::new(),
                     decision_url: String::new(),
                     disposition: "—".into(),
+                    decision_outcome: String::new(),
+                    rationale: String::new(),
                     selected: "—".into(),
                     fsck_objects: 0,
                     images: Vec::new(),
@@ -373,6 +379,14 @@ impl SessionPageView {
             ai_output_source: report.ai_output_source,
             review_id: String::new(),
             decision_url: String::new(),
+            decision_outcome: match report.disposition.as_str() {
+                "adopt" => "AI outputを変更せず採用しました。",
+                "reject" => "AI outputを採用しない判断を記録しました。",
+                "defer" => "AI outputの採用を保留する判断を記録しました。",
+                _ => "検証済みレポートのDispositionを確認してください。",
+            }
+            .into(),
+            rationale: report.rationale.unwrap_or_default(),
             disposition: report.disposition,
             selected: if report.selected_ai_output {
                 "はい".into()

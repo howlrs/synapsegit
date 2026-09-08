@@ -11,7 +11,10 @@ checks, attachment-only and broken media, image cleanup, and JavaScript-off
 history. Import preflight coverage includes no-upload local previews, byte
 limits, file clearing, opaque/corrupt input compatibility, pending-request
 locking, stale asynchronous results, reset/lifecycle cleanup, and mobile
-accessibility. Browser lifecycle events are dispatched explicitly in the cleanup
+accessibility. Decision review coverage includes all three outcomes, rationale
+round trips and markup escaping, cancel without writes, multibyte limits,
+failed-request preservation, no-JavaScript summaries, and narrow-screen axe
+checks. Browser lifecycle events are dispatched explicitly in the cleanup
 regression; this does not assert cross-browser back/forward-cache eligibility.
 Automated accessibility checks do not establish full accessibility conformance.
 

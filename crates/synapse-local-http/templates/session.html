@@ -19,6 +19,18 @@
   <article class="metric"><span class="metric__label">AI output selected</span><strong>{{ selected }}</strong></article>
   <article class="metric"><span class="metric__label">Verified objects</span><strong>{{ fsck_objects }}</strong></article>
 </section>
+<section class="card decision-summary" aria-labelledby="recorded-decision-heading">
+  <div class="card__header"><div><p class="eyebrow">Human Decision</p><h2 id="recorded-decision-heading">記録した判断</h2></div></div>
+  <p data-decision-outcome>{{ decision_outcome }}</p>
+  <h3>記録された理由</h3>
+  {% if rationale.is_empty() %}
+  <p class="muted" data-decision-rationale>理由は記録されていません。</p>
+  {% else %}
+  <p class="decision-rationale" data-decision-rationale>{{ rationale }}</p>
+  {% endif %}
+  <p class="field__hint">現在のRefsとCASから検証した記録です。理由は記録されたテキストであり、その内容の正しさを検証したものではありません。</p>
+  <p class="field__hint">Deferも含め、記録後にこのセッションの判断を変更・再開する機能はありません。</p>
+</section>
 {% endif %}
 
 {% if pending %}
@@ -133,20 +145,36 @@
     action="{{ decision_url }}"
     data-synapse-api-form="json"
     data-confirm-session="{{ session }}"
+    data-confirm-project="{{ project_key }}"
+    data-synapse-decision="true"
     data-success-reload="true"
     data-busy-message="Human decisionを検証して公開しています…"
     data-success-message="Decisionを公開しました。ページを再読み込みします。"
   >
     <input type="hidden" name="review_id" value="{{ review_id }}">
-    <label class="field">
-      <span>Rationale（任意）</span>
-      <textarea name="rationale" maxlength="5000" data-max-utf8-bytes="5000" rows="5" placeholder="この判断の理由や、後から確認したい点"></textarea>
-      <span class="field__hint">UTF-8で5000 bytes以内。</span>
-    </label>
-    <div class="actions" aria-label="Disposition">
-      <button type="submit" name="disposition" value="adopt" data-synapse-submit>Adopt</button>
-      <button type="submit" name="disposition" value="reject" data-variant="danger" data-synapse-submit>Reject</button>
-      <button type="submit" name="disposition" value="defer" data-variant="secondary" data-synapse-submit>Defer</button>
+    <div class="field">
+      <label for="decision-rationale">Rationale（任意）</label>
+      <textarea id="decision-rationale" name="rationale" maxlength="5000" data-max-utf8-bytes="5000" rows="5" aria-describedby="rationale-help rationale-count" placeholder="この判断の理由や、後から確認したい点"></textarea>
+      <span id="rationale-help" class="field__hint">UTF-8で5000 bytes以内。記録後、このセッションで読み返せます。</span>
+      <span id="rationale-count" class="field__hint" data-decision-text-count hidden></span>
+    </div>
+    <p id="decision-finality" class="field__hint">Deferも含め、記録後にこのセッションの判断を変更・再開する機能はありません。</p>
+    <div class="decision-choices" role="group" aria-label="Disposition" aria-describedby="decision-finality">
+      <div class="decision-choice">
+        <h3>採用</h3>
+        <p id="adopt-help">AI outputを変更せず採用します。</p>
+        <button type="submit" name="disposition" value="adopt" aria-describedby="adopt-help" data-decision-summary="AI outputを変更せず採用します。" data-synapse-submit>Adopt</button>
+      </div>
+      <div class="decision-choice">
+        <h3>不採用</h3>
+        <p id="reject-help">AI outputを採用しない判断を記録します。</p>
+        <button type="submit" name="disposition" value="reject" aria-describedby="reject-help" data-decision-summary="AI outputを採用しない判断を記録します。" data-variant="danger" data-synapse-submit>Reject</button>
+      </div>
+      <div class="decision-choice">
+        <h3>保留</h3>
+        <p id="defer-help">AI outputの採用を保留する判断を記録します。</p>
+        <button type="submit" name="disposition" value="defer" aria-describedby="defer-help" data-decision-summary="AI outputの採用を保留する判断を記録します。" data-variant="secondary" data-synapse-submit>Defer</button>
+      </div>
     </div>
     <p class="field__hint">Decision writeには、このページのJavaScriptとprocess-local tokenが必要です。</p>
     <p data-synapse-status hidden></p>

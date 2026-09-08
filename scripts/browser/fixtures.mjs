@@ -31,9 +31,9 @@ export const test = base.extend({
           "--subject", "Comparison browser fixture", "--creator", "Browser tester",
           "--decision", "defer", "--rationale", "Review fixture");
       }
-      cli("init", path.join(directory, "pending"));
+      for (const key of ["pending", "reviews"]) cli("init", path.join(directory, key));
       server = spawn(path.join(binaries, "synapse-local"), ["--port", "0",
-        ...["complete", "mixed", "broken", "pending"].flatMap((key) => ["--project", `${key}=${path.join(directory, key)}`]),
+        ...["complete", "mixed", "broken", "pending", "reviews"].flatMap((key) => ["--project", `${key}=${path.join(directory, key)}`]),
       ], { stdio: ["ignore", "ignore", "pipe"] });
       const origin = await new Promise((resolve, reject) => {
         let log = "";
