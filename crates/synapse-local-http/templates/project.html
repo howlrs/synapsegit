@@ -56,6 +56,48 @@
 </section>
 {% endif %}
 
+{% if archive_export_supported %}
+<section class="card" aria-labelledby="archive-export-heading">
+  <div class="card__header">
+    <div>
+      <p class="eyebrow">Maintenance</p>
+      <h2 id="archive-export-heading">Archive export</h2>
+      <p class="muted">現在のprojectをserver固定のresource limit内で、設定済みarchive rootへchecksum付きdirectory archiveとして保存します。</p>
+    </div>
+  </div>
+  <div class="notice" data-tone="warning">
+    <h3>既存archiveは上書きしません</h3>
+    <p>archive nameは新しいlogical slugを指定してください。保存先のfilesystem pathはserver設定が所有し、この画面には公開されません。</p>
+  </div>
+  <form
+    hidden
+    method="post"
+    action="/api/v1/projects/{{ project_key }}/archive-exports"
+    data-synapse-api-form="json"
+    data-confirm-maintenance="archive-export"
+    data-success-location="/#archives-heading"
+    data-busy-message="Archive exportをqueueしています…"
+  >
+    <div class="form-grid">
+      <label class="field">
+        <span>Archive name</span>
+        <input name="archive_name" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="nightly-2026-08-26">
+        <span class="field__hint">小文字英数字とハイフン、1–64文字。create-onlyです。</span>
+      </label>
+      <label class="field">
+        <span>確認のため project key <code>{{ project_key }}</code> を入力</span>
+        <input name="confirm_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
+        <span class="field__hint">対象projectのexact confirmationとして送信されます。</span>
+      </label>
+    </div>
+    <div class="actions"><button type="submit" data-synapse-submit>Archiveを作成</button></div>
+    <p class="field__hint">処理はbounded background jobとして実行され、成功後にarchive一覧へ移動します。</p>
+    <p data-synapse-status hidden></p>
+  </form>
+  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、archive exportは開始できません。</p></div></noscript>
+</section>
+{% endif %}
+
 <section class="card" aria-labelledby="creator-upload-heading">
   <div class="card__header">
     <div>

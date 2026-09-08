@@ -1,6 +1,6 @@
 # SynapseGit localhost application architecture
 
-Status: approved implementation design; slices 1-4/6, the fsck/job part of slice 7, and the read-only diagnostics part of slice 8 implemented in v0.3.0; read-only archive listing implemented in tagged v0.6.0; archive export and empty-target restore APIs implemented in tagged v0.7.0
+Status: approved implementation design; slices 1-4/6, the fsck/job part of slice 7, and the read-only diagnostics part of slice 8 implemented in v0.3.0; read-only archive listing implemented in tagged v0.6.0; archive export and empty-target restore APIs implemented in tagged v0.7.0; archive export UI implemented on current main
 
 Decision date: 2026-07-14
 
@@ -20,8 +20,11 @@ entry as `valid` (with its manifest checksum), `invalid`, or
 object content. Tagged v0.7.0 additionally implements authenticated,
 confirmed archive export as a bounded process-local job and Core atomic
 no-replace publication under that server-owned root, plus confirmed empty-target
-archive restore through Core's server-fixed bounded exact-subset path. Archive
-export and restore browser controls remain unimplemented. The diagnostics and browser `fsck` additions are
+archive restore through Core's server-fixed bounded exact-subset path. Current
+main additionally implements the project-page export control with a logical
+slug, exact project-key confirmation, explicit browser confirmation, job
+polling, and post-success archive-list navigation. Restore browser controls
+remain unimplemented. The diagnostics and browser `fsck` additions are
 included in the tagged v0.3.0 binary, archive listing is included in tagged
 v0.6.0, and archive export and restore are included in tagged v0.7.0. Core v0.1
 remains a Stage 0 draft; this application slice is
@@ -571,7 +574,8 @@ sequencing and does not advance the formal Core stage.
    `--archive-root` startup flag. Tagged v0.7.0 additionally implements the
    authenticated archive export API with a server-fixed profile and no-replace
    publication, and the authenticated empty-target restore API with server-fixed
-   Core limits and exact-subset retry. Export and restore UI remain planned.
+   Core limits and exact-subset retry. Current main adds the project-page export
+   confirmation/poll UI; restore UI remains planned.
 8. **Partially implemented:** tagged Linux x86_64 packaging, checksum publication, and release
    documentation are implemented. v0.3.0 also implements the dedicated read-only
    incomplete-session diagnostics service DTO/method, GET route, and server-rendered

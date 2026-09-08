@@ -889,6 +889,7 @@ pub(crate) async fn project_page(
         })
         .collect::<Vec<_>>();
     let fsck_supported = dashboard.status.project.capabilities.fsck;
+    let archive_export_supported = dashboard.status.project.capabilities.archive_export;
     let has_last_fsck = dashboard.status.last_fsck.is_some();
     let last_fsck_clean = dashboard
         .status
@@ -919,6 +920,7 @@ pub(crate) async fn project_page(
             pending_sessions: dashboard.status.creator_session_counts.pending_review,
             incomplete_sessions: dashboard.status.creator_session_counts.incomplete,
             fsck_supported,
+            archive_export_supported,
             has_last_fsck,
             last_fsck_clean,
             last_fsck_objects,

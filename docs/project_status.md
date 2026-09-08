@@ -2,7 +2,7 @@
 
 Audience: preview evaluators、contributors、maintainers
 Status: public project snapshot
-Applies to: tagged v0.7.0
+Applies to: current main after tagged v0.7.0
 Last verified: 2026-08-26
 
 SynapseGit Coreは**Stage 0 draft**である。v0.7.0は、v0.3.0で配布したlocal repository、bounded
@@ -34,6 +34,7 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 - exact project確認、server-fixed limit、process-local job pollingを持つlocalhost `fsck` UI
 - exact project確認と論理archive slugだけを受け、server-owned archive rootへCoreのbounded
   atomic no-replace publicationを行うlocalhost archive export API
+- logical archive slug、exact project確認、開始前確認、job pollingを持つlocalhost archive export UI
 - exact target project／empty-target確認と論理archive slugだけを受け、server-fixed limitで
   Coreのexact-subset archive restoreを実行するlocalhost archive restore API
 - process-local authenticated AI routeとnarrow Human Decision library boundary
@@ -95,7 +96,7 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 - capture client、repeatable／calibrated capture workflow
 - pixel registration、visual difference、physical change interpretation
 - model／connector invocationとpre-execution OS sandbox／egress control
-- localhostのarchive export／restore UI（listと両APIは実装済み）
+- localhostのarchive restore UI（list、両API、export UIは実装済み）
 - durable generic Rust boundaryのHTTP／Creator／localhost UI統合、automatic worker resume／cleanup、継続session編集
 - HTTP/JWT／MFA、durable/distributed ACL・permit・publication fence
 - organization／quorum／release approval、modified／partial adoption
