@@ -168,6 +168,10 @@ project when its displayed Refs and reflog are empty, requires a listed archive
 slug, exact typed project key, explicit empty-target checkbox, and browser
 confirmation, then keeps the report-equivalence warning and history reload
 link visible after the queued job succeeds.
+Current main also adds a read-only image comparison dialog to pending and
+completed sessions. Choose two displayable images, inspect them side by side
+(stacked on narrow screens), and switch between fit, 100%, and 200% views.
+This is manual visual inspection, without registration or difference analysis.
 Diagnostics and maintenance do not resume, clean up, or rewrite a creator
 session. See the
 [local application runbook](./deploy/local/README.md), the
@@ -180,7 +184,7 @@ session. See the
 |---|---|
 | Three-file creator Pilot with `adopt`, `reject`, and `defer` | Implemented as a bounded local CLI flow |
 | Human/AI-attributed provenance and a comparison-aware report | Implemented; AI output remains caller-supplied |
-| Original/current comparison | Primary blob byte identity only; always partial comparability |
+| Original/current comparison | Primary blob byte identity only; always partial comparability. Current main also offers manual two-image viewing with fit/100%/200% zoom in the localhost UI; no registration or difference analysis |
 | Local browser interface | Read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, and confirmed background `fsck`. A bounded, read-only archive listing view (`GET /archives`) and, in tagged v0.7.0, authenticated confirmed bounded archive export and empty-target restore APIs (`POST /archive-exports`, `POST /archive-restores`) are available behind `--archive-root`. Current main adds project-page controls; restore fixes the target to the open registered empty project and requires a listed slug, typed key, checkbox, confirmation, queued polling, and a visible creator-report equivalence reminder |
 | Generic regular-file artifact building blocks | Tagged v0.7.0 source/workspace libraries include a bounded deterministic mapper and checkout, sequential Proposal/Decision workflow, host-authenticated one-shot approval, a SQLite journal-integrated restart/reconciliation boundary, a frozen v1 public-safe contract, and a separate local public projection. The packaged three binaries do not expose these capabilities through HTTP, CLI, or browser UI; no model invocation, multi-process control plane, or production service is provided |
 | Content-addressed objects, typed closure, Ref CAS, and reflog | Implemented and covered by repository tests |

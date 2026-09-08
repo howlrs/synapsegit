@@ -1314,3 +1314,112 @@ details[open] > summary {
     box-shadow: none;
   }
 }
+
+.image-comparison {
+  width: min(96vw, 100rem);
+  max-width: 100%;
+  max-height: 94dvh;
+  padding: var(--space-5);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  color: var(--ink);
+  background: var(--surface);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.image-comparison[open] {
+  display: grid;
+  height: min(94dvh, 64rem);
+  grid-template-rows: auto auto auto minmax(10rem, 1fr);
+}
+
+.image-comparison::backdrop {
+  background: rgb(0 0 0 / 65%);
+}
+
+.image-comparison__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.image-comparison__header h2 {
+  margin: 0;
+}
+
+.image-comparison__zoom {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-block: var(--space-4);
+}
+
+.image-comparison__zoom select {
+  width: auto;
+}
+
+.image-comparison__panes {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.image-comparison__pane {
+  min-width: 0;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  margin: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.image-comparison__viewport {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-muted);
+}
+
+.image-comparison__viewport img {
+  display: block;
+  max-width: none;
+  margin: 0;
+}
+
+.image-comparison__viewport[data-zoom="fit"] img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+@media (max-width: 40rem) {
+  .image-comparison {
+    padding: var(--space-3);
+  }
+
+  .image-comparison[open] {
+    display: block;
+    height: auto;
+  }
+
+  .image-comparison__panes {
+    grid-template-columns: 1fr;
+  }
+
+  .image-comparison__viewport {
+    height: 32dvh;
+    min-height: 10rem;
+  }
+}
+
+@media print {
+  .image-comparison {
+    display: none !important;
+  }
+}

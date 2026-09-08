@@ -8,6 +8,15 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ### Added
 
+- localhost read-only image comparison for pending and complete creator sessions:
+  choose two decoded inline raster images, inspect them at fit/100%/200%, and
+  scroll each image independently. The dialog supports keyboard focus, Escape,
+  and stacked panes on narrow screens, reuses authenticated image Blob URLs,
+  and performs no registration or difference analysis.
+- Chromium end-to-end coverage of import, comparison, and explicit Human review,
+  including mobile layout, automated accessibility checks, unavailable media,
+  and image resource cleanup.
+
 - localhost archive export UI: when `--archive-root` is configured, each
   project page exposes the existing bounded no-replace export API through a
   progressively enhanced form. The control requires a new logical archive
@@ -22,6 +31,9 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   history reload link.
 
 ### Fixed
+
+- Corrupt or browser-unsupported raster data now shows an explicit image decode
+  error instead of leaving the preview blank; it cannot enter the comparison.
 
 - localhost enhanced forms now use a submit button's action only when it has
   an explicit `formaction` attribute. Chrome otherwise resolves
