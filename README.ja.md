@@ -163,6 +163,8 @@ current mainではpending／complete sessionにread-only画像比較ビューも
 目視確認用であり、位置合わせ・差分解析は行いません。
 current mainの取り込みフォームでは、選択した画像のローカルプレビュー、ファイルサイズ、UTF-8バイト数を確認し、
 取り違えたファイルを解除してからProposalを作成できます。ファイルを選ぶだけでは送信しません。
+current mainでは判断ごとの説明と確認メッセージ、理由のUTF-8バイト数表示を提供し、完了画面で記録された理由を読み返せます。
+Deferも判断の記録を完了します。同じセッションの判断を変更・再開する機能はありません。
 diagnosticsとmaintenanceはsessionの
 resume、cleanup、history書換えを行いません。
 [local application runbook](./deploy/local/README.md)、[install guide](./docs/install.md)、
@@ -177,6 +179,7 @@ resume、cleanup、history書換えを行いません。
 | original／current比較 | primary Blobのbyte identityのみ。comparabilityは常にpartial。current mainのlocalhost UIには2画像の目視確認用の全体表示／100%／200%拡大を追加。位置合わせ・差分解析は行わない |
 | local browser UI | read表示、boundedな三file import／same-process `adopt`・`reject`・`defer`、read-only incomplete-session diagnostics、確認付きbackground `fsck`を実装済み。任意の`--archive-root`起動flag指定時のみ、boundedなread-only archive listing表示（`GET /archives`）に加え、tagged v0.7.0で認証付きの確認付きbounded archive export API（`POST /archive-exports`）とempty-target restore API（`POST /archive-restores`）を追加。current mainはproject画面にarchive controlを追加。restore先は表示中の空の登録済みprojectに固定され、一覧のslug、target key完全入力、checkbox、browser確認、job polling、report一致確認表示を必要とする |
 | 取り込み前の確認（current main） | ローカル画像プレビュー、サイズ表示、選択解除、UTF-8バイト上限の即時表示、送信中の入力固定。プレビューできないファイルも既存の制限内で取り込み可能 |
+| 判断と振り返り（current main） | adopt／reject／deferの結果説明と確認、理由のバイト数表示、送信中の入力固定、完了画面の理由表示。同じセッションの判断変更・再開は不可 |
 | generic regular-file artifact building block | tagged v0.7.0のsource／workspace libraryにbounded deterministic mapper／checkout、sequential Proposal／Decision、host-authenticated one-shot approval、SQLite journal統合済みrestart／reconciliation境界、固定v1 public-safe contract、別local public projectionを収録。配布する3 binaryはこれらをHTTP、CLI、browser UIから提供せず、model invocation、multi-process control plane、production serviceも提供しない |
 | content-addressed object、typed closure、Ref CAS、reflog | 実装済み、repository test対象 |
 | `fsck`、checksum付きdirectory export、verified restore | local repository formatで実装済み |
