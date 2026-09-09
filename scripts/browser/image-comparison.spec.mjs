@@ -38,7 +38,7 @@ test("complete session: keyboard open, role selection, aspect-correct zoom, clos
   await expect(page.getByLabel("比較画像 B", { exact: true })).toHaveValue("2");
   const dimensions = await cards(page).nth(1).evaluate((image) => [image.naturalWidth, image.naturalHeight]);
   for (const [zoom, scale] of [["1", 1], ["2", 2]]) {
-    await page.getByLabel("表示倍率").selectOption(zoom);
+    await dialog(page).getByLabel("表示倍率", { exact: true }).selectOption(zoom);
     await expect(compareImages(page).first()).toHaveAttribute("width", String(dimensions[0] * scale));
     await expect(compareImages(page).first()).toHaveAttribute("height", String(dimensions[1] * scale));
     const box = await compareImages(page).first().boundingBox();
@@ -52,14 +52,14 @@ test("complete session: keyboard open, role selection, aspect-correct zoom, clos
   await page.getByLabel("比較画像 A", { exact: true }).selectOption("0");
   await expect(compareImages(page).first()).toHaveAttribute("src", await cards(page).first().getAttribute("src"));
   await expect(page.locator("[data-synapse-compare-caption]").first()).toContainText("Original");
-  await page.getByLabel("表示倍率").selectOption("fit");
+  await dialog(page).getByLabel("表示倍率", { exact: true }).selectOption("fit");
   expect(await compareImages(page).first().evaluate((image) => getComputedStyle(image).objectFit)).toBe("contain");
   await page.keyboard.press("Escape");
   await expect(dialog(page)).not.toBeVisible();
   await expect(opener(page)).toBeFocused();
   await expect(page.locator("[data-synapse-compare-image][src]")).toHaveCount(0);
   await openComparison(page);
-  await expect(page.getByLabel("表示倍率")).toHaveValue("fit");
+  await expect(dialog(page).getByLabel("表示倍率", { exact: true })).toHaveValue("fit");
   await page.getByRole("button", { name: "閉じる", exact: true }).click();
   expect(requests.length).toBe(initialRequests);
   expect(requests.every(([method]) => method === "GET")).toBe(true);
@@ -100,7 +100,7 @@ test("pending review: import, compare and explicitly defer from the review form"
   await page.getByRole("button", { name: "Proposalを作成" }).click();
   await page.waitForURL("**/creator-sessions/browser-review");
   await openComparison(page);
-  await page.getByLabel("表示倍率").selectOption("2");
+  await dialog(page).getByLabel("表示倍率", { exact: true }).selectOption("2");
   await page.keyboard.press("Escape");
   await page.getByLabel("Rationale（任意）").fill("Need another visual inspection.");
   page.once("dialog", (confirmation) => confirmation.accept());

@@ -253,6 +253,20 @@ impl<'source> PreparedCreatorReportReader<'source> {
         session: &str,
         prepared: PreparedCreatorReportSession,
     ) -> Result<CreatorSnapshotReport> {
+        let scope = RefScope::names([prepared.decision_ref.clone(), prepared.proposal_ref.clone()]);
+        self.render_report_in_scope(session, prepared, &scope, 0)
+    }
+
+    fn render_report_in_scope(
+        &self,
+        session: &str,
+        prepared: PreparedCreatorReportSession,
+        report_scope: &RefScope,
+        depth: usize,
+    ) -> Result<CreatorSnapshotReport> {
+        if depth > crate::CREATOR_MAX_SOURCE_DEPTH {
+            return Err(crate::source::invalid_source());
+        }
         let repository = self.repository;
         let projection = &self.projection;
         let PreparedCreatorReportSession {
@@ -267,6 +281,8 @@ impl<'source> PreparedCreatorReportReader<'source> {
             disposition,
             rationale,
             ai_activity_oid,
+            feedback_oid,
+            import_activity_oid,
             base_head,
             base_snapshot,
             proposal_snapshot,
@@ -274,8 +290,7 @@ impl<'source> PreparedCreatorReportReader<'source> {
             comparison: comparison_pointers,
         } = lineage;
 
-        let report_scope = RefScope::names([decision_ref.clone(), proposal_ref.clone()]);
-        let timeline = projection.subject_timeline(&ids.subject, None, &report_scope)?;
+        let timeline = projection.subject_timeline(&ids.subject, None, report_scope)?;
         let original_observation = timeline
             .iter()
             .find(|entry| entry.entity_id == ids.original_observation)
@@ -326,23 +341,73 @@ impl<'source> PreparedCreatorReportReader<'source> {
             "output_refs",
             "proposal",
         )?;
+        let generation_note = crate::notes::read_generation_note(
+            &read_json(repository, &ai_activity.oid)?,
+            &ai_output_blob_oid,
+        )?;
+        let (annotations, annotations_unavailable) = crate::annotations::read_annotations(
+            &read_json(repository, &feedback_oid)?,
+            &original_blob_oid,
+            &current_blob_oid,
+            &ai_output_blob_oid,
+        );
+        let expected_reachable_refs = match report_scope {
+            RefScope::Names(names) => names.iter().map(String::as_str).collect::<Vec<_>>(),
+            RefScope::All => return Err(crate::source::invalid_source()),
+        };
         let comparison = comparison_pointers
             .as_ref()
             .map(|pointers| {
                 validate_comparison_report(
                     repository,
                     projection,
-                    &report_scope,
+                    report_scope,
                     &ids,
                     pointers,
                     &original_observation.oid,
                     &current_observation.oid,
                     &original_blob_oid,
                     &current_blob_oid,
-                    &[decision_ref.as_str(), proposal_ref.as_str()],
+                    &expected_reachable_refs,
                 )
             })
             .transpose()?;
+
+        let source = crate::source::read_source(&read_json(repository, &import_activity_oid)?)?;
+        let mut source_depth = 0;
+        if let Some(source) = &source {
+            if original_blob_oid != source.original_blob_oid
+                || current_blob_oid != source.current_blob_oid
+            {
+                return Err(crate::source::invalid_source());
+            }
+            let source_ids = load_session_ids(repository, &source.session, &source.decision_head)?;
+            let source_lineage = validate_report_lineage(
+                repository,
+                &source_ids,
+                &source.decision_head,
+                &source.proposal_head,
+            )?;
+            let source_report = self
+                .render_report_in_scope(
+                    &source.session,
+                    PreparedCreatorReportSession {
+                        decision_ref: crate::session::decision_ref(&source.session),
+                        proposal_ref: crate::session::proposal_ref(&source.session),
+                        decision_head: source.decision_head.clone(),
+                        proposal_head: source.proposal_head.clone(),
+                        ids: source_ids,
+                        lineage: source_lineage,
+                    },
+                    report_scope,
+                    depth + 1,
+                )?
+                .report;
+            if !source.matches_report(&source_report) {
+                return Err(crate::source::invalid_source());
+            }
+            source_depth = source_report.source_depth + 1;
+        }
 
         let timeline = timeline
             .into_iter()
@@ -362,6 +427,11 @@ impl<'source> PreparedCreatorReportReader<'source> {
 
         Ok(CreatorSnapshotReport {
             report: CreatorReport {
+                source,
+                source_depth,
+                annotations,
+                annotations_unavailable,
+                generation_note,
                 session: session.to_owned(),
                 project_id: ids.project,
                 subject_id: ids.subject,
@@ -477,6 +547,8 @@ struct ReportLineage {
     disposition: CreatorDisposition,
     rationale: Option<String>,
     ai_activity_oid: String,
+    feedback_oid: String,
+    import_activity_oid: String,
     base_head: String,
     base_snapshot: String,
     proposal_snapshot: String,
@@ -773,6 +845,8 @@ fn validate_report_lineage(
             .and_then(JsonValue::as_str)
             .map(str::to_owned),
         ai_activity_oid,
+        feedback_oid: feedback_oid.to_owned(),
+        import_activity_oid: base_pointers.import_activity_oid,
         base_head: base_head.to_owned(),
         base_snapshot: base_snapshot.to_owned(),
         proposal_snapshot: proposal_snapshot.to_owned(),

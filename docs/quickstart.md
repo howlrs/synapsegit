@@ -263,3 +263,7 @@ cargo run -p synapse-cli -- --help
 - Pilot で利用者へ返す価値: [使用ガイド](./usage_guide.md)
 - 書込み・保存 backend の境界: [Runtime architecture](./runtime_architecture.md)
 - CLI 開発と test: [Contributing](../CONTRIBUTING.md)
+
+The localhost three-file form optionally records private generation notes. After import and Human review, run `synapse creator-report <repo> <session>` to read `generation_note_user_declared` separately from the judgment rationale. This user-declared text does not verify the external model or its execution.
+
+In a pending localhost session, use **画像上の判断メモ** to select a decoded image, add up to ten pins, and write a short note for each. Record Adopt/Reject/Defer once for the whole Proposal. Afterward, `creator-report` shows the private pins separately from rationale; normal archive/restore retains them.

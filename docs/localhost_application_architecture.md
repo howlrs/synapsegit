@@ -637,3 +637,43 @@ never upgrades byte identity into a visual or physical claim.
 - organization/quorum/release and modified/partial-adoption workflows;
 - automatic incomplete-session resume/cleanup or history rewrite;
 - SurrealDB adapter and the complete eight-query performance comparison.
+
+### Creator private notes and reused source workflow (current main)
+
+Optional generation notes bind to the immutable AI Activity and candidate Blob;
+private image pins bind to the Human DecisionFeedback and exact image role/Blob.
+Both are namespaced, versioned Creator extensions, separate from execution proof,
+analysis and the overall Human disposition. Core archives retain them, while public
+projection never automatically copies their text.
+
+`GET /projects/{projectKey}/creator-sessions/{session}/derivations` captures one
+verified complete same-project source as a bounded process-local confirmation.
+The paired multipart POST accepts that confirmation, fresh names/session, one new
+candidate and optional fresh generation notes. The service revalidates source heads,
+uses server-owned reference-image staging, and preserves writer and image limits.
+The exact source heads are checked within initial Ref publication. Typed import
+input edges retain both heads so later reports/archives can verify their fixed
+lineage independently of source Ref movement. Source images use the dedicated
+`X-Synapse-Source-Confirmation` header in addition to mandatory local token auth;
+API query restrictions remain unchanged.
+
+Reused Current is the recorded source Current, including after Adopt. It is not a
+new capture or the old AI output, and names do not imply shared physical identity.
+
+### Public presentation sidecar form (current main)
+
+The project presentation page lists complete session identifiers and starts all
+public text inputs empty. `POST /projects/{projectKey}/presentation-sidecars`
+accepts a closed 128 KiB JSON request for exactly one complete session. The service
+verifies that source and calls `synapse-publication::serialize_presentation` using
+only freshly supplied optional text. This additive dependency keeps HTTP behind
+the local-service facade and reuses the existing parser/validator and 64 KiB
+sidecar ceiling. Neither the handler nor service writes Core objects/Refs or
+accepts server output paths.
+
+The browser displays supplied text as text, invalidates confirmation on edits, and
+only downloads validated TOML after a separate explicit action. Private rationale,
+generation notes, pins, source image bytes and internal display names are never
+automatically used to populate the form or output. This is an author-supplied text
+preview, not a verified final bundle. Existing CLI export and preview retain the
+stopped-writer/checkpointed-source boundary and do not publish remotely.

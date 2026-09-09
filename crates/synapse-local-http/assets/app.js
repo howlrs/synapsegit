@@ -17,6 +17,10 @@ const CREATOR_TEXT_FIELDS = new Map([
   ["session", 64],
   ["subject_label", 500],
   ["creator_name", 300],
+  ["generation_tool", 300],
+  ["generation_model", 300],
+  ["generation_prompt", 8192],
+  ["generation_intent", 2048],
 ]);
 const CREATOR_UPLOADS = new Map();
 const CREATOR_FILE_FIELDS = new Set(["original_image", "current_image", "ai_output"]);
@@ -272,6 +276,7 @@ function resetImageDownload(image) {
 
 function revokeImageUrl(image) {
   INLINE_IMAGES.delete(image);
+  refreshPinEditors();
   const objectUrl = IMAGE_URLS.get(image);
   if (objectUrl) {
     URL.revokeObjectURL(objectUrl);
@@ -299,6 +304,7 @@ async function installInlineRaster(image, objectUrl) {
   }
   if (IMAGE_URLS.get(image) !== objectUrl) return;
   INLINE_IMAGES.add(image);
+  refreshPinEditors();
   setImageStatus(image, `${image.naturalWidth} × ${image.naturalHeight} px`, null);
 }
 
@@ -355,7 +361,7 @@ async function loadApiImage(image) {
 
   try {
     const response = await apiFetch(source, {
-      headers: { Accept: [...ALLOWED_RASTER_TYPES, ATTACHMENT_MEDIA_TYPE].join(", ") },
+      headers: { Accept: [...ALLOWED_RASTER_TYPES, ATTACHMENT_MEDIA_TYPE].join(", "), ...(image.dataset.sourceConfirmation ? { "X-Synapse-Source-Confirmation": image.dataset.sourceConfirmation } : {}) },
       signal: controller.signal,
     });
     if (!response.ok) throw await responseProblem(response);
@@ -576,7 +582,7 @@ export function enhanceCreatorUploads(root = document) {
     const summary = () => {
       const files = fields.flatMap(({ input }) => [...input.files]);
       const target = form.querySelector("[data-creator-file-summary]");
-      target.textContent = `選択済み ${files.length} / 3 ファイル · 合計 ${fileSizeLabel(files.reduce((total, file) => total + file.size, 0))} / 192 MiB`;
+      target.textContent = `選択済み ${files.length} / ${fields.length} ファイル · 合計 ${fileSizeLabel(files.reduce((total, file) => total + file.size, 0))} / ${fields.length * 64} MiB`;
       target.hidden = false;
     };
     const update = async (field) => {
@@ -685,6 +691,14 @@ function formJson(form, submitter) {
     payload[name] = value;
   }
 
+  if (form.dataset.synapseDecision === "true") {
+    const editor = PIN_EDITORS.get(form);
+    if (editor) {
+      const annotations = editor.payload();
+      if (annotations) payload.annotations = annotations;
+    }
+    if (UTF8_ENCODER.encode(JSON.stringify(payload)).byteLength > 8192) throw new TypeError("The decision JSON exceeds 8 KiB including rationale and pins.");
+  }
   return payload;
 }
 
@@ -741,24 +755,28 @@ function formDataWithSubmitter(form, submitter) {
 
 function creatorMultipart(form, submitter) {
   const source = formDataWithSubmitter(form, submitter);
+  const derived = form.dataset.creatorDerived === "true";
+  const textFields = new Map(CREATOR_TEXT_FIELDS);
+  if (derived) textFields.set("confirmation_id", 64);
+  const fileFields = derived ? new Set(["ai_output"]) : CREATOR_FILE_FIELDS;
   const text = new Map();
   const files = new Map();
   let aggregateBytes = 0;
 
   for (const [name, value] of source) {
-    if (CREATOR_TEXT_FIELDS.has(name)) {
+    if (textFields.has(name)) {
       if (typeof value !== "string" || text.has(name)) {
         throw new TypeError(`The field “${name}” must occur exactly once as text.`);
       }
       const byteLength = UTF8_ENCODER.encode(value).byteLength;
-      if (byteLength === 0 || byteLength > CREATOR_TEXT_FIELDS.get(name)) {
+      if ((!name.startsWith("generation_") && byteLength === 0) || byteLength > textFields.get(name)) {
         throw new TypeError(`The field “${name}” exceeds its UTF-8 byte limit.`);
       }
       text.set(name, value);
       continue;
     }
 
-    if (CREATOR_FILE_FIELDS.has(name)) {
+    if (fileFields.has(name)) {
       if (!(value instanceof File) || files.has(name)) {
         throw new TypeError(`The field “${name}” must occur exactly once as a file.`);
       }
@@ -776,22 +794,25 @@ function creatorMultipart(form, submitter) {
     throw new TypeError(`The field “${name}” is not allowed in a creator upload.`);
   }
 
-  if (text.size !== CREATOR_TEXT_FIELDS.size || files.size !== CREATOR_FILE_FIELDS.size) {
-    throw new TypeError("The creator upload requires exactly three text fields and three files.");
+  const note = Object.fromEntries(["tool", "model", "prompt", "intent"].map(key => [key, text.get(`generation_${key}`) || ""]));
+  if (UTF8_ENCODER.encode(JSON.stringify(note)).byteLength > 16384) throw new TypeError("生成メモ全体は16 KiB以内にしてください。");
+  if (!["session", "subject_label", "creator_name"].every(name => text.has(name)) || files.size !== fileFields.size) {
+    throw new TypeError("The creator upload contains missing or unexpected fields.");
   }
   if (!/^[a-z][a-z0-9-]{0,63}$/u.test(text.get("session"))) {
     throw new TypeError("The session field is not a valid lowercase slug.");
   }
 
+  if (derived && !/^[0-9a-f]{64}$/u.test(text.get("confirmation_id") || "")) throw new TypeError("The source confirmation is invalid. Reopen the source page.");
   const normalized = new FormData();
-  for (const name of CREATOR_TEXT_FIELDS.keys()) {
+  for (const name of textFields.keys()) {
     normalized.append(
       name,
-      new Blob([text.get(name)], { type: "text/plain; charset=utf-8" }),
+      new Blob([text.get(name) || ""], { type: "text/plain; charset=utf-8" }),
       `${name}.txt`,
     );
   }
-  for (const name of CREATOR_FILE_FIELDS) {
+  for (const name of fileFields) {
     normalized.append(
       name,
       new Blob([files.get(name)], { type: "application/octet-stream" }),
@@ -880,6 +901,7 @@ function setBusy(form, busy) {
       }
     }
   }
+  if (form.dataset.synapseDecision === "true") PIN_EDITORS.get(form)?.setBusy(busy);
 }
 
 function restoreSuccessLink(form) {
@@ -1117,8 +1139,216 @@ export function enhanceApiForms(root = document) {
   }
 }
 
+const PIN_EDITORS = new Map();
+const PIN_VIEWERS = new Set();
+const PIN_FORMAT = "synapsegit-creator-decision-pins-v1";
+const PIN_MAX = 1_000_000;
+
+function refreshPinEditors() {
+  for (const editor of PIN_VIEWERS) editor.refresh();
+}
+
+function enhanceCreatorPins(root = document) {
+  for (const panel of root.querySelectorAll("[data-creator-pins]")) {
+    if (panel.dataset.unavailable === "true") continue;
+    const editable = panel.dataset.editable === "true";
+    const form = editable ? root.querySelector('form[data-synapse-decision="true"]') : null;
+    const sources = [...root.querySelectorAll("img[data-synapse-image]")];
+    const roles = ["original", "current", "ai_output"];
+    const sourceByRole = new Map(roles.map((role, index) => [role, sources[index]]));
+    const selector = panel.querySelector("[data-pin-image-role]");
+    const zoom = panel.querySelector("[data-pin-zoom]");
+    const canvas = panel.querySelector("[data-pin-canvas]");
+    const preview = panel.querySelector("[data-pin-preview]");
+    const markers = panel.querySelector("[data-pin-markers]");
+    const list = panel.querySelector("[data-pin-list]");
+    const addButton = panel.querySelector("[data-pin-add]");
+    const status = panel.querySelector("[data-pin-status]");
+    let busy = false;
+    let pins = [];
+    try {
+      const stored = JSON.parse(panel.dataset.annotations);
+      if (stored !== null) {
+        if (stored.format !== PIN_FORMAT || !Array.isArray(stored.pins) || stored.pins.length > 10) throw new Error();
+        pins = stored.pins;
+      }
+      if (pins.some(pin => !validBinding(pin) || typeof pin.note !== "string" || !pin.note || UTF8_ENCODER.encode(pin.note).byteLength > 200)) throw new Error();
+    } catch {
+      list.replaceChildren();
+      status.textContent = "注釈を表示できません。未知の形式または不正な画像対応です。";
+      panel.querySelector("[data-pin-controls]").hidden = false;
+      return;
+    }
+    function validBinding(pin) {
+      return roles.includes(pin.role) && pin.blob_oid === sourceByRole.get(pin.role)?.dataset.oid &&
+        [pin.x, pin.y].every(value => Number.isSafeInteger(value) && value >= 0 && value <= PIN_MAX);
+    }
+    function ready() {
+      const source = sourceByRole.get(selector.value);
+      return source && INLINE_IMAGES.has(source) && IMAGE_URLS.has(source);
+    }
+    function annotationPayload(validate = true) {
+      if (pins.length === 0) return null;
+      if (validate && (pins.length > 10 || pins.some(pin => !validBinding(pin) || !pin.note || UTF8_ENCODER.encode(pin.note).byteLength > 200))) {
+        throw new TypeError("ピンの画像・座標と、各メモが1〜200 UTF-8 bytesであることを確認してください。");
+      }
+      return { format: PIN_FORMAT, pins: pins.map(({ role, blob_oid, x, y, note }) => ({ role, blob_oid, x, y, note })) };
+    }
+    function updateJsonCount() {
+      if (!form) return;
+      const counter = form.querySelector("[data-decision-json-count]");
+      const base = { review_id: form.elements.namedItem("review_id").value, rationale: form.elements.namedItem("rationale").value };
+      const annotations = annotationPayload(false);
+      if (annotations) base.annotations = annotations;
+      const invalidPins = pins.some(pin => !validBinding(pin) || !pin.note || UTF8_ENCODER.encode(pin.note).byteLength > 200);
+      const remaining = [];
+      for (const button of form.querySelectorAll('button[name="disposition"]')) {
+        const bytes = UTF8_ENCODER.encode(JSON.stringify({ ...base, disposition: button.value })).byteLength;
+        remaining.push(`${button.textContent}: 残り ${8192 - bytes} bytes`);
+        button.disabled = busy || invalidPins || bytes > 8192;
+      }
+      counter.textContent = `送信JSON全体（上限8192 bytes、理由とピンを含む） · ${remaining.join(" / ")}${invalidPins ? " · ピンのメモ・座標を修正してください。" : ""}`;
+    }
+    function positionMarkers() {
+      for (const marker of markers.children) {
+        const pin = pins[Number(marker.dataset.pinIndex)];
+        marker.style.left = `${pin.x / PIN_MAX * 100}%`;
+        marker.style.top = `${pin.y / PIN_MAX * 100}%`;
+        marker.setAttribute("aria-label", `ピン ${Number(marker.dataset.pinIndex) + 1}: ${pin.note || "メモ未入力"}`);
+      }
+      for (const input of list.querySelectorAll("[data-pin-axis]")) input.value = pins[Number(input.dataset.pinIndex)][input.dataset.pinAxis];
+    }
+    function move(index, x, y) {
+      if (busy || !editable) return;
+      pins[index].x = Math.max(0, Math.min(PIN_MAX, Math.round(x)));
+      pins[index].y = Math.max(0, Math.min(PIN_MAX, Math.round(y)));
+      positionMarkers();
+      updateJsonCount();
+    }
+    function fromPointer(event) {
+      const rect = preview.getBoundingClientRect();
+      return [Math.round((event.clientX - rect.left) / rect.width * PIN_MAX), Math.round((event.clientY - rect.top) / rect.height * PIN_MAX)];
+    }
+    function remove(index) {
+      if (busy) return;
+      pins.splice(index, 1);
+      renderList();
+      refresh();
+      addButton?.focus();
+    }
+    function renderMarkers() {
+      markers.replaceChildren();
+      if (!ready()) return;
+      pins.forEach((pin, index) => {
+        if (pin.role !== selector.value) return;
+        const marker = document.createElement("button");
+        marker.type = "button";
+        marker.className = "image-pin";
+        marker.dataset.pinIndex = String(index);
+        marker.textContent = String(index + 1);
+        marker.disabled = busy;
+        if (editable) {
+          marker.addEventListener("keydown", event => {
+            const delta = event.shiftKey ? 1000 : 10000;
+            const directions = { ArrowLeft: [-delta, 0], ArrowRight: [delta, 0], ArrowUp: [0, -delta], ArrowDown: [0, delta] };
+            if (directions[event.key]) { event.preventDefault(); const [dx, dy] = directions[event.key]; move(index, pin.x + dx, pin.y + dy); }
+            if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); remove(index); }
+          });
+          marker.addEventListener("pointerdown", event => {
+            if (busy || event.button !== 0) return;
+            event.preventDefault(); marker.focus(); marker.setPointerCapture(event.pointerId);
+          });
+          marker.addEventListener("pointermove", event => { if (marker.hasPointerCapture(event.pointerId)) move(index, ...fromPointer(event)); });
+          marker.addEventListener("pointerup", event => { if (marker.hasPointerCapture(event.pointerId)) marker.releasePointerCapture(event.pointerId); });
+        }
+        markers.append(marker);
+      });
+      positionMarkers();
+    }
+    function renderList() {
+      markers.replaceChildren();
+      list.replaceChildren();
+      pins.forEach((pin, index) => {
+        const item = document.createElement("li");
+        const show = document.createElement("button");
+        show.type = "button"; show.dataset.variant = "secondary";
+        show.textContent = `ピン ${index + 1} · ${pin.role}`;
+        show.addEventListener("click", () => { selector.value = pin.role; refresh(); markers.querySelector(`[data-pin-index="${index}"]`)?.focus(); });
+        item.append(show);
+        if (editable) {
+          const label = document.createElement("label"); label.textContent = `ピン ${index + 1} のメモ`;
+          const text = document.createElement("textarea"); text.id = `pin-note-${index}`; text.rows = 2; text.value = pin.note; label.htmlFor = text.id;
+          const count = document.createElement("span"); count.className = "field__hint";
+          const updateNote = () => { pin.note = text.value; const bytes = UTF8_ENCODER.encode(pin.note).byteLength; count.textContent = `${bytes} / 200 bytes`; text.setAttribute("aria-invalid", String(bytes === 0 || bytes > 200)); positionMarkers(); updateJsonCount(); };
+          text.addEventListener("input", updateNote);
+          item.append(label, text, count);
+          for (const axis of ["x", "y"]) {
+            const axisLabel = document.createElement("label"); axisLabel.textContent = `ピン ${index + 1} ${axis.toUpperCase()}座標`;
+            const input = document.createElement("input"); input.type = "number"; input.min = "0"; input.max = String(PIN_MAX); input.step = "1"; input.value = pin[axis]; input.id = `pin-${axis}-${index}`; axisLabel.htmlFor = input.id;
+            input.dataset.pinAxis = axis; input.dataset.pinIndex = String(index);
+            input.addEventListener("input", () => {
+              pin[axis] = input.value === "" ? NaN : Number(input.value);
+              input.setAttribute("aria-invalid", String(!validBinding(pin)));
+              const marker = markers.querySelector(`[data-pin-index="${index}"]`);
+              if (marker) marker.style[axis === "x" ? "left" : "top"] = `${pin[axis] / PIN_MAX * 100}%`;
+              updateJsonCount();
+            });
+            item.append(axisLabel, input);
+          }
+          const deletion = document.createElement("button"); deletion.type = "button"; deletion.textContent = `ピン ${index + 1} を削除`; deletion.dataset.variant = "secondary";
+          deletion.addEventListener("click", () => remove(index)); item.append(deletion);
+          updateNote();
+        } else {
+          const text = document.createElement("p"); text.className = "decision-rationale"; text.textContent = `(${pin.x}, ${pin.y}) ${pin.note}`; item.append(text);
+        }
+        list.append(item);
+      });
+      updateJsonCount();
+    }
+    function refresh() {
+      const source = sourceByRole.get(selector.value);
+      const available = ready();
+      preview.hidden = !available;
+      if (available) {
+        const url = IMAGE_URLS.get(source);
+        if (preview.getAttribute("src") !== url) preview.src = url;
+        canvas.style.width = zoom.value === "fit" ? `${source.naturalWidth}px` : `${source.naturalWidth * Number(zoom.value)}px`;
+        canvas.style.maxWidth = zoom.value === "fit" ? "100%" : "none";
+        status.textContent = `${source.dataset.label} · ${source.naturalWidth} × ${source.naturalHeight} px · 画像の向きを反映した表示`;
+      } else {
+        preview.removeAttribute("src");
+        status.textContent = "この画像にはピンを作成・表示できません。読み込み中、attachment扱い、または画像のdecode失敗です。元画像の状態を確認してください。";
+      }
+      if (addButton) addButton.disabled = busy || !available || pins.length >= 10;
+      renderMarkers();
+      updateJsonCount();
+    }
+    function add(x, y) {
+      if (!editable || busy || !ready() || pins.length >= 10) return;
+      pins.push({ role: selector.value, blob_oid: sourceByRole.get(selector.value).dataset.oid, x: Math.max(0, Math.min(PIN_MAX, x)), y: Math.max(0, Math.min(PIN_MAX, y)), note: "" });
+      renderList(); refresh(); list.querySelector(`#pin-note-${pins.length - 1}`)?.focus();
+    }
+    addButton?.addEventListener("click", () => add(PIN_MAX / 2, PIN_MAX / 2));
+    preview.addEventListener("click", event => add(...fromPointer(event)));
+    selector.addEventListener("change", refresh);
+    zoom.addEventListener("change", refresh);
+    form?.addEventListener("input", updateJsonCount);
+    const editor = { refresh, payload: annotationPayload, setBusy(value) {
+      busy = value;
+      for (const control of panel.querySelectorAll("button, input, select, textarea")) control.disabled = busy;
+      refresh();
+    } };
+    PIN_VIEWERS.add(editor);
+    if (form) PIN_EDITORS.set(form, editor);
+    panel.querySelector("[data-pin-controls]").hidden = false;
+    renderList(); refresh();
+  }
+}
+
 function start() {
   document.documentElement.classList.add("has-js");
+  enhancePresentationForm();
+  enhanceCreatorPins();
   enhanceApiForms();
   enhanceCreatorUploads();
   enhanceImageComparison();
@@ -1139,3 +1369,82 @@ window.addEventListener("pageshow", (event) => {
     for (const upload of CREATOR_UPLOADS.values()) upload.refresh();
   }
 });
+
+function enhancePresentationForm() {
+  const form = document.querySelector("[data-presentation-form]");
+  if (!(form instanceof HTMLFormElement)) return;
+  const preview = document.querySelector("[data-presentation-preview]");
+  const status = form.querySelector("[data-presentation-status]");
+  const download = preview.querySelector("[data-presentation-download]");
+  let validatedToml = null;
+  let revision = 0;
+  let busy = false;
+  const clearPreview = () => {
+    revision += 1;
+    validatedToml = null;
+    preview.hidden = true;
+    preview.querySelector("[data-presentation-text]").replaceChildren();
+    preview.querySelector("[data-presentation-download-status]").textContent = "";
+  };
+  form.addEventListener("input", event => {
+    clearPreview();
+    event.target.setCustomValidity?.("");
+    status.textContent = "";
+  });
+  form.addEventListener("change", clearPreview);
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (busy || !form.reportValidity()) return;
+    clearPreview();
+    const input = { session: form.elements.namedItem("session").value };
+    const entries = [];
+    for (const control of form.querySelectorAll("[data-public-max-bytes]")) {
+      const bytes = UTF8_ENCODER.encode(control.value).length;
+      const limit = Number(control.dataset.publicMaxBytes);
+      if (bytes > limit) {
+        const message = `${control.labels[0].textContent}: ${bytes} / ${limit} UTF-8 bytes。上限を超えています。`;
+        control.setCustomValidity(message); status.textContent = message; control.reportValidity(); return;
+      }
+      if (control.value !== "") {
+        input[control.name] = control.value;
+        entries.push([control.labels[0].textContent, control.value]);
+      }
+    }
+    const currentRevision = revision;
+    busy = true;
+    const controls = [...form.querySelectorAll("input, select, textarea, button")];
+    controls.forEach(control => { control.disabled = true; });
+    status.textContent = "文章を検証しています…";
+    try {
+      const result = await apiJson(form.dataset.endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+      if (revision !== currentRevision) return;
+      if (typeof result?.toml !== "string" || UTF8_ENCODER.encode(result.toml).length > 65536) throw new Error("説明文ファイルの応答が不正です。");
+      validatedToml = result.toml;
+      const list = preview.querySelector("[data-presentation-text]");
+      for (const [label, value] of entries.length ? entries : [["説明文", "未入力。既存の省略時動作を使用します。"]]) {
+        const row = document.createElement("div");
+        const term = document.createElement("dt"); term.textContent = label;
+        const description = document.createElement("dd"); description.textContent = value; description.style.whiteSpace = "pre-wrap";
+        row.append(term, description); list.append(row);
+      }
+      preview.querySelector("[data-presentation-size]").textContent = `対象: ${input.session} · presentation.toml: ${UTF8_ENCODER.encode(validatedToml).length} / 65536 bytes`;
+      preview.hidden = false;
+      status.textContent = "検証できました。内容を確認して書き出してください。";
+      preview.querySelector("h2").focus();
+    } catch (error) {
+      status.textContent = error instanceof Error ? error.message : "文章の検証に失敗しました。";
+    } finally {
+      busy = false;
+      controls.forEach(control => { control.disabled = false; });
+    }
+  });
+  download.addEventListener("click", () => {
+    if (validatedToml === null) return;
+    const url = URL.createObjectURL(new Blob([validatedToml], { type: "application/toml;charset=utf-8" }));
+    const link = document.createElement("a"); link.href = url; link.download = "presentation.toml";
+    document.body.append(link); link.click(); link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    preview.querySelector("[data-presentation-download-status]").textContent = "説明文ファイルのダウンロードを開始しました。bundle生成・検証と外部共有はまだ行っていません。";
+  });
+  form.hidden = false;
+}

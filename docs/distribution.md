@@ -250,3 +250,5 @@ license変更時は少なくとも次を同じPull Requestで更新する。
 - [Security model](./security_model.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Documentation index](./README.md)
+
+Current main can start a new Creator candidate from any verified complete session in the same project. It reuses exact Original/Current bytes, keeps fresh identities and Human review, and records fixed source lineage across archive/restore. Adopt does not promote the old AI output to Current. See the [reused source contract](../spec/application/creator-source/v1/README.md).

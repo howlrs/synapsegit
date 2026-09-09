@@ -109,6 +109,7 @@ const httpMethods = new Set(["get", "put", "post", "delete", "options", "head", 
 const operationIds = new Set();
 const operations = [];
 const expectedOperations = new Map([
+  ["POST /projects/{projectKey}/presentation-sidecars", ["preparePresentationSidecar", 8]],
   ["GET /health", ["getHealth", 2]],
   ["GET /projects", ["listProjects", 2]],
   ["GET /projects/{projectKey}/status", ["getProjectStatus", 2]],
@@ -116,6 +117,8 @@ const expectedOperations = new Map([
   ["GET /projects/{projectKey}/reflog", ["listProjectReflog", 2]],
   ["GET /projects/{projectKey}/creator-sessions", ["listCreatorSessions", 2]],
   ["POST /projects/{projectKey}/creator-sessions", ["beginCreatorSession", 4]],
+  ["GET /projects/{projectKey}/creator-sessions/{session}/derivations", ["prepareCreatorSource", 4]],
+  ["POST /projects/{projectKey}/creator-sessions/{session}/derivations", ["beginDerivedCreatorSession", 4]],
   ["GET /projects/{projectKey}/creator-sessions/{session}", ["getCreatorSession", 2]],
   [
     "GET /projects/{projectKey}/creator-sessions/{session}/images/{role}",
@@ -228,6 +231,7 @@ function resolveObject(value) {
 }
 
 const expectedParameters = new Map([
+  ["preparePresentationSidecar", ["path:projectKey"]],
   ["getHealth", []],
   ["listProjects", []],
   ["getProjectStatus", ["path:projectKey"]],
@@ -236,7 +240,9 @@ const expectedParameters = new Map([
   ["listCreatorSessions", ["path:projectKey"]],
   ["beginCreatorSession", ["path:projectKey"]],
   ["getCreatorSession", ["path:projectKey", "path:session"]],
-  ["getCreatorSessionImage", ["path:projectKey", "path:role", "path:session"]],
+  ["prepareCreatorSource", ["path:projectKey", "path:session"]],
+  ["beginDerivedCreatorSession", ["path:projectKey", "path:session"]],
+  ["getCreatorSessionImage", ["header:X-Synapse-Source-Confirmation", "path:projectKey", "path:role", "path:session"]],
   ["decideCreatorSession", ["path:projectKey", "path:session"]],
   ["getCreatorSessionDiagnostics", ["path:projectKey", "path:session"]],
   ["startFsck", ["path:projectKey"]],
@@ -322,11 +328,13 @@ function collectSchemaProperties(schema, properties, visitedReferences = new Set
 }
 
 const expectedWrites = new Map([
+  ["preparePresentationSidecar", {mediaType: "application/json", properties: ["creator_display_name", "current_caption", "original_caption", "proposal_agent_display_name", "proposal_caption", "public_decision_note", "session", "session_title", "summary", "title"], required: ["session"]}],
+  ["beginDerivedCreatorSession", {mediaType: "multipart/form-data", properties: ["ai_output", "confirmation_id", "creator_name", "generation_intent", "generation_model", "generation_prompt", "generation_tool", "session", "subject_label"], required: ["ai_output", "confirmation_id", "creator_name", "session", "subject_label"]}],
   [
     "beginCreatorSession",
     {
       mediaType: "multipart/form-data",
-      properties: ["ai_output", "creator_name", "current_image", "original_image", "session", "subject_label"],
+      properties: ["ai_output", "creator_name", "current_image", "generation_intent", "generation_model", "generation_prompt", "generation_tool", "original_image", "session", "subject_label"],
       required: ["ai_output", "creator_name", "current_image", "original_image", "session", "subject_label"],
     },
   ],
@@ -334,7 +342,7 @@ const expectedWrites = new Map([
     "decideCreatorSession",
     {
       mediaType: "application/json",
-      properties: ["disposition", "rationale", "review_id"],
+      properties: ["annotations", "disposition", "rationale", "review_id"],
       required: ["disposition", "review_id"],
     },
   ],
@@ -399,6 +407,9 @@ for (const { route, method, operation } of operations.filter(({ method }) => met
       .replaceAll("-", "_")
       .toLowerCase();
     const controlTokens = new Set(normalized.split("_"));
+    // Only the versioned pin contract accepts a Blob OID as an equality check against
+    // the server-owned role. It never selects storage or grants decision authority.
+    if (operation.operationId === "decideCreatorSession" && normalized === "blob_oid") continue;
     if (
       forbiddenWriteFields.has(normalized) ||
       ["authority", "capability", "capabilities", "clock", "credential", "head", "oid", "path", "permit"].some(
@@ -429,6 +440,9 @@ if (
 }
 requireUtf8ByteLimit(beginSchema?.properties?.subject_label, 500, "subject_label");
 requireUtf8ByteLimit(beginSchema?.properties?.creator_name, 300, "creator_name");
+for (const [key, limit] of [["tool", 300], ["model", 300], ["prompt", 8192], ["intent", 2048]]) {
+  requireUtf8ByteLimit(beginSchema?.properties?.[`generation_${key}`], limit, `generation_${key}`);
+}
 for (const field of ["original_image", "current_image", "ai_output"]) {
   const schema = beginSchema?.properties?.[field];
   // OAS 3.1 raw binary omits JSON Schema type/contentEncoding; maxLength counts octets.
@@ -472,7 +486,7 @@ for (const [mediaType, media] of Object.entries(imageContent)) {
     fail(mediaType + " must be a bounded raw OpenAPI 3.1 image response");
   }
 }
-for (const field of ["session", "subject_label", "creator_name"]) {
+for (const field of ["session", "subject_label", "creator_name", "generation_tool", "generation_model", "generation_prompt", "generation_intent"]) {
   if (beginEncoding?.[field]?.contentType !== "text/plain; charset=utf-8") {
     fail(field + " must use an explicit UTF-8 multipart text encoding");
   }
@@ -523,6 +537,12 @@ for (const capability of contract["x-synapse-forbidden-route-capabilities"] ?? [
 }
 for (const capability of requiredForbiddenCapabilities) {
   fail("missing forbidden-route declaration: " + capability);
+}
+
+const pinSchema = contract.components.schemas.CreatorPin;
+const annotationSchema = contract.components.schemas.CreatorAnnotations;
+if (JSON.stringify(Object.keys(pinSchema?.properties ?? {}).sort()) !== JSON.stringify(["blob_oid", "note", "role", "x", "y"]) || pinSchema.additionalProperties !== false || pinSchema.properties.note["x-synapse-max-utf8-bytes"] !== 200 || annotationSchema.properties.pins.maxItems !== 10 || annotationSchema.properties.format.const !== "synapsegit-creator-decision-pins-v1") {
+  fail("decision pin binding and version must match the bounded Creator contract");
 }
 
 if (failures.length > 0) {

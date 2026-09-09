@@ -42,7 +42,7 @@ impl PublicationVisibility {
     }
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct PresentationInput {
     pub title: Option<String>,
@@ -53,7 +53,7 @@ pub struct PresentationInput {
     pub sessions: BTreeMap<String, SessionPresentationInput>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct SessionPresentationInput {
     pub title: Option<String>,

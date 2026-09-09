@@ -1492,3 +1492,12 @@ details[open] > summary {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.pin-viewport { max-height: 65vh; overflow: auto; margin-block: 1rem; border: 1px solid var(--border, #d6d6d6); }
+.pin-canvas { position: relative; }
+.pin-canvas > img { display: block; width: 100%; height: auto; image-orientation: from-image; }
+.image-pin { position: absolute; transform: translate(-50%, -50%); border: 2px solid white; border-radius: 50%; background: #7042b5; color: white; width: 2rem; height: 2rem; min-height: 2rem; padding: 0; touch-action: none; box-shadow: 0 0 0 1px #281540; }
+.image-pin:focus-visible { outline: 3px solid #d18a00; outline-offset: 3px; }
+.pin-list { display: grid; gap: 1.25rem; padding-left: 1.5rem; }
+.pin-list li { display: grid; gap: .5rem; overflow-wrap: anywhere; }
+.pin-list textarea, .pin-list input { width: 100%; min-width: 0; }

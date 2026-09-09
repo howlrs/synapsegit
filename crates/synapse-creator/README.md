@@ -95,3 +95,11 @@ leaves an incomplete session; a later failure can leave an already
 complete session that must be inspected or restarted under a new session name.
 Stage 0 does not implement a cross-Ref workflow transaction, resume, or
 automatic cleanup.
+
+Optional private generation notes are supported on current main; see the [versioned Creator contract](../../spec/application/creator-generation-note/v1/README.md). Normal Core archives include these user-declared notes. Public bundles do not.
+
+Private image pins use the [Creator decision pin contract](../../spec/application/creator-decision-pins/v1/README.md). Unknown annotations are shown as unavailable separately from decision verification. The localhost decision JSON remains limited to 8 KiB including rationale and pins.
+
+Current main can start a new Creator candidate from any verified complete session in the same project. It reuses exact Original/Current bytes, keeps fresh identities and Human review, and records fixed source lineage across archive/restore. Adopt does not promote the old AI output to Current. See the [reused source contract](../../spec/application/creator-source/v1/README.md).
+
+Derived sessions are not exportable through frozen publication v1, which cannot express reference reuse. Publication refuses these sessions instead of presenting reused Current bytes as a new observation. Local reports, decisions, and archive/restore remain available.

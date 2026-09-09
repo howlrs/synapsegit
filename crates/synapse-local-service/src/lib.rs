@@ -19,3 +19,6 @@ pub use service::{
     MAX_CREATOR_SESSIONS, MAX_PENDING_CREATOR_SESSIONS, MAX_PENDING_CREATOR_SESSIONS_PER_PROJECT,
     MAX_PROJECTS, MAX_REFS, ServiceError,
 };
+pub use synapse_creator::{
+    CreatorAnnotations, CreatorGenerationNote, CreatorImageRole, CreatorPin, CreatorSourceBinding,
+};

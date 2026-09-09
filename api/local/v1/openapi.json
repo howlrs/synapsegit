@@ -267,6 +267,18 @@
                 },
                 "ai_output": {
                   "contentType": "application/octet-stream"
+                },
+                "generation_tool": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "generation_model": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "generation_prompt": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "generation_intent": {
+                  "contentType": "text/plain; charset=utf-8"
                 }
               }
             }
@@ -341,6 +353,16 @@
           },
           {
             "$ref": "#/components/parameters/ImageRole"
+          },
+          {
+            "name": "X-Synapse-Source-Confirmation",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "description": "For source confirmation previews only; revalidates Original/Current against the captured source. AI output is refused."
           }
         ],
         "responses": {
@@ -365,35 +387,35 @@
               }
             },
             "content": {
-          "image/png": {
-            "schema": {
-              "maxLength": 67108864,
-              "x-synapse-max-raw-bytes": 67108864
-            }
-          },
-          "image/jpeg": {
-            "schema": {
-              "maxLength": 67108864,
-              "x-synapse-max-raw-bytes": 67108864
-            }
-          },
-          "image/gif": {
-            "schema": {
-              "maxLength": 67108864,
-              "x-synapse-max-raw-bytes": 67108864
-            }
-          },
-          "image/webp": {
-            "schema": {
-              "maxLength": 67108864,
-              "x-synapse-max-raw-bytes": 67108864
-            }
-          },
-          "application/octet-stream": {
-            "schema": {
-              "maxLength": 67108864,
-              "x-synapse-max-raw-bytes": 67108864
-            }
+              "image/png": {
+                "schema": {
+                  "maxLength": 67108864,
+                  "x-synapse-max-raw-bytes": 67108864
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "maxLength": 67108864,
+                  "x-synapse-max-raw-bytes": 67108864
+                }
+              },
+              "image/gif": {
+                "schema": {
+                  "maxLength": 67108864,
+                  "x-synapse-max-raw-bytes": 67108864
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "maxLength": 67108864,
+                  "x-synapse-max-raw-bytes": 67108864
+                }
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "maxLength": 67108864,
+                  "x-synapse-max-raw-bytes": 67108864
+                }
               }
             }
           },
@@ -645,6 +667,151 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OperationStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/projects/{projectKey}/creator-sessions/{session}/derivations": {
+      "get": {
+        "operationId": "prepareCreatorSource",
+        "tags": [
+          "creator-sessions"
+        ],
+        "summary": "Confirm one verified complete source for a new candidate",
+        "x-synapse-implementation-slice": 4,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          },
+          {
+            "$ref": "#/components/parameters/Session"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded process-local confirmation; no Core write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatorSourcePreview"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "beginDerivedCreatorSession",
+        "tags": [
+          "creator-sessions"
+        ],
+        "summary": "Create a new proposal from confirmed reference images",
+        "description": "The AI output is caller-supplied. The request cannot select Refs, heads, OIDs, authority, profiles, or permits.",
+        "x-synapse-implementation-slice": 4,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          },
+          {
+            "$ref": "#/components/parameters/Session"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/BeginDerivedCreatorSessionRequest"
+              },
+              "encoding": {
+                "session": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "subject_label": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "creator_name": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "ai_output": {
+                  "contentType": "application/octet-stream"
+                },
+                "generation_tool": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "generation_model": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "generation_prompt": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "generation_intent": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "confirmation_id": {
+                  "contentType": "text/plain; charset=utf-8"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Proposal published and same-process review state retained",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingCreatorSession"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/projects/{projectKey}/presentation-sidecars": {
+      "post": {
+        "operationId": "preparePresentationSidecar",
+        "tags": [
+          "creator-sessions"
+        ],
+        "summary": "Validate fresh public text for one complete session without Core writes",
+        "x-synapse-implementation-slice": 8,
+        "x-synapse-max-request-bytes": 131072,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresentationSidecarRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Author-supplied text only; not a verified final bundle preview or external publication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresentationSidecar"
                 }
               }
             }
@@ -1222,6 +1389,30 @@
             "description": "Raw, unencoded binary; maxLength counts octets under OpenAPI 3.1",
             "x-synapse-raw-binary": true,
             "x-synapse-max-raw-bytes": 67108864
+          },
+          "generation_tool": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 300 UTF-8 bytes.",
+            "maxLength": 300,
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "generation_model": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 300 UTF-8 bytes.",
+            "maxLength": 300,
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "generation_prompt": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 8192 UTF-8 bytes.",
+            "maxLength": 8192,
+            "x-synapse-max-utf8-bytes": 8192
+          },
+          "generation_intent": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 2048 UTF-8 bytes.",
+            "maxLength": 2048,
+            "x-synapse-max-utf8-bytes": 2048
           }
         }
       },
@@ -1255,6 +1446,9 @@
             "maxLength": 5000,
             "description": "At most 5000 UTF-8 bytes when present",
             "x-synapse-max-utf8-bytes": 5000
+          },
+          "annotations": {
+            "$ref": "#/components/schemas/CreatorAnnotations"
           }
         }
       },
@@ -1470,6 +1664,12 @@
           },
           "comparison": {
             "$ref": "#/components/schemas/ComparisonEvidence"
+          },
+          "generation_note": {
+            "$ref": "#/components/schemas/CreatorGenerationNote"
+          },
+          "source": {
+            "$ref": "#/components/schemas/CreatorSourceBinding"
           }
         }
       },
@@ -1607,6 +1807,19 @@
           "fsck_objects": {
             "type": "integer",
             "minimum": 0
+          },
+          "generation_note": {
+            "$ref": "#/components/schemas/CreatorGenerationNote"
+          },
+          "annotations": {
+            "$ref": "#/components/schemas/CreatorAnnotations"
+          },
+          "annotations_unavailable": {
+            "type": "boolean",
+            "description": "True when the immutable annotation extension cannot be displayed. Does not invalidate an otherwise verified decision report."
+          },
+          "source": {
+            "$ref": "#/components/schemas/CreatorSourceBinding"
           }
         }
       },
@@ -2216,6 +2429,351 @@
           },
           "retryable": {
             "type": "boolean"
+          }
+        }
+      },
+      "CreatorGenerationNote": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tool": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 300 UTF-8 bytes.",
+            "maxLength": 300,
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "model": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 300 UTF-8 bytes.",
+            "maxLength": 300,
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 8192 UTF-8 bytes.",
+            "maxLength": 8192,
+            "x-synapse-max-utf8-bytes": 8192
+          },
+          "intent": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 2048 UTF-8 bytes.",
+            "maxLength": 2048,
+            "x-synapse-max-utf8-bytes": 2048
+          }
+        },
+        "description": "Optional private user-declared generation note, bound to the exact proposal output. Serialized note JSON maximum 16 KiB. Not verified execution evidence."
+      },
+      "CreatorPin": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "role",
+          "blob_oid",
+          "x",
+          "y",
+          "note"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "original",
+              "current",
+              "ai_output"
+            ]
+          },
+          "blob_oid": {
+            "type": "string",
+            "pattern": "^blob:sg-oid-v1:sha256:[0-9a-f]{64}$",
+            "description": "Must equal the server-verified pending image for this role. Never used to select arbitrary stored bytes or authority."
+          },
+          "x": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "y": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "x-synapse-max-utf8-bytes": 200
+          }
+        }
+      },
+      "CreatorAnnotations": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "format",
+          "pins"
+        ],
+        "properties": {
+          "format": {
+            "type": "string",
+            "const": "synapsegit-creator-decision-pins-v1"
+          },
+          "pins": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/CreatorPin"
+            }
+          }
+        },
+        "description": "Private Human decision pins. Sequence order supplies displayed numbering. Top-left (0,0), bottom-right (1000000,1000000) of the full oriented decoded image; no viewport coordinates or spatial/physical claim."
+      },
+      "CreatorSourceBinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "format",
+          "session",
+          "proposal_head",
+          "decision_head",
+          "disposition",
+          "original_blob_oid",
+          "current_blob_oid"
+        ],
+        "properties": {
+          "format": {
+            "const": "synapsegit-creator-source-v1",
+            "type": "string"
+          },
+          "session": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "proposal_head": {
+            "$ref": "#/components/schemas/CommitOid"
+          },
+          "decision_head": {
+            "$ref": "#/components/schemas/CommitOid"
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "adopt",
+              "reject",
+              "defer"
+            ]
+          },
+          "original_blob_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "current_blob_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          }
+        }
+      },
+      "CreatorSourcePreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "confirmation_id",
+          "source",
+          "creator_name",
+          "subject_label"
+        ],
+        "properties": {
+          "confirmation_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "source": {
+            "$ref": "#/components/schemas/CreatorSourceBinding"
+          },
+          "creator_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "1 to 300 UTF-8 bytes",
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "subject_label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "1 to 500 UTF-8 bytes",
+            "x-synapse-max-utf8-bytes": 500
+          }
+        }
+      },
+      "BeginDerivedCreatorSessionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One new candidate and an opaque process-local source confirmation. Source Original and Current are revalidated and reused by the server; no fresh capture or AI promotion is implied.",
+        "x-synapse-max-file-parts": 1,
+        "x-synapse-max-aggregate-file-bytes": 67108864,
+        "required": [
+          "session",
+          "subject_label",
+          "creator_name",
+          "ai_output",
+          "confirmation_id"
+        ],
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "subject_label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "1 to 500 UTF-8 bytes",
+            "x-synapse-max-utf8-bytes": 500
+          },
+          "creator_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "1 to 300 UTF-8 bytes",
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "ai_output": {
+            "contentMediaType": "application/octet-stream",
+            "maxLength": 67108864,
+            "description": "Raw, unencoded binary; maxLength counts octets under OpenAPI 3.1",
+            "x-synapse-raw-binary": true,
+            "x-synapse-max-raw-bytes": 67108864
+          },
+          "generation_tool": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 300 UTF-8 bytes.",
+            "maxLength": 300,
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "generation_model": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 300 UTF-8 bytes.",
+            "maxLength": 300,
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "generation_prompt": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 8192 UTF-8 bytes.",
+            "maxLength": 8192,
+            "x-synapse-max-utf8-bytes": 8192
+          },
+          "generation_intent": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 2048 UTF-8 bytes.",
+            "maxLength": 2048,
+            "x-synapse-max-utf8-bytes": 2048
+          },
+          "confirmation_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "PresentationSidecarRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "session"
+        ],
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 300,
+            "maxLength": 300,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 8192,
+            "maxLength": 8192,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "creator_display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 300,
+            "maxLength": 300,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "proposal_agent_display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 300,
+            "maxLength": 300,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "session_title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 300,
+            "maxLength": 300,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "public_decision_note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 5120,
+            "maxLength": 5120,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "original_caption": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 1024,
+            "maxLength": 1024,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "current_caption": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 1024,
+            "maxLength": 1024,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "proposal_caption": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 1024,
+            "maxLength": 1024,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          }
+        }
+      },
+      "PresentationSidecar": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "toml"
+        ],
+        "properties": {
+          "toml": {
+            "type": "string",
+            "x-synapse-max-utf8-bytes": 65536,
+            "description": "Validated presentation.toml text for explicit browser download. No raw assets or automatically copied private text."
           }
         }
       }

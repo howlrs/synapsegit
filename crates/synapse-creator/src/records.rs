@@ -5,7 +5,7 @@ use synapse_canonical::{canonical_bytes, parse_strict};
 
 pub(crate) const SCHEMA_VERSION: &str = "0.1.0";
 
-fn canonical_set(mut values: Vec<JsonValue>) -> Vec<JsonValue> {
+pub(crate) fn canonical_set(mut values: Vec<JsonValue>) -> Vec<JsonValue> {
     values.sort_by_cached_key(|value| {
         let json = serde_json::to_vec(value).expect("JsonValue serialization cannot fail");
         let parsed = parse_strict(&json).expect("internal set member is strict JSON");

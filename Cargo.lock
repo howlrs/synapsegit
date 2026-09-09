@@ -1428,6 +1428,7 @@ name = "synapse-creator"
 version = "0.7.0"
 dependencies = [
  "getrandom 0.4.3",
+ "serde",
  "serde_json",
  "sha2",
  "synapse-application",
@@ -1466,6 +1467,7 @@ dependencies = [
  "sha2",
  "synapse-core",
  "synapse-creator",
+ "synapse-publication",
  "synapse-sqlite",
 ]
 

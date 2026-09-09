@@ -59,6 +59,7 @@ fn begin_request(temporary: &TempDirectory, session: &str) -> BeginCreatorSessio
     fs::write(&current_image, b"creator-current").unwrap();
     fs::write(&ai_output, b"GIF89acreator-ai-output").unwrap();
     BeginCreatorSessionRequest {
+        generation_note: None,
         session: session.into(),
         subject_label: "North wall mural".into(),
         creator_name: "Aki".into(),
@@ -70,6 +71,7 @@ fn begin_request(temporary: &TempDirectory, session: &str) -> BeginCreatorSessio
 
 fn decision(review_id: impl Into<String>, disposition: CreatorDecision) -> CreatorDecisionRequest {
     CreatorDecisionRequest {
+        annotations: None,
         review_id: review_id.into(),
         disposition,
         rationale: Some("Reviewed in the local application.".into()),
@@ -256,6 +258,7 @@ fn rejected_inputs_and_wrong_bindings_leave_the_ready_review_available() {
             "bound-session",
             "server-instance-a",
             CreatorDecisionRequest {
+                annotations: None,
                 review_id: pending.review_id.clone(),
                 disposition: CreatorDecision::Defer,
                 rationale: Some("x".repeat(5_001)),
@@ -545,4 +548,354 @@ fn concurrent_decisions_publish_at_most_once() {
         losing_code,
         "creator_review_busy" | "creator_review_state_lost"
     ));
+}
+
+#[test]
+fn decision_pin_requests_validate_json_budget_and_restore_pending_after_rejection() {
+    use synapse_local_service::{CreatorAnnotations, CreatorImageRole, CreatorPin};
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let service = service(&repository);
+    let pending = service
+        .begin_creator_session(
+            "project",
+            "server-instance-a",
+            begin_request(&temporary, "pin-review"),
+        )
+        .unwrap();
+    let annotations = CreatorAnnotations {
+        format: "synapsegit-creator-decision-pins-v1".into(),
+        pins: vec![CreatorPin {
+            role: CreatorImageRole::AiOutput,
+            blob_oid: pending.ai_output_blob_oid.clone(),
+            x: 123456,
+            y: 654321,
+            note: "位置を確認".into(),
+        }],
+    };
+    let mut request = decision(&pending.review_id, CreatorDecision::Defer);
+    request.annotations = Some(annotations.clone());
+    request.rationale = Some("\"".repeat(4100));
+    assert_eq!(
+        service
+            .decide_creator_session(
+                "project",
+                "pin-review",
+                "server-instance-a",
+                request.clone()
+            )
+            .unwrap_err()
+            .code(),
+        "usage_error"
+    );
+    request.rationale = Some("別の理由".into());
+    request.annotations.as_mut().unwrap().pins[0].blob_oid = pending.original_blob_oid.clone();
+    assert!(
+        service
+            .decide_creator_session(
+                "project",
+                "pin-review",
+                "server-instance-a",
+                request.clone()
+            )
+            .is_err()
+    );
+    let CreatorSessionDetail::PendingReview(still_pending) = service
+        .get_creator_session("project", "pin-review")
+        .unwrap()
+    else {
+        panic!("validation consumed review");
+    };
+    assert_eq!(still_pending.review_id, pending.review_id);
+    request.annotations = Some(annotations.clone());
+    service
+        .decide_creator_session("project", "pin-review", "server-instance-a", request)
+        .unwrap();
+    let CreatorSessionDetail::Complete(complete) = service
+        .get_creator_session("project", "pin-review")
+        .unwrap()
+    else {
+        panic!("not complete");
+    };
+    assert_eq!(complete.report.annotations, Some(annotations));
+    assert_eq!(complete.report.rationale.as_deref(), Some("別の理由"));
+}
+
+#[test]
+fn derivation_confirmation_is_scoped_revalidated_and_consumed() {
+    use synapse_local_service::BeginDerivedCreatorSessionRequest;
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("derived");
+    let service = service(&repository);
+    let pending = service
+        .begin_creator_session("project", "instance", begin_request(&temporary, "source"))
+        .unwrap();
+    assert!(
+        service
+            .prepare_creator_source("project", "source", "instance")
+            .is_err()
+    );
+    let source = service
+        .decide_creator_session(
+            "project",
+            "source",
+            "instance",
+            decision(&pending.review_id, CreatorDecision::Adopt),
+        )
+        .unwrap()
+        .into_complete()
+        .unwrap();
+    let preview = service
+        .prepare_creator_source("project", "source", "instance")
+        .unwrap();
+    assert_eq!(preview.creator_name, "Aki");
+    assert_eq!(
+        preview,
+        service
+            .prepare_creator_source("project", "source", "instance")
+            .unwrap()
+    );
+    let candidate = temporary.join("new.gif");
+    fs::write(&candidate, b"GIF89anew").unwrap();
+    let request = || BeginDerivedCreatorSessionRequest {
+        confirmation_id: preview.confirmation_id.clone(),
+        session: "child".into(),
+        creator_name: "New creator".into(),
+        subject_label: "New subject".into(),
+        ai_output: candidate.clone(),
+        generation_note: None,
+    };
+    let before = Repository::open(&repository)
+        .unwrap()
+        .refs()
+        .snapshot()
+        .unwrap();
+    for (source, instance) in [("source", "different"), ("other", "instance")] {
+        assert!(
+            service
+                .begin_derived_creator_session("project", source, instance, request())
+                .is_err()
+        );
+        assert_eq!(
+            Repository::open(&repository)
+                .unwrap()
+                .refs()
+                .snapshot()
+                .unwrap(),
+            before
+        );
+    }
+    let mut missing = request();
+    missing.ai_output = temporary.join("missing");
+    assert!(
+        service
+            .begin_derived_creator_session("project", "source", "instance", missing)
+            .is_err()
+    );
+    assert_eq!(
+        Repository::open(&repository)
+            .unwrap()
+            .refs()
+            .snapshot()
+            .unwrap(),
+        before
+    );
+    let child = service
+        .begin_derived_creator_session("project", "source", "instance", request())
+        .unwrap();
+    assert_eq!(child.original_blob_oid, source.report.original_blob_oid);
+    assert_eq!(child.current_blob_oid, source.report.current_blob_oid);
+    assert_ne!(child.current_blob_oid, source.report.ai_output_blob_oid);
+    service
+        .decide_creator_session(
+            "project",
+            "child",
+            "instance",
+            decision(&child.review_id, CreatorDecision::Adopt),
+        )
+        .unwrap();
+    let error = service
+        .prepare_presentation_sidecar(
+            "project",
+            synapse_local_service::PresentationSidecarRequest {
+                session: "child".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+    assert_eq!(error.code(), "local_request_denied");
+    assert!(error.to_string().contains("公開形式v1に未対応"));
+    assert!(
+        service
+            .begin_derived_creator_session("project", "source", "instance", request())
+            .is_err()
+    );
+}
+
+#[test]
+fn public_sidecar_uses_only_fresh_text_and_does_not_write_core() {
+    use synapse_local_service::PresentationSidecarRequest;
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("public-sidecar");
+    let service = service(&repository);
+    let mut request = begin_request(&temporary, "source");
+    request.generation_note = Some(synapse_local_service::CreatorGenerationNote {
+        prompt: "PRIVATE_PROMPT_CANARY".into(),
+        ..Default::default()
+    });
+    let pending = service
+        .begin_creator_session("project", "instance", request)
+        .unwrap();
+    assert!(
+        service
+            .prepare_presentation_sidecar(
+                "project",
+                PresentationSidecarRequest {
+                    session: "source".into(),
+                    ..Default::default()
+                }
+            )
+            .is_err()
+    );
+    let mut decision = decision(&pending.review_id, CreatorDecision::Reject);
+    decision.rationale = Some("PRIVATE_RATIONALE_CANARY".into());
+    service
+        .decide_creator_session("project", "source", "instance", decision)
+        .unwrap();
+    let before = Repository::open(&repository)
+        .unwrap()
+        .refs()
+        .snapshot()
+        .unwrap();
+    let sidecar = service
+        .prepare_presentation_sidecar(
+            "project",
+            PresentationSidecarRequest {
+                session: "source".into(),
+                title: Some("".into()),
+                summary: Some("公開用\n別の文章".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    assert!(!sidecar.toml.contains("PRIVATE_"));
+    assert!(!sidecar.toml.contains("creator-current"));
+    let path = temporary.join("presentation.toml");
+    fs::write(&path, &sidecar.toml).unwrap();
+    let parsed = synapse_publication::load_presentation(path).unwrap();
+    assert_eq!(parsed.title, None);
+    assert_eq!(parsed.summary.as_deref(), Some("公開用\n別の文章"));
+    assert_eq!(parsed.sessions.len(), 1);
+    assert!(
+        service
+            .prepare_presentation_sidecar(
+                "project",
+                PresentationSidecarRequest {
+                    session: "missing".into(),
+                    ..Default::default()
+                }
+            )
+            .is_err()
+    );
+    assert_eq!(
+        Repository::open(&repository)
+            .unwrap()
+            .refs()
+            .snapshot()
+            .unwrap(),
+        before
+    );
+}
+
+#[test]
+fn derivation_rejects_changed_missing_corrupt_and_tombstoned_source() {
+    use synapse_local_service::BeginDerivedCreatorSessionRequest;
+    for mutation in ["changed", "missing", "corrupt", "tombstone"] {
+        let temporary = TempDirectory::new();
+        let repository = temporary.directory(mutation);
+        let service = service(&repository);
+        let pending = service
+            .begin_creator_session("project", "instance", begin_request(&temporary, "source"))
+            .unwrap();
+        let source = service
+            .decide_creator_session(
+                "project",
+                "source",
+                "instance",
+                decision(&pending.review_id, CreatorDecision::Adopt),
+            )
+            .unwrap()
+            .into_complete()
+            .unwrap();
+        let preview = service
+            .prepare_creator_source("project", "source", "instance")
+            .unwrap();
+        let mut storage = Repository::open(&repository).unwrap();
+        let digest = source.report.original_blob_oid.rsplit(':').next().unwrap();
+        let blob_path = repository
+            .join("cas/objects/blob")
+            .join(&digest[..2])
+            .join(&digest[2..]);
+        match mutation {
+            "changed" => {
+                storage
+                    .update_ref(RefUpdate {
+                        ref_name: &source.report.decision_ref,
+                        expected_head: Some(&source.report.decision_head),
+                        new_head: &source.report.base_head,
+                        metadata: ReflogMetadata {
+                            occurred_at_unix_nanos: 1,
+                            actor: None,
+                            message: None,
+                        },
+                    })
+                    .unwrap();
+            }
+            "missing" => fs::remove_file(blob_path).unwrap(),
+            "corrupt" => fs::write(blob_path, b"different bytes").unwrap(),
+            "tombstone" => {
+                let mut tombstone: serde_json::Value = serde_json::from_str(include_str!(
+                    "../../../spec/core/v0.1/fixtures/tombstone.json"
+                ))
+                .unwrap();
+                tombstone["payload"]["target_ref"] =
+                    serde_json::json!(source.report.original_blob_oid);
+                storage
+                    .put_object(&serde_json::to_vec(&tombstone).unwrap())
+                    .unwrap();
+                fs::remove_file(blob_path).unwrap();
+            }
+            _ => unreachable!(),
+        }
+        let before = storage.refs().snapshot().unwrap();
+        let reflog = storage.refs().reflog().unwrap();
+        let request = BeginDerivedCreatorSessionRequest {
+            confirmation_id: preview.confirmation_id.clone(),
+            session: "child".into(),
+            creator_name: "New".into(),
+            subject_label: "New".into(),
+            ai_output: temporary.join("source-ai.gif"),
+            generation_note: None,
+        };
+        assert!(
+            service
+                .get_creator_source_image(
+                    "project",
+                    "source",
+                    "instance",
+                    &preview.confirmation_id,
+                    ImageRole::Original
+                )
+                .is_err(),
+            "{mutation}"
+        );
+        assert!(
+            service
+                .begin_derived_creator_session("project", "source", "instance", request)
+                .is_err(),
+            "{mutation}"
+        );
+        assert_eq!(storage.refs().snapshot().unwrap(), before, "{mutation}");
+        assert_eq!(storage.refs().reflog().unwrap(), reflog, "{mutation}");
+    }
 }

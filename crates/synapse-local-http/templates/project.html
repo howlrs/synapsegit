@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
+<p><a class="button button--secondary" href="/projects/{{ project_key }}/presentation">公開用の制作ノートを作る</a></p>
 <nav class="breadcrumbs" aria-label="パンくずリスト">
   <ol><li><a href="/">プロジェクト</a></li><li aria-current="page">{{ project_label }}</li></ol>
 </nav>
@@ -223,6 +224,7 @@
         <button type="button" data-creator-file-clear data-variant="secondary" aria-label="AI output (caller-supplied)の選択を解除" hidden>選択を解除</button>
       </div>
     </div>
+    {% include "generation-note-fields.html" %}
     <p data-creator-file-summary class="field__hint" role="status" hidden></p>
     <div class="actions"><button type="submit" data-synapse-submit>Proposalを作成</button></div>
     <p class="field__hint">安全なwriteには、このページのJavaScriptとprocess-local tokenが必要です。</p>

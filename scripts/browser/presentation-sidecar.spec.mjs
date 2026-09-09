@@ -1,0 +1,75 @@
+import AxeBuilder from "@axe-core/playwright";
+import { readFile } from "node:fs/promises";
+import { isolatedTest as test, expect, original, current, output } from "./fixtures.mjs";
+
+const api = (page, route) => page.evaluate(async route => {
+  const token = document.querySelector('meta[name="synapse-local-token"]').content;
+  return (await fetch(route, { headers: { "X-Synapse-Local-Token": token } })).json();
+}, route);
+
+test("fresh public text previews and downloads without private source text or Core writes", async ({ page, app }) => {
+  await page.goto(`${app.origin}/projects/reviews`);
+  await page.locator('[name="session"]').fill("public-source");
+  await page.locator('[name="creator_name"]').fill("PRIVATE_CREATOR_CANARY");
+  await page.locator('[name="subject_label"]').fill("PRIVATE_SUBJECT_CANARY");
+  for (const [name, file] of [["original_image", original], ["current_image", current], ["ai_output", output]]) await page.locator(`[name="${name}"]`).setInputFiles(file);
+  await page.getByText("提案の生成メモ（任意）", { exact: true }).click();
+  await page.locator('[name="generation_prompt"]').fill("PRIVATE_PROMPT_CANARY");
+  await page.getByRole("button", { name: "Proposalを作成", exact: true }).click();
+  await page.waitForURL("**/creator-sessions/public-source");
+  await page.getByLabel("Rationale（任意）", { exact: true }).fill("PRIVATE_RATIONALE_CANARY");
+  page.once("dialog", dialog => dialog.accept());
+  const navigation = page.waitForEvent("framenavigated", { predicate: frame => frame === page.mainFrame() });
+  await page.getByRole("button", { name: "Reject", exact: true }).click();
+  await navigation;
+  await page.goto(`${app.origin}/projects/reviews`);
+  await page.getByRole("link", { name: "公開用の制作ノートを作る", exact: true }).click();
+  const before = await api(page, "/api/v1/projects/reviews/refs");
+  const external = [];
+  page.on("request", request => { if (!request.url().startsWith(app.origin)) external.push(request.url()); });
+  for (const control of await page.locator("[data-public-max-bytes]").all()) await expect(control).toHaveValue("");
+  await expect(page.locator("body")).not.toContainText("PRIVATE_");
+  await page.getByLabel("完了したセッション", { exact: true }).selectOption("public-source");
+  const prose = '日本語の "引用" と \\ パス\n次の行 <script>表示だけ</script>';
+  await page.locator('[name="title"]').fill("公開する作品名");
+  await page.locator('[name="summary"]').fill(prose);
+  await page.locator('[name="public_decision_note"]').fill("公開用に別途書いた判断メモ");
+  await page.setViewportSize({ width: 375, height: 900 });
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.getByRole("button", { name: "入力した文章を確認", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("[data-presentation-preview]")).toBeVisible();
+  await expect(page.locator("[data-presentation-text]")).toContainText(prose);
+  await expect(page.locator("body")).not.toContainText("PRIVATE_");
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "説明文ファイルを書き出す", exact: true }).click();
+  const download = await downloaded;
+  expect(download.suggestedFilename()).toBe("presentation.toml");
+  const text = await readFile(await download.path(), "utf8");
+  expect(text).toContain("公開する作品名"); expect(text).toContain("[sessions.public-source]");
+  expect(text).not.toContain("PRIVATE_"); expect(text).not.toContain("blob:sha256:");
+  expect(external).toEqual([]);
+  expect(await api(page, "/api/v1/projects/reviews/refs")).toEqual(before);
+  await page.locator('[name="summary"]').fill("編集後");
+  await expect(page.locator("[data-presentation-preview]")).toBeHidden();
+});
+
+test("public text validation rejects byte and control limits and keeps omissions", async ({ page, app }) => {
+  await page.goto(`${app.origin}/projects/complete/presentation`);
+  await page.getByLabel("完了したセッション", { exact: true }).selectOption("sample");
+  await page.locator('[name="title"]').fill("あ".repeat(101));
+  await page.getByRole("button", { name: "入力した文章を確認", exact: true }).click();
+  await expect(page.locator("[data-presentation-status]")).toContainText("303 / 300");
+  await expect(page.locator("[data-presentation-preview]")).toBeHidden();
+  await page.locator('[name="title"]').fill("禁止\u202e文字");
+  await page.getByRole("button", { name: "入力した文章を確認", exact: true }).click();
+  await expect(page.locator("[data-presentation-status]")).toContainText("forbidden control");
+  await expect(page.locator("[data-presentation-preview]")).toBeHidden();
+  await page.locator('[name="title"]').fill("");
+  await page.getByRole("button", { name: "入力した文章を確認", exact: true }).click();
+  await expect(page.locator("[data-presentation-preview]")).toBeVisible();
+  const downloaded = page.waitForEvent("download");
+  await page.getByRole("button", { name: "説明文ファイルを書き出す", exact: true }).click();
+  const text = await readFile(await (await downloaded).path(), "utf8");
+  expect(text.trim()).toBe("[sessions.sample]");
+});

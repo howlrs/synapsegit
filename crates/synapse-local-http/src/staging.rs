@@ -87,6 +87,8 @@ impl StagedCreatorUpload {
         let directory = StagingDirectory::create()
             .await
             .map_err(|_| UploadFailure::Storage)?;
+        let mut note = synapse_local_service::CreatorGenerationNote::default();
+        let mut note_fields = std::collections::BTreeSet::new();
         let mut session = None;
         let mut subject_label = None;
         let mut creator_name = None;
@@ -102,15 +104,30 @@ impl StagedCreatorUpload {
             .map_err(UploadFailure::multipart)?
         {
             part_count += 1;
-            if part_count > 6 {
+            if part_count > 10 {
                 return Err(UploadFailure::Request(
-                    "The multipart request must contain exactly six fields.",
+                    "The multipart request exceeds ten fields.",
                 ));
             }
             let name = field.name().ok_or(UploadFailure::Request(
                 "Every multipart field must have a name.",
             ))?;
             match name {
+                "generation_tool" | "generation_model" | "generation_prompt"
+                | "generation_intent" => {
+                    if !note_fields.insert(name.to_owned()) {
+                        return Err(UploadFailure::Request(
+                            "Multipart fields must not be duplicated.",
+                        ));
+                    }
+                    let (target, limit) = match name {
+                        "generation_tool" => (&mut note.tool, 300),
+                        "generation_model" => (&mut note.model, 300),
+                        "generation_prompt" => (&mut note.prompt, 8192),
+                        _ => (&mut note.intent, 2048),
+                    };
+                    *target = read_text_part(field, limit).await?;
+                }
                 "session" if session.is_none() => {
                     session = Some(read_text_part(field, MAX_SESSION_BYTES).await?);
                 }
@@ -174,9 +191,13 @@ impl StagedCreatorUpload {
             ));
         }
 
+        note.validate().map_err(|_| {
+            UploadFailure::Request("Generation note exceeds its UTF-8 byte limits.")
+        })?;
         Ok(Self {
             _directory: directory,
             request: BeginCreatorSessionRequest {
+                generation_note: (!note.is_empty()).then_some(note),
                 session,
                 subject_label,
                 creator_name,
@@ -308,5 +329,101 @@ impl UploadFailure {
                 HttpFailure::storage(state, "The upload staging area could not be written.")
             }
         }
+    }
+}
+
+pub(crate) struct StagedDerivedUpload {
+    pub(crate) _directory: StagingDirectory,
+    pub(crate) request: synapse_local_service::BeginDerivedCreatorSessionRequest,
+}
+
+impl StagedDerivedUpload {
+    pub(crate) async fn from_multipart(mut multipart: Multipart) -> Result<Self, UploadFailure> {
+        let directory = StagingDirectory::create()
+            .await
+            .map_err(|_| UploadFailure::Storage)?;
+        let mut text = std::collections::BTreeMap::new();
+        let mut ai_output = None;
+        let mut seen = std::collections::BTreeSet::new();
+        let mut aggregate = 0;
+        while let Some(field) = multipart
+            .next_field()
+            .await
+            .map_err(UploadFailure::multipart)?
+        {
+            let name = field
+                .name()
+                .ok_or(UploadFailure::Request(
+                    "Every multipart field must have a name.",
+                ))?
+                .to_owned();
+            if !seen.insert(name.clone()) {
+                return Err(UploadFailure::Request(
+                    "Multipart fields must not be duplicated.",
+                ));
+            }
+            if seen.len() > 9 {
+                return Err(UploadFailure::Request(
+                    "The derived upload exceeds nine fields.",
+                ));
+            }
+            if name == "ai_output" {
+                let path = directory.file("ai-output.bin");
+                write_file_part(field, &path, &mut aggregate).await?;
+                ai_output = Some(path);
+            } else {
+                let max = match name.as_str() {
+                    "session" => MAX_SESSION_BYTES,
+                    "creator_name" => MAX_CREATOR_NAME_BYTES,
+                    "subject_label" => MAX_SUBJECT_LABEL_BYTES,
+                    "confirmation_id" => 64,
+                    "generation_tool" | "generation_model" => 300,
+                    "generation_prompt" => 8192,
+                    "generation_intent" => 2048,
+                    _ => {
+                        return Err(UploadFailure::Request(
+                            "The derived upload contains an unknown field; only the new AI output may be uploaded.",
+                        ));
+                    }
+                };
+                text.insert(name, read_text_part(field, max).await?);
+            }
+        }
+        let missing = || UploadFailure::Request("The derived upload is missing a required field.");
+        let session = text.remove("session").ok_or_else(missing)?;
+        let creator_name = text.remove("creator_name").ok_or_else(missing)?;
+        let subject_label = text.remove("subject_label").ok_or_else(missing)?;
+        let confirmation_id = text.remove("confirmation_id").ok_or_else(missing)?;
+        let ai_output = ai_output.ok_or_else(missing)?;
+        if !is_session_slug(&session)
+            || creator_name.is_empty()
+            || subject_label.is_empty()
+            || confirmation_id.len() != 64
+            || !confirmation_id.bytes().all(|b| b.is_ascii_hexdigit())
+        {
+            return Err(UploadFailure::Request(
+                "The derived upload metadata is invalid.",
+            ));
+        }
+        let note = synapse_local_service::CreatorGenerationNote {
+            tool: text.remove("generation_tool").unwrap_or_default(),
+            model: text.remove("generation_model").unwrap_or_default(),
+            prompt: text.remove("generation_prompt").unwrap_or_default(),
+            intent: text.remove("generation_intent").unwrap_or_default(),
+        };
+        note.validate().map_err(|_| {
+            UploadFailure::Request("Generation note exceeds its UTF-8 byte limits.")
+        })?;
+        Ok(Self {
+            _directory: directory,
+            request: synapse_local_service::BeginDerivedCreatorSessionRequest {
+                confirmation_id,
+                session,
+                creator_name,
+                subject_label,
+                ai_output,
+                generation_note: (!note.is_empty()).then_some(note),
+            },
+        })
     }
 }

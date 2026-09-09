@@ -162,3 +162,11 @@ release notesと[distribution guide](./distribution.md)のplatform／artifact情
 - [Security model](./security_model.md)
 - [Stage 0 execution plan](./stage0_execution_plan.md)
 - [Documentation index](./README.md)
+
+Current main supports optional private, user-declared proposal generation notes in the localhost import form. The tool/model, prompt and intent stay bound to the exact proposal bytes through archive/restore and are readable in pending/complete views and `creator-report`. They are not execution evidence and are excluded from public bundles. See the [Creator generation note contract](../spec/application/creator-generation-note/v1/README.md).
+
+Current main also supports private image pins recorded atomically with a Human Decision. Mouse/touch, keyboard and integer-coordinate controls preserve positions across zoom and archive/restore. Pins do not represent partial adoption or image analysis; they are excluded from public bundles. See the [Creator decision pin contract](../spec/application/creator-decision-pins/v1/README.md).
+
+Current main can start a new Creator candidate from any verified complete session in the same project. It reuses exact Original/Current bytes, keeps fresh identities and Human review, and records fixed source lineage across archive/restore. Adopt does not promote the old AI output to Current. See the [reused source contract](../spec/application/creator-source/v1/README.md).
+
+Current main includes a localhost form for fresh author-supplied public text for one complete session. It validates and downloads `presentation.toml`, with empty initial fields and no automatic private-note transfer, Core writes, raw images, or remote publication. Follow the [sidecar workflow](presentation_sidecar.md) for the existing stopped-writer CLI export and verification steps.

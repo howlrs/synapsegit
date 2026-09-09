@@ -12,8 +12,7 @@ export const original = path.join(assets, "mural-original.png");
 export const current = path.join(assets, "mural-current.png");
 export const output = path.join(assets, "mural-ai-proposal.png");
 
-export const test = base.extend({
-  app: [async ({}, use) => {
+async function appFixture({}, use) {
     const directory = await mkdtemp(path.join(tmpdir(), "synapse-browser-"));
     let server;
     try {
@@ -55,7 +54,11 @@ export const test = base.extend({
       }
       await rm(directory, { recursive: true, force: true });
     }
-  }, { scope: "worker" }],
-});
+}
+
+export const test = base.extend({ app: [appFixture, { scope: "worker" }] });
+// New multi-session workflows use their own repository so unrelated tests do not
+// change their bounded verification cost or leave records behind after failure.
+export const isolatedTest = base.extend({ app: [appFixture, { scope: "test" }] });
 
 export { expect };

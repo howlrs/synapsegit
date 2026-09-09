@@ -278,6 +278,7 @@ pub struct CreatorSessionList {
 /// serializable transport DTO fields.
 #[derive(Debug)]
 pub struct BeginCreatorSessionRequest {
+    pub generation_note: Option<synapse_creator::CreatorGenerationNote>,
     pub session: String,
     pub subject_label: String,
     pub creator_name: String,
@@ -298,6 +299,8 @@ pub enum CreatorDecision {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreatorDecisionRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<synapse_creator::CreatorAnnotations>,
     pub review_id: String,
     pub disposition: CreatorDecision,
     pub rationale: Option<String>,
@@ -341,6 +344,14 @@ pub struct TimelineEntry {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreatorReport {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<synapse_creator::CreatorSourceBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<synapse_creator::CreatorAnnotations>,
+    #[serde(default)]
+    pub annotations_unavailable: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generation_note: Option<synapse_creator::CreatorGenerationNote>,
     pub snapshot: SnapshotContext,
     pub session: String,
     pub project_id: String,
@@ -466,6 +477,10 @@ impl CreatorDecisionResponse {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct PendingCreatorSession {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source: Option<synapse_creator::CreatorSourceBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generation_note: Option<synapse_creator::CreatorGenerationNote>,
     pub state: PendingReviewState,
     pub snapshot: SnapshotContext,
     pub server_instance: String,
@@ -627,4 +642,47 @@ pub struct Problem {
     pub detail: String,
     pub request_id: String,
     pub retryable: bool,
+}
+
+/// One process-local confirmation of a complete source, not a reusable Human permit.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreatorSourcePreview {
+    pub confirmation_id: String,
+    pub source: synapse_creator::CreatorSourceBinding,
+    pub creator_name: String,
+    pub subject_label: String,
+}
+
+/// Only the candidate path is supplied by trusted staging; reference images are server-owned.
+#[derive(Debug)]
+pub struct BeginDerivedCreatorSessionRequest {
+    pub confirmation_id: String,
+    pub session: String,
+    pub creator_name: String,
+    pub subject_label: String,
+    pub ai_output: PathBuf,
+    pub generation_note: Option<synapse_creator::CreatorGenerationNote>,
+}
+
+/// Fresh author-supplied public text for exactly one verified complete session.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PresentationSidecarRequest {
+    pub session: String,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub creator_display_name: Option<String>,
+    pub proposal_agent_display_name: Option<String>,
+    pub session_title: Option<String>,
+    pub public_decision_note: Option<String>,
+    pub original_caption: Option<String>,
+    pub current_caption: Option<String>,
+    pub proposal_caption: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PresentationSidecar {
+    pub toml: String,
 }

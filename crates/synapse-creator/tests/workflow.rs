@@ -823,3 +823,445 @@ fn report_rejects_a_current_proposal_that_does_not_match_human_feedback() {
     let error = creator_report(&repository_path, "first-session").unwrap_err();
     assert!(matches!(error, CreatorError::ReportInvalid(_)));
 }
+
+#[test]
+fn private_generation_notes_follow_each_proposal_through_decisions_and_archive() {
+    let temporary = TempDirectory::new();
+    let path = temporary.join("notes-repo");
+    for disposition in [
+        CreatorDisposition::Adopt,
+        CreatorDisposition::Reject,
+        CreatorDisposition::Defer,
+    ] {
+        let run = options(&temporary, &path, disposition.as_cli_str(), disposition);
+        let note = synapse_creator::CreatorGenerationNote {
+            tool: "外部ツール".into(),
+            model: "利用者が申告したモデル".into(),
+            prompt: format!(
+                "PRIVATE_GENERATION_CANARY_{}\n青い空と海",
+                disposition.as_cli_str()
+            ),
+            intent: "構図を比べる\n採否の理由とは別".into(),
+        };
+        let mut pending =
+            synapse_creator::begin_creator_session_with_note(&begin_options(&run), Some(&note))
+                .unwrap();
+        assert_eq!(pending.receipt().generation_note.as_ref(), Some(&note));
+        let proposal = pending.receipt().proposal_head.clone();
+        decide_creator_session(
+            &mut pending,
+            &CreatorDecisionOptions {
+                disposition,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        let report = creator_report(&path, disposition.as_cli_str()).unwrap();
+        assert_eq!(report.proposal_head, proposal);
+        assert_eq!(report.generation_note.as_ref(), Some(&note));
+    }
+    let archive = temporary.join("notes-archive");
+    let restored = temporary.join("notes-restored");
+    Repository::open(&path)
+        .unwrap()
+        .export_archive(&archive)
+        .unwrap();
+    Repository::restore_archive(&archive, &restored).unwrap();
+    for session in ["adopt", "reject", "defer"] {
+        assert_eq!(
+            creator_report(&path, session).unwrap(),
+            creator_report(&restored, session).unwrap()
+        );
+    }
+}
+
+#[test]
+fn oversized_generation_notes_do_not_publish_refs() {
+    let temporary = TempDirectory::new();
+    let path = temporary.join("notes-repo");
+    let run = options(&temporary, &path, "notes-limit", CreatorDisposition::Adopt);
+    let repository = Repository::open(&path).unwrap();
+    let before = repository.refs().snapshot().unwrap();
+    for field in ["tool", "model", "prompt", "intent", "total"] {
+        let mut note = synapse_creator::CreatorGenerationNote::default();
+        match field {
+            "tool" => note.tool = "あ".repeat(101),
+            "model" => note.model = "x".repeat(301),
+            "prompt" => note.prompt = "x".repeat(8193),
+            "intent" => note.intent = "x".repeat(2049),
+            _ => note.prompt = "\0".repeat(8192),
+        }
+        assert!(
+            synapse_creator::begin_creator_session_with_note(&begin_options(&run), Some(&note))
+                .is_err()
+        );
+        assert_eq!(repository.refs().snapshot().unwrap(), before);
+    }
+}
+
+#[test]
+fn private_pins_are_atomic_with_each_decision_and_survive_restore() {
+    use synapse_creator::{
+        ANNOTATIONS_FORMAT, CreatorAnnotations, CreatorImageRole, CreatorPin,
+        decide_creator_session_with_annotations,
+    };
+    let temporary = TempDirectory::new();
+    let path = temporary.join("pins-repo");
+    for disposition in [
+        CreatorDisposition::Adopt,
+        CreatorDisposition::Reject,
+        CreatorDisposition::Defer,
+    ] {
+        let run = options(&temporary, &path, disposition.as_cli_str(), disposition);
+        let mut pending = begin_creator_session(&begin_options(&run)).unwrap();
+        let receipt = pending.receipt();
+        let pins = CreatorAnnotations {
+            format: ANNOTATIONS_FORMAT.into(),
+            pins: vec![
+                CreatorPin {
+                    role: CreatorImageRole::Original,
+                    blob_oid: receipt.original_blob_oid.clone(),
+                    x: 0,
+                    y: 1_000_000,
+                    note: "左下の輪郭\nPRIVATE_PIN_CANARY".into(),
+                },
+                CreatorPin {
+                    role: CreatorImageRole::Current,
+                    blob_oid: receipt.current_blob_oid.clone(),
+                    x: 123456,
+                    y: 654321,
+                    note: "配色を残す".into(),
+                },
+                CreatorPin {
+                    role: CreatorImageRole::AiOutput,
+                    blob_oid: receipt.ai_output_blob_oid.clone(),
+                    x: 1_000_000,
+                    y: 0,
+                    note: "右上を確認".into(),
+                },
+            ],
+        };
+        let before = Repository::open(&path).unwrap().refs().snapshot().unwrap();
+        let decision = CreatorDecisionOptions {
+            disposition,
+            rationale: Some("Proposal全体を判断".into()),
+        };
+        for case in [
+            "wrong-oid",
+            "coordinate",
+            "version",
+            "count",
+            "bytes",
+            "empty",
+        ] {
+            let mut invalid = pins.clone();
+            match case {
+                "wrong-oid" => invalid.pins[0].blob_oid = invalid.pins[1].blob_oid.clone(),
+                "coordinate" => invalid.pins[0].x = 1_000_001,
+                "version" => invalid.format = "unknown-v2".into(),
+                "count" => invalid.pins = vec![invalid.pins[0].clone(); 11],
+                "bytes" => invalid.pins[0].note = "あ".repeat(67),
+                _ => invalid.pins[0].note.clear(),
+            }
+            assert!(
+                decide_creator_session_with_annotations(&mut pending, &decision, Some(&invalid))
+                    .is_err(),
+                "{case}"
+            );
+            assert_eq!(pending.decision_state(), CreatorPendingDecisionState::Ready);
+            assert_eq!(
+                Repository::open(&path).unwrap().refs().snapshot().unwrap(),
+                before
+            );
+        }
+        let receipt =
+            decide_creator_session_with_annotations(&mut pending, &decision, Some(&pins)).unwrap();
+        let repository = Repository::open(&path).unwrap();
+        let feedback: serde_json::Value = serde_json::from_slice(
+            &repository
+                .objects()
+                .read_raw(&receipt.decision_feedback_oid)
+                .unwrap()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(feedback["payload"]["human_rationale"], "Proposal全体を判断");
+        assert_eq!(
+            feedback["payload"]["disposition"],
+            disposition.as_protocol_str()
+        );
+        assert_eq!(
+            feedback["extensions"][synapse_creator::ANNOTATIONS_KEY],
+            serde_json::to_value(&pins).unwrap()
+        );
+        let report = creator_report(&path, disposition.as_cli_str()).unwrap();
+        assert_eq!(report.annotations, Some(pins));
+        assert!(!report.annotations_unavailable);
+        assert_eq!(
+            report.selected_ai_output,
+            disposition == CreatorDisposition::Adopt
+        );
+    }
+    let archive = temporary.join("pins-archive");
+    let restored = temporary.join("pins-restored");
+    Repository::open(&path)
+        .unwrap()
+        .export_archive(&archive)
+        .unwrap();
+    Repository::restore_archive(&archive, &restored).unwrap();
+    for session in ["adopt", "reject", "defer"] {
+        assert_eq!(
+            creator_report(&path, session).unwrap(),
+            creator_report(&restored, session).unwrap()
+        );
+    }
+}
+
+#[test]
+fn malformed_pin_extension_is_unavailable_without_invalidating_decision_lineage() {
+    let temporary = TempDirectory::new();
+    let path = temporary.join("unknown-pins");
+    let receipt = run_creator_session(&options(
+        &temporary,
+        &path,
+        "unknown-pins",
+        CreatorDisposition::Adopt,
+    ))
+    .unwrap();
+    let mut repository = Repository::open(&path).unwrap();
+    let mut feedback: serde_json::Value = serde_json::from_slice(
+        &repository
+            .objects()
+            .read_raw(&receipt.decision_feedback_oid)
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    feedback["extensions"][synapse_creator::ANNOTATIONS_KEY] =
+        serde_json::json!({"format":"unknown-v99", "pins":[]});
+    let feedback_oid = repository
+        .put_object(&serde_json::to_vec(&feedback).unwrap())
+        .unwrap()
+        .oid;
+    let mut decision: serde_json::Value = serde_json::from_slice(
+        &repository
+            .objects()
+            .read_raw(&receipt.decision_head)
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    decision["transition_refs"] = serde_json::json!([feedback_oid]);
+    let head = repository
+        .put_object(&serde_json::to_vec(&decision).unwrap())
+        .unwrap()
+        .oid;
+    repository
+        .update_ref(RefUpdate {
+            ref_name: &receipt.decision_ref,
+            expected_head: Some(&receipt.decision_head),
+            new_head: &head,
+            metadata: ReflogMetadata {
+                occurred_at_unix_nanos: 1,
+                actor: None,
+                message: Some("synthetic malformed annotation fixture"),
+            },
+        })
+        .unwrap();
+    let report = creator_report(&path, "unknown-pins").unwrap();
+    assert!(report.annotations_unavailable);
+    assert_eq!(report.annotations, None);
+    assert_eq!(report.disposition, CreatorDisposition::Adopt);
+    assert_eq!(report.proposal_head, receipt.proposal_head);
+}
+
+#[test]
+fn derived_sessions_keep_reference_images_and_fixed_source_lineage_after_restore() {
+    use synapse_creator::{CreatorSourceBinding, begin_creator_session_with_source};
+    let temporary = TempDirectory::new();
+    let path = temporary.join("derived-repo");
+    for disposition in [
+        CreatorDisposition::Adopt,
+        CreatorDisposition::Reject,
+        CreatorDisposition::Defer,
+    ] {
+        let source_name = format!("source-{}", disposition.as_cli_str());
+        let source_options = options(&temporary, &path, &source_name, disposition);
+        run_creator_session(&source_options).unwrap();
+        let source_report = creator_report(&path, &source_name).unwrap();
+        let source = CreatorSourceBinding::from_report(&source_report);
+        let before = Repository::open(&path).unwrap().refs().snapshot().unwrap();
+        let candidate = temporary.join(format!("next-{}.bin", disposition.as_cli_str()));
+        fs::write(
+            &candidate,
+            format!("next candidate {}", disposition.as_cli_str()),
+        )
+        .unwrap();
+        let mut next = begin_options(&source_options);
+        next.session = format!("next-{}", disposition.as_cli_str());
+        next.ai_output = candidate;
+        let mut pending = begin_creator_session_with_source(&next, None, &source).unwrap();
+        assert_eq!(
+            pending.receipt().original_blob_oid,
+            source_report.original_blob_oid
+        );
+        assert_eq!(
+            pending.receipt().current_blob_oid,
+            source_report.current_blob_oid
+        );
+        assert_ne!(
+            pending.receipt().current_blob_oid,
+            source_report.ai_output_blob_oid
+        );
+        assert_ne!(pending.receipt().subject_id, source_report.subject_id);
+        assert_ne!(pending.receipt().creator_id, source_report.creator_id);
+        assert_eq!(pending.receipt().generation_note, None);
+        decide_creator_session(
+            &mut pending,
+            &CreatorDecisionOptions {
+                disposition,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        let report = creator_report(&path, &next.session).unwrap();
+        assert_eq!(report.source, Some(source));
+        assert_eq!(report.source_depth, 1);
+        assert_eq!(report.annotations, None);
+        let after = Repository::open(&path).unwrap().refs().snapshot().unwrap();
+        for record in before.refs {
+            assert!(after.refs.contains(&record));
+        }
+    }
+    // Fixed source heads remain provable after the live source Ref moves.
+    let old = creator_report(&path, "source-adopt").unwrap();
+    let child_before = creator_report(&path, "next-adopt").unwrap();
+    let mut repository = Repository::open(&path).unwrap();
+    repository
+        .update_ref(RefUpdate {
+            ref_name: &old.decision_ref,
+            expected_head: Some(&old.decision_head),
+            new_head: &old.base_head,
+            metadata: ReflogMetadata {
+                occurred_at_unix_nanos: 10,
+                actor: None,
+                message: Some("source moved after derivation"),
+            },
+        })
+        .unwrap();
+    assert!(creator_report(&path, "source-adopt").is_err());
+    let child_after = creator_report(&path, "next-adopt").unwrap();
+    assert_eq!(child_before.source, child_after.source);
+    let next_options = options(&temporary, &path, "grandchild", CreatorDisposition::Reject);
+    fs::copy(
+        temporary.join("source-adopt-original.png"),
+        &next_options.original_image,
+    )
+    .unwrap();
+    fs::copy(
+        temporary.join("source-adopt-current.png"),
+        &next_options.current_image,
+    )
+    .unwrap();
+    let mut pending = begin_creator_session_with_source(
+        &begin_options(&next_options),
+        None,
+        &CreatorSourceBinding::from_report(&child_after),
+    )
+    .unwrap();
+    decide_creator_session(
+        &mut pending,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Reject,
+            rationale: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(creator_report(&path, "grandchild").unwrap().source_depth, 2);
+    let archive = temporary.join("derived-archive");
+    let restored = temporary.join("derived-restored");
+    Repository::open(&path)
+        .unwrap()
+        .export_archive(&archive)
+        .unwrap();
+    Repository::restore_archive(&archive, &restored).unwrap();
+    for session in ["next-adopt", "next-reject", "next-defer", "grandchild"] {
+        assert_eq!(
+            creator_report(&path, session).unwrap(),
+            creator_report(&restored, session).unwrap()
+        );
+    }
+}
+
+#[test]
+fn derivation_refuses_stale_source_and_wrong_reference_bytes_before_publication() {
+    use synapse_creator::{CreatorSourceBinding, begin_creator_session_with_source};
+    let temporary = TempDirectory::new();
+    let path = temporary.join("invalid-derived");
+    let original = options(&temporary, &path, "source", CreatorDisposition::Adopt);
+    run_creator_session(&original).unwrap();
+    let report = creator_report(&path, "source").unwrap();
+    let source = CreatorSourceBinding::from_report(&report);
+    let before = Repository::open(&path).unwrap().refs().snapshot().unwrap();
+    let mut next = begin_options(&original);
+    next.session = "next".into();
+    let mut stale = source.clone();
+    stale.decision_head = report.base_head.clone();
+    assert!(begin_creator_session_with_source(&next, None, &stale).is_err());
+    next.current_image = next.ai_output.clone();
+    assert!(begin_creator_session_with_source(&next, None, &source).is_err());
+    assert_eq!(
+        Repository::open(&path).unwrap().refs().snapshot().unwrap(),
+        before
+    );
+}
+
+#[test]
+fn conditional_publication_rechecks_source_head_in_the_writer_transaction() {
+    use synapse_sqlite::RefPrecondition;
+    let temporary = TempDirectory::new();
+    let path = temporary.join("conditional");
+    let receipt = run_creator_session(&options(
+        &temporary,
+        &path,
+        "source",
+        CreatorDisposition::Adopt,
+    ))
+    .unwrap();
+    let mut observer = Repository::open(&path).unwrap();
+    let mut writer = Repository::open(&path).unwrap();
+    writer
+        .update_ref(RefUpdate {
+            ref_name: &receipt.decision_ref,
+            expected_head: Some(&receipt.decision_head),
+            new_head: &receipt.base_head,
+            metadata: ReflogMetadata {
+                occurred_at_unix_nanos: 10,
+                actor: None,
+                message: None,
+            },
+        })
+        .unwrap();
+    let before = writer.refs().snapshot().unwrap();
+    assert!(
+        observer
+            .update_ref_with_preconditions(
+                RefUpdate {
+                    ref_name: "refs/heads/conditional-child",
+                    expected_head: None,
+                    new_head: &receipt.base_head,
+                    metadata: ReflogMetadata {
+                        occurred_at_unix_nanos: 11,
+                        actor: None,
+                        message: None
+                    }
+                },
+                &[RefPrecondition {
+                    ref_name: &receipt.decision_ref,
+                    expected_head: Some(&receipt.decision_head)
+                }]
+            )
+            .is_err()
+    );
+    assert_eq!(writer.refs().snapshot().unwrap(), before);
+}

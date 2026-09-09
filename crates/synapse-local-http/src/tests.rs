@@ -2051,6 +2051,8 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
                         .await
                         .unwrap()
                 }
+                "post" if resolved_path.ends_with("/derivations") => app.clone().oneshot(unsafe_api_request(&full_path, "multipart/form-data; boundary=empty", Body::from("--empty--\r\n"))).await.unwrap(),
+                "post" if resolved_path.ends_with("/presentation-sidecars") => app.clone().oneshot(unsafe_api_request(&full_path, "application/json", Body::from(r#"{"session":"render-session"}"#))).await.unwrap(),
                 "post" if resolved_path.ends_with("/decisions") => {
                     let decision_body = serde_json::to_vec(&serde_json::json!({
                         "review_id": review_id,
@@ -2134,8 +2136,8 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
     // would fail loudly instead of this test quietly checking nothing.
     assert_eq!(
         checked.len(),
-        16,
-        "expected 16 implemented operations, checked: {checked:?}"
+        19,
+        "expected 19 implemented operations, checked: {checked:?}"
     );
     assert_eq!(
         skipped_unimplemented_archive.len(),
@@ -2407,4 +2409,92 @@ async fn index_page_degrades_the_archives_section_when_the_archive_root_is_unrea
     // section, still renders normally.
     assert!(page.contains("プロジェクト"));
     assert!(page.contains("Demo project"));
+}
+
+#[tokio::test]
+async fn confirmed_source_images_use_header_and_preserve_exact_bytes() {
+    let (_directory, app, fixture) = test_app_with_creator("Source preview");
+    let preview = app
+        .clone()
+        .oneshot(
+            request("/api/v1/projects/demo/creator-sessions/render-session/derivations")
+                .header("x-synapse-local-token", "a".repeat(64))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(preview.status(), StatusCode::OK);
+    let preview: serde_json::Value =
+        serde_json::from_slice(&to_bytes(preview.into_body(), 65536).await.unwrap()).unwrap();
+    let id = preview["confirmation_id"].as_str().unwrap();
+    for (role, oid, bytes) in [
+        (
+            "original",
+            fixture.original_oid,
+            b"\x89PNG\r\n\x1a\nhttp-original".as_slice(),
+        ),
+        (
+            "current",
+            fixture.current_oid,
+            b"<svg xmlns='http://www.w3.org/2000/svg'><rect/></svg>".as_slice(),
+        ),
+    ] {
+        let path = format!("/api/v1/projects/demo/creator-sessions/render-session/images/{role}");
+        let response = app
+            .clone()
+            .oneshot(
+                request(&path)
+                    .header("x-synapse-local-token", "a".repeat(64))
+                    .header("x-synapse-source-confirmation", id)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.headers()["x-synapse-blob-oid"], oid);
+        assert_eq!(
+            to_bytes(response.into_body(), 65536)
+                .await
+                .unwrap()
+                .as_ref(),
+            bytes
+        );
+        let denied = app
+            .clone()
+            .oneshot(
+                request(&path)
+                    .header("x-synapse-source-confirmation", id)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+        let duplicate = app
+            .clone()
+            .oneshot(
+                request(&path)
+                    .header("x-synapse-local-token", "a".repeat(64))
+                    .header("x-synapse-source-confirmation", id)
+                    .header("x-synapse-source-confirmation", id)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(duplicate.status(), StatusCode::BAD_REQUEST);
+    }
+    let denied = app
+        .oneshot(
+            request("/api/v1/projects/demo/creator-sessions/render-session/images/ai-output")
+                .header("x-synapse-local-token", "a".repeat(64))
+                .header("x-synapse-source-confirmation", id)
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(denied.status(), StatusCode::BAD_REQUEST);
 }

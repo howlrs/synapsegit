@@ -255,6 +255,29 @@ pub fn load_presentation(path: impl AsRef<Path>) -> Result<PresentationInput> {
     Ok(presentation)
 }
 
+/// Serialize author-supplied metadata with the same validation and byte ceiling
+/// as `load_presentation`. This does not open or change any repository.
+pub fn serialize_presentation(input: &PresentationInput) -> Result<String> {
+    validate_presentation(input)?;
+    let text = toml::to_string_pretty(input).map_err(|_| {
+        PublicationError::InvalidArgument("presentation metadata could not be serialized".into())
+    })?;
+    if text.len() as u64 > MAX_PRESENTATION_BYTES {
+        return Err(PublicationError::InvalidArgument(format!(
+            "presentation sidecar is larger than {MAX_PRESENTATION_BYTES} bytes"
+        )));
+    }
+    // Keep the writer and existing parser interoperable as their types evolve.
+    let roundtrip: PresentationInput = toml::from_str(&text)?;
+    validate_presentation(&roundtrip)?;
+    if &roundtrip != input {
+        return Err(PublicationError::InvalidArgument(
+            "presentation metadata did not round-trip".into(),
+        ));
+    }
+    Ok(text)
+}
+
 /// Build a provider-neutral projection from exactly one read-only Ref snapshot.
 pub fn build_public_projection(options: &ProjectionOptions) -> Result<PublicProjection> {
     if options.max_sessions == 0 {
@@ -359,6 +382,14 @@ pub fn build_public_projection(options: &ProjectionOptions) -> Result<PublicProj
                 } else {
                     projection_source_fingerprint =
                         Some(snapshot_report.projection_source_fingerprint.clone());
+                }
+                // Frozen v1 has no verified reuse semantics and labels Current
+                // as an observation. Do not erase the private source binding
+                // by projecting a derived session into that profile.
+                if snapshot_report.report.source.is_some() {
+                    return Err(PublicationError::InvalidArgument(
+                        "publication profile v1 cannot represent reused reference images; select a non-derived session with --session".into(),
+                    ));
                 }
                 sessions.push(map_session(
                     snapshot_report.report,

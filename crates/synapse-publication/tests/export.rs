@@ -5,8 +5,10 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_canonical::{canonical_bytes, parse_strict};
 use synapse_creator::{
-    CreatorBeginOptions, CreatorDisposition, CreatorRunOptions, begin_creator_session,
-    run_creator_session,
+    ANNOTATIONS_FORMAT, CreatorAnnotations, CreatorBeginOptions, CreatorDecisionOptions,
+    CreatorDisposition, CreatorGenerationNote, CreatorImageRole, CreatorPin, CreatorSourceBinding,
+    begin_creator_session, begin_creator_session_with_note, begin_creator_session_with_source,
+    creator_report, decide_creator_session, decide_creator_session_with_annotations,
 };
 use synapse_publication::{
     BundleManifest, ChecksumsDocument, DEFAULT_MAX_SESSIONS, ExportOptions, OutputTarget,
@@ -60,19 +62,42 @@ fn create_three_decision_fixture(root: &Path) {
         ("defer-story", CreatorDisposition::Defer),
         ("reject-story", CreatorDisposition::Reject),
     ] {
-        run_creator_session(&CreatorRunOptions {
-            repository: root.join("repo"),
-            session: session.into(),
-            original_image: original.clone(),
-            current_image: current.clone(),
-            ai_output: proposal.clone(),
-            subject_label: "private.person+projection@example.invalid".into(),
-            creator_name: "private.person+projection@example.invalid".into(),
-            disposition,
-            rationale: Some(format!(
-                "PRIVATE_RATIONALE_{session}_TOKEN_5c14 GH_TOKEN=secret"
-            )),
-        })
+        let mut pending = begin_creator_session_with_note(
+            &CreatorBeginOptions {
+                repository: root.join("repo"),
+                session: session.into(),
+                original_image: original.clone(),
+                current_image: current.clone(),
+                ai_output: proposal.clone(),
+                subject_label: "private.person+projection@example.invalid".into(),
+                creator_name: "private.person+projection@example.invalid".into(),
+            },
+            Some(&CreatorGenerationNote {
+                prompt: "PRIVATE_GENERATION_CANARY 日本語\n秘密".into(),
+                ..Default::default()
+            }),
+        )
+        .unwrap();
+        let annotations = CreatorAnnotations {
+            format: ANNOTATIONS_FORMAT.into(),
+            pins: vec![CreatorPin {
+                role: CreatorImageRole::AiOutput,
+                blob_oid: pending.receipt().ai_output_blob_oid.clone(),
+                x: 100000,
+                y: 800000,
+                note: "PRIVATE_PIN_CANARY 日本語".into(),
+            }],
+        };
+        decide_creator_session_with_annotations(
+            &mut pending,
+            &CreatorDecisionOptions {
+                disposition,
+                rationale: Some(format!(
+                    "PRIVATE_RATIONALE_{session}_TOKEN_5c14 GH_TOKEN=secret"
+                )),
+            },
+            Some(&annotations),
+        )
         .unwrap();
     }
 }
@@ -133,6 +158,74 @@ fn export(root: &TempDirectory, name: &str, target: OutputTarget) -> PathBuf {
 }
 
 #[test]
+fn frozen_v1_refuses_derived_sessions_without_writing_a_bundle() {
+    let root = TempDirectory::new();
+    create_three_decision_fixture(&root.0);
+    for source_session in ["adopt-story", "reject-story", "defer-story"] {
+        let source = CreatorSourceBinding::from_report(
+            &creator_report(root.join("repo"), source_session).unwrap(),
+        );
+        let session = format!("next-{source_session}");
+        let mut pending = begin_creator_session_with_source(
+            &CreatorBeginOptions {
+                repository: root.join("repo"),
+                session: session.clone(),
+                original_image: root.join("inputs/original.bin"),
+                current_image: root.join("inputs/current.bin"),
+                ai_output: root.join("inputs/proposal.bin"),
+                subject_label: "Reference reuse".into(),
+                creator_name: "Creator".into(),
+            },
+            None,
+            &source,
+        )
+        .unwrap();
+        decide_creator_session(
+            &mut pending,
+            &CreatorDecisionOptions {
+                disposition: CreatorDisposition::Adopt,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        drop(pending);
+        for selected in [Some(session.clone()), None] {
+            let destination = root.join("refused-bundle");
+            let mut projection = projection_options(root.join("repo"));
+            projection.session = selected;
+            let error = export_bundle(&ExportOptions {
+                projection,
+                destination: destination.clone(),
+                target: OutputTarget::Github,
+            })
+            .unwrap_err();
+            assert!(
+                matches!(&error, PublicationError::InvalidArgument(_)),
+                "{error}"
+            );
+            assert!(
+                error
+                    .to_string()
+                    .contains("cannot represent reused reference images")
+            );
+            assert!(!destination.exists());
+        }
+    }
+    // A normal session in the same repository remains exportable, and the
+    // frozen verifier still accepts the resulting bundle.
+    let mut projection = projection_options(root.join("repo"));
+    projection.session = Some("adopt-story".into());
+    let destination = root.join("ordinary-bundle");
+    export_bundle(&ExportOptions {
+        projection,
+        destination: destination.clone(),
+        target: OutputTarget::Github,
+    })
+    .unwrap();
+    verify_bundle(&destination).unwrap();
+}
+
+#[test]
 fn exports_adopt_reject_and_defer_without_private_or_raw_source_material() {
     let temporary = TempDirectory::new();
     create_three_decision_fixture(&temporary.0);
@@ -166,6 +259,8 @@ fn exports_adopt_reject_and_defer_without_private_or_raw_source_material() {
     let all_bundle_bytes = bundle_bytes(&bundle);
     for secret in [
         "PRIVATE_RATIONALE_",
+        "PRIVATE_GENERATION_CANARY",
+        "PRIVATE_PIN_CANARY",
         "GH_TOKEN=secret",
         "private.person+projection@example.invalid",
         "RAW_ORIGINAL_SECRET_91d6",
@@ -681,4 +776,95 @@ fn reconcile_bundle_checksums(bundle: &Path) {
         entry.sha256 = sha256_hex(&bytes);
     }
     fs::write(bundle.join("checksums.json"), canonical_json(&checksums)).unwrap();
+}
+
+#[test]
+fn generated_sidecar_roundtrips_and_exports_with_existing_cli() {
+    let temporary = TempDirectory::new();
+    create_three_decision_fixture(&temporary.0);
+    let text = "日本語の \"引用\" と \\ バックスラッシュ\n次の行";
+    let mut input = PresentationInput {
+        title: Some("日本語の作品".into()),
+        summary: Some(text.into()),
+        ..Default::default()
+    };
+    input.sessions.insert(
+        "adopt-story".into(),
+        SessionPresentationInput {
+            public_decision_note: Some(text.into()),
+            ..Default::default()
+        },
+    );
+    let sidecar = temporary.join("presentation.toml");
+    let serialized = synapse_publication::serialize_presentation(&input).unwrap();
+    fs::write(&sidecar, &serialized).unwrap();
+    assert_eq!(
+        synapse_publication::load_presentation(&sidecar).unwrap(),
+        input
+    );
+    let before = snapshot_tree(&temporary.join("repo"));
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_synapse-present"))
+        .args([
+            "export",
+            temporary.join("repo").to_str().unwrap(),
+            temporary.join("generated-bundle").to_str().unwrap(),
+            "--session",
+            "adopt-story",
+            "--presentation",
+            sidecar.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    verify_bundle(temporary.join("generated-bundle")).unwrap();
+    let projection =
+        fs::read_to_string(temporary.join("generated-bundle/projection.json")).unwrap();
+    assert!(projection.contains("author_supplied"));
+    assert!(projection.contains("日本語の作品"));
+    for canary in [
+        "PRIVATE_RATIONALE",
+        "PRIVATE_GENERATION_CANARY",
+        "PRIVATE_PIN_CANARY",
+        "RAW_ORIGINAL_SECRET",
+    ] {
+        assert!(!projection.contains(canary));
+        assert!(!serialized.contains(canary));
+    }
+    assert_eq!(before, snapshot_tree(&temporary.join("repo")));
+}
+
+#[test]
+fn sidecar_serializer_reuses_field_control_and_file_limits() {
+    for text in [
+        "x".repeat(301),
+        "line\nbreak".into(),
+        "bad\u{202e}direction".into(),
+        "nul\0byte".into(),
+    ] {
+        assert!(
+            synapse_publication::serialize_presentation(&PresentationInput {
+                title: Some(text),
+                ..Default::default()
+            })
+            .is_err()
+        );
+    }
+    let mut input = PresentationInput::default();
+    for n in 0..20 {
+        input.sessions.insert(
+            format!("session-{n}"),
+            SessionPresentationInput {
+                public_decision_note: Some("x".repeat(5120)),
+                ..Default::default()
+            },
+        );
+    }
+    assert!(synapse_publication::serialize_presentation(&input).is_err());
+    input = PresentationInput::default();
+    input.sessions.insert("bad\"key".into(), Default::default());
+    assert!(synapse_publication::serialize_presentation(&input).is_err());
 }
