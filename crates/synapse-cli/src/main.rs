@@ -290,6 +290,12 @@ fn print_creator_report(report: &CreatorReport) {
         report.proposal_ref, report.proposal_head
     );
     println!("disposition={}", report.disposition.as_cli_str());
+    if report.annotations_unavailable {
+        println!("decision_pins=unavailable");
+    }
+    if let Some(annotations) = &report.annotations {
+        println!("decision_pins_private={annotations:?}");
+    }
     if let Some(note) = &report.generation_note {
         println!("generation_note_user_declared={note:?}");
     }

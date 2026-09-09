@@ -97,3 +97,5 @@ Stage 0 does not implement a cross-Ref workflow transaction, resume, or
 automatic cleanup.
 
 Optional private generation notes are supported on current main; see the [versioned Creator contract](../../spec/application/creator-generation-note/v1/README.md). Normal Core archives include these user-declared notes. Public bundles do not.
+
+Private image pins use the [Creator decision pin contract](../../spec/application/creator-decision-pins/v1/README.md). Unknown annotations are shown as unavailable separately from decision verification. The localhost decision JSON remains limited to 8 KiB including rationale and pins.

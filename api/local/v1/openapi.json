@@ -1291,6 +1291,9 @@
             "maxLength": 5000,
             "description": "At most 5000 UTF-8 bytes when present",
             "x-synapse-max-utf8-bytes": 5000
+          },
+          "annotations": {
+            "$ref": "#/components/schemas/CreatorAnnotations"
           }
         }
       },
@@ -1649,6 +1652,13 @@
           },
           "generation_note": {
             "$ref": "#/components/schemas/CreatorGenerationNote"
+          },
+          "annotations": {
+            "$ref": "#/components/schemas/CreatorAnnotations"
+          },
+          "annotations_unavailable": {
+            "type": "boolean",
+            "description": "True when the immutable annotation extension cannot be displayed. Does not invalidate an otherwise verified decision report."
           }
         }
       },
@@ -2291,6 +2301,70 @@
           }
         },
         "description": "Optional private user-declared generation note, bound to the exact proposal output. Serialized note JSON maximum 16 KiB. Not verified execution evidence."
+      },
+      "CreatorPin": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "role",
+          "blob_oid",
+          "x",
+          "y",
+          "note"
+        ],
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "original",
+              "current",
+              "ai_output"
+            ]
+          },
+          "blob_oid": {
+            "type": "string",
+            "pattern": "^blob:sg-oid-v1:sha256:[0-9a-f]{64}$",
+            "description": "Must equal the server-verified pending image for this role. Never used to select arbitrary stored bytes or authority."
+          },
+          "x": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "y": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 1000000
+          },
+          "note": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "x-synapse-max-utf8-bytes": 200
+          }
+        }
+      },
+      "CreatorAnnotations": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "format",
+          "pins"
+        ],
+        "properties": {
+          "format": {
+            "type": "string",
+            "const": "synapsegit-creator-decision-pins-v1"
+          },
+          "pins": {
+            "type": "array",
+            "maxItems": 10,
+            "items": {
+              "$ref": "#/components/schemas/CreatorPin"
+            }
+          }
+        },
+        "description": "Private Human decision pins. Sequence order supplies displayed numbering. Top-left (0,0), bottom-right (1000000,1000000) of the full oriented decoded image; no viewport coordinates or spatial/physical claim."
       }
     }
   },

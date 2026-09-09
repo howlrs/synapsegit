@@ -395,3 +395,5 @@ Third-party Rust components remain under the terms collected in
 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
 
 Current main supports optional private, user-declared proposal generation notes in the localhost import form. The tool/model, prompt and intent stay bound to the exact proposal bytes through archive/restore and are readable in pending/complete views and `creator-report`. They are not execution evidence and are excluded from public bundles. See the [Creator generation note contract](spec/application/creator-generation-note/v1/README.md).
+
+Current main also supports private image pins recorded atomically with a Human Decision. Mouse/touch, keyboard and integer-coordinate controls preserve positions across zoom and archive/restore. Pins do not represent partial adoption or image analysis; they are excluded from public bundles. See the [Creator decision pin contract](spec/application/creator-decision-pins/v1/README.md).

@@ -299,6 +299,8 @@ pub enum CreatorDecision {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreatorDecisionRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<synapse_creator::CreatorAnnotations>,
     pub review_id: String,
     pub disposition: CreatorDecision,
     pub rationale: Option<String>,
@@ -342,6 +344,10 @@ pub struct TimelineEntry {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CreatorReport {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<synapse_creator::CreatorAnnotations>,
+    #[serde(default)]
+    pub annotations_unavailable: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generation_note: Option<synapse_creator::CreatorGenerationNote>,
     pub snapshot: SnapshotContext,

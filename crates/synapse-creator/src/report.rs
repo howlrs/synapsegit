@@ -267,6 +267,7 @@ impl<'source> PreparedCreatorReportReader<'source> {
             disposition,
             rationale,
             ai_activity_oid,
+            feedback_oid,
             base_head,
             base_snapshot,
             proposal_snapshot,
@@ -330,6 +331,12 @@ impl<'source> PreparedCreatorReportReader<'source> {
             &read_json(repository, &ai_activity.oid)?,
             &ai_output_blob_oid,
         )?;
+        let (annotations, annotations_unavailable) = crate::annotations::read_annotations(
+            &read_json(repository, &feedback_oid)?,
+            &original_blob_oid,
+            &current_blob_oid,
+            &ai_output_blob_oid,
+        );
         let comparison = comparison_pointers
             .as_ref()
             .map(|pointers| {
@@ -366,6 +373,8 @@ impl<'source> PreparedCreatorReportReader<'source> {
 
         Ok(CreatorSnapshotReport {
             report: CreatorReport {
+                annotations,
+                annotations_unavailable,
                 generation_note,
                 session: session.to_owned(),
                 project_id: ids.project,
@@ -482,6 +491,7 @@ struct ReportLineage {
     disposition: CreatorDisposition,
     rationale: Option<String>,
     ai_activity_oid: String,
+    feedback_oid: String,
     base_head: String,
     base_snapshot: String,
     proposal_snapshot: String,
@@ -778,6 +788,7 @@ fn validate_report_lineage(
             .and_then(JsonValue::as_str)
             .map(str::to_owned),
         ai_activity_oid,
+        feedback_oid: feedback_oid.to_owned(),
         base_head: base_head.to_owned(),
         base_snapshot: base_snapshot.to_owned(),
         proposal_snapshot: proposal_snapshot.to_owned(),

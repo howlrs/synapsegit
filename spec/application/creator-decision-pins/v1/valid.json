@@ -1,0 +1,12 @@
+{
+  "format": "synapsegit-creator-decision-pins-v1",
+  "pins": [
+    {
+      "role": "ai_output",
+      "blob_oid": "blob:sg-oid-v1:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "x": 123456,
+      "y": 654321,
+      "note": "右上の輪郭\n配色を確認"
+    }
+  ]
+}

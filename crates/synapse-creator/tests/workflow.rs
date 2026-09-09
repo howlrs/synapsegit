@@ -898,3 +898,179 @@ fn oversized_generation_notes_do_not_publish_refs() {
         assert_eq!(repository.refs().snapshot().unwrap(), before);
     }
 }
+
+#[test]
+fn private_pins_are_atomic_with_each_decision_and_survive_restore() {
+    use synapse_creator::{
+        ANNOTATIONS_FORMAT, CreatorAnnotations, CreatorImageRole, CreatorPin,
+        decide_creator_session_with_annotations,
+    };
+    let temporary = TempDirectory::new();
+    let path = temporary.join("pins-repo");
+    for disposition in [
+        CreatorDisposition::Adopt,
+        CreatorDisposition::Reject,
+        CreatorDisposition::Defer,
+    ] {
+        let run = options(&temporary, &path, disposition.as_cli_str(), disposition);
+        let mut pending = begin_creator_session(&begin_options(&run)).unwrap();
+        let receipt = pending.receipt();
+        let pins = CreatorAnnotations {
+            format: ANNOTATIONS_FORMAT.into(),
+            pins: vec![
+                CreatorPin {
+                    role: CreatorImageRole::Original,
+                    blob_oid: receipt.original_blob_oid.clone(),
+                    x: 0,
+                    y: 1_000_000,
+                    note: "左下の輪郭\nPRIVATE_PIN_CANARY".into(),
+                },
+                CreatorPin {
+                    role: CreatorImageRole::Current,
+                    blob_oid: receipt.current_blob_oid.clone(),
+                    x: 123456,
+                    y: 654321,
+                    note: "配色を残す".into(),
+                },
+                CreatorPin {
+                    role: CreatorImageRole::AiOutput,
+                    blob_oid: receipt.ai_output_blob_oid.clone(),
+                    x: 1_000_000,
+                    y: 0,
+                    note: "右上を確認".into(),
+                },
+            ],
+        };
+        let before = Repository::open(&path).unwrap().refs().snapshot().unwrap();
+        let decision = CreatorDecisionOptions {
+            disposition,
+            rationale: Some("Proposal全体を判断".into()),
+        };
+        for case in [
+            "wrong-oid",
+            "coordinate",
+            "version",
+            "count",
+            "bytes",
+            "empty",
+        ] {
+            let mut invalid = pins.clone();
+            match case {
+                "wrong-oid" => invalid.pins[0].blob_oid = invalid.pins[1].blob_oid.clone(),
+                "coordinate" => invalid.pins[0].x = 1_000_001,
+                "version" => invalid.format = "unknown-v2".into(),
+                "count" => invalid.pins = vec![invalid.pins[0].clone(); 11],
+                "bytes" => invalid.pins[0].note = "あ".repeat(67),
+                _ => invalid.pins[0].note.clear(),
+            }
+            assert!(
+                decide_creator_session_with_annotations(&mut pending, &decision, Some(&invalid))
+                    .is_err(),
+                "{case}"
+            );
+            assert_eq!(pending.decision_state(), CreatorPendingDecisionState::Ready);
+            assert_eq!(
+                Repository::open(&path).unwrap().refs().snapshot().unwrap(),
+                before
+            );
+        }
+        let receipt =
+            decide_creator_session_with_annotations(&mut pending, &decision, Some(&pins)).unwrap();
+        let repository = Repository::open(&path).unwrap();
+        let feedback: serde_json::Value = serde_json::from_slice(
+            &repository
+                .objects()
+                .read_raw(&receipt.decision_feedback_oid)
+                .unwrap()
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(feedback["payload"]["human_rationale"], "Proposal全体を判断");
+        assert_eq!(
+            feedback["payload"]["disposition"],
+            disposition.as_protocol_str()
+        );
+        assert_eq!(
+            feedback["extensions"][synapse_creator::ANNOTATIONS_KEY],
+            serde_json::to_value(&pins).unwrap()
+        );
+        let report = creator_report(&path, disposition.as_cli_str()).unwrap();
+        assert_eq!(report.annotations, Some(pins));
+        assert!(!report.annotations_unavailable);
+        assert_eq!(
+            report.selected_ai_output,
+            disposition == CreatorDisposition::Adopt
+        );
+    }
+    let archive = temporary.join("pins-archive");
+    let restored = temporary.join("pins-restored");
+    Repository::open(&path)
+        .unwrap()
+        .export_archive(&archive)
+        .unwrap();
+    Repository::restore_archive(&archive, &restored).unwrap();
+    for session in ["adopt", "reject", "defer"] {
+        assert_eq!(
+            creator_report(&path, session).unwrap(),
+            creator_report(&restored, session).unwrap()
+        );
+    }
+}
+
+#[test]
+fn malformed_pin_extension_is_unavailable_without_invalidating_decision_lineage() {
+    let temporary = TempDirectory::new();
+    let path = temporary.join("unknown-pins");
+    let receipt = run_creator_session(&options(
+        &temporary,
+        &path,
+        "unknown-pins",
+        CreatorDisposition::Adopt,
+    ))
+    .unwrap();
+    let mut repository = Repository::open(&path).unwrap();
+    let mut feedback: serde_json::Value = serde_json::from_slice(
+        &repository
+            .objects()
+            .read_raw(&receipt.decision_feedback_oid)
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    feedback["extensions"][synapse_creator::ANNOTATIONS_KEY] =
+        serde_json::json!({"format":"unknown-v99", "pins":[]});
+    let feedback_oid = repository
+        .put_object(&serde_json::to_vec(&feedback).unwrap())
+        .unwrap()
+        .oid;
+    let mut decision: serde_json::Value = serde_json::from_slice(
+        &repository
+            .objects()
+            .read_raw(&receipt.decision_head)
+            .unwrap()
+            .unwrap(),
+    )
+    .unwrap();
+    decision["transition_refs"] = serde_json::json!([feedback_oid]);
+    let head = repository
+        .put_object(&serde_json::to_vec(&decision).unwrap())
+        .unwrap()
+        .oid;
+    repository
+        .update_ref(RefUpdate {
+            ref_name: &receipt.decision_ref,
+            expected_head: Some(&receipt.decision_head),
+            new_head: &head,
+            metadata: ReflogMetadata {
+                occurred_at_unix_nanos: 1,
+                actor: None,
+                message: Some("synthetic malformed annotation fixture"),
+            },
+        })
+        .unwrap();
+    let report = creator_report(&path, "unknown-pins").unwrap();
+    assert!(report.annotations_unavailable);
+    assert_eq!(report.annotations, None);
+    assert_eq!(report.disposition, CreatorDisposition::Adopt);
+    assert_eq!(report.proposal_head, receipt.proposal_head);
+}

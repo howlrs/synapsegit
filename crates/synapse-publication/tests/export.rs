@@ -5,8 +5,9 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_canonical::{canonical_bytes, parse_strict};
 use synapse_creator::{
-    CreatorBeginOptions, CreatorDecisionOptions, CreatorDisposition, CreatorGenerationNote,
-    begin_creator_session, begin_creator_session_with_note, decide_creator_session,
+    ANNOTATIONS_FORMAT, CreatorAnnotations, CreatorBeginOptions, CreatorDecisionOptions,
+    CreatorDisposition, CreatorGenerationNote, CreatorImageRole, CreatorPin, begin_creator_session,
+    begin_creator_session_with_note, decide_creator_session_with_annotations,
 };
 use synapse_publication::{
     BundleManifest, ChecksumsDocument, DEFAULT_MAX_SESSIONS, ExportOptions, OutputTarget,
@@ -76,7 +77,17 @@ fn create_three_decision_fixture(root: &Path) {
             }),
         )
         .unwrap();
-        decide_creator_session(
+        let annotations = CreatorAnnotations {
+            format: ANNOTATIONS_FORMAT.into(),
+            pins: vec![CreatorPin {
+                role: CreatorImageRole::AiOutput,
+                blob_oid: pending.receipt().ai_output_blob_oid.clone(),
+                x: 100000,
+                y: 800000,
+                note: "PRIVATE_PIN_CANARY 日本語".into(),
+            }],
+        };
+        decide_creator_session_with_annotations(
             &mut pending,
             &CreatorDecisionOptions {
                 disposition,
@@ -84,6 +95,7 @@ fn create_three_decision_fixture(root: &Path) {
                     "PRIVATE_RATIONALE_{session}_TOKEN_5c14 GH_TOKEN=secret"
                 )),
             },
+            Some(&annotations),
         )
         .unwrap();
     }
@@ -179,6 +191,7 @@ fn exports_adopt_reject_and_defer_without_private_or_raw_source_material() {
     for secret in [
         "PRIVATE_RATIONALE_",
         "PRIVATE_GENERATION_CANARY",
+        "PRIVATE_PIN_CANARY",
         "GH_TOKEN=secret",
         "private.person+projection@example.invalid",
         "RAW_ORIGINAL_SECRET_91d6",

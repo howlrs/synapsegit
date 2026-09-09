@@ -207,6 +207,8 @@ pub struct CreatorTimelineEntry {
 /// disposable and is never an authorization or recovery source.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CreatorReport {
+    pub annotations: Option<crate::CreatorAnnotations>,
+    pub annotations_unavailable: bool,
     pub generation_note: Option<crate::CreatorGenerationNote>,
     pub session: String,
     pub project_id: String,

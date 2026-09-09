@@ -349,3 +349,5 @@ Rust依存componentには[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)に�
 各third-party licenseが適用されます。
 
 Current mainではlocalhost取り込みフォームで任意のprivateな生成メモ（使用ツール・モデル・プロンプト・制作意図）を記録できます。exactなProposal画像との対応をarchive／restore後も保ち、pending／complete画面と`creator-report`で参照できます。利用者申告であり実行証明ではなく、public bundleへ自動転記しません。[保存契約](spec/application/creator-generation-note/v1/README.md)を参照してください。
+
+Current mainでは画像上のprivateな判断ピンをHuman Decisionと一緒に記録できます。マウス／タッチ・キーボード・整数座標で編集でき、倍率変更やarchive／restore後も位置を保持します。部分採用・画像分析は表さず、public bundleへ自動転記しません。[判断ピンの保存契約](spec/application/creator-decision-pins/v1/README.md)を参照してください。

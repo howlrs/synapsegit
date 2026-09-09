@@ -94,7 +94,7 @@
   <div class="media-grid">
     {% for image in images %}
     <figure class="media-card">
-      <div class="media-card__preview"><img data-synapse-image data-label="{{ image.label }}" data-url="{{ image.url }}" alt="{{ image.alt }}"></div>
+      <div class="media-card__preview"><img data-synapse-image data-oid="{{ image.oid }}" data-label="{{ image.label }}" data-url="{{ image.url }}" alt="{{ image.alt }}"></div>
       <figcaption>
         <strong>{{ image.label }}</strong>
         <p data-synapse-image-status class="muted">読み込み待ち</p>
@@ -104,6 +104,25 @@
     </figure>
     {% endfor %}
   </div>
+</section>
+
+<section class="card" aria-labelledby="pins-heading" data-creator-pins data-editable="{{ pending }}" data-annotations="{{ annotations_json }}" data-unavailable="{{ annotations_unavailable }}">
+  <h2 id="pins-heading">画像上の判断メモ</h2>
+  <p>Humanが記すprivateなピンです。Adopt／Reject／DeferはProposal全体への判断です。ピンごとの部分採用や画像分析を表しません。通常のCore archiveには含まれます。</p>
+  {% if annotations_unavailable %}<p class="notice" data-tone="warning">注釈は未知の形式または不正な画像対応のため利用できません。判断来歴本体の検証とは別の表示結果です。</p>{% endif %}
+  <div data-pin-controls hidden>
+    <div class="form-grid">
+      <div class="field"><label for="pin-image-role">ピンの対象画像</label><select id="pin-image-role" data-pin-image-role><option value="original">Original</option><option value="current">Current</option><option value="ai_output">AI output</option></select></div>
+      <div class="field"><label for="pin-image-zoom">ピン画像の表示倍率</label><select id="pin-image-zoom" data-pin-zoom><option value="fit">全体を表示</option><option value="1">100%</option><option value="2">200%</option></select></div>
+    </div>
+    <p data-pin-status class="field__hint" role="status"></p>
+    <div class="pin-viewport" tabindex="0" role="region" aria-label="ピン画像の表示領域"><div class="pin-canvas" data-pin-canvas><img data-pin-preview alt="判断メモの対象画像" hidden><div data-pin-markers></div></div></div>
+    {% if pending %}<button type="button" data-pin-add>中央にピンを追加</button><p class="field__hint">画像をクリック／タップして追加できます。ピンはドラッグまたは矢印キーで移動（Shiftで細かく移動）、Deleteで削除できます。一覧の座標でも移動できます。左上が(0, 0)、右下が(1000000, 1000000)です。最大10件、各メモ200 UTF-8 bytes以内。</p>{% endif %}
+  </div>
+  <ol data-pin-list class="pin-list">
+    {% for pin in annotations %}<li>{{ pin.role.as_str() }} · ({{ pin.x }}, {{ pin.y }}) <p class="decision-rationale">{{ pin.note }}</p></li>{% endfor %}
+  </ol>
+  {% if complete && annotations.is_empty() && !annotations_unavailable %}<p>記録されたピンなし</p>{% endif %}
 </section>
 
 <section aria-labelledby="evidence-heading">
@@ -164,6 +183,7 @@
       <span id="rationale-help" class="field__hint">UTF-8で5000 bytes以内。記録後、このセッションで読み返せます。</span>
       <span id="rationale-count" class="field__hint" data-decision-text-count hidden></span>
     </div>
+    <p data-decision-json-count class="field__hint" aria-live="polite"></p>
     <p id="decision-finality" class="field__hint">Deferも含め、記録後にこのセッションの判断を変更・再開する機能はありません。</p>
     <div class="decision-choices" role="group" aria-label="Disposition" aria-describedby="decision-finality">
       <div class="decision-choice">

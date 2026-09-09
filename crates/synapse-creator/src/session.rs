@@ -723,6 +723,35 @@ pub(crate) fn decide_creator_session_with_limits(
     decision: &CreatorDecisionOptions,
     fsck_limits: FsckLimits,
 ) -> Result<CreatorRunReceipt> {
+    decide_creator_session_with_annotations_and_limits(pending, decision, None, fsck_limits)
+}
+
+pub fn decide_creator_session_with_annotations(
+    pending: &mut PendingCreatorSession,
+    decision: &CreatorDecisionOptions,
+    annotations: Option<&crate::CreatorAnnotations>,
+) -> Result<CreatorRunReceipt> {
+    decide_creator_session_with_annotations_and_limits(
+        pending,
+        decision,
+        annotations,
+        CREATOR_FSCK_LIMITS,
+    )
+}
+
+fn decide_creator_session_with_annotations_and_limits(
+    pending: &mut PendingCreatorSession,
+    decision: &CreatorDecisionOptions,
+    annotations: Option<&crate::CreatorAnnotations>,
+    fsck_limits: FsckLimits,
+) -> Result<CreatorRunReceipt> {
+    if let Some(annotations) = annotations {
+        annotations.validate(
+            &pending.receipt.original_blob_oid,
+            &pending.receipt.current_blob_oid,
+            &pending.receipt.ai_output_blob_oid,
+        )?;
+    }
     validate_decision_metadata(decision)?;
     let decision_admission_limits =
         reserve_fsck_capacity(fsck_limits, CREATOR_DECISION_RESERVE, "decision admission")?;
@@ -760,18 +789,19 @@ pub(crate) fn decide_creator_session_with_limits(
             preflight.issues.len()
         )));
     }
-    let decision_feedback_oid = put_json(
-        &repository,
-        feedback_record(
-            &pending.ids.feedback,
-            &pending.ids.creator,
-            &pending.ids.subject,
-            &pending.receipt.proposal_head,
-            decision.disposition,
-            rationale,
-            &decision_recorded_at.timestamp,
-        ),
-    )?;
+    let mut feedback = feedback_record(
+        &pending.ids.feedback,
+        &pending.ids.creator,
+        &pending.ids.subject,
+        &pending.receipt.proposal_head,
+        decision.disposition,
+        rationale,
+        &decision_recorded_at.timestamp,
+    );
+    if let Some(annotations) = annotations {
+        crate::annotations::attach_annotations(&mut feedback, annotations)?;
+    }
+    let decision_feedback_oid = put_json(&repository, feedback)?;
     let selected_tree = if decision.disposition == CreatorDisposition::Adopt {
         &pending.proposal_tree_oid
     } else {

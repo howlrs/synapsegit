@@ -21,7 +21,7 @@ use synapse_creator::{
     CreatorSnapshotReport, CreatorTimelineEntry as CoreTimelineEntry,
     PendingCreatorSession as CorePendingCreatorSession,
     begin_creator_session_with_note as core_begin, creator_report_from_snapshot,
-    decide_creator_session as core_decide, discover_creator_sessions,
+    decide_creator_session_with_annotations as core_decide, discover_creator_sessions,
 };
 use synapse_sqlite::{
     MAX_REF_SNAPSHOT_ENTRIES, MAX_REFLOG_PAGE_ENTRIES, RefArchiveExportLimits, RefSnapshot,
@@ -941,6 +941,19 @@ impl LocalService {
         server_instance: &str,
         request: CreatorDecisionRequest,
     ) -> Result<CreatorDecisionResponse, ServiceError> {
+        if serde_json::to_vec(&request)
+            .map_err(|_| {
+                ServiceError::new("local_request_denied", "Invalid decision JSON.", false)
+            })?
+            .len()
+            > 8192
+        {
+            return Err(ServiceError::new(
+                "usage_error",
+                "The decision JSON exceeds 8 KiB including rationale and pins.",
+                false,
+            ));
+        }
         validate_decision_request(session, &request)?;
         self.entry(project_key)?;
         let _writer = self.acquire_project_writer(project_key)?;
@@ -957,7 +970,9 @@ impl LocalService {
             disposition: core_disposition(request.disposition),
             rationale: request.rationale,
         };
-        let outcome = catch_unwind(AssertUnwindSafe(|| core_decide(&mut pending, &decision)));
+        let outcome = catch_unwind(AssertUnwindSafe(|| {
+            core_decide(&mut pending, &decision, request.annotations.as_ref())
+        }));
         let run_receipt = match outcome {
             Ok(Ok(receipt)) => receipt,
             Ok(Err(error)) => match pending.decision_state() {
@@ -2181,6 +2196,8 @@ fn creator_report(snapshot: SnapshotContext, report: CoreCreatorReport) -> Creat
         ai_output_source: "caller_supplied".into(),
         reviewed_by_human,
         rationale: report.rationale,
+        annotations: report.annotations,
+        annotations_unavailable: report.annotations_unavailable,
         generation_note: report.generation_note,
         original_blob_oid: report.original_blob_oid,
         current_blob_oid: report.current_blob_oid,

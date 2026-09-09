@@ -221,6 +221,8 @@ fn sample_creator_report() -> CreatorReport {
     let commit_oid = |seed: &str| format!("commit:sg-oid-v1:sha256:{}", seed.repeat(64));
     let blob_oid = |seed: &str| format!("blob:sg-oid-v1:sha256:{}", seed.repeat(64));
     CreatorReport {
+        annotations: None,
+        annotations_unavailable: false,
         generation_note: None,
         snapshot: sample_snapshot(),
         session: "render-session".into(),
@@ -302,6 +304,7 @@ fn sample_problem() -> Problem {
 fn creator_decision_request_matches_the_openapi_schema() {
     let document = openapi_document();
     let value = CreatorDecisionRequest {
+        annotations: None,
         review_id: "a".repeat(22),
         disposition: CreatorDecision::Adopt,
         rationale: Some("Reviewed through the openapi shape fixture.".into()),

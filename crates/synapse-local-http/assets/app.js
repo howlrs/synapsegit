@@ -276,6 +276,7 @@ function resetImageDownload(image) {
 
 function revokeImageUrl(image) {
   INLINE_IMAGES.delete(image);
+  refreshPinEditors();
   const objectUrl = IMAGE_URLS.get(image);
   if (objectUrl) {
     URL.revokeObjectURL(objectUrl);
@@ -303,6 +304,7 @@ async function installInlineRaster(image, objectUrl) {
   }
   if (IMAGE_URLS.get(image) !== objectUrl) return;
   INLINE_IMAGES.add(image);
+  refreshPinEditors();
   setImageStatus(image, `${image.naturalWidth} × ${image.naturalHeight} px`, null);
 }
 
@@ -689,6 +691,14 @@ function formJson(form, submitter) {
     payload[name] = value;
   }
 
+  if (form.dataset.synapseDecision === "true") {
+    const editor = PIN_EDITORS.get(form);
+    if (editor) {
+      const annotations = editor.payload();
+      if (annotations) payload.annotations = annotations;
+    }
+    if (UTF8_ENCODER.encode(JSON.stringify(payload)).byteLength > 8192) throw new TypeError("The decision JSON exceeds 8 KiB including rationale and pins.");
+  }
   return payload;
 }
 
@@ -886,6 +896,7 @@ function setBusy(form, busy) {
       }
     }
   }
+  if (form.dataset.synapseDecision === "true") PIN_EDITORS.get(form)?.setBusy(busy);
 }
 
 function restoreSuccessLink(form) {
@@ -1123,8 +1134,215 @@ export function enhanceApiForms(root = document) {
   }
 }
 
+const PIN_EDITORS = new Map();
+const PIN_VIEWERS = new Set();
+const PIN_FORMAT = "synapsegit-creator-decision-pins-v1";
+const PIN_MAX = 1_000_000;
+
+function refreshPinEditors() {
+  for (const editor of PIN_VIEWERS) editor.refresh();
+}
+
+function enhanceCreatorPins(root = document) {
+  for (const panel of root.querySelectorAll("[data-creator-pins]")) {
+    if (panel.dataset.unavailable === "true") continue;
+    const editable = panel.dataset.editable === "true";
+    const form = editable ? root.querySelector('form[data-synapse-decision="true"]') : null;
+    const sources = [...root.querySelectorAll("img[data-synapse-image]")];
+    const roles = ["original", "current", "ai_output"];
+    const sourceByRole = new Map(roles.map((role, index) => [role, sources[index]]));
+    const selector = panel.querySelector("[data-pin-image-role]");
+    const zoom = panel.querySelector("[data-pin-zoom]");
+    const canvas = panel.querySelector("[data-pin-canvas]");
+    const preview = panel.querySelector("[data-pin-preview]");
+    const markers = panel.querySelector("[data-pin-markers]");
+    const list = panel.querySelector("[data-pin-list]");
+    const addButton = panel.querySelector("[data-pin-add]");
+    const status = panel.querySelector("[data-pin-status]");
+    let busy = false;
+    let pins = [];
+    try {
+      const stored = JSON.parse(panel.dataset.annotations);
+      if (stored !== null) {
+        if (stored.format !== PIN_FORMAT || !Array.isArray(stored.pins) || stored.pins.length > 10) throw new Error();
+        pins = stored.pins;
+      }
+      if (pins.some(pin => !validBinding(pin) || typeof pin.note !== "string" || !pin.note || UTF8_ENCODER.encode(pin.note).byteLength > 200)) throw new Error();
+    } catch {
+      list.replaceChildren();
+      status.textContent = "注釈を表示できません。未知の形式または不正な画像対応です。";
+      panel.querySelector("[data-pin-controls]").hidden = false;
+      return;
+    }
+    function validBinding(pin) {
+      return roles.includes(pin.role) && pin.blob_oid === sourceByRole.get(pin.role)?.dataset.oid &&
+        [pin.x, pin.y].every(value => Number.isSafeInteger(value) && value >= 0 && value <= PIN_MAX);
+    }
+    function ready() {
+      const source = sourceByRole.get(selector.value);
+      return source && INLINE_IMAGES.has(source) && IMAGE_URLS.has(source);
+    }
+    function annotationPayload(validate = true) {
+      if (pins.length === 0) return null;
+      if (validate && (pins.length > 10 || pins.some(pin => !validBinding(pin) || !pin.note || UTF8_ENCODER.encode(pin.note).byteLength > 200))) {
+        throw new TypeError("ピンの画像・座標と、各メモが1〜200 UTF-8 bytesであることを確認してください。");
+      }
+      return { format: PIN_FORMAT, pins: pins.map(({ role, blob_oid, x, y, note }) => ({ role, blob_oid, x, y, note })) };
+    }
+    function updateJsonCount() {
+      if (!form) return;
+      const counter = form.querySelector("[data-decision-json-count]");
+      const base = { review_id: form.elements.namedItem("review_id").value, rationale: form.elements.namedItem("rationale").value };
+      const annotations = annotationPayload(false);
+      if (annotations) base.annotations = annotations;
+      const invalidPins = pins.some(pin => !validBinding(pin) || !pin.note || UTF8_ENCODER.encode(pin.note).byteLength > 200);
+      const remaining = [];
+      for (const button of form.querySelectorAll('button[name="disposition"]')) {
+        const bytes = UTF8_ENCODER.encode(JSON.stringify({ ...base, disposition: button.value })).byteLength;
+        remaining.push(`${button.textContent}: 残り ${8192 - bytes} bytes`);
+        button.disabled = busy || invalidPins || bytes > 8192;
+      }
+      counter.textContent = `送信JSON全体（上限8192 bytes、理由とピンを含む） · ${remaining.join(" / ")}${invalidPins ? " · ピンのメモ・座標を修正してください。" : ""}`;
+    }
+    function positionMarkers() {
+      for (const marker of markers.children) {
+        const pin = pins[Number(marker.dataset.pinIndex)];
+        marker.style.left = `${pin.x / PIN_MAX * 100}%`;
+        marker.style.top = `${pin.y / PIN_MAX * 100}%`;
+        marker.setAttribute("aria-label", `ピン ${Number(marker.dataset.pinIndex) + 1}: ${pin.note || "メモ未入力"}`);
+      }
+      for (const input of list.querySelectorAll("[data-pin-axis]")) input.value = pins[Number(input.dataset.pinIndex)][input.dataset.pinAxis];
+    }
+    function move(index, x, y) {
+      if (busy || !editable) return;
+      pins[index].x = Math.max(0, Math.min(PIN_MAX, Math.round(x)));
+      pins[index].y = Math.max(0, Math.min(PIN_MAX, Math.round(y)));
+      positionMarkers();
+      updateJsonCount();
+    }
+    function fromPointer(event) {
+      const rect = preview.getBoundingClientRect();
+      return [Math.round((event.clientX - rect.left) / rect.width * PIN_MAX), Math.round((event.clientY - rect.top) / rect.height * PIN_MAX)];
+    }
+    function remove(index) {
+      if (busy) return;
+      pins.splice(index, 1);
+      renderList();
+      refresh();
+      addButton?.focus();
+    }
+    function renderMarkers() {
+      markers.replaceChildren();
+      if (!ready()) return;
+      pins.forEach((pin, index) => {
+        if (pin.role !== selector.value) return;
+        const marker = document.createElement("button");
+        marker.type = "button";
+        marker.className = "image-pin";
+        marker.dataset.pinIndex = String(index);
+        marker.textContent = String(index + 1);
+        marker.disabled = busy;
+        if (editable) {
+          marker.addEventListener("keydown", event => {
+            const delta = event.shiftKey ? 1000 : 10000;
+            const directions = { ArrowLeft: [-delta, 0], ArrowRight: [delta, 0], ArrowUp: [0, -delta], ArrowDown: [0, delta] };
+            if (directions[event.key]) { event.preventDefault(); const [dx, dy] = directions[event.key]; move(index, pin.x + dx, pin.y + dy); }
+            if (event.key === "Delete" || event.key === "Backspace") { event.preventDefault(); remove(index); }
+          });
+          marker.addEventListener("pointerdown", event => {
+            if (busy || event.button !== 0) return;
+            event.preventDefault(); marker.focus(); marker.setPointerCapture(event.pointerId);
+          });
+          marker.addEventListener("pointermove", event => { if (marker.hasPointerCapture(event.pointerId)) move(index, ...fromPointer(event)); });
+          marker.addEventListener("pointerup", event => { if (marker.hasPointerCapture(event.pointerId)) marker.releasePointerCapture(event.pointerId); });
+        }
+        markers.append(marker);
+      });
+      positionMarkers();
+    }
+    function renderList() {
+      markers.replaceChildren();
+      list.replaceChildren();
+      pins.forEach((pin, index) => {
+        const item = document.createElement("li");
+        const show = document.createElement("button");
+        show.type = "button"; show.dataset.variant = "secondary";
+        show.textContent = `ピン ${index + 1} · ${pin.role}`;
+        show.addEventListener("click", () => { selector.value = pin.role; refresh(); markers.querySelector(`[data-pin-index="${index}"]`)?.focus(); });
+        item.append(show);
+        if (editable) {
+          const label = document.createElement("label"); label.textContent = `ピン ${index + 1} のメモ`;
+          const text = document.createElement("textarea"); text.id = `pin-note-${index}`; text.rows = 2; text.value = pin.note; label.htmlFor = text.id;
+          const count = document.createElement("span"); count.className = "field__hint";
+          const updateNote = () => { pin.note = text.value; const bytes = UTF8_ENCODER.encode(pin.note).byteLength; count.textContent = `${bytes} / 200 bytes`; text.setAttribute("aria-invalid", String(bytes === 0 || bytes > 200)); positionMarkers(); updateJsonCount(); };
+          text.addEventListener("input", updateNote);
+          item.append(label, text, count);
+          for (const axis of ["x", "y"]) {
+            const axisLabel = document.createElement("label"); axisLabel.textContent = `ピン ${index + 1} ${axis.toUpperCase()}座標`;
+            const input = document.createElement("input"); input.type = "number"; input.min = "0"; input.max = String(PIN_MAX); input.step = "1"; input.value = pin[axis]; input.id = `pin-${axis}-${index}`; axisLabel.htmlFor = input.id;
+            input.dataset.pinAxis = axis; input.dataset.pinIndex = String(index);
+            input.addEventListener("input", () => {
+              pin[axis] = input.value === "" ? NaN : Number(input.value);
+              input.setAttribute("aria-invalid", String(!validBinding(pin)));
+              const marker = markers.querySelector(`[data-pin-index="${index}"]`);
+              if (marker) marker.style[axis === "x" ? "left" : "top"] = `${pin[axis] / PIN_MAX * 100}%`;
+              updateJsonCount();
+            });
+            item.append(axisLabel, input);
+          }
+          const deletion = document.createElement("button"); deletion.type = "button"; deletion.textContent = `ピン ${index + 1} を削除`; deletion.dataset.variant = "secondary";
+          deletion.addEventListener("click", () => remove(index)); item.append(deletion);
+          updateNote();
+        } else {
+          const text = document.createElement("p"); text.className = "decision-rationale"; text.textContent = `(${pin.x}, ${pin.y}) ${pin.note}`; item.append(text);
+        }
+        list.append(item);
+      });
+      updateJsonCount();
+    }
+    function refresh() {
+      const source = sourceByRole.get(selector.value);
+      const available = ready();
+      preview.hidden = !available;
+      if (available) {
+        const url = IMAGE_URLS.get(source);
+        if (preview.getAttribute("src") !== url) preview.src = url;
+        canvas.style.width = zoom.value === "fit" ? `${source.naturalWidth}px` : `${source.naturalWidth * Number(zoom.value)}px`;
+        canvas.style.maxWidth = zoom.value === "fit" ? "100%" : "none";
+        status.textContent = `${source.dataset.label} · ${source.naturalWidth} × ${source.naturalHeight} px · 画像の向きを反映した表示`;
+      } else {
+        preview.removeAttribute("src");
+        status.textContent = "この画像にはピンを作成・表示できません。読み込み中、attachment扱い、または画像のdecode失敗です。元画像の状態を確認してください。";
+      }
+      if (addButton) addButton.disabled = busy || !available || pins.length >= 10;
+      renderMarkers();
+      updateJsonCount();
+    }
+    function add(x, y) {
+      if (!editable || busy || !ready() || pins.length >= 10) return;
+      pins.push({ role: selector.value, blob_oid: sourceByRole.get(selector.value).dataset.oid, x: Math.max(0, Math.min(PIN_MAX, x)), y: Math.max(0, Math.min(PIN_MAX, y)), note: "" });
+      renderList(); refresh(); list.querySelector(`#pin-note-${pins.length - 1}`)?.focus();
+    }
+    addButton?.addEventListener("click", () => add(PIN_MAX / 2, PIN_MAX / 2));
+    preview.addEventListener("click", event => add(...fromPointer(event)));
+    selector.addEventListener("change", refresh);
+    zoom.addEventListener("change", refresh);
+    form?.addEventListener("input", updateJsonCount);
+    const editor = { refresh, payload: annotationPayload, setBusy(value) {
+      busy = value;
+      for (const control of panel.querySelectorAll("button, input, select, textarea")) control.disabled = busy;
+      refresh();
+    } };
+    PIN_VIEWERS.add(editor);
+    if (form) PIN_EDITORS.set(form, editor);
+    panel.querySelector("[data-pin-controls]").hidden = false;
+    renderList(); refresh();
+  }
+}
+
 function start() {
   document.documentElement.classList.add("has-js");
+  enhanceCreatorPins();
   enhanceApiForms();
   enhanceCreatorUploads();
   enhanceImageComparison();

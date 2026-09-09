@@ -174,6 +174,9 @@ pub(crate) struct SessionPageView {
     pub(crate) decision_outcome: String,
     pub(crate) rationale: String,
     pub(crate) generation_note: String,
+    pub(crate) annotations: Vec<synapse_local_service::CreatorPin>,
+    pub(crate) annotations_json: String,
+    pub(crate) annotations_unavailable: bool,
     pub(crate) selected: String,
     pub(crate) fsck_objects: usize,
     pub(crate) images: Vec<ImageView>,
@@ -229,6 +232,9 @@ impl SessionPageView {
                     disposition: "—".into(),
                     decision_outcome: String::new(),
                     rationale: String::new(),
+                    annotations: Vec::new(),
+                    annotations_json: String::from("null"),
+                    annotations_unavailable: false,
                     generation_note: format_generation_note(detail.generation_note.as_ref()),
                     selected: "—".into(),
                     fsck_objects: 0,
@@ -297,6 +303,9 @@ impl SessionPageView {
                     disposition: "—".into(),
                     decision_outcome: String::new(),
                     rationale: String::new(),
+                    annotations: Vec::new(),
+                    annotations_json: String::from("null"),
+                    annotations_unavailable: false,
                     generation_note: String::new(),
                     selected: "—".into(),
                     fsck_objects: 0,
@@ -320,6 +329,8 @@ impl SessionPageView {
     }
 
     fn complete(project_key: &str, session: &str, report: CreatorReport) -> Self {
+        let annotations_json =
+            serde_json::to_string(&report.annotations).expect("serializable pins");
         let images = Self::images(
             project_key,
             session,
@@ -391,6 +402,9 @@ impl SessionPageView {
             .into(),
             rationale: report.rationale.unwrap_or_default(),
             generation_note: format_generation_note(report.generation_note.as_ref()),
+            annotations: report.annotations.map(|a| a.pins).unwrap_or_default(),
+            annotations_json,
+            annotations_unavailable: report.annotations_unavailable,
             disposition: report.disposition,
             selected: if report.selected_ai_output {
                 "はい".into()

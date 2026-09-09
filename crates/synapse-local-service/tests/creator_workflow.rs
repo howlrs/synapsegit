@@ -71,6 +71,7 @@ fn begin_request(temporary: &TempDirectory, session: &str) -> BeginCreatorSessio
 
 fn decision(review_id: impl Into<String>, disposition: CreatorDecision) -> CreatorDecisionRequest {
     CreatorDecisionRequest {
+        annotations: None,
         review_id: review_id.into(),
         disposition,
         rationale: Some("Reviewed in the local application.".into()),
@@ -257,6 +258,7 @@ fn rejected_inputs_and_wrong_bindings_leave_the_ready_review_available() {
             "bound-session",
             "server-instance-a",
             CreatorDecisionRequest {
+                annotations: None,
                 review_id: pending.review_id.clone(),
                 disposition: CreatorDecision::Defer,
                 rationale: Some("x".repeat(5_001)),
@@ -546,4 +548,75 @@ fn concurrent_decisions_publish_at_most_once() {
         losing_code,
         "creator_review_busy" | "creator_review_state_lost"
     ));
+}
+
+#[test]
+fn decision_pin_requests_validate_json_budget_and_restore_pending_after_rejection() {
+    use synapse_local_service::{CreatorAnnotations, CreatorImageRole, CreatorPin};
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let service = service(&repository);
+    let pending = service
+        .begin_creator_session(
+            "project",
+            "server-instance-a",
+            begin_request(&temporary, "pin-review"),
+        )
+        .unwrap();
+    let annotations = CreatorAnnotations {
+        format: "synapsegit-creator-decision-pins-v1".into(),
+        pins: vec![CreatorPin {
+            role: CreatorImageRole::AiOutput,
+            blob_oid: pending.ai_output_blob_oid.clone(),
+            x: 123456,
+            y: 654321,
+            note: "位置を確認".into(),
+        }],
+    };
+    let mut request = decision(&pending.review_id, CreatorDecision::Defer);
+    request.annotations = Some(annotations.clone());
+    request.rationale = Some("\"".repeat(4100));
+    assert_eq!(
+        service
+            .decide_creator_session(
+                "project",
+                "pin-review",
+                "server-instance-a",
+                request.clone()
+            )
+            .unwrap_err()
+            .code(),
+        "usage_error"
+    );
+    request.rationale = Some("別の理由".into());
+    request.annotations.as_mut().unwrap().pins[0].blob_oid = pending.original_blob_oid.clone();
+    assert!(
+        service
+            .decide_creator_session(
+                "project",
+                "pin-review",
+                "server-instance-a",
+                request.clone()
+            )
+            .is_err()
+    );
+    let CreatorSessionDetail::PendingReview(still_pending) = service
+        .get_creator_session("project", "pin-review")
+        .unwrap()
+    else {
+        panic!("validation consumed review");
+    };
+    assert_eq!(still_pending.review_id, pending.review_id);
+    request.annotations = Some(annotations.clone());
+    service
+        .decide_creator_session("project", "pin-review", "server-instance-a", request)
+        .unwrap();
+    let CreatorSessionDetail::Complete(complete) = service
+        .get_creator_session("project", "pin-review")
+        .unwrap()
+    else {
+        panic!("not complete");
+    };
+    assert_eq!(complete.report.annotations, Some(annotations));
+    assert_eq!(complete.report.rationale.as_deref(), Some("別の理由"));
 }

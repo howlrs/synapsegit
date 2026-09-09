@@ -334,7 +334,7 @@ const expectedWrites = new Map([
     "decideCreatorSession",
     {
       mediaType: "application/json",
-      properties: ["disposition", "rationale", "review_id"],
+      properties: ["annotations", "disposition", "rationale", "review_id"],
       required: ["disposition", "review_id"],
     },
   ],
@@ -399,6 +399,9 @@ for (const { route, method, operation } of operations.filter(({ method }) => met
       .replaceAll("-", "_")
       .toLowerCase();
     const controlTokens = new Set(normalized.split("_"));
+    // Only the versioned pin contract accepts a Blob OID as an equality check against
+    // the server-owned role. It never selects storage or grants decision authority.
+    if (operation.operationId === "decideCreatorSession" && normalized === "blob_oid") continue;
     if (
       forbiddenWriteFields.has(normalized) ||
       ["authority", "capability", "capabilities", "clock", "credential", "head", "oid", "path", "permit"].some(
@@ -526,6 +529,12 @@ for (const capability of contract["x-synapse-forbidden-route-capabilities"] ?? [
 }
 for (const capability of requiredForbiddenCapabilities) {
   fail("missing forbidden-route declaration: " + capability);
+}
+
+const pinSchema = contract.components.schemas.CreatorPin;
+const annotationSchema = contract.components.schemas.CreatorAnnotations;
+if (JSON.stringify(Object.keys(pinSchema?.properties ?? {}).sort()) !== JSON.stringify(["blob_oid", "note", "role", "x", "y"]) || pinSchema.additionalProperties !== false || pinSchema.properties.note["x-synapse-max-utf8-bytes"] !== 200 || annotationSchema.properties.pins.maxItems !== 10 || annotationSchema.properties.format.const !== "synapsegit-creator-decision-pins-v1") {
+  fail("decision pin binding and version must match the bounded Creator contract");
 }
 
 if (failures.length > 0) {
