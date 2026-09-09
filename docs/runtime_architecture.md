@@ -459,6 +459,11 @@ escapeしたJavaScriptなし`index.html`、manifest、checksum、target固有cop
 `github` targetは同じroot projection／story／HTMLを共有し、target directoryはdelivery layoutだけを持つ。
 GitHub targetもuploadやnetwork accessを行わない。
 
+現在のmainのCreator派生sessionはOriginal／Currentを参照として再利用するが、凍結済み公開v1は
+その意味を表現できない。選択したcomplete reportに派生元がある場合はprojection生成時に拒否し、
+bundle出力先を作成しない。completeな派生を含む全件exportも拒否する。通常sessionの明示選択と
+既存v1 bundleの検証は維持する。[Creator操作ガイド](creator_workflow.md)に利用上の区別を示す。
+
 publication policyはdefault-denyで、source-private rationale、internal Actor ID、repository path、raw assetを
 除外する。`presentation.toml`のtitle、summary、caption、display name、public decision noteだけを
 `author_supplied`として加え、verified sourceとのoriginを混同しない。machine readabilityはtraining permissionを

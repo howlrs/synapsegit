@@ -54,6 +54,10 @@ localhost security boundary、GCP CLI smokeとの違いは[native localhost runb
 
 *Session detail — Human Decision、AI outputの選択状態、original／current／AI output、byte-identity evidenceを同じsession内で確認する画面です。*
 
+現在のmainでは、privateな生成メモ・判断ピンを記録し、完了記録のOriginal／Currentを再利用して
+別の候補を試せます。[Creator操作ガイド](creator_workflow.md)に手順をまとめています。
+通常取り込みの完了セッションには公開用文章フォームもありますが、派生セッションの公開v1出力は未対応です。
+
 ## 将来の想定利用者とv0.1で返せる価値
 
 次の「将来価値」は導入構想であり、v0.1の実装状態を表さない。現在のpreviewを直接扱えるのは、

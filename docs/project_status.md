@@ -3,7 +3,7 @@
 Audience: preview evaluators、contributors、maintainers
 Status: public project snapshot
 Applies to: current main after tagged v0.7.0
-Last verified: 2026-09-08
+Last verified: 2026-09-09
 
 SynapseGit Coreは**Stage 0 draft**である。v0.7.0は、v0.3.0で配布したlocal repository、bounded
 creator Pilot、localhost import／review／diagnostics／`fsck`、read-only publication bundleの三binary
@@ -68,6 +68,24 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 - Linux x86_64 GNU向けv0.7.0 prerelease archive、checksum、build attestation
 
 実装範囲の詳細と根拠は[documentation index](./README.md#現在地)を参照する。
+
+## Creatorの記録と試作（現在のmain）
+
+Issue [#79](https://github.com/howlrs/synapsegit/issues/79)〜[#82](https://github.com/howlrs/synapsegit/issues/82)の
+生成メモ、判断ピン、派生セッション、公開用文章フォームは[PR #83](https://github.com/howlrs/synapsegit/pull/83)で統合済み。
+v0.7.0配布binaryへの収録を意味しない。使い方は[Creator操作ガイド](creator_workflow.md)を参照する。
+
+- 生成メモは利用者申告としてexact候補に束縛し、判断理由とは分けて表示する。
+- 画像ピンは全体のHuman Decisionと同時にprivateで保存し、部分採用を表さない。
+- 同じprojectのcompleteからOriginal／Currentを再利用して別sessionを作る。新しいidentityとreviewを持ち、元AI outputのCurrentへの昇格や新しい観測を意味しない。
+- 通常取り込みのcompleteに限り、公開用文章を空欄から入力して`presentation.toml`を出力できる。
+
+privateメモ・ピン・固定した派生元履歴は通常のarchive／restoreで保持される。
+**派生sessionの公開v1出力は未対応**で、sidecarフォームとbundle exportは拒否する。
+completeな派生を含む全件exportも拒否するが、通常sessionの明示選択と既存v1検証は維持する。
+派生公開を実装するには、private lineageを漏らさず再利用の意味を保持する新しい公開profileが必要である。
+[統合headのCI](https://github.com/howlrs/synapsegit/actions/runs/34325081274)ではRust・仕様・文書と
+Chromium 34件が成功し、独立レビューで検出した公開v1の誤表示も修正済み。
 
 ## 現在の利用対象
 
@@ -141,9 +159,10 @@ production／distribution／brand制限も変更しない。
    zero-context AI、実Human、axe／keyboard／screen reader理解・accessibility評価を実施する。
 2. 実装済みlocalhost import／review／diagnostics／bounded `fsck`／archive browser controlsの
    実利用者による一連の操作の評価と、browser end-to-end回帰coverageを拡充する。
-3. fixed-point Observation datasetとpixel-level adapterを別contractとして検証する。
-4. durable admission transactionを含むproduction control planeを実装する。
-5. 追加platformの再現可能なbuild／artifact smokeを整備する。
+3. 派生セッション公開の必要性を評価し、対応する場合は再利用意味を保持する新しい公開profileを設計する。
+4. fixed-point Observation datasetとpixel-level adapterを別contractとして検証する。
+5. durable admission transactionを含むproduction control planeを実装する。
+6. 追加platformの再現可能なbuild／artifact smokeを整備する。
 
 個別作業は公開Issueで、security-sensitiveな内容はprivate vulnerability reportingで管理する。
 local path、未commit file、temporary cloud project ID等の作業環境snapshotは公開文書へ記録しない。
@@ -162,11 +181,3 @@ release notesと[distribution guide](./distribution.md)のplatform／artifact情
 - [Security model](./security_model.md)
 - [Stage 0 execution plan](./stage0_execution_plan.md)
 - [Documentation index](./README.md)
-
-Current main supports optional private, user-declared proposal generation notes in the localhost import form. The tool/model, prompt and intent stay bound to the exact proposal bytes through archive/restore and are readable in pending/complete views and `creator-report`. They are not execution evidence and are excluded from public bundles. See the [Creator generation note contract](../spec/application/creator-generation-note/v1/README.md).
-
-Current main also supports private image pins recorded atomically with a Human Decision. Mouse/touch, keyboard and integer-coordinate controls preserve positions across zoom and archive/restore. Pins do not represent partial adoption or image analysis; they are excluded from public bundles. See the [Creator decision pin contract](../spec/application/creator-decision-pins/v1/README.md).
-
-Current main can start a new Creator candidate from any verified complete session in the same project. It reuses exact Original/Current bytes, keeps fresh identities and Human review, and records fixed source lineage across archive/restore. Adopt does not promote the old AI output to Current. See the [reused source contract](../spec/application/creator-source/v1/README.md).
-
-Current main includes a localhost form for fresh author-supplied public text for one complete session. It validates and downloads `presentation.toml`, with empty initial fields and no automatic private-note transfer, Core writes, raw images, or remote publication. Follow the [sidecar workflow](presentation_sidecar.md) for the existing stopped-writer CLI export and verification steps.

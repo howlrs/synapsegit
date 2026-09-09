@@ -115,7 +115,14 @@ printf 'caller supplied proposal bytes\n' > "$DEMO/proposal.bin"
 `byte_identity=identical`になるが、これは物理的対象が不変だったという意味ではない。異なるbytesも
 視覚・物理変化を証明しない。adapterはpixel、EXIF、media formatをdecodeせず、registrationを行わない。
 
+現在のmainのlocalhost UIでは、生成メモ、画像上の判断ピン、完了記録からの派生セッションも利用できます。
+[Creator操作ガイド](creator_workflow.md)に操作手順・保存範囲・上限をまとめています。
+
 ## 4. 作者外へ説明するlocal bundleを生成する
+
+公開形式v1は派生セッションに未対応です。completeな派生を含む全件exportは拒否されるため、
+通常の3画像取り込みで作成したセッションを`--session`で指定してください。
+公開用文章は[localhostフォーム](presentation_sidecar.md)からも準備できます。
 
 sourceのprivate rationaleを公開へ昇格させず、別途author-suppliedな公開文をsidecarへ記述する。
 
@@ -263,7 +270,3 @@ cargo run -p synapse-cli -- --help
 - Pilot で利用者へ返す価値: [使用ガイド](./usage_guide.md)
 - 書込み・保存 backend の境界: [Runtime architecture](./runtime_architecture.md)
 - CLI 開発と test: [Contributing](../CONTRIBUTING.md)
-
-The localhost three-file form optionally records private generation notes. After import and Human review, run `synapse creator-report <repo> <session>` to read `generation_note_user_declared` separately from the judgment rationale. This user-declared text does not verify the external model or its execution.
-
-In a pending localhost session, use **画像上の判断メモ** to select a decoded image, add up to ten pins, and write a short note for each. Record Adopt/Reject/Defer once for the whole Proposal. Afterward, `creator-report` shows the private pins separately from rationale; normal archive/restore retains them.

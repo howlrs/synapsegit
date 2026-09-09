@@ -96,6 +96,10 @@ complete session that must be inspected or restarted under a new session name.
 Stage 0 does not implement a cross-Ref workflow transaction, resume, or
 automatic cleanup.
 
+## Creator iteration on current main
+
+These features postdate the v0.7.0 tag. Follow the [Creator workflow guide](../../docs/creator_workflow.md) for the user flow and limits.
+
 Optional private generation notes are supported on current main; see the [versioned Creator contract](../../spec/application/creator-generation-note/v1/README.md). Normal Core archives include these user-declared notes. Public bundles do not.
 
 Private image pins use the [Creator decision pin contract](../../spec/application/creator-decision-pins/v1/README.md). Unknown annotations are shown as unavailable separately from decision verification. The localhost decision JSON remains limited to 8 KiB including rationale and pins.

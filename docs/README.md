@@ -73,6 +73,7 @@ creator PilotのidentityとAI outputはtrusted local integrationが供給し、�
 | v0.7.0の変更と配布境界を確認する | [Release notes](./releases/v0.7.0.md) | [Project status](./project_status.md) |
 | sourceからCore全体を動かす | [Quickstart](./quickstart.md) | [使用ガイド](./usage_guide.md) |
 | native localhost UIを起動する | [Localhost application runbook](../deploy/local/README.md) | [Localhost application architecture](./localhost_application_architecture.md) |
+| 制作メモを残し、同じ参照画像で次の案を試す | [Creator操作ガイド](./creator_workflow.md) | [公開用文章の手順](./presentation_sidecar.md) |
 | 3画像のcreator Pilotを動かす | [使用ガイド](./usage_guide.md#現在このリポジトリで実行できること) | [CLI reference](./cli_reference.md) |
 | generic regular-file application contractをembedする | [Generic artifact v1 contract](../spec/application/generic-artifact/v1/README.md) | [Runtime architecture](./runtime_architecture.md#generic-artifact-application-boundary) |
 | generic artifactのlocal public projectionを作る | [Generic publication profile](../spec/application/generic-artifact-publication/v1/README.md) | [Integration roadmap](./generic_artifact_publication_roadmap.md) |
@@ -157,7 +158,7 @@ flowchart LR
 | localhost import preflight | current mainでローカル画像プレビュー、サイズ・選択数表示、選択解除、UTF-8バイト数・上限feedback、送信中の入力固定を実装。選択だけでuploadせず、表示不能なファイルも既存契約で取り込める | [Localhost runbook](../deploy/local/README.md)、`scripts/browser/import-preview.spec.mjs` |
 | AI proposal admission、exact capability、snapshot/output binding、transaction-time expiry／`stale_base` | library境界を実装済み / integration partial | `synapse-core::CreativeAiRuntime`、[Stage 0 Workstream D](./stage0_execution_plan.md#workstream-d-creator--creative-ai-value-slice) |
 | Creator private notes and derived candidates | current main supports optional user-declared generation notes, image-bound Human decision pins, and new candidates that reuse a complete session’s exact Original/Current bytes with fixed private source lineage. Fresh identities and one-shot Human review remain required | [generation notes](../spec/application/creator-generation-note/v1/README.md), [decision pins](../spec/application/creator-decision-pins/v1/README.md), [source lineage](../spec/application/creator-source/v1/README.md) |
-| Creator public presentation sidecar | current main provides empty public-text fields for one selected complete session, validates the existing PresentationInput contract, and downloads presentation.toml. No private-text autofill, Core writes, bundle generation or remote publication | [Sidecar workflow](./presentation_sidecar.md) |
+| Creator public presentation sidecar | current main provides empty public-text fields for one selected complete, non-derived session, validates the existing PresentationInput contract, and downloads presentation.toml. No private-text autofill, Core writes, bundle generation or remote publication; frozen publication v1 refuses derived sessions, including all-session export containing a complete derived session | [Sidecar workflow](./presentation_sidecar.md) |
 | localhost decision review | current mainで判断ごとの結果説明・確認、理由のUTF-8バイト数feedbackと送信中の入力固定、検証済みreportの理由のescaped表示を実装。同じsessionの判断変更・再開は行わない | [Localhost runbook](../deploy/local/README.md)、`scripts/browser/decision-review.spec.mjs` |
 | authenticated one-shot AI execution、exact project map／ACL、Core preflight、post-execution reauthorization | process-local library境界を実装済み / production integration partial | `synapse-application`、[Operations §7.1](../spec/core/v0.1/operations.md#71-initial-local-authenticated-application-profile) |
 | authenticated narrow Human Decision、admitted proposal handle、server-fixed candidate、one-shot permit | process-local library境界を実装済み / production integration partial | `synapse-application`、[Operations §8.1](../spec/core/v0.1/operations.md#81-initial-process-local-authenticated-human-decision-route) |
@@ -292,11 +293,3 @@ Chrono-Engine、人物再現、自動利益分配は現行 Core の対象外で�
 - ASCII の関係図を追加する前に、GitHub で表示できる Mermaid を優先する。
 - 相対 link と Mermaid fence は `node scripts/verify_docs.mjs` で検査する。
 - localhost HTTP contract は `node scripts/verify_local_api.mjs` で検査する。
-
-Current main supports optional private, user-declared proposal generation notes in the localhost import form. The tool/model, prompt and intent stay bound to the exact proposal bytes through archive/restore and are readable in pending/complete views and `creator-report`. They are not execution evidence and are excluded from public bundles. See the [Creator generation note contract](../spec/application/creator-generation-note/v1/README.md).
-
-Current main also supports private image pins recorded atomically with a Human Decision. Mouse/touch, keyboard and integer-coordinate controls preserve positions across zoom and archive/restore. Pins do not represent partial adoption or image analysis; they are excluded from public bundles. See the [Creator decision pin contract](../spec/application/creator-decision-pins/v1/README.md).
-
-Current main can start a new Creator candidate from any verified complete session in the same project. It reuses exact Original/Current bytes, keeps fresh identities and Human review, and records fixed source lineage across archive/restore. Adopt does not promote the old AI output to Current. See the [reused source contract](../spec/application/creator-source/v1/README.md).
-
-Current main includes a localhost form for fresh author-supplied public text for one complete session. It validates and downloads `presentation.toml`, with empty initial fields and no automatic private-note transfer, Core writes, raw images, or remote publication. Follow the [sidecar workflow](presentation_sidecar.md) for the existing stopped-writer CLI export and verification steps.
