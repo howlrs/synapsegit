@@ -55,6 +55,10 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     const completed = page.waitForEvent("framenavigated", { predicate: frame => frame === page.mainFrame() });
     await page.getByRole("button", { name: disposition, exact: true }).click();
     await completed;
+    // The navigation event precedes document readiness; finish the app reload
+    // before requesting a second reload to verify persisted history.
+    await page.waitForLoadState("domcontentloaded");
+    await expect(page.getByRole("heading", { name: "記録した判断", exact: true })).toBeVisible();
     await page.reload();
     await expect(page.locator("[data-creator-source]")).toContainText(source);
   });

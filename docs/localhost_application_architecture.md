@@ -1,6 +1,6 @@
 # SynapseGit localhost application architecture
 
-Status: approved implementation design; slices 1-4/6, the fsck/job part of slice 7, and the read-only diagnostics part of slice 8 implemented in v0.3.0; read-only archive listing implemented in tagged v0.6.0; archive export and empty-target restore APIs implemented in tagged v0.7.0; archive browser controls implemented on current main
+Status: approved implementation design; slices 1-4/6, the fsck/job part of slice 7, and the read-only diagnostics part of slice 8 implemented in v0.3.0; read-only archive listing implemented in tagged v0.6.0; archive export and empty-target restore APIs implemented in tagged v0.7.0; archive browser controls included in v0.8.0
 
 Decision date: 2026-07-14
 
@@ -192,7 +192,7 @@ an implemented one.
 | 7 | `POST .../operations/fsck`; `GET .../operations/{id}` | implemented in v0.3.0: explicit, confirmed bounded fsck job and process-local polling |
 | 7 | `GET /archives` | implemented in tagged v0.6.0: bounded, read-only inspected archive summaries |
 | 7 | `POST .../archive-exports` | implemented in tagged v0.7.0: confirmed bounded no-replace export job |
-| 7 | `POST .../archive-restores` | implemented in tagged v0.7.0: confirmed bounded empty-target restore job; current main adds its fixed-target browser control |
+| 7 | `POST .../archive-restores` | implemented in tagged v0.7.0: confirmed bounded empty-target restore job; v0.8.0 adds its fixed-target browser control |
 | 8 | `GET .../creator-sessions/{session}/diagnostics` | implemented in v0.3.0: incomplete-session diagnosis without automatic mutation |
 
 There is intentionally no generic object PUT/GET, no generic Commit route, no
@@ -579,7 +579,7 @@ sequencing and does not advance the formal Core stage.
    `--archive-root` startup flag. Tagged v0.7.0 additionally implements the
    authenticated archive export API with a server-fixed profile and no-replace
    publication, and the authenticated empty-target restore API with server-fixed
-   Core limits and exact-subset retry. Current main adds project-page archive
+   Core limits and exact-subset retry. v0.8.0 adds project-page archive
    confirmation/poll UI. Restore is fixed to the empty displayed project and
    preserves its terminal report-equivalence warning until explicit reload.
 8. **Partially implemented:** tagged Linux x86_64 packaging, checksum publication, and release
@@ -638,7 +638,7 @@ never upgrades byte identity into a visual or physical claim.
 - automatic incomplete-session resume/cleanup or history rewrite;
 - SurrealDB adapter and the complete eight-query performance comparison.
 
-### Creator private notes and reused source workflow (current main)
+### Creator private notes and reused source workflow (v0.8.0)
 
 Optional generation notes bind to the immutable AI Activity and candidate Blob;
 private image pins bind to the Human DecisionFeedback and exact image role/Blob.
@@ -660,7 +660,7 @@ API query restrictions remain unchanged.
 Reused Current is the recorded source Current, including after Adopt. It is not a
 new capture or the old AI output, and names do not imply shared physical identity.
 
-### Public presentation sidecar form (current main)
+### Public presentation sidecar form (v0.8.0)
 
 The project presentation page lists complete session identifiers and starts all
 public text inputs empty. `POST /projects/{projectKey}/presentation-sidecars`

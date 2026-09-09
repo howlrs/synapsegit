@@ -115,7 +115,7 @@ printf 'caller supplied proposal bytes\n' > "$DEMO/proposal.bin"
 `byte_identity=identical`になるが、これは物理的対象が不変だったという意味ではない。異なるbytesも
 視覚・物理変化を証明しない。adapterはpixel、EXIF、media formatをdecodeせず、registrationを行わない。
 
-現在のmainのlocalhost UIでは、生成メモ、画像上の判断ピン、完了記録からの派生セッションも利用できます。
+v0.8.0のlocalhost UIでは、生成メモ、画像上の判断ピン、完了記録からの派生セッションも利用できます。
 [Creator操作ガイド](creator_workflow.md)に操作手順・保存範囲・上限をまとめています。
 
 ## 4. 作者外へ説明するlocal bundleを生成する

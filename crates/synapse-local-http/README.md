@@ -15,11 +15,11 @@ review authority, resume, clean up, or rewrite history. Confirmed maintenance
 registry, pollable states, and project-page result display; dirty is a succeeded
 result with `clean=false`. Bounded read-only archive listing (server-owned
 archive root, dashboard section, and `GET /api/v1/archives`) is included in
-the tagged v0.6.0 binary. The tagged v0.7.0 binary additionally exposes authenticated,
+the tagged v0.6.0 binary. The tagged v0.8.0 binary additionally exposes authenticated,
 confirmed `POST /api/v1/projects/{project_key}/archive-exports` as a bounded
 no-replace background job when the archive root is configured, plus confirmed
 `POST /api/v1/projects/{project_key}/archive-restores` as a bounded empty-target
-restore job. Current main adds project-page archive controls. Export requires
+restore job. v0.8.0 adds project-page archive controls. Export requires
 the logical slug and exact project-key confirmation. Restore is available only
 on a project whose displayed Refs and reflog are empty; it accepts a listed
 logical archive slug for that fixed project, an exact typed target key, an
@@ -28,8 +28,8 @@ operations use the existing queued/polled job. A restored result remains on the
 page with a source/restored `creator-report` equivalence reminder and an
 explicit project-history reload link; it never redirects away automatically.
 The diagnostics and browser `fsck`
-additions were introduced in v0.3.0 and remain unchanged in the tagged v0.7.0
-binary. The generic-artifact libraries present in the tagged v0.7.0 source do
+additions were introduced in v0.3.0 and remain unchanged in the tagged v0.8.0
+binary. The generic-artifact libraries present in the tagged v0.8.0 source do
 not add routes, DTOs, UI, or a new binary here.
 
 Write forms require the embedded JavaScript module. Native HTML form submission
@@ -48,16 +48,16 @@ cargo test -p synapse-local-http --locked
 The HTTP contract and security constraints are described by the
 [application architecture](../../docs/localhost_application_architecture.md).
 
-## Creator iteration on current main
+## Creator iteration on v0.8.0
 
-These features postdate the v0.7.0 tag. Follow the [Creator workflow guide](../../docs/creator_workflow.md) for the user flow and limits.
+These features are included in v0.8.0. Follow the [Creator workflow guide](../../docs/creator_workflow.md) for the user flow and limits.
 
-Optional private generation notes are supported on current main; see the [versioned Creator contract](../../spec/application/creator-generation-note/v1/README.md). Normal Core archives include these user-declared notes. Public bundles do not.
+Optional private generation notes are supported on v0.8.0; see the [versioned Creator contract](../../spec/application/creator-generation-note/v1/README.md). Normal Core archives include these user-declared notes. Public bundles do not.
 
 Private image pins use the [Creator decision pin contract](../../spec/application/creator-decision-pins/v1/README.md). Unknown annotations are shown as unavailable separately from decision verification. The localhost decision JSON remains limited to 8 KiB including rationale and pins.
 
-Current main can start a new Creator candidate from any verified complete session in the same project. It reuses exact Original/Current bytes, keeps fresh identities and Human review, and records fixed source lineage across archive/restore. Adopt does not promote the old AI output to Current. See the [reused source contract](../../spec/application/creator-source/v1/README.md).
+v0.8.0 can start a new Creator candidate from any verified complete session in the same project. It reuses exact Original/Current bytes, keeps fresh identities and Human review, and records fixed source lineage across archive/restore. Adopt does not promote the old AI output to Current. See the [reused source contract](../../spec/application/creator-source/v1/README.md).
 
-Current main includes a localhost form for fresh author-supplied public text for one complete, non-derived session. It validates and downloads `presentation.toml`, with empty initial fields and no automatic private-note transfer, Core writes, raw images, or remote publication. Follow the [sidecar workflow](../../docs/presentation_sidecar.md) for the existing stopped-writer CLI export and verification steps.
+v0.8.0 includes a localhost form for fresh author-supplied public text for one complete, non-derived session. It validates and downloads `presentation.toml`, with empty initial fields and no automatic private-note transfer, Core writes, raw images, or remote publication. Follow the [sidecar workflow](../../docs/presentation_sidecar.md) for the existing stopped-writer CLI export and verification steps.
 
 Frozen publication v1 cannot represent reused references. The sidecar service and bundle export refuse derived sessions; all-session export containing a complete derived session also fails. Select a non-derived session with `--session`. Existing v1 bundle verification remains supported.

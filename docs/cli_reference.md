@@ -79,7 +79,7 @@ atomic no-replaceで公開する。
 - `--presentation`はauthor-suppliedなpublic-facing textを追加する。source historyの検証済み事実へ
   昇格せず、`projection.json`では`author_supplied`として区別する。
 
-現在のmainでは[localhostフォーム](presentation_sidecar.md)から同じsidecarを作成できる。
+v0.8.0では[localhostフォーム](presentation_sidecar.md)から同じsidecarを作成できる。
 通常の3画像取り込みで作成したcomplete sessionが対象で、フォームはTOMLだけを出力する。
 凍結済み公開形式v1は参照画像を再利用した派生sessionを表現できないため、
 `export`は対象のcomplete reportに派生元があると`usage_error`で拒否し、bundle出力先を作成しない。

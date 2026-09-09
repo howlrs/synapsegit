@@ -1,6 +1,6 @@
 # Native localhost application
 
-現在のmainの生成メモ・判断ピン・派生セッション・公開用文章フォームは、[Creator操作ガイド](../../docs/creator_workflow.md)を参照してください。配布済みv0.7.0との違いと公開v1の制限も説明しています。
+v0.8.0の生成メモ・判断ピン・派生セッション・公開用文章フォームは、[Creator操作ガイド](../../docs/creator_workflow.md)を参照してください。操作手順と公開v1の制限も説明しています。
 
 `synapse-local` is the first creator-facing SynapseGit application. It runs as
 one native process on the user's machine and serves a browser UI only on IPv4
@@ -9,7 +9,7 @@ deployment, or a Docker workload.
 
 ## Current implementation boundary
 
-The tagged v0.7.0 implementation provides:
+The tagged v0.8.0 implementation provides:
 
 - a startup-owned catalog of local repositories;
 - project status, current Refs, and bounded reflog pages;
@@ -28,8 +28,8 @@ The tagged v0.7.0 implementation provides:
 
 The import, review, diagnostics, and browser `fsck` slices were introduced as
 the v0.3.0 localhost milestone and remain the same image-specific application
-surface in the tagged v0.7.0 binary. The generic-artifact workflow included in
-the v0.7.0 tagged source is not connected to this service or UI. The release archive remains
+surface in the tagged v0.8.0 binary. The generic-artifact workflow included in
+the v0.8.0 tagged source is not connected to this service or UI. The release archive remains
 `synapse`, `synapse-local`, and `synapse-present`; it adds no generic-artifact
 HTTP/CLI/UI, new binary, or remote publish path.
 
@@ -47,17 +47,15 @@ The tagged v0.6.0 UI added a bounded, read-only archive listing view
 (`GET /archives` plus a dashboard section) behind an optional
 `--archive-root PATH` startup flag; the path must already exist and be a
 directory. Without `--archive-root`, the UI behaves as before and does not
-provide archive listing. The tagged v0.7.0 binary also enables
+provide archive listing. The tagged v0.8.0 binary also enables
 authenticated `POST /api/v1/projects/{projectKey}/archive-exports` when this
 root is configured. The request accepts only an exact project confirmation and
 a logical archive slug; the server uses its fixed Core-equivalent limits and
 atomic no-replace publication. It also enables authenticated `POST
 /api/v1/projects/{projectKey}/archive-restores`, which requires the logical
 archive slug, exact target-project confirmation, and explicit empty-target
-confirmation, then runs Core's server-fixed bounded exact-subset restore. There
-are no export or restore browser controls in the tagged v0.7.0 binary; both
-operations are reachable there only through the authenticated API above or the
-CLI/library. Current main adds browser controls. Restore has no dynamic path or
+confirmation, then runs Core's server-fixed bounded exact-subset restore.
+v0.8.0 also provides browser controls for both operations. Restore has no dynamic path or
 target selector: it acts only on the open registered project, and its form is
 rendered only when that dashboard snapshot has neither Refs nor reflog entries.
 It requires a logical archive slug, exact target-project key, an explicit
@@ -65,7 +63,7 @@ empty-target checkbox serialized as `true`, and browser confirmation, then uses
 the existing queued/polled operation API.
 The dedicated diagnostics route and server-rendered view are read-only: displayed
 Ref/head values are never accepted back as review authority and history is not
-rewritten. The tagged v0.7.0 project page also runs read-only `fsck` only after
+rewritten. The tagged v0.8.0 project page also runs read-only `fsck` only after
 the user types the exact project key. It returns `202 Accepted`, polls a random
 process-local operation ID, and displays clean/dirty aggregate counts. A dirty
 repository is a completed result with `clean=false`, not a failed job.
@@ -106,14 +104,14 @@ diagnostics views remain available without it.
 
 ## Build and start
 
-Linux x86_64では、[`v0.7.0` preview release](../../docs/releases/v0.7.0.md)に
+Linux x86_64では、[`v0.8.0` preview release](../../docs/releases/v0.8.0.md)に
 `synapse-local`を含む検証済みbinary archiveがある。downloadとchecksum検証は
 [Installation guide](../../docs/install.md#install-the-linux-x86-64-release)を参照する。その他のplatformでは、
-下記のsource buildを使用する。v0.7.0の配布済みbinaryには、三file import／same-process
+下記のsource buildを使用する。v0.8.0の配布済みbinaryには、三file import／same-process
 Human reviewに加え、dedicated read-only diagnostics、bounded browser `fsck`
-（いずれもv0.3.0で導入し、v0.7.0でも変更なし）、任意の`--archive-root`起動flag指定時のみ
+（いずれもv0.3.0で導入し、v0.8.0でも変更なし）、任意の`--archive-root`起動flag指定時のみ
 有効なbounded read-only archive listing（v0.6.0で追加）、および認証付きbounded archive
-export／empty-target restore API（v0.7.0で追加）が含まれる。
+export／empty-target restore API（v0.7.0で追加）と、v0.8.0のproject-page browser controlが含まれる。
 
 Use a Rust toolchain compatible with the workspace MSRV, then run these
 commands from the repository root:
@@ -155,7 +153,7 @@ OS-selected development port.
   --port 8788
 ```
 
-### Record and revisit a Human Decision (current main)
+### Record and revisit a Human Decision (v0.8.0)
 
 ![Decision form with rationale byte count and described Adopt, Reject, and Defer choices](../../docs/assets/synapse-local/decision-review.png)
 
@@ -187,10 +185,9 @@ publication of source-private rationale.
 All three choices complete the single decision flow. **Defer does not allow
 changing or reopening that session's decision in this Pilot.** Pending review
 still requires the same server process, and restart recovery is unchanged.
-These review and rationale display improvements are on current main and are
-not included in tagged v0.7.0.
+These review and rationale display improvements are included in tagged v0.8.0.
 
-### Check selected files before import (current main)
+### Check selected files before import (v0.8.0)
 
 ![Selected files with local previews, sizes, and clear controls in the actual import form](../../docs/assets/synapse-local/import-preview.png)
 
@@ -218,10 +215,10 @@ Select **Proposalを作成** to start the import. Inputs and file-clear buttons
 are disabled while the request is pending. A failed request restores those
 controls and preserves the selection; it is not retried automatically.
 Replacing or clearing a file, resetting the form, or leaving the page releases
-its preview URL. This preflight UI requires JavaScript and is available on
-current main, not in the tagged v0.7.0 binary.
+its preview URL. This preflight UI requires JavaScript and is included in the
+tagged v0.8.0 binary.
 
-### Inspect image details before deciding (current main)
+### Inspect image details before deciding (v0.8.0)
 
 ![Current and AI output in the actual localhost image comparison dialog](../../docs/assets/synapse-local/image-comparison.png)
 
@@ -245,8 +242,8 @@ Blob URLs as the image cards and performs no additional API request. Only
 successfully decoded inline PNG/JPEG/GIF/WebP responses enter it. Other media
 retain their download-only behavior; corrupt or unsupported raster data shows
 an error on its card. Comparison is unavailable without JavaScript and does
-not add evidence access or recovery to incomplete sessions. The v0.7.0 tagged
-binary does not include this comparison dialog.
+not add evidence access or recovery to incomplete sessions. The comparison
+dialog is included in the v0.8.0 tagged binary.
 
 ### Enable archive maintenance
 
@@ -261,11 +258,11 @@ returns an empty list — this is the same as a configured-but-empty root, so
 the response alone cannot distinguish "not configured" from "configured but
 empty".
 
-On the tagged v0.7.0 binary, the same option also enables the archive export
+On the tagged v0.8.0 binary, the same option also enables the archive export
 and empty-target restore APIs and sets `archive_export=true` and
 `archive_restore=true` in each project capability response. Without it, export
 and restore requests fail before job reservation with `service_unavailable`.
-Current main also renders project-page archive controls when that capability is
+v0.8.0 also renders project-page archive controls when that capability is
 enabled. Its restore form is only shown for the open project while its displayed
 Refs and reflog are empty. The browser cannot select a path or another target:
 it submits the typed slug, exact target key, and explicit empty-target boolean
@@ -280,7 +277,7 @@ mkdir -p "$HOME/SynapseGit/archives"
   --archive-root "$HOME/SynapseGit/archives"
 ```
 
-## Browser archive round trip (current main)
+## Browser archive round trip
 
 Use separate registered repositories for the source and restore target. Stop
 any process that owns either repository before initializing it, then create the

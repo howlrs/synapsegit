@@ -6,7 +6,25 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-09-09
+
 ### Added
+
+- Creator sessions retain optional private, user-declared generation notes
+  (tool, model, prompt, and intent) and up to ten image-bound decision pins.
+  Notes and pins remain distinct from the Human Decision rationale, survive
+  normal Core archive/restore, and are not proof of model execution or authorship.
+- Complete Creator sessions can start a fresh candidate using verified exact
+  Original/Current bytes from the same project. Derived sessions have fresh
+  identities and Human review and retain fixed source lineage through
+  archive/restore. Adopt does not promote the prior AI output to Current;
+  private generation notes and rationale are not copied to the new attempt.
+- A localhost public-text form validates fresh author-supplied text for one
+  complete non-derived session and downloads `presentation.toml`. Fields start
+  empty; private notes are not copied, and the form performs no Core writes,
+  raw-image export, bundle generation, or remote publication. Frozen publication
+  v1 rejects derived sessions and all-session exports containing a complete
+  derived session; a non-derived session can be selected with `--session`.
 
 - localhost decision review: explicit adopt/reject/defer outcome descriptions
   and confirmation, live rationale UTF-8 byte-limit feedback, and input locking
@@ -44,6 +62,11 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   history reload link.
 
 ### Fixed
+
+- Chromium browser coverage now waits for document readiness and the recorded
+  decision heading before reloading generated Creator pages, avoiding
+  detached-page failures in the derived-session and generation-note
+  specifications.
 
 - Corrupt or browser-unsupported raster data now shows an explicit image decode
   error instead of leaving the preview blank; it cannot enter the comparison.
@@ -356,7 +379,8 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/howlrs/synapsegit/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/howlrs/synapsegit/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/howlrs/synapsegit/compare/v0.5.1...v0.6.0
 [0.5.1]: https://github.com/howlrs/synapsegit/compare/v0.5.0...v0.5.1
