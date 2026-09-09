@@ -665,7 +665,8 @@ new capture or the old AI output, and names do not imply shared physical identit
 The project presentation page lists complete session identifiers and starts all
 public text inputs empty. `POST /projects/{projectKey}/presentation-sidecars`
 accepts a closed 128 KiB JSON request for exactly one complete session. The service
-verifies that source and calls `synapse-publication::serialize_presentation` using
+verifies that source, refuses a report with a reused-source binding using
+`local_request_denied`, and calls `synapse-publication::serialize_presentation` using
 only freshly supplied optional text. This additive dependency keeps HTTP behind
 the local-service facade and reuses the existing parser/validator and 64 KiB
 sidecar ceiling. Neither the handler nor service writes Core objects/Refs or
@@ -677,3 +678,9 @@ generation notes, pins, source image bytes and internal display names are never
 automatically used to populate the form or output. This is an author-supplied text
 preview, not a verified final bundle. Existing CLI export and preview retain the
 stopped-writer/checkpointed-source boundary and do not publish remotely.
+
+Frozen publication v1 cannot preserve reference-reuse semantics. Its projection
+builder refuses selected complete derived reports before rendering or creating
+bundle output, including all-session exports containing one. Non-derived session
+selection and existing v1 verification remain supported. The form explains this
+limit before submission; the [workflow guide](creator_workflow.md) documents both paths.

@@ -1,5 +1,7 @@
 # Native localhost application
 
+現在のmainの生成メモ・判断ピン・派生セッション・公開用文章フォームは、[Creator操作ガイド](../../docs/creator_workflow.md)を参照してください。配布済みv0.7.0との違いと公開v1の制限も説明しています。
+
 `synapse-local` is the first creator-facing SynapseGit application. It runs as
 one native process on the user's machine and serves a browser UI only on IPv4
 loopback (`127.0.0.1`). It is not a GitHub-like hosted service, a Cloud Run

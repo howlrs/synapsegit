@@ -185,6 +185,26 @@ session. See the
 [installation guide](./docs/install.md), or the
 [source Quickstart](./docs/quickstart.md).
 
+### Record, review, and try another candidate (current main)
+
+These additions are available from current main, after the v0.7.0 tag; they are not
+included in the v0.7.0 release binaries. See the [Creator workflow guide](docs/creator_workflow.md)
+for the complete sequence and input limits.
+
+| Step | Available behavior |
+|---|---|
+| Record generation context | Optional private, user-declared tool/model, prompt, and intent, bound to the exact candidate; no model execution is verified |
+| Explain a Human Decision | Up to ten private image pins saved with the overall Adopt/Reject/Defer decision and rationale; no partial adoption |
+| Try another candidate | Reuse a complete session's exact Original/Current bytes in the same project, supply one fresh candidate, and perform a new Human review |
+| Prepare public text | Enter fresh author-supplied text for a complete, non-derived session and download `presentation.toml`; bundle export remains a separate CLI operation |
+
+Normal Core archives retain private notes, pins, and fixed source lineage. Public bundles
+exclude those private notes. Reusing Current is not a new observation, and Adopt never
+promotes the previous AI output to Current. **Frozen publication v1 refuses derived sessions**
+in both the public-text form and bundle export, including all-session export containing a
+complete derived session. Select a non-derived session with `--session`; existing v1 bundles
+remain verifiable. See the [public-text workflow](docs/presentation_sidecar.md).
+
 ## What works now
 
 | Capability | Current repository status |
@@ -326,6 +346,7 @@ local application routes, and archive verification. Read the
 | Install a release or build from a tag | [Installation](./docs/install.md) |
 | Run the complete source demo | [Core Quickstart](./docs/quickstart.md) |
 | Understand creator and AI-assisted use cases | [Usage guide](./docs/usage_guide.md) |
+| Record notes, review images, and try another candidate | [Creator workflow](./docs/creator_workflow.md) |
 | Run the loopback-only application | [Local application runbook](./deploy/local/README.md) |
 | Look up commands and errors | [CLI reference](./docs/cli_reference.md) |
 | Generate a read-only local publication bundle | [CLI reference](./docs/cli_reference.md#synapse-present-companion-cli) |
@@ -393,11 +414,3 @@ available; the root `LICENSE` is controlling.
 
 Third-party Rust components remain under the terms collected in
 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
-
-Current main supports optional private, user-declared proposal generation notes in the localhost import form. The tool/model, prompt and intent stay bound to the exact proposal bytes through archive/restore and are readable in pending/complete views and `creator-report`. They are not execution evidence and are excluded from public bundles. See the [Creator generation note contract](spec/application/creator-generation-note/v1/README.md).
-
-Current main also supports private image pins recorded atomically with a Human Decision. Mouse/touch, keyboard and integer-coordinate controls preserve positions across zoom and archive/restore. Pins do not represent partial adoption or image analysis; they are excluded from public bundles. See the [Creator decision pin contract](spec/application/creator-decision-pins/v1/README.md).
-
-Current main can start a new Creator candidate from any verified complete session in the same project. It reuses exact Original/Current bytes, keeps fresh identities and Human review, and records fixed source lineage across archive/restore. Adopt does not promote the old AI output to Current. See the [reused source contract](spec/application/creator-source/v1/README.md).
-
-Current main includes a localhost form for fresh author-supplied public text for one complete session. It validates and downloads `presentation.toml`, with empty initial fields and no automatic private-note transfer, Core writes, raw images, or remote publication. Follow the [sidecar workflow](docs/presentation_sidecar.md) for the existing stopped-writer CLI export and verification steps.

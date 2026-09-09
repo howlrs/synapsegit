@@ -170,6 +170,24 @@ resume、cleanup、history書換えを行いません。
 [local application runbook](./deploy/local/README.md)、[install guide](./docs/install.md)、
 [source Quickstart](./docs/quickstart.md)を参照してください。
 
+### 制作メモを残し、次の案を試す（現在のmain）
+
+次の機能はv0.7.0タグ以降のmainで利用できます。配布済みv0.7.0 binaryには含まれません。
+操作の流れと入力上限は[制作メモと次の案のガイド](docs/creator_workflow.md)を参照してください。
+
+| 操作 | 利用できる機能 |
+|---|---|
+| 生成方法を記録する | 任意のprivateなツール／モデル・プロンプト・制作意図を候補画像に束縛して保存。利用者申告でありモデル実行の証明ではない |
+| 判断を説明する | 最大10個のprivateな画像ピンをAdopt／Reject／Deferと理由に併せて保存。部分採用は行わない |
+| 次の候補を試す | 同じprojectの完了記録からOriginal／Currentを再利用し、新しい候補1点で別のHuman reviewを行う |
+| 公開用文章を準備する | 通常取り込みの完了セッションに公開用文章を新たに入力し、`presentation.toml`を出力。bundle生成は別途CLIで行う |
+
+通常のCore archiveはprivateメモ・ピン・固定した派生元履歴を保持します。public bundleには
+privateメモを転記しません。Currentの再利用は新しい観測ではなく、採用済みAI outputもCurrentへ昇格しません。
+**凍結済み公開形式v1は派生セッションの説明文フォーム出力とbundle生成を拒否します。**
+completeな派生を含む全件exportも対象です。同じprojectの通常セッションは`--session`で選択できます。
+既存v1 bundleの検証は継続できます。[公開用文章の手順](docs/presentation_sidecar.md)も参照してください。
+
 ## 現在動くもの
 
 | 能力 | 現在のrepository状態 |
@@ -288,6 +306,7 @@ application route、archive verificationはRustが担当します。componentの
 | Releaseをinstallする、tagからbuildする | [Installation](./docs/install.md) |
 | sourceで完全なdemoを動かす | [Core Quickstart](./docs/quickstart.md) |
 | creatorとAI-assisted use caseを知る | [使用ガイド](./docs/usage_guide.md) |
+| 制作メモ・画像上の判断・次の候補を記録する | [Creator操作ガイド](./docs/creator_workflow.md) |
 | loopback-only applicationを起動する | [Local application runbook](./deploy/local/README.md) |
 | commandとerrorを調べる | [CLI reference](./docs/cli_reference.md) |
 | read-only local publication bundleを生成する | [CLI reference](./docs/cli_reference.md#synapse-present-companion-cli) |
@@ -347,11 +366,3 @@ Pull Request、および非商用評価のための管理下環境でのbuild／
 
 Rust依存componentには[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)に収録した
 各third-party licenseが適用されます。
-
-Current mainではlocalhost取り込みフォームで任意のprivateな生成メモ（使用ツール・モデル・プロンプト・制作意図）を記録できます。exactなProposal画像との対応をarchive／restore後も保ち、pending／complete画面と`creator-report`で参照できます。利用者申告であり実行証明ではなく、public bundleへ自動転記しません。[保存契約](spec/application/creator-generation-note/v1/README.md)を参照してください。
-
-Current mainでは画像上のprivateな判断ピンをHuman Decisionと一緒に記録できます。マウス／タッチ・キーボード・整数座標で編集でき、倍率変更やarchive／restore後も位置を保持します。部分採用・画像分析は表さず、public bundleへ自動転記しません。[判断ピンの保存契約](spec/application/creator-decision-pins/v1/README.md)を参照してください。
-
-現在のmainでは、同じprojectの完了記録からOriginal／Currentを参照として再利用し、新しい候補1点で次のセッションを始められます。採用済みAI outputをCurrentへ昇格せず、新しいidentityとHuman reviewを作成します。固定した派生元の履歴はarchive／restore後も検証できます。[派生元契約](spec/application/creator-source/v1/README.md)を参照してください。
-
-現在のmainでは、完了した1セッションを選び、公開用文章を空欄から入力・確認して`presentation.toml`をダウンロードできます。privateメモの自動転記・Core更新・外部公開は行いません。[説明文ファイルの作成手順](docs/presentation_sidecar.md)を参照してください。

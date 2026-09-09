@@ -79,6 +79,13 @@ atomic no-replaceで公開する。
 - `--presentation`はauthor-suppliedなpublic-facing textを追加する。source historyの検証済み事実へ
   昇格せず、`projection.json`では`author_supplied`として区別する。
 
+現在のmainでは[localhostフォーム](presentation_sidecar.md)から同じsidecarを作成できる。
+通常の3画像取り込みで作成したcomplete sessionが対象で、フォームはTOMLだけを出力する。
+凍結済み公開形式v1は参照画像を再利用した派生sessionを表現できないため、
+`export`は対象のcomplete reportに派生元があると`usage_error`で拒否し、bundle出力先を作成しない。
+completeな派生を含む全件exportも拒否する。`--session`で通常sessionを選べば出力できる。
+`--public`やauthor-supplied captionでこの制限は解除されない。既存v1 bundleの`preview`は継続できる。
+
 最小の`presentation.toml`例:
 
 ```toml
@@ -389,6 +396,13 @@ recording timestampになる。time basisはObservationなら`observation_record
 `activity_recorded_at_fallback`であり、unknownなcapture／valid timeを撮影時刻、AI execution time、
 外部eventの物理順序へ昇格させない。
 
+`creator-report` prints `generation_note_user_declared` when a proposal contains a private generation note. The text is escaped with Rust debug string formatting, remains user-declared, and is separate from `rationale`. The localhost import form and trusted `begin_creator_session_with_note` API create these notes; `creator-run` retains its existing inputs. Normal archives include notes; public bundles do not.
+
+`creator-report` prints escaped `decision_pins_private` when valid private pins exist, or `decision_pins=unavailable` for an unsupported/malformed annotation extension. Annotation display failure is separate from the verified Human Decision lineage.
+
+派生元の固定headsと再利用roleはCreator report APIとlocalhost画面で確認できる。
+text CLIの新しい派生元表示や派生作成commandは提供していない。
+
 ### `refs <repo>`
 
 current Refs を name 順に出力する。
@@ -536,9 +550,3 @@ SurrealDB adapter、全8-query／benchmark比較は未実装である。
 HTTP／JWT、durable permit service、一般的なHuman workflow、Projection application route、または
 general Human Decision／Projection CLI commandを提供したという意味ではない。`creator-run`は3画像・single creator・
 create-only sessionへ固定したPilot orchestrationである。
-
-`creator-report` prints `generation_note_user_declared` when a proposal contains a private generation note. The text is escaped with Rust debug string formatting, remains user-declared, and is separate from `rationale`. The localhost import form and trusted `begin_creator_session_with_note` API create these notes; `creator-run` retains its existing inputs. Normal archives include notes; public bundles do not.
-
-`creator-report` prints escaped `decision_pins_private` when valid private pins exist, or `decision_pins=unavailable` for an unsupported/malformed annotation extension. Annotation display failure is separate from the verified Human Decision lineage.
-
-Current main can prepare the same `--presentation` sidecar through the [localhost public-text form](presentation_sidecar.md). The form downloads text only; `synapse-present export` and `preview` retain the stopped-writer/checkpointed-source boundary described above.
