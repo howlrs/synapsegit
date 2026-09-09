@@ -14,6 +14,7 @@
 </header>
 
 {% if complete %}
+<p><a class="button" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/derive">この記録から次の案を試す</a></p>
 <section class="metric-grid" aria-label="レビュー結果">
   <article class="metric"><span class="metric__label">Disposition</span><strong>{{ disposition }}</strong></article>
   <article class="metric"><span class="metric__label">AI output selected</span><strong>{{ selected }}</strong></article>
@@ -39,6 +40,16 @@
   <p>AI output sourceは <code>{{ ai_output_source }}</code> です。これはcaller-supplied inputであり、このlocalhost processや特定のmodelが生成したという主張ではありません。</p>
   <p>3つのbytesとevidenceを確認してから、adopt・reject・deferのいずれかを選んでください。</p>
 </div>
+{% endif %}
+
+{% if let Some(source) = source %}
+<section class="card" aria-labelledby="source-heading" data-creator-source>
+  <h2 id="source-heading">再利用した参照画像の派生元</h2>
+  <p><a href="/projects/{{ project_key }}/creator-sessions/{{ source.session }}">{{ source.session }}</a> · 元の判断: {{ source.disposition }}</p>
+  <p>元のOriginal／Currentのexactなbytesを参照として再利用しました。新しい撮影・観測ではありません。元のAI outputをCurrentへ昇格していません。表示名の一致は同一人物・同一の物理Subjectの証明ではありません。</p>
+  <dl class="detail-list"><div><dt>固定したProposal</dt><dd><code>{{ source.proposal_head }}</code></dd></div><div><dt>固定したDecision</dt><dd><code>{{ source.decision_head }}</code></dd></div><div><dt>Original Blob</dt><dd><code>{{ source.original_blob_oid }}</code></dd></div><div><dt>Current Blob</dt><dd><code>{{ source.current_blob_oid }}</code></dd></div></dl>
+  <p class="field__hint">派生元リンクは現在のRefsを表示します。この記録は上の固定したheadsへの対応を保持します。</p>
+</section>
 {% endif %}
 
 {% if show_evidence %}

@@ -497,6 +497,32 @@ impl Repository {
         Ok(self.refs.compare_and_swap(update, &validator)?)
     }
 
+    /// Update a Ref only while additional exact Ref heads still match.
+    /// The conditional route revalidates target closure after acquiring the
+    /// SQLite writer transaction, before checking the source heads.
+    pub fn update_ref_with_preconditions(
+        &mut self,
+        update: RefUpdate<'_>,
+        preconditions: &[synapse_sqlite::RefPrecondition<'_>],
+    ) -> Result<ReflogEntry> {
+        if preconditions.is_empty() {
+            return self.update_ref(update);
+        }
+        self.ensure_writable()?;
+        let objects = &self.objects;
+        let graph_limits = self.graph_limits;
+        let tombstone_scan_limits = self.tombstone_scan_limits;
+        let validator =
+            |head: &str| validate_head(objects, head, graph_limits, tombstone_scan_limits);
+        let guard = || validator(update.new_head);
+        Ok(self.refs.compare_and_swap_with_preconditions_and_guard(
+            update,
+            preconditions,
+            &validator,
+            &guard,
+        )?)
+    }
+
     pub fn fsck(&self) -> Result<FsckReport> {
         let heads = self
             .refs

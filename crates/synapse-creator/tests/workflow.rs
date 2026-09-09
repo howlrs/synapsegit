@@ -1074,3 +1074,194 @@ fn malformed_pin_extension_is_unavailable_without_invalidating_decision_lineage(
     assert_eq!(report.disposition, CreatorDisposition::Adopt);
     assert_eq!(report.proposal_head, receipt.proposal_head);
 }
+
+#[test]
+fn derived_sessions_keep_reference_images_and_fixed_source_lineage_after_restore() {
+    use synapse_creator::{CreatorSourceBinding, begin_creator_session_with_source};
+    let temporary = TempDirectory::new();
+    let path = temporary.join("derived-repo");
+    for disposition in [
+        CreatorDisposition::Adopt,
+        CreatorDisposition::Reject,
+        CreatorDisposition::Defer,
+    ] {
+        let source_name = format!("source-{}", disposition.as_cli_str());
+        let source_options = options(&temporary, &path, &source_name, disposition);
+        run_creator_session(&source_options).unwrap();
+        let source_report = creator_report(&path, &source_name).unwrap();
+        let source = CreatorSourceBinding::from_report(&source_report);
+        let before = Repository::open(&path).unwrap().refs().snapshot().unwrap();
+        let candidate = temporary.join(format!("next-{}.bin", disposition.as_cli_str()));
+        fs::write(
+            &candidate,
+            format!("next candidate {}", disposition.as_cli_str()),
+        )
+        .unwrap();
+        let mut next = begin_options(&source_options);
+        next.session = format!("next-{}", disposition.as_cli_str());
+        next.ai_output = candidate;
+        let mut pending = begin_creator_session_with_source(&next, None, &source).unwrap();
+        assert_eq!(
+            pending.receipt().original_blob_oid,
+            source_report.original_blob_oid
+        );
+        assert_eq!(
+            pending.receipt().current_blob_oid,
+            source_report.current_blob_oid
+        );
+        assert_ne!(
+            pending.receipt().current_blob_oid,
+            source_report.ai_output_blob_oid
+        );
+        assert_ne!(pending.receipt().subject_id, source_report.subject_id);
+        assert_ne!(pending.receipt().creator_id, source_report.creator_id);
+        assert_eq!(pending.receipt().generation_note, None);
+        decide_creator_session(
+            &mut pending,
+            &CreatorDecisionOptions {
+                disposition,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        let report = creator_report(&path, &next.session).unwrap();
+        assert_eq!(report.source, Some(source));
+        assert_eq!(report.source_depth, 1);
+        assert_eq!(report.annotations, None);
+        let after = Repository::open(&path).unwrap().refs().snapshot().unwrap();
+        for record in before.refs {
+            assert!(after.refs.contains(&record));
+        }
+    }
+    // Fixed source heads remain provable after the live source Ref moves.
+    let old = creator_report(&path, "source-adopt").unwrap();
+    let child_before = creator_report(&path, "next-adopt").unwrap();
+    let mut repository = Repository::open(&path).unwrap();
+    repository
+        .update_ref(RefUpdate {
+            ref_name: &old.decision_ref,
+            expected_head: Some(&old.decision_head),
+            new_head: &old.base_head,
+            metadata: ReflogMetadata {
+                occurred_at_unix_nanos: 10,
+                actor: None,
+                message: Some("source moved after derivation"),
+            },
+        })
+        .unwrap();
+    assert!(creator_report(&path, "source-adopt").is_err());
+    let child_after = creator_report(&path, "next-adopt").unwrap();
+    assert_eq!(child_before.source, child_after.source);
+    let next_options = options(&temporary, &path, "grandchild", CreatorDisposition::Reject);
+    fs::copy(
+        temporary.join("source-adopt-original.png"),
+        &next_options.original_image,
+    )
+    .unwrap();
+    fs::copy(
+        temporary.join("source-adopt-current.png"),
+        &next_options.current_image,
+    )
+    .unwrap();
+    let mut pending = begin_creator_session_with_source(
+        &begin_options(&next_options),
+        None,
+        &CreatorSourceBinding::from_report(&child_after),
+    )
+    .unwrap();
+    decide_creator_session(
+        &mut pending,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Reject,
+            rationale: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(creator_report(&path, "grandchild").unwrap().source_depth, 2);
+    let archive = temporary.join("derived-archive");
+    let restored = temporary.join("derived-restored");
+    Repository::open(&path)
+        .unwrap()
+        .export_archive(&archive)
+        .unwrap();
+    Repository::restore_archive(&archive, &restored).unwrap();
+    for session in ["next-adopt", "next-reject", "next-defer", "grandchild"] {
+        assert_eq!(
+            creator_report(&path, session).unwrap(),
+            creator_report(&restored, session).unwrap()
+        );
+    }
+}
+
+#[test]
+fn derivation_refuses_stale_source_and_wrong_reference_bytes_before_publication() {
+    use synapse_creator::{CreatorSourceBinding, begin_creator_session_with_source};
+    let temporary = TempDirectory::new();
+    let path = temporary.join("invalid-derived");
+    let original = options(&temporary, &path, "source", CreatorDisposition::Adopt);
+    run_creator_session(&original).unwrap();
+    let report = creator_report(&path, "source").unwrap();
+    let source = CreatorSourceBinding::from_report(&report);
+    let before = Repository::open(&path).unwrap().refs().snapshot().unwrap();
+    let mut next = begin_options(&original);
+    next.session = "next".into();
+    let mut stale = source.clone();
+    stale.decision_head = report.base_head.clone();
+    assert!(begin_creator_session_with_source(&next, None, &stale).is_err());
+    next.current_image = next.ai_output.clone();
+    assert!(begin_creator_session_with_source(&next, None, &source).is_err());
+    assert_eq!(
+        Repository::open(&path).unwrap().refs().snapshot().unwrap(),
+        before
+    );
+}
+
+#[test]
+fn conditional_publication_rechecks_source_head_in_the_writer_transaction() {
+    use synapse_sqlite::RefPrecondition;
+    let temporary = TempDirectory::new();
+    let path = temporary.join("conditional");
+    let receipt = run_creator_session(&options(
+        &temporary,
+        &path,
+        "source",
+        CreatorDisposition::Adopt,
+    ))
+    .unwrap();
+    let mut observer = Repository::open(&path).unwrap();
+    let mut writer = Repository::open(&path).unwrap();
+    writer
+        .update_ref(RefUpdate {
+            ref_name: &receipt.decision_ref,
+            expected_head: Some(&receipt.decision_head),
+            new_head: &receipt.base_head,
+            metadata: ReflogMetadata {
+                occurred_at_unix_nanos: 10,
+                actor: None,
+                message: None,
+            },
+        })
+        .unwrap();
+    let before = writer.refs().snapshot().unwrap();
+    assert!(
+        observer
+            .update_ref_with_preconditions(
+                RefUpdate {
+                    ref_name: "refs/heads/conditional-child",
+                    expected_head: None,
+                    new_head: &receipt.base_head,
+                    metadata: ReflogMetadata {
+                        occurred_at_unix_nanos: 11,
+                        actor: None,
+                        message: None
+                    }
+                },
+                &[RefPrecondition {
+                    ref_name: &receipt.decision_ref,
+                    expected_head: Some(&receipt.decision_head)
+                }]
+            )
+            .is_err()
+    );
+    assert_eq!(writer.refs().snapshot().unwrap(), before);
+}

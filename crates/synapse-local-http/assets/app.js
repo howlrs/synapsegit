@@ -361,7 +361,7 @@ async function loadApiImage(image) {
 
   try {
     const response = await apiFetch(source, {
-      headers: { Accept: [...ALLOWED_RASTER_TYPES, ATTACHMENT_MEDIA_TYPE].join(", ") },
+      headers: { Accept: [...ALLOWED_RASTER_TYPES, ATTACHMENT_MEDIA_TYPE].join(", "), ...(image.dataset.sourceConfirmation ? { "X-Synapse-Source-Confirmation": image.dataset.sourceConfirmation } : {}) },
       signal: controller.signal,
     });
     if (!response.ok) throw await responseProblem(response);
@@ -582,7 +582,7 @@ export function enhanceCreatorUploads(root = document) {
     const summary = () => {
       const files = fields.flatMap(({ input }) => [...input.files]);
       const target = form.querySelector("[data-creator-file-summary]");
-      target.textContent = `選択済み ${files.length} / 3 ファイル · 合計 ${fileSizeLabel(files.reduce((total, file) => total + file.size, 0))} / 192 MiB`;
+      target.textContent = `選択済み ${files.length} / ${fields.length} ファイル · 合計 ${fileSizeLabel(files.reduce((total, file) => total + file.size, 0))} / ${fields.length * 64} MiB`;
       target.hidden = false;
     };
     const update = async (field) => {
@@ -755,24 +755,28 @@ function formDataWithSubmitter(form, submitter) {
 
 function creatorMultipart(form, submitter) {
   const source = formDataWithSubmitter(form, submitter);
+  const derived = form.dataset.creatorDerived === "true";
+  const textFields = new Map(CREATOR_TEXT_FIELDS);
+  if (derived) textFields.set("confirmation_id", 64);
+  const fileFields = derived ? new Set(["ai_output"]) : CREATOR_FILE_FIELDS;
   const text = new Map();
   const files = new Map();
   let aggregateBytes = 0;
 
   for (const [name, value] of source) {
-    if (CREATOR_TEXT_FIELDS.has(name)) {
+    if (textFields.has(name)) {
       if (typeof value !== "string" || text.has(name)) {
         throw new TypeError(`The field “${name}” must occur exactly once as text.`);
       }
       const byteLength = UTF8_ENCODER.encode(value).byteLength;
-      if ((!name.startsWith("generation_") && byteLength === 0) || byteLength > CREATOR_TEXT_FIELDS.get(name)) {
+      if ((!name.startsWith("generation_") && byteLength === 0) || byteLength > textFields.get(name)) {
         throw new TypeError(`The field “${name}” exceeds its UTF-8 byte limit.`);
       }
       text.set(name, value);
       continue;
     }
 
-    if (CREATOR_FILE_FIELDS.has(name)) {
+    if (fileFields.has(name)) {
       if (!(value instanceof File) || files.has(name)) {
         throw new TypeError(`The field “${name}” must occur exactly once as a file.`);
       }
@@ -792,22 +796,23 @@ function creatorMultipart(form, submitter) {
 
   const note = Object.fromEntries(["tool", "model", "prompt", "intent"].map(key => [key, text.get(`generation_${key}`) || ""]));
   if (UTF8_ENCODER.encode(JSON.stringify(note)).byteLength > 16384) throw new TypeError("生成メモ全体は16 KiB以内にしてください。");
-  if (!["session", "subject_label", "creator_name"].every(name => text.has(name)) || files.size !== CREATOR_FILE_FIELDS.size) {
-    throw new TypeError("The creator upload requires exactly three text fields and three files.");
+  if (!["session", "subject_label", "creator_name"].every(name => text.has(name)) || files.size !== fileFields.size) {
+    throw new TypeError("The creator upload contains missing or unexpected fields.");
   }
   if (!/^[a-z][a-z0-9-]{0,63}$/u.test(text.get("session"))) {
     throw new TypeError("The session field is not a valid lowercase slug.");
   }
 
+  if (derived && !/^[0-9a-f]{64}$/u.test(text.get("confirmation_id") || "")) throw new TypeError("The source confirmation is invalid. Reopen the source page.");
   const normalized = new FormData();
-  for (const name of CREATOR_TEXT_FIELDS.keys()) {
+  for (const name of textFields.keys()) {
     normalized.append(
       name,
       new Blob([text.get(name) || ""], { type: "text/plain; charset=utf-8" }),
       `${name}.txt`,
     );
   }
-  for (const name of CREATOR_FILE_FIELDS) {
+  for (const name of fileFields) {
     normalized.append(
       name,
       new Blob([files.get(name)], { type: "application/octet-stream" }),

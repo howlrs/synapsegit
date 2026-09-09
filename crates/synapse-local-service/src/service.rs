@@ -384,6 +384,7 @@ pub struct LocalService {
     last_fsck: Mutex<BTreeMap<String, FsckResult>>,
     project_writers: BTreeMap<String, Mutex<()>>,
     archive_root: Option<PathBuf>,
+    source_confirmations: Mutex<BTreeMap<String, SourceConfirmation>>,
 }
 
 impl fmt::Debug for LocalService {
@@ -412,6 +413,7 @@ impl LocalService {
             last_fsck: Mutex::new(BTreeMap::new()),
             project_writers,
             archive_root: None,
+            source_confirmations: Mutex::new(BTreeMap::new()),
         })
     }
 
@@ -866,13 +868,19 @@ impl LocalService {
         server_instance: &str,
         request: BeginCreatorSessionRequest,
     ) -> Result<PendingCreatorSession, ServiceError> {
+        let _writer = self.acquire_project_writer(project_key)?;
+        self.begin_creator_session_locked(project_key, server_instance, request, None)
+    }
+
+    fn begin_creator_session_locked(
+        &self,
+        project_key: &str,
+        server_instance: &str,
+        request: BeginCreatorSessionRequest,
+        source: Option<&synapse_creator::CreatorSourceBinding>,
+    ) -> Result<PendingCreatorSession, ServiceError> {
         validate_begin_request(server_instance, &request)?;
         let repository_path = self.entry(project_key)?.repository_path().to_owned();
-        // The prospective integrity check and the following Ref publications
-        // form one cooperative localhost-service writer operation. Keep every
-        // begin/decision for this project behind the same gate so two blocking
-        // HTTP workers cannot both admit against the same pre-state.
-        let _writer = self.acquire_project_writer(project_key)?;
         let review_id = self.reserve_pending(project_key, &request.session, server_instance)?;
 
         let repository = match Repository::open(&repository_path).map_err(repository_error) {
@@ -899,8 +907,13 @@ impl LocalService {
             subject_label: request.subject_label,
             creator_name: request.creator_name,
         };
-        let outcome = catch_unwind(AssertUnwindSafe(|| {
-            core_begin(&options, request.generation_note.as_ref())
+        let outcome = catch_unwind(AssertUnwindSafe(|| match source {
+            Some(source) => synapse_creator::begin_creator_session_with_source(
+                &options,
+                request.generation_note.as_ref(),
+                source,
+            ),
+            None => core_begin(&options, request.generation_note.as_ref()),
         }));
         let (pending, receipt) = match outcome {
             Ok(Ok(pending)) => {
@@ -1702,6 +1715,7 @@ fn pending_session(snapshot: &RefSnapshot, pending: ReadyPending) -> PendingCrea
         ai_output_blob_oid: receipt.ai_output_blob_oid,
         ai_output_source: "caller_supplied".into(),
         generation_note: receipt.generation_note,
+        source: receipt.source,
         comparison: comparison_evidence(receipt.comparison),
     }
 }
@@ -2199,6 +2213,7 @@ fn creator_report(snapshot: SnapshotContext, report: CoreCreatorReport) -> Creat
         annotations: report.annotations,
         annotations_unavailable: report.annotations_unavailable,
         generation_note: report.generation_note,
+        source: report.source,
         original_blob_oid: report.original_blob_oid,
         current_blob_oid: report.current_blob_oid,
         ai_output_blob_oid: report.ai_output_blob_oid,
@@ -2525,5 +2540,269 @@ mod tests {
             .unwrap_err();
         assert_eq!(error.code(), "resource_limit");
         assert_eq!(registry.entries.len(), MAX_PENDING_CREATOR_SESSIONS);
+    }
+}
+
+#[derive(Clone)]
+struct SourceConfirmation {
+    project_key: String,
+    server_instance: String,
+    source: synapse_creator::CreatorSourceBinding,
+}
+
+impl LocalService {
+    /// Capture one verified complete source for an explicit, same-process derivation.
+    pub fn prepare_creator_source(
+        &self,
+        project_key: &str,
+        session: &str,
+        server_instance: &str,
+    ) -> Result<CreatorSourcePreview, ServiceError> {
+        let repository = self.open_repository(project_key)?;
+        let snapshot = capture_snapshot(&repository)?;
+        let report = creator_report_from_snapshot(&repository, &snapshot, session)
+            .map_err(creator_error)?
+            .report;
+        if report.source_depth >= synapse_creator::CREATOR_MAX_SOURCE_DEPTH {
+            return Err(ServiceError::new(
+                "resource_limit",
+                "This session reached the maximum derivation depth.",
+                false,
+            ));
+        }
+        let source = synapse_creator::CreatorSourceBinding::from_report(&report);
+        let (creator_name, subject_label) = source_display_names(&repository, &report)?;
+        let mut confirmations = self
+            .source_confirmations
+            .lock()
+            .map_err(|_| ServiceError::storage())?;
+        if let Some((confirmation_id, _)) = confirmations.iter().find(|(_, entry)| {
+            entry.project_key == project_key
+                && entry.server_instance == server_instance
+                && entry.source == source
+        }) {
+            return Ok(CreatorSourcePreview {
+                confirmation_id: confirmation_id.clone(),
+                source,
+                creator_name,
+                subject_label,
+            });
+        }
+        // Refreshing a source replaces its stale preview without accumulating entries.
+        confirmations
+            .retain(|_, entry| entry.project_key != project_key || entry.source.session != session);
+        if confirmations.len() >= 64
+            || confirmations
+                .values()
+                .filter(|entry| entry.project_key == project_key)
+                .count()
+                >= 16
+        {
+            return Err(ServiceError::new(
+                "resource_limit",
+                "Too many source confirmations are retained in this process.",
+                false,
+            ));
+        }
+        let confirmation_id = random_review_id()?;
+        confirmations.insert(
+            confirmation_id.clone(),
+            SourceConfirmation {
+                project_key: project_key.into(),
+                server_instance: server_instance.into(),
+                source: source.clone(),
+            },
+        );
+        Ok(CreatorSourcePreview {
+            confirmation_id,
+            source,
+            creator_name,
+            subject_label,
+        })
+    }
+
+    /// Revalidate the confirmation and copy only the source's exact reference bytes.
+    pub fn begin_derived_creator_session(
+        &self,
+        project_key: &str,
+        source_session: &str,
+        server_instance: &str,
+        request: BeginDerivedCreatorSessionRequest,
+    ) -> Result<PendingCreatorSession, ServiceError> {
+        self.entry(project_key)?;
+        let _writer = self.acquire_project_writer(project_key)?;
+        let confirmation = self
+            .source_confirmations
+            .lock()
+            .map_err(|_| ServiceError::storage())?
+            .get(&request.confirmation_id)
+            .cloned()
+            .ok_or_else(stale_source_confirmation)?;
+        if confirmation.project_key != project_key
+            || confirmation.server_instance != server_instance
+            || confirmation.source.session != source_session
+        {
+            return Err(stale_source_confirmation());
+        }
+        let repository = self.open_repository(project_key)?;
+        let snapshot = capture_snapshot(&repository)?;
+        let report = creator_report_from_snapshot(&repository, &snapshot, source_session)
+            .map_err(creator_error)?
+            .report;
+        if synapse_creator::CreatorSourceBinding::from_report(&report) != confirmation.source {
+            return Err(stale_source_confirmation());
+        }
+        let staging = SourceImageStaging::new()?;
+        staging.write(
+            "original",
+            &load_creator_image(&repository, report.original_blob_oid)?.bytes,
+        )?;
+        staging.write(
+            "current",
+            &load_creator_image(&repository, report.current_blob_oid)?.bytes,
+        )?;
+        let outcome = self.begin_creator_session_locked(
+            project_key,
+            server_instance,
+            BeginCreatorSessionRequest {
+                generation_note: request.generation_note,
+                session: request.session,
+                creator_name: request.creator_name,
+                subject_label: request.subject_label,
+                original_image: staging.0.join("original"),
+                current_image: staging.0.join("current"),
+                ai_output: request.ai_output,
+            },
+            Some(&confirmation.source),
+        );
+        if outcome.is_ok() {
+            self.source_confirmations
+                .lock()
+                .map_err(|_| ServiceError::storage())?
+                .remove(&request.confirmation_id);
+        }
+        outcome
+    }
+}
+
+fn stale_source_confirmation() -> ServiceError {
+    ServiceError::new(
+        "local_request_denied",
+        "The source confirmation is stale or unavailable. Open the source confirmation page again.",
+        false,
+    )
+}
+
+fn source_display_names(
+    repository: &Repository,
+    report: &CoreCreatorReport,
+) -> Result<(String, String), ServiceError> {
+    let tree = read_pending_json(repository, &report.base_snapshot)?;
+    let read = |entry: &str,
+                expected_id: &str,
+                record_type: &str,
+                field: &str|
+     -> Result<String, ServiceError> {
+        let oid = tree["entries"][entry]["oid"]
+            .as_str()
+            .ok_or_else(pending_lineage_invalid)?;
+        let record = read_pending_json(repository, oid)?;
+        if record["record_type"].as_str() != Some(record_type)
+            || record["entity_id"].as_str() != Some(expected_id)
+        {
+            return Err(pending_lineage_invalid());
+        }
+        Ok(record["payload"][field]
+            .as_str()
+            .unwrap_or_default()
+            .to_owned())
+    };
+    Ok((
+        read(
+            "creator.actor.json",
+            &report.creator_id,
+            "actor",
+            "display_name",
+        )?,
+        read("subject.json", &report.subject_id, "subject", "label")?,
+    ))
+}
+
+struct SourceImageStaging(PathBuf);
+
+impl SourceImageStaging {
+    fn new() -> Result<Self, ServiceError> {
+        for _ in 0..8 {
+            let path =
+                std::env::temp_dir().join(format!("synapse-source-images-{}", random_review_id()?));
+            let mut builder = fs::DirBuilder::new();
+            #[cfg(unix)]
+            std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+            match builder.create(&path) {
+                Ok(()) => return Ok(Self(path)),
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(_) => return Err(ServiceError::storage()),
+            }
+        }
+        Err(ServiceError::storage())
+    }
+    fn write(&self, role: &str, bytes: &[u8]) -> Result<(), ServiceError> {
+        use std::io::Write as _;
+        let mut options = fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+        let mut file = options
+            .open(self.0.join(role))
+            .map_err(|_| ServiceError::storage())?;
+        file.write_all(bytes).map_err(|_| ServiceError::storage())?;
+        file.flush().map_err(|_| ServiceError::storage())
+    }
+}
+
+impl Drop for SourceImageStaging {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.0);
+    }
+}
+
+impl LocalService {
+    /// Read a preview's fixed Original/Current; a changed source is rejected, never substituted.
+    pub fn get_creator_source_image(
+        &self,
+        project_key: &str,
+        session: &str,
+        server_instance: &str,
+        confirmation_id: &str,
+        role: ImageRole,
+    ) -> Result<CreatorImage, ServiceError> {
+        self.entry(project_key)?;
+        let confirmation = self
+            .source_confirmations
+            .lock()
+            .map_err(|_| ServiceError::storage())?
+            .get(confirmation_id)
+            .cloned()
+            .ok_or_else(stale_source_confirmation)?;
+        if confirmation.project_key != project_key
+            || confirmation.server_instance != server_instance
+            || confirmation.source.session != session
+        {
+            return Err(stale_source_confirmation());
+        }
+        let repository = self.open_repository(project_key)?;
+        let snapshot = capture_snapshot(&repository)?;
+        let report = creator_report_from_snapshot(&repository, &snapshot, session)
+            .map_err(creator_error)?
+            .report;
+        if synapse_creator::CreatorSourceBinding::from_report(&report) != confirmation.source {
+            return Err(stale_source_confirmation());
+        }
+        let oid = match role {
+            ImageRole::Original => confirmation.source.original_blob_oid,
+            ImageRole::Current => confirmation.source.current_blob_oid,
+            ImageRole::AiOutput => return Err(stale_source_confirmation()),
+        };
+        load_creator_image(&repository, oid)
     }
 }

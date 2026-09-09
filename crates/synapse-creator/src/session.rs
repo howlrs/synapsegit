@@ -228,8 +228,29 @@ fn begin_creator_session_with_note_and_limits(
     note: Option<&crate::CreatorGenerationNote>,
     fsck_limits: FsckLimits,
 ) -> Result<PendingCreatorSession> {
+    begin_creator_session_with_source_and_limits(options, note, None, fsck_limits)
+}
+
+/// Begin with exact reference images from a verified complete session in this repository.
+pub fn begin_creator_session_with_source(
+    options: &CreatorBeginOptions,
+    note: Option<&crate::CreatorGenerationNote>,
+    source: &crate::CreatorSourceBinding,
+) -> Result<PendingCreatorSession> {
+    begin_creator_session_with_source_and_limits(options, note, Some(source), CREATOR_FSCK_LIMITS)
+}
+
+fn begin_creator_session_with_source_and_limits(
+    options: &CreatorBeginOptions,
+    note: Option<&crate::CreatorGenerationNote>,
+    source: Option<&crate::CreatorSourceBinding>,
+    fsck_limits: FsckLimits,
+) -> Result<PendingCreatorSession> {
     if let Some(note) = note {
         note.validate()?;
+    }
+    if let Some(source) = source {
+        source.validate_shape()?;
     }
     validate_begin_metadata(options)?;
     let pending_decision_capacity_limits = reserve_fsck_capacity(
@@ -273,6 +294,17 @@ fn begin_creator_session_with_note_and_limits(
             preflight.issues.len()
         )));
     }
+    if let Some(source) = source {
+        let snapshot = repository
+            .refs()
+            .snapshot_limited(fsck_limits.max_ref_roots)?;
+        let report =
+            crate::creator_report_from_snapshot(&repository, &snapshot, &source.session)?.report;
+        if !source.matches_report(&report) || report.source_depth >= crate::CREATOR_MAX_SOURCE_DEPTH
+        {
+            return Err(crate::source::invalid_source());
+        }
+    }
     validate_input_files(
         &options.original_image,
         &options.current_image,
@@ -282,6 +314,13 @@ fn begin_creator_session_with_note_and_limits(
     let original_blob_oid = put_file(&repository, &options.original_image)?;
     let current_blob_oid = put_file(&repository, &options.current_image)?;
     let ai_output_blob_oid = put_file(&repository, &options.ai_output)?;
+    if let Some(source) = source {
+        if original_blob_oid != source.original_blob_oid
+            || current_blob_oid != source.current_blob_oid
+        {
+            return Err(crate::source::invalid_source());
+        }
+    }
     let mut recording_clock = RecordingClock::default();
     let base_recorded_at = recording_clock.tick()?;
     let ids = SessionIds::fresh()?;
@@ -391,17 +430,18 @@ fn begin_creator_session_with_note_and_limits(
             recorded_at: comparison_recorded_at.timestamp.clone(),
         },
     )?;
-    let import_activity_oid = put_json(
-        &repository,
-        import_activity_record(
-            &ids.import_activity,
-            &ids.creator,
-            &ids.subject,
-            &import_recorded_at.timestamp,
-            &original_blob_oid,
-            &current_blob_oid,
-        ),
-    )?;
+    let mut import_activity = import_activity_record(
+        &ids.import_activity,
+        &ids.creator,
+        &ids.subject,
+        &import_recorded_at.timestamp,
+        &original_blob_oid,
+        &current_blob_oid,
+    );
+    if let Some(source) = source {
+        crate::source::attach_source(&mut import_activity, source)?;
+    }
+    let import_activity_oid = put_json(&repository, import_activity)?;
 
     let mut base_entries = JsonMap::new();
     insert_entry(
@@ -577,16 +617,36 @@ fn begin_creator_session_with_note_and_limits(
         "begin",
     )?;
 
-    repository.update_ref(RefUpdate {
-        ref_name: &decision_ref,
-        expected_head: None,
-        new_head: &base_head,
-        metadata: ReflogMetadata {
-            occurred_at_unix_nanos: import_recorded_at.unix_nanos,
-            actor: Some(&ids.creator),
-            message: Some("initialize creator session"),
+    let source_decision_ref = source.map(|s| crate::session::decision_ref(&s.session));
+    let source_proposal_ref = source.map(|s| crate::session::proposal_ref(&s.session));
+    let mut source_preconditions = Vec::new();
+    if let Some(source) = source {
+        source_preconditions.push(synapse_sqlite::RefPrecondition {
+            ref_name: source_decision_ref.as_deref().expect("source Ref"),
+            expected_head: Some(&source.decision_head),
+        });
+        source_preconditions.push(synapse_sqlite::RefPrecondition {
+            ref_name: source_proposal_ref.as_deref().expect("source Ref"),
+            expected_head: Some(&source.proposal_head),
+        });
+        source_preconditions.push(synapse_sqlite::RefPrecondition {
+            ref_name: &proposal_ref,
+            expected_head: None,
+        });
+    }
+    repository.update_ref_with_preconditions(
+        RefUpdate {
+            ref_name: &decision_ref,
+            expected_head: None,
+            new_head: &base_head,
+            metadata: ReflogMetadata {
+                occurred_at_unix_nanos: import_recorded_at.unix_nanos,
+                actor: Some(&ids.creator),
+                message: Some("initialize creator session"),
+            },
         },
-    })?;
+        &source_preconditions,
+    )?;
 
     let selector = ProjectSelector::new(ids.project.clone());
     let application = Application::new(
@@ -646,6 +706,7 @@ fn begin_creator_session_with_note_and_limits(
     let mut reachable_from = vec![decision_ref.clone(), published_proposal_ref.clone()];
     reachable_from.sort();
     let pending_receipt = CreatorPendingReceipt {
+        source: source.cloned(),
         generation_note,
         session: options.session.clone(),
         project_id: ids.project.clone(),

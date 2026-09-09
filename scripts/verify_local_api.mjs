@@ -116,6 +116,8 @@ const expectedOperations = new Map([
   ["GET /projects/{projectKey}/reflog", ["listProjectReflog", 2]],
   ["GET /projects/{projectKey}/creator-sessions", ["listCreatorSessions", 2]],
   ["POST /projects/{projectKey}/creator-sessions", ["beginCreatorSession", 4]],
+  ["GET /projects/{projectKey}/creator-sessions/{session}/derivations", ["prepareCreatorSource", 4]],
+  ["POST /projects/{projectKey}/creator-sessions/{session}/derivations", ["beginDerivedCreatorSession", 4]],
   ["GET /projects/{projectKey}/creator-sessions/{session}", ["getCreatorSession", 2]],
   [
     "GET /projects/{projectKey}/creator-sessions/{session}/images/{role}",
@@ -236,7 +238,9 @@ const expectedParameters = new Map([
   ["listCreatorSessions", ["path:projectKey"]],
   ["beginCreatorSession", ["path:projectKey"]],
   ["getCreatorSession", ["path:projectKey", "path:session"]],
-  ["getCreatorSessionImage", ["path:projectKey", "path:role", "path:session"]],
+  ["prepareCreatorSource", ["path:projectKey", "path:session"]],
+  ["beginDerivedCreatorSession", ["path:projectKey", "path:session"]],
+  ["getCreatorSessionImage", ["header:X-Synapse-Source-Confirmation", "path:projectKey", "path:role", "path:session"]],
   ["decideCreatorSession", ["path:projectKey", "path:session"]],
   ["getCreatorSessionDiagnostics", ["path:projectKey", "path:session"]],
   ["startFsck", ["path:projectKey"]],
@@ -322,6 +326,7 @@ function collectSchemaProperties(schema, properties, visitedReferences = new Set
 }
 
 const expectedWrites = new Map([
+  ["beginDerivedCreatorSession", {mediaType: "multipart/form-data", properties: ["ai_output", "confirmation_id", "creator_name", "generation_intent", "generation_model", "generation_prompt", "generation_tool", "session", "subject_label"], required: ["ai_output", "confirmation_id", "creator_name", "session", "subject_label"]}],
   [
     "beginCreatorSession",
     {

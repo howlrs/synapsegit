@@ -16,9 +16,11 @@ use synapse_local_service::{
 };
 
 use crate::problem::problem_response;
-use crate::staging::StagedCreatorUpload;
+use crate::staging::{StagedCreatorUpload, StagedDerivedUpload};
 use crate::state::{AppState, BlockingError, OperationRegistryError};
-use crate::templates::{ErrorTemplate, IndexTemplate, ProjectTemplate, SessionTemplate};
+use crate::templates::{
+    DeriveTemplate, ErrorTemplate, IndexTemplate, ProjectTemplate, SessionTemplate,
+};
 use crate::views::{
     ArchiveView, HttpFailure, ProjectCardView, RefView, ReflogView, SessionPageView,
     SessionSummaryView, archive_checksum_preview, archive_state_label, archive_state_tone,
@@ -151,6 +153,74 @@ pub(crate) async fn api_begin_creator_session(
         } = staged;
         let _upload_permit = upload_permit;
         let result = service.begin_creator_session(&project_key, &server_instance, request);
+        drop(_directory);
+        result
+    })
+    .await
+    {
+        Ok(pending) => (StatusCode::CREATED, Json(pending)).into_response(),
+        Err(BlockingError::Service(error)) => failure_response(HttpFailure::service(&state, error)),
+        Err(BlockingError::Task) => failure_response(HttpFailure::internal(
+            &state,
+            "The creator proposal task failed.",
+        )),
+    }
+}
+
+pub(crate) async fn api_begin_derived_creator_session(
+    State(state): State<AppState>,
+    Path((project_key, session)): Path<(String, String)>,
+    request: AxumRequest,
+) -> Response {
+    if !is_exact_multipart_content_type(request.headers()) {
+        return failure_response(HttpFailure::request(
+            &state,
+            "local_request_denied",
+            "The request Content-Type must be multipart/form-data with exactly one boundary.",
+        ));
+    }
+    let upload_permit = match state.uploads.clone().acquire_owned().await {
+        Ok(permit) => permit,
+        Err(_) => {
+            return failure_response(HttpFailure::internal(
+                &state,
+                "The upload concurrency gate is unavailable.",
+            ));
+        }
+    };
+    let multipart = match Multipart::from_request(request, &state).await {
+        Ok(multipart) => multipart,
+        Err(_) => {
+            return failure_response(HttpFailure::request(
+                &state,
+                "local_request_denied",
+                "The multipart boundary is invalid.",
+            ));
+        }
+    };
+    let staged = match StagedDerivedUpload::from_multipart(multipart).await {
+        Ok(staged) => staged,
+        Err(error) => return failure_response(error.into_http_failure(&state)),
+    };
+
+    let gate_key = project_key.clone();
+    let server_instance = state.security.server_instance().to_owned();
+    match run_blocking(state.clone(), Some(gate_key), move |service| {
+        // Staging is deliberately owned by the detached blocking closure. If
+        // the client disconnects while Creator is publishing, the directory
+        // remains alive until the service has completed publication and
+        // retained the pending review capability.
+        let StagedDerivedUpload {
+            _directory,
+            request,
+        } = staged;
+        let _upload_permit = upload_permit;
+        let result = service.begin_derived_creator_session(
+            &project_key,
+            &session,
+            &server_instance,
+            request,
+        );
         drop(_directory);
         result
     })
@@ -629,7 +699,37 @@ pub(crate) async fn api_creator_session_diagnostics(
 pub(crate) async fn api_creator_image(
     State(state): State<AppState>,
     Path((project_key, session, role)): Path<(String, String, String)>,
+    headers: HeaderMap,
 ) -> Response {
+    let values: Vec<_> = headers
+        .get_all("x-synapse-source-confirmation")
+        .iter()
+        .collect();
+    let confirmation = match values.as_slice() {
+        [] => None,
+        [value] => match value.to_str() {
+            Ok(value)
+                if value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()) =>
+            {
+                Some(value.to_owned())
+            }
+            _ => {
+                return failure_response(HttpFailure::request(
+                    &state,
+                    "local_request_denied",
+                    "The source confirmation header is invalid.",
+                ));
+            }
+        },
+        _ => {
+            return failure_response(HttpFailure::request(
+                &state,
+                "local_request_denied",
+                "The source confirmation header must occur once.",
+            ));
+        }
+    };
+    let server_instance = state.security.server_instance().to_owned();
     let Some(role) = ImageRole::parse(&role) else {
         return failure_response(HttpFailure::not_found(
             &state,
@@ -643,9 +743,20 @@ pub(crate) async fn api_creator_image(
     };
     let session_for_read = session.clone();
     let gate_key = project_key.clone();
-    match run_blocking(state.clone(), Some(gate_key), move |service| {
-        service.get_creator_session_image(&project_key, &session_for_read, role)
-    })
+    match run_blocking(
+        state.clone(),
+        Some(gate_key),
+        move |service| match confirmation {
+            Some(id) => service.get_creator_source_image(
+                &project_key,
+                &session_for_read,
+                &server_instance,
+                &id,
+                role,
+            ),
+            None => service.get_creator_session_image(&project_key, &session_for_read, role),
+        },
+    )
     .await
     {
         Ok(image) => image_response(image, &session, role_name),
@@ -1047,6 +1158,7 @@ pub(crate) async fn session_page(
             decision_outcome: &view.decision_outcome,
             rationale: &view.rationale,
             generation_note: &view.generation_note,
+            source: view.source.as_ref(),
             annotations: &view.annotations,
             annotations_json: &view.annotations_json,
             annotations_unavailable: view.annotations_unavailable,
@@ -1170,4 +1282,53 @@ fn render_template(state: &AppState, template: impl Template) -> Response {
             HttpFailure::internal(state, "The local page could not be rendered."),
         ),
     }
+}
+
+pub(crate) async fn api_creator_source(
+    State(state): State<AppState>,
+    Path((project_key, session)): Path<(String, String)>,
+) -> Response {
+    let gate_key = project_key.clone();
+    let instance = state.security.server_instance().to_owned();
+    api_blocking(state.clone(), gate_key, move |service| {
+        service.prepare_creator_source(&project_key, &session, &instance)
+    })
+    .await
+}
+
+pub(crate) async fn derive_page(
+    State(state): State<AppState>,
+    Path((project_key, session)): Path<(String, String)>,
+) -> Response {
+    let key = project_key.clone();
+    let source = session.clone();
+    let instance = state.security.server_instance().to_owned();
+    let (label, preview) = match run_blocking(state.clone(), Some(key.clone()), move |service| {
+        let label = service.project_status(&key)?.project.display_label;
+        let preview = service.prepare_creator_source(&key, &source, &instance)?;
+        Ok((label, preview))
+    })
+    .await
+    {
+        Ok(value) => value,
+        Err(BlockingError::Service(error)) => {
+            return page_failure(&state, HttpFailure::service(&state, error));
+        }
+        Err(BlockingError::Task) => {
+            return page_failure(
+                &state,
+                HttpFailure::internal(&state, "The source preview could not be built."),
+            );
+        }
+    };
+    render_template(
+        &state,
+        DeriveTemplate {
+            page_title: "次の案を試す",
+            token: state.security.token(),
+            project_key: &project_key,
+            project_label: &label,
+            preview: &preview,
+        },
+    )
 }

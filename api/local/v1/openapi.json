@@ -353,6 +353,16 @@
           },
           {
             "$ref": "#/components/parameters/ImageRole"
+          },
+          {
+            "name": "X-Synapse-Source-Confirmation",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "description": "For source confirmation previews only; revalidates Original/Current against the captured source. AI output is refused."
           }
         ],
         "responses": {
@@ -657,6 +667,110 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/OperationStatus"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
+    },
+    "/projects/{projectKey}/creator-sessions/{session}/derivations": {
+      "get": {
+        "operationId": "prepareCreatorSource",
+        "tags": [
+          "creator-sessions"
+        ],
+        "summary": "Confirm one verified complete source for a new candidate",
+        "x-synapse-implementation-slice": 4,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          },
+          {
+            "$ref": "#/components/parameters/Session"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bounded process-local confirmation; no Core write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatorSourcePreview"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      },
+      "post": {
+        "operationId": "beginDerivedCreatorSession",
+        "tags": [
+          "creator-sessions"
+        ],
+        "summary": "Create a new proposal from confirmed reference images",
+        "description": "The AI output is caller-supplied. The request cannot select Refs, heads, OIDs, authority, profiles, or permits.",
+        "x-synapse-implementation-slice": 4,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          },
+          {
+            "$ref": "#/components/parameters/Session"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/BeginDerivedCreatorSessionRequest"
+              },
+              "encoding": {
+                "session": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "subject_label": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "creator_name": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "ai_output": {
+                  "contentType": "application/octet-stream"
+                },
+                "generation_tool": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "generation_model": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "generation_prompt": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "generation_intent": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "confirmation_id": {
+                  "contentType": "text/plain; charset=utf-8"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Proposal published and same-process review state retained",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PendingCreatorSession"
                 }
               }
             }
@@ -1512,6 +1626,9 @@
           },
           "generation_note": {
             "$ref": "#/components/schemas/CreatorGenerationNote"
+          },
+          "source": {
+            "$ref": "#/components/schemas/CreatorSourceBinding"
           }
         }
       },
@@ -1659,6 +1776,9 @@
           "annotations_unavailable": {
             "type": "boolean",
             "description": "True when the immutable annotation extension cannot be displayed. Does not invalidate an otherwise verified decision report."
+          },
+          "source": {
+            "$ref": "#/components/schemas/CreatorSourceBinding"
           }
         }
       },
@@ -2365,6 +2485,149 @@
           }
         },
         "description": "Private Human decision pins. Sequence order supplies displayed numbering. Top-left (0,0), bottom-right (1000000,1000000) of the full oriented decoded image; no viewport coordinates or spatial/physical claim."
+      },
+      "CreatorSourceBinding": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "format",
+          "session",
+          "proposal_head",
+          "decision_head",
+          "disposition",
+          "original_blob_oid",
+          "current_blob_oid"
+        ],
+        "properties": {
+          "format": {
+            "const": "synapsegit-creator-source-v1",
+            "type": "string"
+          },
+          "session": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "proposal_head": {
+            "$ref": "#/components/schemas/CommitOid"
+          },
+          "decision_head": {
+            "$ref": "#/components/schemas/CommitOid"
+          },
+          "disposition": {
+            "type": "string",
+            "enum": [
+              "adopt",
+              "reject",
+              "defer"
+            ]
+          },
+          "original_blob_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          },
+          "current_blob_oid": {
+            "$ref": "#/components/schemas/BlobOid"
+          }
+        }
+      },
+      "CreatorSourcePreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "confirmation_id",
+          "source",
+          "creator_name",
+          "subject_label"
+        ],
+        "properties": {
+          "confirmation_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "source": {
+            "$ref": "#/components/schemas/CreatorSourceBinding"
+          },
+          "creator_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "1 to 300 UTF-8 bytes",
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "subject_label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "1 to 500 UTF-8 bytes",
+            "x-synapse-max-utf8-bytes": 500
+          }
+        }
+      },
+      "BeginDerivedCreatorSessionRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "One new candidate and an opaque process-local source confirmation. Source Original and Current are revalidated and reused by the server; no fresh capture or AI promotion is implied.",
+        "x-synapse-max-file-parts": 1,
+        "x-synapse-max-aggregate-file-bytes": 67108864,
+        "required": [
+          "session",
+          "subject_label",
+          "creator_name",
+          "ai_output",
+          "confirmation_id"
+        ],
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "subject_label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "description": "1 to 500 UTF-8 bytes",
+            "x-synapse-max-utf8-bytes": 500
+          },
+          "creator_name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300,
+            "description": "1 to 300 UTF-8 bytes",
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "ai_output": {
+            "contentMediaType": "application/octet-stream",
+            "maxLength": 67108864,
+            "description": "Raw, unencoded binary; maxLength counts octets under OpenAPI 3.1",
+            "x-synapse-raw-binary": true,
+            "x-synapse-max-raw-bytes": 67108864
+          },
+          "generation_tool": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 300 UTF-8 bytes.",
+            "maxLength": 300,
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "generation_model": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 300 UTF-8 bytes.",
+            "maxLength": 300,
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "generation_prompt": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 8192 UTF-8 bytes.",
+            "maxLength": 8192,
+            "x-synapse-max-utf8-bytes": 8192
+          },
+          "generation_intent": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 2048 UTF-8 bytes.",
+            "maxLength": 2048,
+            "x-synapse-max-utf8-bytes": 2048
+          },
+          "confirmation_id": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
       }
     }
   },

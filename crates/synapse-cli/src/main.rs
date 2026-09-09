@@ -290,6 +290,9 @@ fn print_creator_report(report: &CreatorReport) {
         report.proposal_ref, report.proposal_head
     );
     println!("disposition={}", report.disposition.as_cli_str());
+    if let Some(source) = &report.source {
+        println!("reused_reference_source={source:?}");
+    }
     if report.annotations_unavailable {
         println!("decision_pins=unavailable");
     }

@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+<nav class="breadcrumbs" aria-label="パンくずリスト"><ol><li><a href="/">プロジェクト</a></li><li><a href="/projects/{{ project_key }}">{{ project_label }}</a></li><li><a href="/projects/{{ project_key }}/creator-sessions/{{ preview.source.session }}">{{ preview.source.session }}</a></li><li aria-current="page">次の案を試す</li></ol></nav>
+<header class="page-header"><div class="page-header__intro"><h1>この記録から次の案を試す</h1><p>完了した記録の参照画像を引き継ぎ、新しい候補を1点取り込みます。</p></div></header>
+<section class="card" aria-labelledby="source-confirm-heading">
+  <h2 id="source-confirm-heading">派生元と再利用する参照画像</h2>
+  <p>{{ preview.source.session }} · 元の判断: {{ preview.source.disposition }}</p>
+  <p>元のOriginal／Currentのexactなbytesを再利用します。Adopt済みでも元のAI outputをCurrentへ昇格しません。新しく撮影・観測した現況ではなく、過去の参照画像です。</p>
+  <dl class="detail-list"><div><dt>固定したProposal</dt><dd><code>{{ preview.source.proposal_head }}</code></dd></div><div><dt>固定したDecision</dt><dd><code>{{ preview.source.decision_head }}</code></dd></div></dl>
+  <div class="upload-grid">
+    <figure class="media-card"><div class="media-card__preview"><img data-synapse-image data-label="Original（記録済み参照）" data-url="/api/v1/projects/{{ project_key }}/creator-sessions/{{ preview.source.session }}/images/original" data-source-confirmation="{{ preview.confirmation_id }}" alt="派生元のOriginal参照画像"></div><figcaption><strong>Original（記録済み参照）</strong><p data-synapse-image-status class="muted">読み込み待ち</p><a class="button button--secondary" data-synapse-image-download download="original.bin" hidden>検証済みraw bytesをdownload</a><code>{{ preview.source.original_blob_oid }}</code></figcaption></figure>
+    <figure class="media-card"><div class="media-card__preview"><img data-synapse-image data-label="Current（記録済み参照）" data-url="/api/v1/projects/{{ project_key }}/creator-sessions/{{ preview.source.session }}/images/current" data-source-confirmation="{{ preview.confirmation_id }}" alt="派生元のCurrent参照画像"></div><figcaption><strong>Current（記録済み参照）</strong><p data-synapse-image-status class="muted">読み込み待ち</p><a class="button button--secondary" data-synapse-image-download download="current.bin" hidden>検証済みraw bytesをdownload</a><code>{{ preview.source.current_blob_oid }}</code></figcaption></figure>
+  </div>
+</section>
+<section class="card" aria-labelledby="next-session-heading">
+  <h2 id="next-session-heading">新しいセッション</h2>
+  <p>表示用の名前を確認・編集してください。新しいsession-local identityを作成します。同名でも同一人物・同一の物理Subjectとは推定しません。元の生成メモや判断メモは引き継ぎません。</p>
+  <form hidden method="post" action="/api/v1/projects/{{ project_key }}/creator-sessions/{{ preview.source.session }}/derivations" enctype="multipart/form-data" data-synapse-api-form="multipart" data-synapse-creator-upload data-creator-derived="true" data-success-session-base="/projects/{{ project_key }}/creator-sessions/" data-busy-message="派生元を再検証し、新しいproposalを作成しています…" data-success-message="新しいProposalを作成しました。">
+    <input type="hidden" name="confirmation_id" value="{{ preview.confirmation_id }}">
+    <div class="form-grid">
+      <div class="field"><label for="next-session">新しいSession</label><input id="next-session" name="session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" aria-describedby="next-session-hint"><span id="next-session-hint" class="field__hint">未使用の小文字英数字・ハイフン、1〜64文字。</span></div>
+      <div class="field"><label for="next-creator">Creator name</label><input id="next-creator" name="creator_name" value="{{ preview.creator_name }}" required maxlength="300" aria-describedby="next-creator-count"><span id="next-creator-count" data-creator-text-count="creator_name" class="field__hint"></span></div>
+      <div class="field form-grid__wide"><label for="next-subject">Subject label</label><input id="next-subject" name="subject_label" value="{{ preview.subject_label }}" required maxlength="500" aria-describedby="next-subject-count"><span id="next-subject-count" data-creator-text-count="subject_label" class="field__hint"></span></div>
+    </div>
+    <p data-creator-preview-note class="field__hint" hidden>新しい候補は必ず自分で選択してください。選ぶだけでは送信・保存されません。</p>
+    <div class="upload-file" data-creator-file><label for="next-ai-output">新しいAI output（caller-supplied）</label><input id="next-ai-output" type="file" name="ai_output" required aria-describedby="next-ai-output-info next-ai-output-status"><p id="next-ai-output-info" data-creator-file-info class="field__hint" hidden></p><img data-creator-preview class="upload-file__preview" alt="新しい候補のローカルプレビュー" hidden><p id="next-ai-output-status" data-creator-preview-status class="field__hint" role="status" hidden></p><button type="button" data-creator-file-clear data-variant="secondary" aria-label="新しいAI outputの選択を解除" hidden>選択を解除</button></div>
+    {% include "generation-note-fields.html" %}
+    <p data-creator-file-summary class="field__hint" role="status" hidden></p>
+    <button type="submit" data-synapse-submit>参照画像を引き継いでProposalを作成</button>
+    <p class="field__hint">派生元が確認後に変わった場合は作成を拒否します。元の判断は編集・再開しません。</p>
+    <p data-synapse-status hidden></p>
+  </form>
+  <noscript><p>JavaScriptを有効にすると、安全な取り込みフォームを利用できます。</p></noscript>
+</section>
+{% endblock %}

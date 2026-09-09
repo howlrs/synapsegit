@@ -72,6 +72,7 @@ pub(crate) struct SessionTemplate<'a> {
     pub(crate) decision_outcome: &'a str,
     pub(crate) rationale: &'a str,
     pub(crate) generation_note: &'a str,
+    pub(crate) source: Option<&'a synapse_local_service::CreatorSourceBinding>,
     pub(crate) annotations: &'a [synapse_local_service::CreatorPin],
     pub(crate) annotations_json: &'a str,
     pub(crate) annotations_unavailable: bool,
@@ -102,4 +103,14 @@ pub(crate) struct ErrorTemplate<'a> {
     pub(crate) title: &'a str,
     pub(crate) detail: &'a str,
     pub(crate) request_id: &'a str,
+}
+
+#[derive(Template)]
+#[template(path = "derive.html")]
+pub(crate) struct DeriveTemplate<'a> {
+    pub(crate) page_title: &'a str,
+    pub(crate) token: &'a str,
+    pub(crate) project_key: &'a str,
+    pub(crate) project_label: &'a str,
+    pub(crate) preview: &'a synapse_local_service::CreatorSourcePreview,
 }
