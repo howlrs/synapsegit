@@ -1,4 +1,4 @@
-import { test, expect, original, current, output } from "./fixtures.mjs";
+import { isolatedTest as test, expect, original, current, output } from "./fixtures.mjs";
 
 for (const disposition of ["Adopt", "Reject", "Defer"]) {
   test(`generation note survives ${disposition} and reload`, async ({ page, app }) => {

@@ -706,6 +706,25 @@ fn derivation_confirmation_is_scoped_revalidated_and_consumed() {
     assert_eq!(child.original_blob_oid, source.report.original_blob_oid);
     assert_eq!(child.current_blob_oid, source.report.current_blob_oid);
     assert_ne!(child.current_blob_oid, source.report.ai_output_blob_oid);
+    service
+        .decide_creator_session(
+            "project",
+            "child",
+            "instance",
+            decision(&child.review_id, CreatorDecision::Adopt),
+        )
+        .unwrap();
+    let error = service
+        .prepare_presentation_sidecar(
+            "project",
+            synapse_local_service::PresentationSidecarRequest {
+                session: "child".into(),
+                ..Default::default()
+            },
+        )
+        .unwrap_err();
+    assert_eq!(error.code(), "local_request_denied");
+    assert!(error.to_string().contains("公開形式v1に未対応"));
     assert!(
         service
             .begin_derived_creator_session("project", "source", "instance", request())

@@ -6,8 +6,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_canonical::{canonical_bytes, parse_strict};
 use synapse_creator::{
     ANNOTATIONS_FORMAT, CreatorAnnotations, CreatorBeginOptions, CreatorDecisionOptions,
-    CreatorDisposition, CreatorGenerationNote, CreatorImageRole, CreatorPin, begin_creator_session,
-    begin_creator_session_with_note, decide_creator_session_with_annotations,
+    CreatorDisposition, CreatorGenerationNote, CreatorImageRole, CreatorPin, CreatorSourceBinding,
+    begin_creator_session, begin_creator_session_with_note, begin_creator_session_with_source,
+    creator_report, decide_creator_session, decide_creator_session_with_annotations,
 };
 use synapse_publication::{
     BundleManifest, ChecksumsDocument, DEFAULT_MAX_SESSIONS, ExportOptions, OutputTarget,
@@ -154,6 +155,74 @@ fn export(root: &TempDirectory, name: &str, target: OutputTarget) -> PathBuf {
     })
     .unwrap();
     destination
+}
+
+#[test]
+fn frozen_v1_refuses_derived_sessions_without_writing_a_bundle() {
+    let root = TempDirectory::new();
+    create_three_decision_fixture(&root.0);
+    for source_session in ["adopt-story", "reject-story", "defer-story"] {
+        let source = CreatorSourceBinding::from_report(
+            &creator_report(root.join("repo"), source_session).unwrap(),
+        );
+        let session = format!("next-{source_session}");
+        let mut pending = begin_creator_session_with_source(
+            &CreatorBeginOptions {
+                repository: root.join("repo"),
+                session: session.clone(),
+                original_image: root.join("inputs/original.bin"),
+                current_image: root.join("inputs/current.bin"),
+                ai_output: root.join("inputs/proposal.bin"),
+                subject_label: "Reference reuse".into(),
+                creator_name: "Creator".into(),
+            },
+            None,
+            &source,
+        )
+        .unwrap();
+        decide_creator_session(
+            &mut pending,
+            &CreatorDecisionOptions {
+                disposition: CreatorDisposition::Adopt,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        drop(pending);
+        for selected in [Some(session.clone()), None] {
+            let destination = root.join("refused-bundle");
+            let mut projection = projection_options(root.join("repo"));
+            projection.session = selected;
+            let error = export_bundle(&ExportOptions {
+                projection,
+                destination: destination.clone(),
+                target: OutputTarget::Github,
+            })
+            .unwrap_err();
+            assert!(
+                matches!(&error, PublicationError::InvalidArgument(_)),
+                "{error}"
+            );
+            assert!(
+                error
+                    .to_string()
+                    .contains("cannot represent reused reference images")
+            );
+            assert!(!destination.exists());
+        }
+    }
+    // A normal session in the same repository remains exportable, and the
+    // frozen verifier still accepts the resulting bundle.
+    let mut projection = projection_options(root.join("repo"));
+    projection.session = Some("adopt-story".into());
+    let destination = root.join("ordinary-bundle");
+    export_bundle(&ExportOptions {
+        projection,
+        destination: destination.clone(),
+        target: OutputTarget::Github,
+    })
+    .unwrap();
+    verify_bundle(&destination).unwrap();
 }
 
 #[test]

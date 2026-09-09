@@ -2817,8 +2817,16 @@ impl LocalService {
     ) -> Result<crate::PresentationSidecar, ServiceError> {
         let repository = self.open_repository(project_key)?;
         let snapshot = capture_snapshot(&repository)?;
-        creator_report_from_snapshot(&repository, &snapshot, &request.session)
-            .map_err(creator_error)?;
+        let report = creator_report_from_snapshot(&repository, &snapshot, &request.session)
+            .map_err(creator_error)?
+            .report;
+        if report.source.is_some() {
+            return Err(ServiceError::new(
+                "local_request_denied",
+                "参照画像を再利用した派生セッションは公開形式v1に未対応です。通常のセッションを選択してください。",
+                false,
+            ));
+        }
         let optional = |value: Option<String>| value.filter(|text| !text.is_empty());
         let input = synapse_publication::PresentationInput {
             title: optional(request.title),

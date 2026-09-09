@@ -20,6 +20,11 @@ localhostのプロジェクト画面で「公開用の制作ノートを作る�
 
 ## 既存CLIでbundleを生成・検証する
 
+参照画像を再利用した派生セッションは公開形式v1に未対応です。再利用したCurrentを
+新しい観測として表示しないため、フォームの確認とCLIのbundle生成で拒否します。
+派生セッションを含むprojectの全件exportも拒否します。通常の3画像取り込みで作成した
+セッションを`--session`で選択してください。既存v1 bundleの検証は継続できます。
+
 まず`synapse-local`と同じsourceへ書くすべてのwriterを停止し、Ref SQLiteがcheckpoint済みで
 あることを確認します。稼働中sourceからの生成はこのフォームの機能に含みません。
 次のSOURCE・BUNDLE・SESSIONをローカルのsource、まだ存在しない出力先、選択したsession IDへ

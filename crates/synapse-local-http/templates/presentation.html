@@ -4,6 +4,7 @@
 <header class="page-header"><div class="page-header__intro"><h1>公開用の制作ノートを作る</h1><p>自分で入力した公開用文章から、既存CLIで使う説明文ファイルを作成します。すべての文章はauthor-suppliedです。</p></div></header>
 <section class="card" aria-labelledby="presentation-input-heading">
 <h2 id="presentation-input-heading">公開用の文章を入力</h2>
+<p>参照画像を再利用した派生セッションは、現在の公開形式に未対応です。通常の3画像取り込みで作成したセッションを選択してください。</p>
 <p>保存済みのprivateな理由・プロンプト・生成メモ・画像上の判断メモは自動転記しません。入力内容は下書きとして保存されません。</p>
 {% if sessions.is_empty() %}<p>このプロジェクトには完了したセッションがありません。先に通常のHuman Decisionを完了してください。</p>{% else %}
 <form hidden data-presentation-form data-endpoint="/api/v1/projects/{{ project_key }}/presentation-sidecars" autocomplete="off">

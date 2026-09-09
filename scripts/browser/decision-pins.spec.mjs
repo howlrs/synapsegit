@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { test, expect, original, current, output } from "./fixtures.mjs";
+import { isolatedTest as test, expect, original, current, output } from "./fixtures.mjs";
 
 test.use({ hasTouch: true });
 

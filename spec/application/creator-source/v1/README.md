@@ -27,3 +27,11 @@ new capture, verified physical condition, or proof of a shared real-world identi
 The new session has fresh local identities and one-shot Human review. Source notes
 and decisions are not copied as new candidate notes. Ordinary archives retain this
 private lineage; public projection does not automatically expose it.
+
+Frozen publication v1 cannot represent reference reuse. Its projection builder
+must reject any selected complete report with a source binding before rendering
+or creating bundle output, including all-session exports containing such a report.
+The localhost presentation-sidecar service also refuses derived sessions. A caller
+may explicitly select a non-derived session in the same repository. Existing v1
+bundle verification is unchanged; supporting derived publication requires a new
+public profile that preserves reuse semantics without exposing private lineage.
