@@ -10,6 +10,22 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ### Added
 
+- Creator sessions retain optional private, user-declared generation notes
+  (tool, model, prompt, and intent) and up to ten image-bound decision pins.
+  Notes and pins remain distinct from the Human Decision rationale, survive
+  normal Core archive/restore, and are not proof of model execution or authorship.
+- Complete Creator sessions can start a fresh candidate using verified exact
+  Original/Current bytes from the same project. Derived sessions have fresh
+  identities and Human review and retain fixed source lineage through
+  archive/restore. Adopt does not promote the prior AI output to Current;
+  private generation notes and rationale are not copied to the new attempt.
+- A localhost public-text form validates fresh author-supplied text for one
+  complete non-derived session and downloads `presentation.toml`. Fields start
+  empty; private notes are not copied, and the form performs no Core writes,
+  raw-image export, bundle generation, or remote publication. Frozen publication
+  v1 rejects derived sessions and all-session exports containing a complete
+  derived session; a non-derived session can be selected with `--session`.
+
 - localhost decision review: explicit adopt/reject/defer outcome descriptions
   and confirmation, live rationale UTF-8 byte-limit feedback, and input locking
   during submission. Completed sessions display the recorded rationale as

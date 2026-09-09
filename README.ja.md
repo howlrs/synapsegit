@@ -338,6 +338,7 @@ application route、archive verificationはRustが担当します。componentの
 | Tag | Release notes |
 |-----|---------------|
 | `v0.8.0` | [docs/releases/v0.8.0.md](./docs/releases/v0.8.0.md) |
+| `v0.7.0` | [docs/releases/v0.7.0.md](./docs/releases/v0.7.0.md) |
 | `v0.6.0` | [docs/releases/v0.6.0.md](./docs/releases/v0.6.0.md) |
 | `v0.5.1` | [docs/releases/v0.5.1.md](./docs/releases/v0.5.1.md) |
 | `v0.5.0` | [docs/releases/v0.5.0.md](./docs/releases/v0.5.0.md) |

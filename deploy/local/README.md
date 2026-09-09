@@ -1,6 +1,6 @@
 # Native localhost application
 
-v0.8.0の生成メモ・判断ピン・派生セッション・公開用文章フォームは、[Creator操作ガイド](../../docs/creator_workflow.md)を参照してください。配布済みv0.8.0との違いと公開v1の制限も説明しています。
+v0.8.0の生成メモ・判断ピン・派生セッション・公開用文章フォームは、[Creator操作ガイド](../../docs/creator_workflow.md)を参照してください。操作手順と公開v1の制限も説明しています。
 
 `synapse-local` is the first creator-facing SynapseGit application. It runs as
 one native process on the user's machine and serves a browser UI only on IPv4
@@ -54,10 +54,8 @@ a logical archive slug; the server uses its fixed Core-equivalent limits and
 atomic no-replace publication. It also enables authenticated `POST
 /api/v1/projects/{projectKey}/archive-restores`, which requires the logical
 archive slug, exact target-project confirmation, and explicit empty-target
-confirmation, then runs Core's server-fixed bounded exact-subset restore. There
-are no export or restore browser controls in the tagged v0.8.0 binary; both
-operations are reachable there only through the authenticated API above or the
-CLI/library. v0.8.0 adds browser controls. Restore has no dynamic path or
+confirmation, then runs Core's server-fixed bounded exact-subset restore.
+v0.8.0 also provides browser controls for both operations. Restore has no dynamic path or
 target selector: it acts only on the open registered project, and its form is
 rendered only when that dashboard snapshot has neither Refs nor reflog entries.
 It requires a logical archive slug, exact target-project key, an explicit
@@ -244,8 +242,8 @@ Blob URLs as the image cards and performs no additional API request. Only
 successfully decoded inline PNG/JPEG/GIF/WebP responses enter it. Other media
 retain their download-only behavior; corrupt or unsupported raster data shows
 an error on its card. Comparison is unavailable without JavaScript and does
-not add evidence access or recovery to incomplete sessions. The v0.8.0 tagged
-binary does not include this comparison dialog.
+not add evidence access or recovery to incomplete sessions. The comparison
+dialog is included in the v0.8.0 tagged binary.
 
 ### Enable archive maintenance
 

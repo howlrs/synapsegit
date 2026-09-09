@@ -46,7 +46,7 @@ See the [native localhost runbook](../../deploy/local/README.md) and
 
 ## Creator iteration on v0.8.0
 
-These features postdate the v0.8.0 tag. Follow the [Creator workflow guide](../../docs/creator_workflow.md) for the user flow and limits.
+These features are included in v0.8.0. Follow the [Creator workflow guide](../../docs/creator_workflow.md) for the user flow and limits.
 
 Optional private generation notes are supported on v0.8.0; see the [versioned Creator contract](../../spec/application/creator-generation-note/v1/README.md). Normal Core archives include these user-declared notes. Public bundles do not.
 
