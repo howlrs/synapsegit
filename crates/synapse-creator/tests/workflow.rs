@@ -823,3 +823,78 @@ fn report_rejects_a_current_proposal_that_does_not_match_human_feedback() {
     let error = creator_report(&repository_path, "first-session").unwrap_err();
     assert!(matches!(error, CreatorError::ReportInvalid(_)));
 }
+
+#[test]
+fn private_generation_notes_follow_each_proposal_through_decisions_and_archive() {
+    let temporary = TempDirectory::new();
+    let path = temporary.join("notes-repo");
+    for disposition in [
+        CreatorDisposition::Adopt,
+        CreatorDisposition::Reject,
+        CreatorDisposition::Defer,
+    ] {
+        let run = options(&temporary, &path, disposition.as_cli_str(), disposition);
+        let note = synapse_creator::CreatorGenerationNote {
+            tool: "外部ツール".into(),
+            model: "利用者が申告したモデル".into(),
+            prompt: format!(
+                "PRIVATE_GENERATION_CANARY_{}\n青い空と海",
+                disposition.as_cli_str()
+            ),
+            intent: "構図を比べる\n採否の理由とは別".into(),
+        };
+        let mut pending =
+            synapse_creator::begin_creator_session_with_note(&begin_options(&run), Some(&note))
+                .unwrap();
+        assert_eq!(pending.receipt().generation_note.as_ref(), Some(&note));
+        let proposal = pending.receipt().proposal_head.clone();
+        decide_creator_session(
+            &mut pending,
+            &CreatorDecisionOptions {
+                disposition,
+                rationale: None,
+            },
+        )
+        .unwrap();
+        let report = creator_report(&path, disposition.as_cli_str()).unwrap();
+        assert_eq!(report.proposal_head, proposal);
+        assert_eq!(report.generation_note.as_ref(), Some(&note));
+    }
+    let archive = temporary.join("notes-archive");
+    let restored = temporary.join("notes-restored");
+    Repository::open(&path)
+        .unwrap()
+        .export_archive(&archive)
+        .unwrap();
+    Repository::restore_archive(&archive, &restored).unwrap();
+    for session in ["adopt", "reject", "defer"] {
+        assert_eq!(
+            creator_report(&path, session).unwrap(),
+            creator_report(&restored, session).unwrap()
+        );
+    }
+}
+
+#[test]
+fn oversized_generation_notes_do_not_publish_refs() {
+    let temporary = TempDirectory::new();
+    let path = temporary.join("notes-repo");
+    let run = options(&temporary, &path, "notes-limit", CreatorDisposition::Adopt);
+    let repository = Repository::open(&path).unwrap();
+    let before = repository.refs().snapshot().unwrap();
+    for field in ["tool", "model", "prompt", "intent", "total"] {
+        let mut note = synapse_creator::CreatorGenerationNote::default();
+        match field {
+            "tool" => note.tool = "あ".repeat(101),
+            "model" => note.model = "x".repeat(301),
+            "prompt" => note.prompt = "x".repeat(8193),
+            "intent" => note.intent = "x".repeat(2049),
+            _ => note.prompt = "\0".repeat(8192),
+        }
+        assert!(
+            synapse_creator::begin_creator_session_with_note(&begin_options(&run), Some(&note))
+                .is_err()
+        );
+        assert_eq!(repository.refs().snapshot().unwrap(), before);
+    }
+}

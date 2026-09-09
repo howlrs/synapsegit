@@ -95,3 +95,5 @@ leaves an incomplete session; a later failure can leave an already
 complete session that must be inspected or restarted under a new session name.
 Stage 0 does not implement a cross-Ref workflow transaction, resume, or
 automatic cleanup.
+
+Optional private generation notes are supported on current main; see the [versioned Creator contract](../../spec/application/creator-generation-note/v1/README.md). Normal Core archives include these user-declared notes. Public bundles do not.

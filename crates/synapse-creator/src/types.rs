@@ -105,6 +105,7 @@ pub struct CreatorDecisionOptions {
 /// value returned by [`begin_creator_session`](crate::begin_creator_session).
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CreatorPendingReceipt {
+    pub generation_note: Option<crate::CreatorGenerationNote>,
     pub session: String,
     pub project_id: String,
     pub subject_id: String,
@@ -206,6 +207,7 @@ pub struct CreatorTimelineEntry {
 /// disposable and is never an authorization or recovery source.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CreatorReport {
+    pub generation_note: Option<crate::CreatorGenerationNote>,
     pub session: String,
     pub project_id: String,
     pub subject_id: String,

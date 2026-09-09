@@ -263,3 +263,5 @@ cargo run -p synapse-cli -- --help
 - Pilot で利用者へ返す価値: [使用ガイド](./usage_guide.md)
 - 書込み・保存 backend の境界: [Runtime architecture](./runtime_architecture.md)
 - CLI 開発と test: [Contributing](../CONTRIBUTING.md)
+
+The localhost three-file form optionally records private generation notes. After import and Human review, run `synapse creator-report <repo> <session>` to read `generation_note_user_declared` separately from the judgment rationale. This user-declared text does not verify the external model or its execution.

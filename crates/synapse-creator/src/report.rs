@@ -326,6 +326,10 @@ impl<'source> PreparedCreatorReportReader<'source> {
             "output_refs",
             "proposal",
         )?;
+        let generation_note = crate::notes::read_generation_note(
+            &read_json(repository, &ai_activity.oid)?,
+            &ai_output_blob_oid,
+        )?;
         let comparison = comparison_pointers
             .as_ref()
             .map(|pointers| {
@@ -362,6 +366,7 @@ impl<'source> PreparedCreatorReportReader<'source> {
 
         Ok(CreatorSnapshotReport {
             report: CreatorReport {
+                generation_note,
                 session: session.to_owned(),
                 project_id: ids.project,
                 subject_id: ids.subject,

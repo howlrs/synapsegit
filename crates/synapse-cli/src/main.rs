@@ -290,6 +290,9 @@ fn print_creator_report(report: &CreatorReport) {
         report.proposal_ref, report.proposal_head
     );
     println!("disposition={}", report.disposition.as_cli_str());
+    if let Some(note) = &report.generation_note {
+        println!("generation_note_user_declared={note:?}");
+    }
     if let Some(rationale) = &report.rationale {
         println!("rationale={rationale:?}");
     }

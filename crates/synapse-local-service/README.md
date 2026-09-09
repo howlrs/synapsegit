@@ -43,3 +43,5 @@ cargo test -p synapse-local-service --locked
 
 See the [native localhost runbook](../../deploy/local/README.md) and
 [application architecture](../../docs/localhost_application_architecture.md).
+
+Optional private generation notes are supported on current main; see the [versioned Creator contract](../../spec/application/creator-generation-note/v1/README.md). Normal Core archives include these user-declared notes. Public bundles do not.

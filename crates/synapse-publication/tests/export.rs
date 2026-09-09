@@ -5,8 +5,8 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_canonical::{canonical_bytes, parse_strict};
 use synapse_creator::{
-    CreatorBeginOptions, CreatorDisposition, CreatorRunOptions, begin_creator_session,
-    run_creator_session,
+    CreatorBeginOptions, CreatorDecisionOptions, CreatorDisposition, CreatorGenerationNote,
+    begin_creator_session, begin_creator_session_with_note, decide_creator_session,
 };
 use synapse_publication::{
     BundleManifest, ChecksumsDocument, DEFAULT_MAX_SESSIONS, ExportOptions, OutputTarget,
@@ -60,19 +60,31 @@ fn create_three_decision_fixture(root: &Path) {
         ("defer-story", CreatorDisposition::Defer),
         ("reject-story", CreatorDisposition::Reject),
     ] {
-        run_creator_session(&CreatorRunOptions {
-            repository: root.join("repo"),
-            session: session.into(),
-            original_image: original.clone(),
-            current_image: current.clone(),
-            ai_output: proposal.clone(),
-            subject_label: "private.person+projection@example.invalid".into(),
-            creator_name: "private.person+projection@example.invalid".into(),
-            disposition,
-            rationale: Some(format!(
-                "PRIVATE_RATIONALE_{session}_TOKEN_5c14 GH_TOKEN=secret"
-            )),
-        })
+        let mut pending = begin_creator_session_with_note(
+            &CreatorBeginOptions {
+                repository: root.join("repo"),
+                session: session.into(),
+                original_image: original.clone(),
+                current_image: current.clone(),
+                ai_output: proposal.clone(),
+                subject_label: "private.person+projection@example.invalid".into(),
+                creator_name: "private.person+projection@example.invalid".into(),
+            },
+            Some(&CreatorGenerationNote {
+                prompt: "PRIVATE_GENERATION_CANARY 日本語\n秘密".into(),
+                ..Default::default()
+            }),
+        )
+        .unwrap();
+        decide_creator_session(
+            &mut pending,
+            &CreatorDecisionOptions {
+                disposition,
+                rationale: Some(format!(
+                    "PRIVATE_RATIONALE_{session}_TOKEN_5c14 GH_TOKEN=secret"
+                )),
+            },
+        )
         .unwrap();
     }
 }
@@ -166,6 +178,7 @@ fn exports_adopt_reject_and_defer_without_private_or_raw_source_material() {
     let all_bundle_bytes = bundle_bytes(&bundle);
     for secret in [
         "PRIVATE_RATIONALE_",
+        "PRIVATE_GENERATION_CANARY",
         "GH_TOKEN=secret",
         "private.person+projection@example.invalid",
         "RAW_ORIGINAL_SECRET_91d6",

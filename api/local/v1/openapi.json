@@ -267,6 +267,18 @@
                 },
                 "ai_output": {
                   "contentType": "application/octet-stream"
+                },
+                "generation_tool": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "generation_model": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "generation_prompt": {
+                  "contentType": "text/plain; charset=utf-8"
+                },
+                "generation_intent": {
+                  "contentType": "text/plain; charset=utf-8"
                 }
               }
             }
@@ -365,35 +377,35 @@
               }
             },
             "content": {
-          "image/png": {
-            "schema": {
-              "maxLength": 67108864,
-              "x-synapse-max-raw-bytes": 67108864
-            }
-          },
-          "image/jpeg": {
-            "schema": {
-              "maxLength": 67108864,
-              "x-synapse-max-raw-bytes": 67108864
-            }
-          },
-          "image/gif": {
-            "schema": {
-              "maxLength": 67108864,
-              "x-synapse-max-raw-bytes": 67108864
-            }
-          },
-          "image/webp": {
-            "schema": {
-              "maxLength": 67108864,
-              "x-synapse-max-raw-bytes": 67108864
-            }
-          },
-          "application/octet-stream": {
-            "schema": {
-              "maxLength": 67108864,
-              "x-synapse-max-raw-bytes": 67108864
-            }
+              "image/png": {
+                "schema": {
+                  "maxLength": 67108864,
+                  "x-synapse-max-raw-bytes": 67108864
+                }
+              },
+              "image/jpeg": {
+                "schema": {
+                  "maxLength": 67108864,
+                  "x-synapse-max-raw-bytes": 67108864
+                }
+              },
+              "image/gif": {
+                "schema": {
+                  "maxLength": 67108864,
+                  "x-synapse-max-raw-bytes": 67108864
+                }
+              },
+              "image/webp": {
+                "schema": {
+                  "maxLength": 67108864,
+                  "x-synapse-max-raw-bytes": 67108864
+                }
+              },
+              "application/octet-stream": {
+                "schema": {
+                  "maxLength": 67108864,
+                  "x-synapse-max-raw-bytes": 67108864
+                }
               }
             }
           },
@@ -1222,6 +1234,30 @@
             "description": "Raw, unencoded binary; maxLength counts octets under OpenAPI 3.1",
             "x-synapse-raw-binary": true,
             "x-synapse-max-raw-bytes": 67108864
+          },
+          "generation_tool": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 300 UTF-8 bytes.",
+            "maxLength": 300,
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "generation_model": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 300 UTF-8 bytes.",
+            "maxLength": 300,
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "generation_prompt": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 8192 UTF-8 bytes.",
+            "maxLength": 8192,
+            "x-synapse-max-utf8-bytes": 8192
+          },
+          "generation_intent": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 2048 UTF-8 bytes.",
+            "maxLength": 2048,
+            "x-synapse-max-utf8-bytes": 2048
           }
         }
       },
@@ -1470,6 +1506,9 @@
           },
           "comparison": {
             "$ref": "#/components/schemas/ComparisonEvidence"
+          },
+          "generation_note": {
+            "$ref": "#/components/schemas/CreatorGenerationNote"
           }
         }
       },
@@ -1607,6 +1646,9 @@
           "fsck_objects": {
             "type": "integer",
             "minimum": 0
+          },
+          "generation_note": {
+            "$ref": "#/components/schemas/CreatorGenerationNote"
           }
         }
       },
@@ -2218,6 +2260,37 @@
             "type": "boolean"
           }
         }
+      },
+      "CreatorGenerationNote": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "tool": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 300 UTF-8 bytes.",
+            "maxLength": 300,
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "model": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 300 UTF-8 bytes.",
+            "maxLength": 300,
+            "x-synapse-max-utf8-bytes": 300
+          },
+          "prompt": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 8192 UTF-8 bytes.",
+            "maxLength": 8192,
+            "x-synapse-max-utf8-bytes": 8192
+          },
+          "intent": {
+            "type": "string",
+            "description": "Optional user-declared private text; maximum 2048 UTF-8 bytes.",
+            "maxLength": 2048,
+            "x-synapse-max-utf8-bytes": 2048
+          }
+        },
+        "description": "Optional private user-declared generation note, bound to the exact proposal output. Serialized note JSON maximum 16 KiB. Not verified execution evidence."
       }
     }
   },

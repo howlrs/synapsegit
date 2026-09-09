@@ -42,6 +42,12 @@
 {% endif %}
 
 {% if show_evidence %}
+<section class="card" aria-labelledby="generation-note-heading">
+  <h2 id="generation-note-heading">提案の生成メモ</h2>
+  <p class="field__hint">利用者申告のprivateメモです。モデルの実行・実作者の証明ではありません。通常のCore archiveには含まれます。</p>
+  {% if generation_note.is_empty() %}<p>生成メモなし</p>{% else %}<p class="decision-rationale" data-generation-note>{{ generation_note }}</p>{% endif %}
+</section>
+
 <section aria-labelledby="images-heading" data-synapse-comparison>
   <div class="section-heading"><div><h2 id="images-heading">画像と出力</h2><p class="muted">画像は現在の検証済みセッションからroleを解決し、認証付きfetchで読み込みます。</p></div></div>
   <div class="actions">

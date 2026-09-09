@@ -59,6 +59,7 @@ fn begin_request(temporary: &TempDirectory, session: &str) -> BeginCreatorSessio
     fs::write(&current_image, b"creator-current").unwrap();
     fs::write(&ai_output, b"GIF89acreator-ai-output").unwrap();
     BeginCreatorSessionRequest {
+        generation_note: None,
         session: session.into(),
         subject_label: "North wall mural".into(),
         creator_name: "Aki".into(),

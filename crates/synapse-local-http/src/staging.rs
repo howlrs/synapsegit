@@ -87,6 +87,8 @@ impl StagedCreatorUpload {
         let directory = StagingDirectory::create()
             .await
             .map_err(|_| UploadFailure::Storage)?;
+        let mut note = synapse_local_service::CreatorGenerationNote::default();
+        let mut note_fields = std::collections::BTreeSet::new();
         let mut session = None;
         let mut subject_label = None;
         let mut creator_name = None;
@@ -102,15 +104,30 @@ impl StagedCreatorUpload {
             .map_err(UploadFailure::multipart)?
         {
             part_count += 1;
-            if part_count > 6 {
+            if part_count > 10 {
                 return Err(UploadFailure::Request(
-                    "The multipart request must contain exactly six fields.",
+                    "The multipart request exceeds ten fields.",
                 ));
             }
             let name = field.name().ok_or(UploadFailure::Request(
                 "Every multipart field must have a name.",
             ))?;
             match name {
+                "generation_tool" | "generation_model" | "generation_prompt"
+                | "generation_intent" => {
+                    if !note_fields.insert(name.to_owned()) {
+                        return Err(UploadFailure::Request(
+                            "Multipart fields must not be duplicated.",
+                        ));
+                    }
+                    let (target, limit) = match name {
+                        "generation_tool" => (&mut note.tool, 300),
+                        "generation_model" => (&mut note.model, 300),
+                        "generation_prompt" => (&mut note.prompt, 8192),
+                        _ => (&mut note.intent, 2048),
+                    };
+                    *target = read_text_part(field, limit).await?;
+                }
                 "session" if session.is_none() => {
                     session = Some(read_text_part(field, MAX_SESSION_BYTES).await?);
                 }
@@ -174,9 +191,13 @@ impl StagedCreatorUpload {
             ));
         }
 
+        note.validate().map_err(|_| {
+            UploadFailure::Request("Generation note exceeds its UTF-8 byte limits.")
+        })?;
         Ok(Self {
             _directory: directory,
             request: BeginCreatorSessionRequest {
+                generation_note: (!note.is_empty()).then_some(note),
                 session,
                 subject_label,
                 creator_name,

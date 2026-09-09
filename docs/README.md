@@ -290,3 +290,5 @@ Chrono-Engine、人物再現、自動利益分配は現行 Core の対象外で�
 - ASCII の関係図を追加する前に、GitHub で表示できる Mermaid を優先する。
 - 相対 link と Mermaid fence は `node scripts/verify_docs.mjs` で検査する。
 - localhost HTTP contract は `node scripts/verify_local_api.mjs` で検査する。
+
+Current main supports optional private, user-declared proposal generation notes in the localhost import form. The tool/model, prompt and intent stay bound to the exact proposal bytes through archive/restore and are readable in pending/complete views and `creator-report`. They are not execution evidence and are excluded from public bundles. See the [Creator generation note contract](../spec/application/creator-generation-note/v1/README.md).

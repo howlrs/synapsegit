@@ -213,6 +213,24 @@ pub(crate) fn begin_creator_session_with_limits(
     options: &CreatorBeginOptions,
     fsck_limits: FsckLimits,
 ) -> Result<PendingCreatorSession> {
+    begin_creator_session_with_note_and_limits(options, None, fsck_limits)
+}
+
+pub fn begin_creator_session_with_note(
+    options: &CreatorBeginOptions,
+    note: Option<&crate::CreatorGenerationNote>,
+) -> Result<PendingCreatorSession> {
+    begin_creator_session_with_note_and_limits(options, note, CREATOR_FSCK_LIMITS)
+}
+
+fn begin_creator_session_with_note_and_limits(
+    options: &CreatorBeginOptions,
+    note: Option<&crate::CreatorGenerationNote>,
+    fsck_limits: FsckLimits,
+) -> Result<PendingCreatorSession> {
+    if let Some(note) = note {
+        note.validate()?;
+    }
     validate_begin_metadata(options)?;
     let pending_decision_capacity_limits = reserve_fsck_capacity(
         fsck_limits,
@@ -489,20 +507,22 @@ pub(crate) fn begin_creator_session_with_limits(
             &ai_recorded_at.timestamp,
         ),
     )?;
-    let ai_activity_oid = put_json(
-        &repository,
-        ai_activity_record(
-            &ids.ai_activity,
-            &ids.agent,
-            &ids.creator,
-            &ids.subject,
-            &ai_recorded_at.timestamp,
-            &context_oid,
-            &grant_oid,
-            &current_blob_oid,
-            &ai_output_blob_oid,
-        ),
-    )?;
+    let mut ai_activity = ai_activity_record(
+        &ids.ai_activity,
+        &ids.agent,
+        &ids.creator,
+        &ids.subject,
+        &ai_recorded_at.timestamp,
+        &context_oid,
+        &grant_oid,
+        &current_blob_oid,
+        &ai_output_blob_oid,
+    );
+    if let Some(note) = note {
+        crate::notes::attach_generation_note(&mut ai_activity, &ai_output_blob_oid, note)?;
+    }
+    let generation_note = crate::notes::read_generation_note(&ai_activity, &ai_output_blob_oid)?;
+    let ai_activity_oid = put_json(&repository, ai_activity)?;
     let mut proposal_entries = base_entries;
     insert_entry(
         &mut proposal_entries,
@@ -626,6 +646,7 @@ pub(crate) fn begin_creator_session_with_limits(
     let mut reachable_from = vec![decision_ref.clone(), published_proposal_ref.clone()];
     reachable_from.sort();
     let pending_receipt = CreatorPendingReceipt {
+        generation_note,
         session: options.session.clone(),
         project_id: ids.project.clone(),
         subject_id: ids.subject.clone(),

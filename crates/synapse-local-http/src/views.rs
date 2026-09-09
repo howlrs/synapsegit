@@ -173,6 +173,7 @@ pub(crate) struct SessionPageView {
     pub(crate) disposition: String,
     pub(crate) decision_outcome: String,
     pub(crate) rationale: String,
+    pub(crate) generation_note: String,
     pub(crate) selected: String,
     pub(crate) fsck_objects: usize,
     pub(crate) images: Vec<ImageView>,
@@ -228,6 +229,7 @@ impl SessionPageView {
                     disposition: "—".into(),
                     decision_outcome: String::new(),
                     rationale: String::new(),
+                    generation_note: format_generation_note(detail.generation_note.as_ref()),
                     selected: "—".into(),
                     fsck_objects: 0,
                     images,
@@ -295,6 +297,7 @@ impl SessionPageView {
                     disposition: "—".into(),
                     decision_outcome: String::new(),
                     rationale: String::new(),
+                    generation_note: String::new(),
                     selected: "—".into(),
                     fsck_objects: 0,
                     images: Vec::new(),
@@ -387,6 +390,7 @@ impl SessionPageView {
             }
             .into(),
             rationale: report.rationale.unwrap_or_default(),
+            generation_note: format_generation_note(report.generation_note.as_ref()),
             disposition: report.disposition,
             selected: if report.selected_ai_output {
                 "はい".into()
@@ -511,4 +515,21 @@ pub(crate) struct TimelineView {
     pub(crate) kind: String,
     pub(crate) ordering_time: String,
     pub(crate) time_basis: String,
+}
+
+fn format_generation_note(note: Option<&synapse_local_service::CreatorGenerationNote>) -> String {
+    note.map(|n| {
+        [
+            ("使用ツール", &n.tool),
+            ("モデル", &n.model),
+            ("プロンプト", &n.prompt),
+            ("制作意図", &n.intent),
+        ]
+        .into_iter()
+        .filter(|(_, value)| !value.is_empty())
+        .map(|(label, value)| format!("{label}:\n{value}"))
+        .collect::<Vec<_>>()
+        .join("\n")
+    })
+    .unwrap_or_default()
 }

@@ -393,3 +393,5 @@ available; the root `LICENSE` is controlling.
 
 Third-party Rust components remain under the terms collected in
 [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
+
+Current main supports optional private, user-declared proposal generation notes in the localhost import form. The tool/model, prompt and intent stay bound to the exact proposal bytes through archive/restore and are readable in pending/complete views and `creator-report`. They are not execution evidence and are excluded from public bundles. See the [Creator generation note contract](spec/application/creator-generation-note/v1/README.md).

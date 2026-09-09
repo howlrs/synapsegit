@@ -19,8 +19,9 @@ use synapse_creator::{
     CreatorPendingReceipt as CorePendingReceipt, CreatorReport as CoreCreatorReport,
     CreatorRunReceipt as CoreRunReceipt, CreatorSessionState as CoreCreatorSessionState,
     CreatorSnapshotReport, CreatorTimelineEntry as CoreTimelineEntry,
-    PendingCreatorSession as CorePendingCreatorSession, begin_creator_session as core_begin,
-    creator_report_from_snapshot, decide_creator_session as core_decide, discover_creator_sessions,
+    PendingCreatorSession as CorePendingCreatorSession,
+    begin_creator_session_with_note as core_begin, creator_report_from_snapshot,
+    decide_creator_session as core_decide, discover_creator_sessions,
 };
 use synapse_sqlite::{
     MAX_REF_SNAPSHOT_ENTRIES, MAX_REFLOG_PAGE_ENTRIES, RefArchiveExportLimits, RefSnapshot,
@@ -898,7 +899,9 @@ impl LocalService {
             subject_label: request.subject_label,
             creator_name: request.creator_name,
         };
-        let outcome = catch_unwind(AssertUnwindSafe(|| core_begin(&options)));
+        let outcome = catch_unwind(AssertUnwindSafe(|| {
+            core_begin(&options, request.generation_note.as_ref())
+        }));
         let (pending, receipt) = match outcome {
             Ok(Ok(pending)) => {
                 let receipt = pending.receipt().clone();
@@ -1683,6 +1686,7 @@ fn pending_session(snapshot: &RefSnapshot, pending: ReadyPending) -> PendingCrea
         current_blob_oid: receipt.current_blob_oid,
         ai_output_blob_oid: receipt.ai_output_blob_oid,
         ai_output_source: "caller_supplied".into(),
+        generation_note: receipt.generation_note,
         comparison: comparison_evidence(receipt.comparison),
     }
 }
@@ -2177,6 +2181,7 @@ fn creator_report(snapshot: SnapshotContext, report: CoreCreatorReport) -> Creat
         ai_output_source: "caller_supplied".into(),
         reviewed_by_human,
         rationale: report.rationale,
+        generation_note: report.generation_note,
         original_blob_oid: report.original_blob_oid,
         current_blob_oid: report.current_blob_oid,
         ai_output_blob_oid: report.ai_output_blob_oid,

@@ -344,3 +344,50 @@ fn creator_cli_builds_reports_and_restores_one_human_gated_session() {
     assert!(invalid.contains("usage_error: decision must be one of"));
     assert!(invalid.contains("Usage:"));
 }
+
+#[test]
+fn creator_report_prints_private_user_declared_notes_separately_and_escaped() {
+    use synapse_creator::{
+        CreatorBeginOptions, CreatorDecisionOptions, CreatorDisposition, CreatorGenerationNote,
+        begin_creator_session_with_note, decide_creator_session,
+    };
+    let temporary = TempDirectory::new();
+    let image = temporary.join("image");
+    fs::write(&image, b"opaque image").unwrap();
+    let repository = temporary.join("repo");
+    let mut pending = begin_creator_session_with_note(
+        &CreatorBeginOptions {
+            repository: repository.clone(),
+            session: "note-report".into(),
+            original_image: image.clone(),
+            current_image: image.clone(),
+            ai_output: image,
+            subject_label: "作品".into(),
+            creator_name: "Creator".into(),
+        },
+        Some(&CreatorGenerationNote {
+            prompt: "日本語\nPRIVATE_NOTE\u{1b}[31m".into(),
+            ..Default::default()
+        }),
+    )
+    .unwrap();
+    decide_creator_session(
+        &mut pending,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Reject,
+            rationale: Some("別の判断理由".into()),
+        },
+    )
+    .unwrap();
+    let report = run(&[
+        "creator-report",
+        repository.to_str().unwrap(),
+        "note-report",
+    ]);
+    assert_success(&report);
+    let text = String::from_utf8(report.stdout).unwrap();
+    assert!(text.contains("generation_note_user_declared="));
+    assert!(text.contains("日本語\\nPRIVATE_NOTE\\u{1b}[31m"));
+    assert!(text.contains("rationale=\"別の判断理由\""));
+    assert!(!text.contains('\u{1b}'));
+}

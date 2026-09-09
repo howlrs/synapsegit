@@ -221,6 +221,7 @@ fn sample_creator_report() -> CreatorReport {
     let commit_oid = |seed: &str| format!("commit:sg-oid-v1:sha256:{}", seed.repeat(64));
     let blob_oid = |seed: &str| format!("blob:sg-oid-v1:sha256:{}", seed.repeat(64));
     CreatorReport {
+        generation_note: None,
         snapshot: sample_snapshot(),
         session: "render-session".into(),
         project_id: "project:sg-oid-v1:opaque-1".into(),
@@ -703,6 +704,7 @@ fn creator_session_detail_complete_variant_matches_the_openapi_schema() {
 fn creator_session_detail_pending_variant_matches_the_openapi_schema() {
     let document = openapi_document();
     let pending = PendingCreatorSession {
+        generation_note: None,
         state: PendingReviewState::PendingReview,
         snapshot: sample_snapshot(),
         server_instance: "local-test-instance".into(),

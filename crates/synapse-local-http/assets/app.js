@@ -17,6 +17,10 @@ const CREATOR_TEXT_FIELDS = new Map([
   ["session", 64],
   ["subject_label", 500],
   ["creator_name", 300],
+  ["generation_tool", 300],
+  ["generation_model", 300],
+  ["generation_prompt", 8192],
+  ["generation_intent", 2048],
 ]);
 const CREATOR_UPLOADS = new Map();
 const CREATOR_FILE_FIELDS = new Set(["original_image", "current_image", "ai_output"]);
@@ -751,7 +755,7 @@ function creatorMultipart(form, submitter) {
         throw new TypeError(`The field “${name}” must occur exactly once as text.`);
       }
       const byteLength = UTF8_ENCODER.encode(value).byteLength;
-      if (byteLength === 0 || byteLength > CREATOR_TEXT_FIELDS.get(name)) {
+      if ((!name.startsWith("generation_") && byteLength === 0) || byteLength > CREATOR_TEXT_FIELDS.get(name)) {
         throw new TypeError(`The field “${name}” exceeds its UTF-8 byte limit.`);
       }
       text.set(name, value);
@@ -776,7 +780,9 @@ function creatorMultipart(form, submitter) {
     throw new TypeError(`The field “${name}” is not allowed in a creator upload.`);
   }
 
-  if (text.size !== CREATOR_TEXT_FIELDS.size || files.size !== CREATOR_FILE_FIELDS.size) {
+  const note = Object.fromEntries(["tool", "model", "prompt", "intent"].map(key => [key, text.get(`generation_${key}`) || ""]));
+  if (UTF8_ENCODER.encode(JSON.stringify(note)).byteLength > 16384) throw new TypeError("生成メモ全体は16 KiB以内にしてください。");
+  if (!["session", "subject_label", "creator_name"].every(name => text.has(name)) || files.size !== CREATOR_FILE_FIELDS.size) {
     throw new TypeError("The creator upload requires exactly three text fields and three files.");
   }
   if (!/^[a-z][a-z0-9-]{0,63}$/u.test(text.get("session"))) {
@@ -787,7 +793,7 @@ function creatorMultipart(form, submitter) {
   for (const name of CREATOR_TEXT_FIELDS.keys()) {
     normalized.append(
       name,
-      new Blob([text.get(name)], { type: "text/plain; charset=utf-8" }),
+      new Blob([text.get(name) || ""], { type: "text/plain; charset=utf-8" }),
       `${name}.txt`,
     );
   }

@@ -11,6 +11,8 @@
 mod error;
 mod fsck;
 mod io;
+mod notes;
+pub use notes::{CreatorGenerationNote, GENERATION_NOTE_KEY};
 mod records;
 mod report;
 mod session;
@@ -28,7 +30,8 @@ pub use report::{
 pub use session::{
     CREATOR_FSCK_MAX_CLOSURE_EDGES, CREATOR_FSCK_MAX_CLOSURE_NODES, CREATOR_FSCK_MAX_OBJECT_BYTES,
     CREATOR_FSCK_MAX_OBJECTS, CREATOR_FSCK_MAX_REF_ROOTS, CREATOR_RESERVED_PENDING_DECISIONS,
-    PendingCreatorSession, begin_creator_session, decide_creator_session, run_creator_session,
+    PendingCreatorSession, begin_creator_session, begin_creator_session_with_note,
+    decide_creator_session, run_creator_session,
 };
 pub use synapse_observation::{AnalysisComparability, AnalysisStatus, ByteIdentityOutcome};
 pub use types::{

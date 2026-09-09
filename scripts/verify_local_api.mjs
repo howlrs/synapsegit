@@ -326,7 +326,7 @@ const expectedWrites = new Map([
     "beginCreatorSession",
     {
       mediaType: "multipart/form-data",
-      properties: ["ai_output", "creator_name", "current_image", "original_image", "session", "subject_label"],
+      properties: ["ai_output", "creator_name", "current_image", "generation_intent", "generation_model", "generation_prompt", "generation_tool", "original_image", "session", "subject_label"],
       required: ["ai_output", "creator_name", "current_image", "original_image", "session", "subject_label"],
     },
   ],
@@ -429,6 +429,9 @@ if (
 }
 requireUtf8ByteLimit(beginSchema?.properties?.subject_label, 500, "subject_label");
 requireUtf8ByteLimit(beginSchema?.properties?.creator_name, 300, "creator_name");
+for (const [key, limit] of [["tool", 300], ["model", 300], ["prompt", 8192], ["intent", 2048]]) {
+  requireUtf8ByteLimit(beginSchema?.properties?.[`generation_${key}`], limit, `generation_${key}`);
+}
 for (const field of ["original_image", "current_image", "ai_output"]) {
   const schema = beginSchema?.properties?.[field];
   // OAS 3.1 raw binary omits JSON Schema type/contentEncoding; maxLength counts octets.
@@ -472,7 +475,7 @@ for (const [mediaType, media] of Object.entries(imageContent)) {
     fail(mediaType + " must be a bounded raw OpenAPI 3.1 image response");
   }
 }
-for (const field of ["session", "subject_label", "creator_name"]) {
+for (const field of ["session", "subject_label", "creator_name", "generation_tool", "generation_model", "generation_prompt", "generation_intent"]) {
   if (beginEncoding?.[field]?.contentType !== "text/plain; charset=utf-8") {
     fail(field + " must use an explicit UTF-8 multipart text encoding");
   }

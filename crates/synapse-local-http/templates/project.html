@@ -223,6 +223,13 @@
         <button type="button" data-creator-file-clear data-variant="secondary" aria-label="AI output (caller-supplied)の選択を解除" hidden>選択を解除</button>
       </div>
     </div>
+    <details class="card"><summary>提案の生成メモ（任意）</summary>
+      <p>このAI outputについて利用者が申告するprivateなメモです。実行ログ・モデルの実行証明ではありません。通常のCore archiveには含まれます。入力内容と上のAI outputを確認してからProposalを作成してください。</p>
+      <div class="field"><label for="generation-tool">使用ツール</label><textarea id="generation-tool" name="generation_tool" aria-describedby="generation-tool-count"></textarea><span id="generation-tool-count" data-creator-text-count="generation_tool" class="field__hint">UTF-8 300 bytes以内</span></div>
+      <div class="field"><label for="generation-model">モデル名</label><textarea id="generation-model" name="generation_model" aria-describedby="generation-model-count"></textarea><span id="generation-model-count" data-creator-text-count="generation_model" class="field__hint">UTF-8 300 bytes以内</span></div>
+      <div class="field"><label for="generation-prompt">プロンプト</label><textarea id="generation-prompt" name="generation_prompt" aria-describedby="generation-prompt-count"></textarea><span id="generation-prompt-count" data-creator-text-count="generation_prompt" class="field__hint">UTF-8 8192 bytes以内</span></div>
+      <div class="field"><label for="generation-intent">制作意図</label><textarea id="generation-intent" name="generation_intent" aria-describedby="generation-intent-count"></textarea><span id="generation-intent-count" data-creator-text-count="generation_intent" class="field__hint">UTF-8 2048 bytes以内</span></div>
+    </details>
     <p data-creator-file-summary class="field__hint" role="status" hidden></p>
     <div class="actions"><button type="submit" data-synapse-submit>Proposalを作成</button></div>
     <p class="field__hint">安全なwriteには、このページのJavaScriptとprocess-local tokenが必要です。</p>

@@ -536,3 +536,5 @@ SurrealDB adapter、全8-query／benchmark比較は未実装である。
 HTTP／JWT、durable permit service、一般的なHuman workflow、Projection application route、または
 general Human Decision／Projection CLI commandを提供したという意味ではない。`creator-run`は3画像・single creator・
 create-only sessionへ固定したPilot orchestrationである。
+
+`creator-report` prints `generation_note_user_declared` when a proposal contains a private generation note. The text is escaped with Rust debug string formatting, remains user-declared, and is separate from `rationale`. The localhost import form and trusted `begin_creator_session_with_note` API create these notes; `creator-run` retains its existing inputs. Normal archives include notes; public bundles do not.
