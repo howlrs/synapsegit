@@ -527,7 +527,7 @@ M0/M1 profileはdefault-denyで、次を固定する。
 `private_review`となり、manifestは外部copy前のreview要求を保持する。`preview`はbundleのfixed inventory、
 checksum、schema、canonical JSON、target copyを検証してlocal pathを表示するだけである。
 
-current-mainのgeneric-artifact publication v1はcreator M0/M1と別profile／schema／rendererでdispatchする。
+v0.8.0のgeneric-artifact publication v1はcreator M0/M1と別profile／schema／rendererでdispatchする。
 complete projectionはtrusted Decision bindingをbounded checkoutへ渡し、exact lineage、protected control、selected
 `site`、全regular-file bytes、manifest digestが一致した場合だけ生成する。public accepted-site bindingはdigest、
 file count、byte countだけでCore OIDやraw bytesを含まない。pending／incompleteはnon-serializable trusted statusから

@@ -163,7 +163,7 @@ local single-creator経路を実装する。library境界はproposal-onlyの`beg
 `creator-run`は両phaseを連続実行する互換wrapperである。localhost applicationは、boundedな三file
 staging、proposal公開前に上限を確保するprocess registry、同じprocess内のreview UI、read-only
 incomplete diagnostics、server-fixed bounded `fsck`のbackground job／poll UIまでtagged v0.3.0で実装済みである。
-current mainはlogical archive slug、exact project確認、開始前確認、job pollingを持つarchive export UIと、
+v0.8.0はlogical archive slug、exact project確認、開始前確認、job pollingを持つarchive export UIと、
 Refs／reflogが空の表示中targetへ固定したarchive restore UIを実装する。restoreは一覧のslug、exact target key、
 explicit empty-target checkbox、browser確認を要求し、既存jobをpollして成功時はreport一致確認とhistory再読込linkを残す。
 process restart後のcapability／job state復元、

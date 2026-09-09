@@ -11,7 +11,7 @@ Status: **Core v0.1 / Stage 0 draft**
 - [Documentation index](./README.md)
 - [15分 壁画チュートリアル](./tutorial/README.ja.md)
 - [15-minute mural tutorial (English)](./tutorial/README.md)
-- [v0.7.0 release notes](./releases/v0.7.0.md)
+- [v0.8.0 release notes](./releases/v0.8.0.md)
 - [5分Quickstart](./quickstart.md)
 - [Native localhost application起動手順](../deploy/local/README.md)
 - [想定利用者別シナリオ（PPTX・日本語）](./presentations/synapsegit_user_scenarios_ja.pptx)
@@ -36,16 +36,16 @@ mkdir -p "$HOME/SynapseGit/demo"
 
 terminalに表示された`http://127.0.0.1:8787`をbrowserで開き、終了時はCtrl-Cを押す。hostは
 `127.0.0.1`固定で、network共有用のoverrideはない。複数projectは`--project KEY=PATH`を繰り返して登録する。
-空directoryは空repositoryとして開かれる。v0.7.0はproject画面からsessionを作成でき、
+空directoryは空repositoryとして開かれる。v0.8.0はproject画面からsessionを作成でき、
 後述の`creator-run`で同じpathへ作成したsessionも表示できる。
 
 UIで現在読めるのはproject status、Refs／reflog、creator sessionのreport／timeline／evidence／画像である。
-v0.7.0ではoriginal／current／caller-supplied AI outputの三fileをbounded stagingへuploadし、proposalを
+v0.8.0ではoriginal／current／caller-supplied AI outputの三fileをbounded stagingへuploadし、proposalを
 同じprocess内でHuman `adopt`／`reject`／`defer`できる。review前にprocessを終了するとauthorityは復元できず、
 sessionはincompleteになる。read-only incomplete diagnosticsと、exact project確認付きの
-server-bounded background `fsck`／poll UIもtagged v0.7.0の`synapse-local`に含まれる。
-tagged v0.7.0は`--archive-root`指定時のexact confirmation付きarchive export／empty-target restore APIも提供する。
-current mainはproject画面にarchive UIを追加した。restoreは空の表示中登録projectに固定され、一覧slug、exact target key、
+server-bounded background `fsck`／poll UIもtagged v0.8.0の`synapse-local`に含まれる。
+tagged v0.8.0は`--archive-root`指定時のexact confirmation付きarchive export／empty-target restore APIも提供する。
+v0.8.0はproject画面にarchive UIを追加した。restoreは空の表示中登録projectに固定され、一覧slug、exact target key、
 empty-target checkbox、browser確認、queued/polled jobを必要とする。成功後はreport一致確認とhistory再読込linkを表示する。
 automatic recoveryのUIは未実装である。詳しいoption、limit、
 localhost security boundary、GCP CLI smokeとの違いは[native localhost runbook](../deploy/local/README.md)を参照する。
@@ -54,7 +54,7 @@ localhost security boundary、GCP CLI smokeとの違いは[native localhost runb
 
 *Session detail — Human Decision、AI outputの選択状態、original／current／AI output、byte-identity evidenceを同じsession内で確認する画面です。*
 
-現在のmainでは、privateな生成メモ・判断ピンを記録し、完了記録のOriginal／Currentを再利用して
+v0.8.0では、privateな生成メモ・判断ピンを記録し、完了記録のOriginal／Currentを再利用して
 別の候補を試せます。[Creator操作ガイド](creator_workflow.md)に手順をまとめています。
 通常取り込みの完了セッションには公開用文章フォームもありますが、派生セッションの公開v1出力は未対応です。
 
@@ -147,7 +147,7 @@ visual change、physical changeを判定しない。`identical`でも物理対�
 
 ### 7. 報告・引き継ぎ・archiveへ返す
 
-選択した履歴から、進捗、制作process、処置記録、As-recorded、引き継ぎ資料を構成する。現在のlocal Coreはchecksum付きdirectory archiveをexportし、空repository、または同じarchiveの失敗restoreが残したexact object subsetへrestoreできる。localhost UIは既存sessionのreport／timeline／evidence／画像、boundedな三file upload／same-process review、archive export／固定empty-target restoreを統合する。restoreはpathやdynamic targetを選ばず、失敗時に自動resume、cleanup、review recoveryを行わない。capture、画像registration・visual比較、restart後のreview再開は未実装である。具体的なbrowser round tripは[native localhost runbook](../deploy/local/README.md#browser-archive-round-trip-current-main)を参照する。
+選択した履歴から、進捗、制作process、処置記録、As-recorded、引き継ぎ資料を構成する。現在のlocal Coreはchecksum付きdirectory archiveをexportし、空repository、または同じarchiveの失敗restoreが残したexact object subsetへrestoreできる。localhost UIは既存sessionのreport／timeline／evidence／画像、boundedな三file upload／same-process review、archive export／固定empty-target restoreを統合する。restoreはpathやdynamic targetを選ばず、失敗時に自動resume、cleanup、review recoveryを行わない。capture、画像registration・visual比較、restart後のreview再開は未実装である。具体的なbrowser round tripは[native localhost runbook](../deploy/local/README.md#browser-archive-round-trip)を参照する。
 
 `creator-report`はUIではないが、一つのconsistent Ref snapshotからcurrent proposal／decisionを解決し、
 同じsnapshotで一時SQLite Projectionをrebuildする。Subject extensionのsession manifestからEntityIdを復元し、
@@ -258,16 +258,16 @@ node scripts/verify_core_fixtures.mjs
 cargo test --workspace --locked
 ```
 
-### v0.7.0 tagged sourceのgeneric-artifact library
+### v0.8.0 tagged sourceのgeneric-artifact library
 
-v0.7.0 tagのworkspace sourceには、bounded regular-file mapper、固定generic-artifact v1 contract、
+v0.8.0 tagのworkspace sourceには、bounded regular-file mapper、固定generic-artifact v1 contract、
 sequential Proposal／Decision、host-authenticated approval、別SQLite journalを使うexplicit restart
 reconciliation、bounded checkout、versioned local public projectionが含まれる。これはembedding application向けの
 Rust library境界である。利用時は[generic-artifact v1 contract](../spec/application/generic-artifact/v1/README.md)と
 [runtime architecture](./runtime_architecture.md#generic-artifact-application-boundary)を正本として、workspace testsと
 ともに固定tagから組み込む。
 
-v0.7.0 release archiveは`synapse`、`synapse-local`、`synapse-present`の三binaryだけである。このlibraryに対する
+v0.8.0 release archiveは`synapse`、`synapse-local`、`synapse-present`の三binaryだけである。このlibraryに対する
 HTTP／CLI／browser UI、新binary、model invocation、automatic worker、remote publishは提供しない。以下の
 creator Pilot／publication commandもgeneric-artifact transportではなく、v0.3.0から継続する三画像向けsurfaceである。
 

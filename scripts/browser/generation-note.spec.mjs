@@ -22,6 +22,10 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     const navigation = page.waitForEvent("framenavigated", { predicate: frame => frame === page.mainFrame() });
     await page.getByRole("button", { name: disposition, exact: true }).click();
     await navigation;
+    // The navigation event precedes document readiness; finish the app reload
+    // before requesting a second reload to verify persisted history.
+    await page.waitForLoadState("domcontentloaded");
+    await expect(page.getByRole("heading", { name: "記録した判断", exact: true })).toBeVisible();
     await page.reload();
     await expect(page.locator("[data-generation-note]")).toContainText(prompt);
     await expect(page.locator("[data-generation-note] script")).toHaveCount(0);

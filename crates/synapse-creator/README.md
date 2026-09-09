@@ -96,14 +96,14 @@ complete session that must be inspected or restarted under a new session name.
 Stage 0 does not implement a cross-Ref workflow transaction, resume, or
 automatic cleanup.
 
-## Creator iteration on current main
+## Creator iteration on v0.8.0
 
-These features postdate the v0.7.0 tag. Follow the [Creator workflow guide](../../docs/creator_workflow.md) for the user flow and limits.
+These features postdate the v0.8.0 tag. Follow the [Creator workflow guide](../../docs/creator_workflow.md) for the user flow and limits.
 
-Optional private generation notes are supported on current main; see the [versioned Creator contract](../../spec/application/creator-generation-note/v1/README.md). Normal Core archives include these user-declared notes. Public bundles do not.
+Optional private generation notes are supported on v0.8.0; see the [versioned Creator contract](../../spec/application/creator-generation-note/v1/README.md). Normal Core archives include these user-declared notes. Public bundles do not.
 
 Private image pins use the [Creator decision pin contract](../../spec/application/creator-decision-pins/v1/README.md). Unknown annotations are shown as unavailable separately from decision verification. The localhost decision JSON remains limited to 8 KiB including rationale and pins.
 
-Current main can start a new Creator candidate from any verified complete session in the same project. It reuses exact Original/Current bytes, keeps fresh identities and Human review, and records fixed source lineage across archive/restore. Adopt does not promote the old AI output to Current. See the [reused source contract](../../spec/application/creator-source/v1/README.md).
+v0.8.0 can start a new Creator candidate from any verified complete session in the same project. It reuses exact Original/Current bytes, keeps fresh identities and Human review, and records fixed source lineage across archive/restore. Adopt does not promote the old AI output to Current. See the [reused source contract](../../spec/application/creator-source/v1/README.md).
 
 Derived sessions are not exportable through frozen publication v1, which cannot express reference reuse. Publication refuses these sessions instead of presenting reused Current bytes as a new observation. Local reports, decisions, and archive/restore remain available.
