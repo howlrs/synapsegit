@@ -353,3 +353,5 @@ Current mainではlocalhost取り込みフォームで任意のprivateな生成�
 Current mainでは画像上のprivateな判断ピンをHuman Decisionと一緒に記録できます。マウス／タッチ・キーボード・整数座標で編集でき、倍率変更やarchive／restore後も位置を保持します。部分採用・画像分析は表さず、public bundleへ自動転記しません。[判断ピンの保存契約](spec/application/creator-decision-pins/v1/README.md)を参照してください。
 
 現在のmainでは、同じprojectの完了記録からOriginal／Currentを参照として再利用し、新しい候補1点で次のセッションを始められます。採用済みAI outputをCurrentへ昇格せず、新しいidentityとHuman reviewを作成します。固定した派生元の履歴はarchive／restore後も検証できます。[派生元契約](spec/application/creator-source/v1/README.md)を参照してください。
+
+現在のmainでは、完了した1セッションを選び、公開用文章を空欄から入力・確認して`presentation.toml`をダウンロードできます。privateメモの自動転記・Core更新・外部公開は行いません。[説明文ファイルの作成手順](docs/presentation_sidecar.md)を参照してください。

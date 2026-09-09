@@ -49,3 +49,5 @@ Optional private generation notes are supported on current main; see the [versio
 Private image pins use the [Creator decision pin contract](../../spec/application/creator-decision-pins/v1/README.md). Unknown annotations are shown as unavailable separately from decision verification. The localhost decision JSON remains limited to 8 KiB including rationale and pins.
 
 Current main can start a new Creator candidate from any verified complete session in the same project. It reuses exact Original/Current bytes, keeps fresh identities and Human review, and records fixed source lineage across archive/restore. Adopt does not promote the old AI output to Current. See the [reused source contract](../../spec/application/creator-source/v1/README.md).
+
+Current main includes a localhost form for fresh author-supplied public text for one complete session. It validates and downloads `presentation.toml`, with empty initial fields and no automatic private-note transfer, Core writes, raw images, or remote publication. Follow the [sidecar workflow](../../docs/presentation_sidecar.md) for the existing stopped-writer CLI export and verification steps.

@@ -19,3 +19,4 @@ sha2.workspace = true
 synapse-core = { path = "../synapse-core" }
 synapse-creator = { path = "../synapse-creator" }
 synapse-sqlite = { path = "../synapse-sqlite" }
+synapse-publication = { path = "../synapse-publication" }

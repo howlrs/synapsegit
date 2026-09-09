@@ -2806,3 +2806,40 @@ impl LocalService {
         load_creator_image(&repository, oid)
     }
 }
+
+impl LocalService {
+    /// Validate fresh publication text. No source-private fields are copied and
+    /// no Core objects, Refs, sidecar paths or external resources are written.
+    pub fn prepare_presentation_sidecar(
+        &self,
+        project_key: &str,
+        request: crate::PresentationSidecarRequest,
+    ) -> Result<crate::PresentationSidecar, ServiceError> {
+        let repository = self.open_repository(project_key)?;
+        let snapshot = capture_snapshot(&repository)?;
+        creator_report_from_snapshot(&repository, &snapshot, &request.session)
+            .map_err(creator_error)?;
+        let optional = |value: Option<String>| value.filter(|text| !text.is_empty());
+        let input = synapse_publication::PresentationInput {
+            title: optional(request.title),
+            summary: optional(request.summary),
+            creator_display_name: optional(request.creator_display_name),
+            proposal_agent_display_name: optional(request.proposal_agent_display_name),
+            sessions: BTreeMap::from([(
+                request.session,
+                synapse_publication::SessionPresentationInput {
+                    title: optional(request.session_title),
+                    public_decision_note: optional(request.public_decision_note),
+                    original_caption: optional(request.original_caption),
+                    current_caption: optional(request.current_caption),
+                    proposal_caption: optional(request.proposal_caption),
+                },
+            )]),
+        };
+        let toml = synapse_publication::serialize_presentation(&input).map_err(|error| {
+            // Validator messages contain field names and limits, never submitted values.
+            ServiceError::new("local_request_denied", error.to_string(), false)
+        })?;
+        Ok(crate::PresentationSidecar { toml })
+    }
+}

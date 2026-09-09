@@ -109,6 +109,7 @@ const httpMethods = new Set(["get", "put", "post", "delete", "options", "head", 
 const operationIds = new Set();
 const operations = [];
 const expectedOperations = new Map([
+  ["POST /projects/{projectKey}/presentation-sidecars", ["preparePresentationSidecar", 8]],
   ["GET /health", ["getHealth", 2]],
   ["GET /projects", ["listProjects", 2]],
   ["GET /projects/{projectKey}/status", ["getProjectStatus", 2]],
@@ -230,6 +231,7 @@ function resolveObject(value) {
 }
 
 const expectedParameters = new Map([
+  ["preparePresentationSidecar", ["path:projectKey"]],
   ["getHealth", []],
   ["listProjects", []],
   ["getProjectStatus", ["path:projectKey"]],
@@ -326,6 +328,7 @@ function collectSchemaProperties(schema, properties, visitedReferences = new Set
 }
 
 const expectedWrites = new Map([
+  ["preparePresentationSidecar", {mediaType: "application/json", properties: ["creator_display_name", "current_caption", "original_caption", "proposal_agent_display_name", "proposal_caption", "public_decision_note", "session", "session_title", "summary", "title"], required: ["session"]}],
   ["beginDerivedCreatorSession", {mediaType: "multipart/form-data", properties: ["ai_output", "confirmation_id", "creator_name", "generation_intent", "generation_model", "generation_prompt", "generation_tool", "session", "subject_label"], required: ["ai_output", "confirmation_id", "creator_name", "session", "subject_label"]}],
   [
     "beginCreatorSession",

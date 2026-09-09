@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { test, expect, original, current, output } from "./fixtures.mjs";
+import { isolatedTest as test, expect, original, current, output } from "./fixtures.mjs";
 
 for (const disposition of ["Adopt", "Reject", "Defer"]) {
   test(`derive from ${disposition} with one fresh candidate and unchanged reference bytes`, async ({ page, app }) => {

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block content %}
+<nav class="breadcrumbs" aria-label="パンくずリスト"><ol><li><a href="/">プロジェクト</a></li><li><a href="/projects/{{ project_key }}">{{ project_label }}</a></li><li aria-current="page">公開用の制作ノート</li></ol></nav>
+<header class="page-header"><div class="page-header__intro"><h1>公開用の制作ノートを作る</h1><p>自分で入力した公開用文章から、既存CLIで使う説明文ファイルを作成します。すべての文章はauthor-suppliedです。</p></div></header>
+<section class="card" aria-labelledby="presentation-input-heading">
+<h2 id="presentation-input-heading">公開用の文章を入力</h2>
+<p>保存済みのprivateな理由・プロンプト・生成メモ・画像上の判断メモは自動転記しません。入力内容は下書きとして保存されません。</p>
+{% if sessions.is_empty() %}<p>このプロジェクトには完了したセッションがありません。先に通常のHuman Decisionを完了してください。</p>{% else %}
+<form hidden data-presentation-form data-endpoint="/api/v1/projects/{{ project_key }}/presentation-sidecars" autocomplete="off">
+<div class="field"><label for="public-session">完了したセッション</label><select id="public-session" name="session" required><option value="">選択してください</option>{% for session in sessions %}<option value="{{ session }}">{{ session }}</option>{% endfor %}</select></div>
+<div class="form-grid">
+<div class="field"><label for="public-title">作品タイトル（任意）</label><input id="public-title" name="title" data-public-max-bytes="300" aria-describedby="public-title-hint"><span class="field__hint" id="public-title-hint">最大300 UTF-8 bytes。1行。</span></div>
+<div class="field form-grid__wide"><label for="public-summary">概要（任意）</label><textarea id="public-summary" name="summary" rows="4" data-public-max-bytes="8192" aria-describedby="public-summary-hint"></textarea><span class="field__hint" id="public-summary-hint">最大8192 UTF-8 bytes。改行可。</span></div>
+<div class="field"><label for="public-creator_display_name">公開用Creator表示名（任意）</label><input id="public-creator_display_name" name="creator_display_name" data-public-max-bytes="300" aria-describedby="public-creator_display_name-hint"><span class="field__hint" id="public-creator_display_name-hint">最大300 UTF-8 bytes。1行。</span></div>
+<div class="field"><label for="public-proposal_agent_display_name">公開用Proposal agent表示名（任意）</label><input id="public-proposal_agent_display_name" name="proposal_agent_display_name" data-public-max-bytes="300" aria-describedby="public-proposal_agent_display_name-hint"><span class="field__hint" id="public-proposal_agent_display_name-hint">最大300 UTF-8 bytes。1行。</span></div>
+<div class="field"><label for="public-session_title">セッションのタイトル（任意）</label><input id="public-session_title" name="session_title" data-public-max-bytes="300" aria-describedby="public-session_title-hint"><span class="field__hint" id="public-session_title-hint">最大300 UTF-8 bytes。1行。</span></div>
+<div class="field"><label for="public-original_caption">Originalのcaption（任意）</label><input id="public-original_caption" name="original_caption" data-public-max-bytes="1024" aria-describedby="public-original_caption-hint"><span class="field__hint" id="public-original_caption-hint">最大1024 UTF-8 bytes。1行。</span></div>
+<div class="field"><label for="public-current_caption">Currentのcaption（任意）</label><input id="public-current_caption" name="current_caption" data-public-max-bytes="1024" aria-describedby="public-current_caption-hint"><span class="field__hint" id="public-current_caption-hint">最大1024 UTF-8 bytes。1行。</span></div>
+<div class="field"><label for="public-proposal_caption">Proposalのcaption（任意）</label><input id="public-proposal_caption" name="proposal_caption" data-public-max-bytes="1024" aria-describedby="public-proposal_caption-hint"><span class="field__hint" id="public-proposal_caption-hint">最大1024 UTF-8 bytes。1行。</span></div>
+<div class="field form-grid__wide"><label for="public-public_decision_note">公開用の判断メモ（任意）</label><textarea id="public-public_decision_note" name="public_decision_note" rows="4" data-public-max-bytes="5120" aria-describedby="public-public_decision_note-hint"></textarea><span class="field__hint" id="public-public_decision_note-hint">最大5120 UTF-8 bytes。改行可。</span></div>
+</div><button type="submit">入力した文章を確認</button><p data-presentation-status role="status" aria-live="polite"></p>
+</form><noscript><p>説明文の確認とダウンロードにはJavaScriptが必要です。</p></noscript>
+{% endif %}
+</section>
+<section class="card" data-presentation-preview hidden aria-labelledby="presentation-preview-heading">
+<h2 id="presentation-preview-heading" tabindex="-1">公開用文章の確認</h2><p>自分で入力した文章のみの確認です。最終bundleの検証済みプレビューではありません。</p>
+<dl class="detail-list" data-presentation-text></dl>
+<p data-presentation-size></p><button type="button" data-presentation-download>説明文ファイルを書き出す</button>
+<p data-presentation-download-status role="status"></p>
+</section>
+<section class="card" aria-labelledby="presentation-next-heading"><h2 id="presentation-next-heading">次の手順：bundleを生成・検証する</h2>
+<p>ダウンロードはpresentation.tomlの作成だけです。画像・thumbnailを含めず、Coreの記録を書き換えません。外部への公開・共有も行いません。</p>
+<ol><li>localhostアプリを含むsourceへのwriterを停止し、checkpoint済みのsourceを用意します。</li><li>既存CLIのsynapse-present exportで、ダウンロードしたファイルを--presentationに指定します。</li><li>synapse-present previewで生成したbundleを検証します。read_only_source_busyの場合はwriter停止とcheckpointを確認してください。</li><li>外部共有は生成物を確認した後の別操作です。</li></ol>
+<p>実行例（SOURCE・BUNDLE・SESSIONは自分のローカルパスに置き換えます）：</p><pre><code>synapse-present export SOURCE BUNDLE --session SESSION --presentation presentation.toml
+synapse-present preview BUNDLE</code></pre>
+</section>
+{% endblock %}

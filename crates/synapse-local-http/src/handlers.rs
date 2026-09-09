@@ -1332,3 +1332,83 @@ pub(crate) async fn derive_page(
         },
     )
 }
+
+pub(crate) async fn presentation_page(
+    State(state): State<AppState>,
+    Path(project_key): Path<String>,
+) -> Response {
+    let key = project_key.clone();
+    let (label, sessions) = match run_blocking(state.clone(), Some(key.clone()), move |service| {
+        let label = service.project_status(&key)?.project.display_label;
+        let sessions = service
+            .list_creator_sessions(&key)?
+            .sessions
+            .into_iter()
+            .filter(|session| session.state == synapse_local_service::CreatorSessionState::Complete)
+            .map(|session| session.session)
+            .collect::<Vec<_>>();
+        Ok((label, sessions))
+    })
+    .await
+    {
+        Ok(value) => value,
+        Err(BlockingError::Service(error)) => {
+            return page_failure(&state, HttpFailure::service(&state, error));
+        }
+        Err(BlockingError::Task) => {
+            return page_failure(
+                &state,
+                HttpFailure::internal(&state, "The session list could not be loaded."),
+            );
+        }
+    };
+    render_template(
+        &state,
+        crate::templates::PresentationTemplate {
+            page_title: "公開用の制作ノート",
+            token: state.security.token(),
+            project_key: &project_key,
+            project_label: &label,
+            sessions: &sessions,
+        },
+    )
+}
+
+pub(crate) async fn api_presentation_sidecar(
+    State(state): State<AppState>,
+    Path(project_key): Path<String>,
+    request: AxumRequest,
+) -> Response {
+    if !is_exact_json_content_type(request.headers()) {
+        return failure_response(HttpFailure::request(
+            &state,
+            "local_request_denied",
+            "The request Content-Type must be exactly application/json.",
+        ));
+    }
+    let body = match to_bytes(request.into_body(), 128 * 1024).await {
+        Ok(body) => body,
+        Err(_) => {
+            return failure_response(HttpFailure::limit(
+                &state,
+                "The presentation request exceeds the 128 KiB wire limit.",
+            ));
+        }
+    };
+    let input =
+        match serde_json::from_slice::<synapse_local_service::PresentationSidecarRequest>(&body) {
+            Ok(input) => input,
+            Err(_) => {
+                return failure_response(HttpFailure::request(
+                    &state,
+                    "local_request_denied",
+                    "The presentation JSON is invalid or contains an unknown or duplicate field.",
+                ));
+            }
+        };
+    let key = project_key.clone();
+    api_blocking(state.clone(), key, move |service| {
+        service.prepare_presentation_sidecar(&project_key, input)
+    })
+    .await
+}

@@ -106,3 +106,5 @@ The schemas, semantic rules, and golden vectors are in
 Future remote publication, Git import, identity mapping, GitHub App, and hosted
 service work is isolated in
 [`docs/generic_artifact_publication_roadmap.md`](../../docs/generic_artifact_publication_roadmap.md).
+
+Current main includes a localhost form for fresh author-supplied public text for one complete session. It validates and downloads `presentation.toml`, with empty initial fields and no automatic private-note transfer, Core writes, raw images, or remote publication. Follow the [sidecar workflow](../../docs/presentation_sidecar.md) for the existing stopped-writer CLI export and verification steps.

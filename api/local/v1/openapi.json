@@ -780,6 +780,47 @@
           }
         }
       }
+    },
+    "/projects/{projectKey}/presentation-sidecars": {
+      "post": {
+        "operationId": "preparePresentationSidecar",
+        "tags": [
+          "creator-sessions"
+        ],
+        "summary": "Validate fresh public text for one complete session without Core writes",
+        "x-synapse-implementation-slice": 8,
+        "x-synapse-max-request-bytes": 131072,
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ProjectKey"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PresentationSidecarRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Author-supplied text only; not a verified final bundle preview or external publication",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PresentationSidecar"
+                }
+              }
+            }
+          },
+          "default": {
+            "$ref": "#/components/responses/Problem"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2626,6 +2667,113 @@
           "confirmation_id": {
             "type": "string",
             "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "PresentationSidecarRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "session"
+        ],
+        "properties": {
+          "session": {
+            "$ref": "#/components/schemas/Slug"
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 300,
+            "maxLength": 300,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "summary": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 8192,
+            "maxLength": 8192,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "creator_display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 300,
+            "maxLength": 300,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "proposal_agent_display_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 300,
+            "maxLength": 300,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "session_title": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 300,
+            "maxLength": 300,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "public_decision_note": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 5120,
+            "maxLength": 5120,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "original_caption": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 1024,
+            "maxLength": 1024,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "current_caption": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 1024,
+            "maxLength": 1024,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          },
+          "proposal_caption": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "x-synapse-max-utf8-bytes": 1024,
+            "maxLength": 1024,
+            "description": "Optional author-supplied public text. Empty strings become omitted values. Existing PresentationInput control-character and line rules apply."
+          }
+        }
+      },
+      "PresentationSidecar": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "toml"
+        ],
+        "properties": {
+          "toml": {
+            "type": "string",
+            "x-synapse-max-utf8-bytes": 65536,
+            "description": "Validated presentation.toml text for explicit browser download. No raw assets or automatically copied private text."
           }
         }
       }

@@ -708,3 +708,94 @@ fn reconcile_bundle_checksums(bundle: &Path) {
     }
     fs::write(bundle.join("checksums.json"), canonical_json(&checksums)).unwrap();
 }
+
+#[test]
+fn generated_sidecar_roundtrips_and_exports_with_existing_cli() {
+    let temporary = TempDirectory::new();
+    create_three_decision_fixture(&temporary.0);
+    let text = "日本語の \"引用\" と \\ バックスラッシュ\n次の行";
+    let mut input = PresentationInput {
+        title: Some("日本語の作品".into()),
+        summary: Some(text.into()),
+        ..Default::default()
+    };
+    input.sessions.insert(
+        "adopt-story".into(),
+        SessionPresentationInput {
+            public_decision_note: Some(text.into()),
+            ..Default::default()
+        },
+    );
+    let sidecar = temporary.join("presentation.toml");
+    let serialized = synapse_publication::serialize_presentation(&input).unwrap();
+    fs::write(&sidecar, &serialized).unwrap();
+    assert_eq!(
+        synapse_publication::load_presentation(&sidecar).unwrap(),
+        input
+    );
+    let before = snapshot_tree(&temporary.join("repo"));
+    let output = std::process::Command::new(env!("CARGO_BIN_EXE_synapse-present"))
+        .args([
+            "export",
+            temporary.join("repo").to_str().unwrap(),
+            temporary.join("generated-bundle").to_str().unwrap(),
+            "--session",
+            "adopt-story",
+            "--presentation",
+            sidecar.to_str().unwrap(),
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    verify_bundle(temporary.join("generated-bundle")).unwrap();
+    let projection =
+        fs::read_to_string(temporary.join("generated-bundle/projection.json")).unwrap();
+    assert!(projection.contains("author_supplied"));
+    assert!(projection.contains("日本語の作品"));
+    for canary in [
+        "PRIVATE_RATIONALE",
+        "PRIVATE_GENERATION_CANARY",
+        "PRIVATE_PIN_CANARY",
+        "RAW_ORIGINAL_SECRET",
+    ] {
+        assert!(!projection.contains(canary));
+        assert!(!serialized.contains(canary));
+    }
+    assert_eq!(before, snapshot_tree(&temporary.join("repo")));
+}
+
+#[test]
+fn sidecar_serializer_reuses_field_control_and_file_limits() {
+    for text in [
+        "x".repeat(301),
+        "line\nbreak".into(),
+        "bad\u{202e}direction".into(),
+        "nul\0byte".into(),
+    ] {
+        assert!(
+            synapse_publication::serialize_presentation(&PresentationInput {
+                title: Some(text),
+                ..Default::default()
+            })
+            .is_err()
+        );
+    }
+    let mut input = PresentationInput::default();
+    for n in 0..20 {
+        input.sessions.insert(
+            format!("session-{n}"),
+            SessionPresentationInput {
+                public_decision_note: Some("x".repeat(5120)),
+                ..Default::default()
+            },
+        );
+    }
+    assert!(synapse_publication::serialize_presentation(&input).is_err());
+    input = PresentationInput::default();
+    input.sessions.insert("bad\"key".into(), Default::default());
+    assert!(synapse_publication::serialize_presentation(&input).is_err());
+}

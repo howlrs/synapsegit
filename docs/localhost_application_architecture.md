@@ -659,3 +659,21 @@ API query restrictions remain unchanged.
 
 Reused Current is the recorded source Current, including after Adopt. It is not a
 new capture or the old AI output, and names do not imply shared physical identity.
+
+### Public presentation sidecar form (current main)
+
+The project presentation page lists complete session identifiers and starts all
+public text inputs empty. `POST /projects/{projectKey}/presentation-sidecars`
+accepts a closed 128 KiB JSON request for exactly one complete session. The service
+verifies that source and calls `synapse-publication::serialize_presentation` using
+only freshly supplied optional text. This additive dependency keeps HTTP behind
+the local-service facade and reuses the existing parser/validator and 64 KiB
+sidecar ceiling. Neither the handler nor service writes Core objects/Refs or
+accepts server output paths.
+
+The browser displays supplied text as text, invalidates confirmation on edits, and
+only downloads validated TOML after a separate explicit action. Private rationale,
+generation notes, pins, source image bytes and internal display names are never
+automatically used to populate the form or output. This is an author-supplied text
+preview, not a verified final bundle. Existing CLI export and preview retain the
+stopped-writer/checkpointed-source boundary and do not publish remotely.

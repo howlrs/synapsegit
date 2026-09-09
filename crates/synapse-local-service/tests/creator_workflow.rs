@@ -714,6 +714,81 @@ fn derivation_confirmation_is_scoped_revalidated_and_consumed() {
 }
 
 #[test]
+fn public_sidecar_uses_only_fresh_text_and_does_not_write_core() {
+    use synapse_local_service::PresentationSidecarRequest;
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("public-sidecar");
+    let service = service(&repository);
+    let mut request = begin_request(&temporary, "source");
+    request.generation_note = Some(synapse_local_service::CreatorGenerationNote {
+        prompt: "PRIVATE_PROMPT_CANARY".into(),
+        ..Default::default()
+    });
+    let pending = service
+        .begin_creator_session("project", "instance", request)
+        .unwrap();
+    assert!(
+        service
+            .prepare_presentation_sidecar(
+                "project",
+                PresentationSidecarRequest {
+                    session: "source".into(),
+                    ..Default::default()
+                }
+            )
+            .is_err()
+    );
+    let mut decision = decision(&pending.review_id, CreatorDecision::Reject);
+    decision.rationale = Some("PRIVATE_RATIONALE_CANARY".into());
+    service
+        .decide_creator_session("project", "source", "instance", decision)
+        .unwrap();
+    let before = Repository::open(&repository)
+        .unwrap()
+        .refs()
+        .snapshot()
+        .unwrap();
+    let sidecar = service
+        .prepare_presentation_sidecar(
+            "project",
+            PresentationSidecarRequest {
+                session: "source".into(),
+                title: Some("".into()),
+                summary: Some("公開用\n別の文章".into()),
+                ..Default::default()
+            },
+        )
+        .unwrap();
+    assert!(!sidecar.toml.contains("PRIVATE_"));
+    assert!(!sidecar.toml.contains("creator-current"));
+    let path = temporary.join("presentation.toml");
+    fs::write(&path, &sidecar.toml).unwrap();
+    let parsed = synapse_publication::load_presentation(path).unwrap();
+    assert_eq!(parsed.title, None);
+    assert_eq!(parsed.summary.as_deref(), Some("公開用\n別の文章"));
+    assert_eq!(parsed.sessions.len(), 1);
+    assert!(
+        service
+            .prepare_presentation_sidecar(
+                "project",
+                PresentationSidecarRequest {
+                    session: "missing".into(),
+                    ..Default::default()
+                }
+            )
+            .is_err()
+    );
+    assert_eq!(
+        Repository::open(&repository)
+            .unwrap()
+            .refs()
+            .snapshot()
+            .unwrap(),
+        before
+    );
+}
+
+#[test]
 fn derivation_rejects_changed_missing_corrupt_and_tombstoned_source() {
     use synapse_local_service::BeginDerivedCreatorSessionRequest;
     for mutation in ["changed", "missing", "corrupt", "tombstone"] {

@@ -1467,6 +1467,7 @@ dependencies = [
  "sha2",
  "synapse-core",
  "synapse-creator",
+ "synapse-publication",
  "synapse-sqlite",
 ]
 

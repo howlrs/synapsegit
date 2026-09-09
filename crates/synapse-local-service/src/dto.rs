@@ -664,3 +664,25 @@ pub struct BeginDerivedCreatorSessionRequest {
     pub ai_output: PathBuf,
     pub generation_note: Option<synapse_creator::CreatorGenerationNote>,
 }
+
+/// Fresh author-supplied public text for exactly one verified complete session.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PresentationSidecarRequest {
+    pub session: String,
+    pub title: Option<String>,
+    pub summary: Option<String>,
+    pub creator_display_name: Option<String>,
+    pub proposal_agent_display_name: Option<String>,
+    pub session_title: Option<String>,
+    pub public_decision_note: Option<String>,
+    pub original_caption: Option<String>,
+    pub current_caption: Option<String>,
+    pub proposal_caption: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PresentationSidecar {
+    pub toml: String,
+}

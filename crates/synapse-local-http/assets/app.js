@@ -1347,6 +1347,7 @@ function enhanceCreatorPins(root = document) {
 
 function start() {
   document.documentElement.classList.add("has-js");
+  enhancePresentationForm();
   enhanceCreatorPins();
   enhanceApiForms();
   enhanceCreatorUploads();
@@ -1368,3 +1369,82 @@ window.addEventListener("pageshow", (event) => {
     for (const upload of CREATOR_UPLOADS.values()) upload.refresh();
   }
 });
+
+function enhancePresentationForm() {
+  const form = document.querySelector("[data-presentation-form]");
+  if (!(form instanceof HTMLFormElement)) return;
+  const preview = document.querySelector("[data-presentation-preview]");
+  const status = form.querySelector("[data-presentation-status]");
+  const download = preview.querySelector("[data-presentation-download]");
+  let validatedToml = null;
+  let revision = 0;
+  let busy = false;
+  const clearPreview = () => {
+    revision += 1;
+    validatedToml = null;
+    preview.hidden = true;
+    preview.querySelector("[data-presentation-text]").replaceChildren();
+    preview.querySelector("[data-presentation-download-status]").textContent = "";
+  };
+  form.addEventListener("input", event => {
+    clearPreview();
+    event.target.setCustomValidity?.("");
+    status.textContent = "";
+  });
+  form.addEventListener("change", clearPreview);
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+    if (busy || !form.reportValidity()) return;
+    clearPreview();
+    const input = { session: form.elements.namedItem("session").value };
+    const entries = [];
+    for (const control of form.querySelectorAll("[data-public-max-bytes]")) {
+      const bytes = UTF8_ENCODER.encode(control.value).length;
+      const limit = Number(control.dataset.publicMaxBytes);
+      if (bytes > limit) {
+        const message = `${control.labels[0].textContent}: ${bytes} / ${limit} UTF-8 bytes。上限を超えています。`;
+        control.setCustomValidity(message); status.textContent = message; control.reportValidity(); return;
+      }
+      if (control.value !== "") {
+        input[control.name] = control.value;
+        entries.push([control.labels[0].textContent, control.value]);
+      }
+    }
+    const currentRevision = revision;
+    busy = true;
+    const controls = [...form.querySelectorAll("input, select, textarea, button")];
+    controls.forEach(control => { control.disabled = true; });
+    status.textContent = "文章を検証しています…";
+    try {
+      const result = await apiJson(form.dataset.endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
+      if (revision !== currentRevision) return;
+      if (typeof result?.toml !== "string" || UTF8_ENCODER.encode(result.toml).length > 65536) throw new Error("説明文ファイルの応答が不正です。");
+      validatedToml = result.toml;
+      const list = preview.querySelector("[data-presentation-text]");
+      for (const [label, value] of entries.length ? entries : [["説明文", "未入力。既存の省略時動作を使用します。"]]) {
+        const row = document.createElement("div");
+        const term = document.createElement("dt"); term.textContent = label;
+        const description = document.createElement("dd"); description.textContent = value; description.style.whiteSpace = "pre-wrap";
+        row.append(term, description); list.append(row);
+      }
+      preview.querySelector("[data-presentation-size]").textContent = `対象: ${input.session} · presentation.toml: ${UTF8_ENCODER.encode(validatedToml).length} / 65536 bytes`;
+      preview.hidden = false;
+      status.textContent = "検証できました。内容を確認して書き出してください。";
+      preview.querySelector("h2").focus();
+    } catch (error) {
+      status.textContent = error instanceof Error ? error.message : "文章の検証に失敗しました。";
+    } finally {
+      busy = false;
+      controls.forEach(control => { control.disabled = false; });
+    }
+  });
+  download.addEventListener("click", () => {
+    if (validatedToml === null) return;
+    const url = URL.createObjectURL(new Blob([validatedToml], { type: "application/toml;charset=utf-8" }));
+    const link = document.createElement("a"); link.href = url; link.download = "presentation.toml";
+    document.body.append(link); link.click(); link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    preview.querySelector("[data-presentation-download-status]").textContent = "説明文ファイルのダウンロードを開始しました。bundle生成・検証と外部共有はまだ行っていません。";
+  });
+  form.hidden = false;
+}
