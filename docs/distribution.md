@@ -162,6 +162,7 @@ node scripts/test_verify_workspace_diagrams.mjs
 node scripts/verify_mermaid.mjs
 node scripts/manage_github_security.mjs --validate
 git diff --check
+cargo build -p synapse-cli -p synapse-local-http --locked
 npm ci --prefix scripts/browser --ignore-scripts
 scripts/browser/node_modules/.bin/playwright install --with-deps chromium
 npm --prefix scripts/browser test

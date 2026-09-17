@@ -1,7 +1,7 @@
 # 制作メモを残し、次の案を試す
 
-対象はv0.8.0です。このページの生成メモ・判断ピン・派生セッション・公開用文章フォームは
-v0.8.0 release binaryを[install guide](install.md)から導入するか、
+対象はv0.8.1です。生成メモ・判断ピン・派生セッション・公開用文章フォームはv0.8.0で導入され、操作と制限は変わりません。
+v0.8.1 release binaryを[install guide](install.md)から導入するか、
 [source build](quickstart.md#1-build-する)で作成した`synapse-local`を
 [localhost runbook](../deploy/local/README.md)に従って起動してください。
 
