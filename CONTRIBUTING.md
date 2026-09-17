@@ -47,14 +47,19 @@ CARGO_TARGET_DIR=/tmp/synapsegit-$USER-target \
 
 ## Browser regression tests
 
-The localhost browser suite runs against temporary repositories and a
-real loopback `synapse-local` process. It covers keyboard and narrow-screen
-interaction, local import previews and byte-limit feedback, import → compare →
-Human Decision with recorded-rationale display and input-limit checks,
-attachment/decode failures,
-resource cleanup, and automated axe checks. It does not replace manual
-screen-reader or real-device evaluation. The pinned Node development tools are
-isolated in `scripts/browser`; they are not bundled in the Rust binaries.
+The browser suite includes localhost workflows against temporary repositories
+and a real loopback `synapse-local` process, plus Chromium checks that open the
+frozen public bundles directly with `file://`. It covers keyboard and
+narrow-screen interaction, local import previews and byte-limit feedback,
+import → compare → Human Decision with recorded-rationale display and
+input-limit checks, attachment/decode failures, resource cleanup, and
+automated axe checks. Publication checks cover axe critical/serious findings,
+keyboard details operation, heading/main structure, link purpose and local
+resolution, and reflow. They do not replace manual screen-reader or real-device
+evaluation. The pinned Node development tools are isolated in
+`scripts/browser`; they are not bundled in the Rust binaries. To target a
+future publication bundle directory or paired corpus root, run
+`npm --prefix scripts/browser run test:publication -- --bundle-root /absolute/path/to/bundles`.
 
 ```bash
 cargo +1.88.0 build -p synapse-cli -p synapse-local-http --locked
@@ -111,12 +116,15 @@ flowchart TB
     LocalService --> Core
     LocalService --> Creator
     LocalService --> SQLite
+    LocalService --> Publication
 
     classDef identity fill:#e8e8ff,stroke:#4c4cc7;
     classDef storage fill:#e2f3eb,stroke:#18794e;
     class Canon,Schema identity;
     class CAS,SQLite,Core,Projection,JournalDb storage;
 ```
+
+この図で表示したworkspace crate同士を結ぶ実線は直接Cargo依存であり、authorityやtrust delegationを表すものではない。
 
 | crate | 責務 |
 |---|---|

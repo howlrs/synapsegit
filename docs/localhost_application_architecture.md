@@ -47,7 +47,7 @@ authority for validation, OID creation, publication, projection rebuild,
 The application has two Rust packages:
 
 - `synapse-local-service`: a transport-neutral, trusted localhost facade over
-  the existing Core, Creator, Application, Observation, and Projection crates;
+  the existing Core, Creator, SQLite, and Publication crates;
 - `synapse-local-http`: the Axum HTTP/static-asset binary, depending on
   `synapse-local-service` but not directly on `synapse-core` or
   `synapse-sqlite`. [Askama 0.16.0](https://docs.rs/askama/0.16.0/askama/)
@@ -107,25 +107,34 @@ flowchart LR
     Browser["Creator browser<br/>server-rendered HTML + small ES modules"] -->|"same-origin pages + /api/v1<br/>local session header"| HTTP["synapse-local-http<br/>Axum + Askama + HTTP policy"]
     HTTP --> Service["synapse-local-service<br/>versioned DTO + use cases"]
     Service --> Creator["synapse-creator<br/>creator workflow + report"]
-    Service --> App["synapse-application<br/>AI + Human routes"]
-    Service --> Projection["synapse-projection<br/>disposable read model"]
     Service --> Core["synapse-core<br/>fsck + archive authority"]
-    Creator --> App
+    Service --> Refs["synapse-sqlite<br/>SQLite Ref snapshot"]
+    Service --> Publication["synapse-publication<br/>public presentation sidecar"]
+    Creator --> App["synapse-application<br/>AI + Human routes"]
     Creator --> Observation["synapse-observation<br/>byte identity only"]
     Creator --> Core
+    Creator --> Refs
+    Creator --> Projection["synapse-projection<br/>disposable read model"]
     App --> Core
     Projection --> CAS[("verified filesystem CAS")]
-    Projection --> Refs[("SQLite Ref snapshot")]
+    Projection --> Refs
     Core --> CAS
     Core --> Refs
+    Observation --> Core
+    Publication --> Core
+    Publication --> Creator
 
     Low["Repository::update_ref<br/>trusted operator primitive"] -. "no dependency / no route" .-> HTTP
 ```
 
+Workspace crate nodes joined by solid arrows in this diagram are direct Cargo
+dependencies. They describe build-time dependency direction, not authority,
+trust delegation, or endpoint reachability.
+
 The transport crate's missing direct dependency on Core/SQLite is an explicit
 defence against accidentally turning a low-level primitive into an endpoint.
-`synapse-local-service` is trusted application code and owns the remaining
-capability-bearing dependencies. Its public types never contain `Repository`,
+`synapse-local-service` is trusted application code and owns the Core, Creator,
+SQLite, and Publication dependencies needed by its facade. Its public types never contain `Repository`,
 `RefUpdate`, `AdmittedProposalHandle`, registration, or permit values.
 
 ## Package layout
@@ -182,6 +191,42 @@ The machine-readable draft is
 operations are below `/api/v1`. Each operation carries an
 `x-synapse-implementation-slice` marker so a designed route is not mistaken for
 an implemented one.
+
+### Contract revision policy
+
+`info.version` identifies a revision of this localhost contract, independently of
+crate versions and release tags. `/api/v1` and `api/local/v1/` identify the API
+path family; they do not identify each extension within that family. Keep the
+`-draft` suffix while the application contract remains a Stage 0 draft. Neither
+a revision bump nor the `v1` path promises stable protocol compatibility.
+
+The current contract is `0.5.0-draft`: the next independent revision after the
+historically reused `0.4.0-draft`, not a claim that it shipped with release
+v0.5.0. Earlier releases must still be identified by their Git tag because
+`0.4.0-draft` was used for multiple different documents. Releasing unchanged
+contract content does not bump this identifier; the crate/tag check in
+`scripts/verify_release_version.sh` remains separate.
+
+For any contract edit, including paths, operations, schemas, headers, required
+fields, or descriptive text, increment the patch component (for example,
+`0.5.1-draft`) and append an entry to
+[`api/local/v1/revisions.json`](../api/local/v1/revisions.json). Published entries
+are immutable: never replace an existing version's digest or remove its entry.
+The verifier requires increasing versions and the latest entry to match both
+`info.version` and the content. It reports the actual SHA-256 on mismatch so a
+new entry can be prepared and reviewed alongside the contract change.
+
+The digest covers the entire parsed document except `info.version`, serialized
+as compact JSON with recursively sorted object keys and unchanged array order.
+Whitespace and object-key reordering do not require a revision. This is a local
+drift check, not the Core canonical JSON or OID format. CI runs
+`node scripts/verify_local_api.mjs`; adding a path or schema without registering
+a new revision fails even when the document remains internally consistent.
+CI also sets `LOCAL_API_BASE_REF` to the pull request's base commit or the push's
+previous commit and rejects replacement/removal of any registered revision.
+This prevents a changed digest from silently reusing the same identifier. For
+the same history check locally, set this variable to the full base commit SHA
+when running the verifier. A manual workflow run checks the selected commit.
 
 | Slice | Route group | Purpose |
 |---|---|---|

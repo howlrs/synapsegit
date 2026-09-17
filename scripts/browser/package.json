@@ -3,7 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "playwright test"
+    "test": "playwright test",
+    "test:publication": "node ./run-publication-accessibility.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",

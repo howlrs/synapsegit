@@ -175,7 +175,7 @@ file の raw bytes を streaming ingest し、Blob OID を出力する。
 ```bash
 synapse put-blob .synapse image.png
 synapse put-blob .synapse image.png \
-  --claimed blob:sg-oid-v1:sha256:<64-lowercase-hex>
+  --claimed blob:sg-oid-v1:sha256:SHA256_HEX_HERE
 ```
 
 `--claimed` がある場合は再計算 OID と exact match しなければならない。
