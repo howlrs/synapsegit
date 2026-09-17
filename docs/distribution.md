@@ -146,8 +146,11 @@ tagをpushする前に、次を満たす。
 ```bash
 cargo fmt --all -- --check
 cargo test --workspace --all-targets --locked
+cargo test --workspace --doc --locked
 cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+for script in scripts/*.mjs; do node --check "$script"; done
+bash -n scripts/*.sh
 node scripts/verify_core_fixtures.mjs
 node scripts/verify_local_api.mjs
 node scripts/test_local_api_version.mjs
