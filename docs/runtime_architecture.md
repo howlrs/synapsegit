@@ -13,29 +13,44 @@ Core実装言語は**Rust**とする。local repository pathに加え、ordered 
 ```mermaid
 flowchart LR
     CLI["synapse-cli<br/>trusted operator primitive"] --> CORE[synapse-core]
+    CLI --> CANON[synapse-canonical]
+    CLI --> CREATOR[synapse-creator<br/>local create-only Pilot]
+    CLI --> REF[synapse-sqlite]
     CREATOR["synapse-creator<br/>local create-only Pilot"] --> OBS["synapse-observation<br/>deterministic byte identity"]
     CREATOR --> APP
     CREATOR --> CORE
+    CREATOR --> CANON
+    CREATOR --> CAS[synapse-cas]
+    CREATOR --> REF
     ARTIFACT["synapse-artifact<br/>mapper + sequential workflow + durable reconciliation"] --> CORE
     ARTIFACT --> APP
-    JOURNAL["synapse-artifact-journal<br/>private intents + exact outcomes"] --> ARTIFACT
+    ARTIFACT --> JOURNAL["synapse-artifact-journal<br/>private intents + exact outcomes"]
+    ARTIFACT --> CANON
+    ARTIFACT --> SCHEMA[synapse-schema]
+    ARTIFACT --> REF
     TRANSPORT["HTTP / CLI / UI integration<br/>not implemented"] -. future composition .-> ARTIFACT
     LOCALHTTP["synapse-local-http<br/>Axum + Askama loopback server"] --> LOCALSVC["synapse-local-service<br/>transport-neutral trusted facade"]
     LOCALSVC --> CORE
     LOCALSVC --> CREATOR
     LOCALSVC --> REF
+    LOCALSVC --> PRESENT
     OBS --> CORE
+    OBS --> CANON
+    OBS --> SCHEMA
     REQUEST["AI / Human request<br/>credential + project + opaque handle/permit"] --> APP["synapse-application<br/>local AI + narrow Human routes"]
     CONTROL["Trusted control plane<br/>profiles + candidate + executor + Clock"] --> APP
     APP --> AIR["CreativeAiRuntime<br/>preflight + proposal admission"]
     APP --> HUMAN["HumanDecisionRuntime<br/>admitted-proposal narrow decision"]
+    APP --> CORE
     AIR --> CORE
     HUMAN --> CORE
     CORE --> SCHEMA[synapse-schema]
+    CORE --> CANON[synapse-canonical]
     SCHEMA --> CANON[synapse-canonical]
     CORE --> CAS[synapse-cas]
     CORE --> REF[synapse-sqlite]
     CAS --> STORE[(Filesystem ObjectStore<br/>immutable source of truth)]
+    CAS --> CANON
     REF --> DB[(SQLite<br/>Refs + reflog)]
     STORE --> ARCHIVE[Directory archive]
     DB --> ARCHIVE
@@ -44,8 +59,15 @@ flowchart LR
     STORE --> PRESENT["synapse-publication<br/>read-only public projection"]
     DB -. one bounded RefSnapshot .-> PRESENT
     PRESENT --> BUNDLE["Local PublicationBundle<br/>JSON / Markdown / static HTML"]
+    PRESENT --> ARTIFACT
+    PRESENT --> CANON
+    PRESENT --> CORE
+    PRESENT --> CREATOR
     PROJ -. optional adapter planned .-> SURREAL[(SurrealDB)]
 ```
+
+この図で表示したworkspace crate同士を結ぶ実線は直接Cargo依存であり、authority、trust delegation、
+endpoint reachabilityを表すものではない。
 
 この境界では、DBを交換してもOID、Commit DAG、archiveは変わらない。SurrealDBの採否は作品履歴を賭ける不可逆な選択ではなく、検索・グラフ探索の便益で判断できる可逆な選択になる。
 

@@ -6,6 +6,24 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-09-17
+
+### Added
+
+- Release documentation checks now parse every tracked fenced Bash example with
+  `bash -n`, and workspace dependency diagrams are checked against direct Cargo
+  dependencies.
+- Chromium coverage now includes archive export/restore round trips and
+  important rejection paths. Generation-note expanded-form coverage now
+  includes its accessibility baseline.
+- The independent `0.5.0-draft` localhost OpenAPI revision is registered in an
+  immutable revision history. CI rejects changed registered revisions and
+  unregistered revisions without changing the API meaning.
+- Frozen publication HTML now has a release check. A single documented
+  long-string reflow defect has an exact exception at 320px and the matching
+  200% CSS zoom approximation; the renderer and corpus remain unchanged,
+  other overflow fails, and screen-reader evaluation remains manual.
+
 ## [0.8.0] - 2026-09-09
 
 ### Added
@@ -379,7 +397,8 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/howlrs/synapsegit/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/howlrs/synapsegit/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/howlrs/synapsegit/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/howlrs/synapsegit/compare/v0.5.1...v0.6.0

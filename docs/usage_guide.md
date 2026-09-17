@@ -343,7 +343,7 @@ cargo run -p synapse-cli -- put-blob .synapse path/to/file
 cargo run -p synapse-cli -- put-record .synapse path/to/record.json
 cargo run -p synapse-cli -- build-tree .synapse path/to/tree.json
 cargo run -p synapse-cli -- commit .synapse path/to/commit.json
-cargo run -p synapse-cli -- update-ref .synapse proposal/agent/run-1 - <commit-oid>
+cargo run -p synapse-cli -- update-ref .synapse proposal/agent/run-1 - COMMIT_OID_HERE
 cargo run -p synapse-cli -- fsck .synapse
 cargo run -p synapse-cli -- export .synapse archive-dir
 cargo run -p synapse-cli -- restore archive-dir restored.synapse

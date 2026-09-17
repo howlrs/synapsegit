@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import fs from "node:fs";
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import process from "node:process";
 
@@ -46,6 +47,13 @@ markdownFiles.sort();
 const failures = [];
 let localLinks = 0;
 let mermaidBlocks = 0;
+const trackedMarkdown = spawnSync("git", ["ls-files", "--", "*.md"], {
+  cwd: root,
+  encoding: "utf8",
+});
+const bashMarkdownFiles = trackedMarkdown.status === 0
+  ? trackedMarkdown.stdout.split(/\r?\n/).filter(Boolean)
+  : markdownFiles;
 
 function githubAnchors(markdown) {
   const anchors = new Set();
@@ -117,6 +125,33 @@ function checkMermaid(relativePath, markdown) {
   }
 }
 
+function checkBash(relativePath, markdown) {
+  const lines = markdown.split(/\r?\n/);
+  for (let index = 0; index < lines.length; index += 1) {
+    if (!/^```bash\s*$/i.test(lines[index])) {
+      continue;
+    }
+    const start = index + 1;
+    let end = start;
+    while (end < lines.length && !/^```\s*$/.test(lines[end])) {
+      end += 1;
+    }
+    if (end === lines.length) {
+      failures.push(relativePath + ":" + (index + 1) + " unclosed bash fence");
+      return;
+    }
+    const result = spawnSync("bash", ["-n"], {
+      input: lines.slice(start, end).join("\n"),
+      encoding: "utf8",
+    });
+    if (result.status !== 0) {
+      const detail = (result.stderr || "bash syntax error").trim().split("\n")[0];
+      failures.push(relativePath + ":" + (index + 1) + " invalid bash block: " + detail);
+    }
+    index = end;
+  }
+}
+
 for (const relativePath of markdownFiles) {
   const markdown = fs.readFileSync(path.join(root, relativePath), "utf8");
   checkMermaid(relativePath, markdown);
@@ -176,6 +211,10 @@ for (const relativePath of markdownFiles) {
       }
     }
   }
+}
+
+for (const relativePath of bashMarkdownFiles) {
+  checkBash(relativePath, fs.readFileSync(path.join(root, relativePath), "utf8"));
 }
 
 if (failures.length > 0) {

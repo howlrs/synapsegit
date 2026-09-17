@@ -3,6 +3,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import process from "node:process";
+import { createHash } from "node:crypto";
+import { assertRevisionHistory, readRevisionBase } from "./local_api_revision_history.mjs";
 
 const contractPath = path.join(process.cwd(), "api", "local", "v1", "openapi.json");
 const failures = [];
@@ -17,6 +19,53 @@ try {
 
 function fail(message) {
   failures.push(message);
+}
+
+// An append-only registry binds each independently versioned draft to its content.
+// Sort object keys recursively so formatting alone does not create a revision.
+function sortedJson(value) {
+  if (Array.isArray(value)) return value.map(sortedJson);
+  if (value === null || typeof value !== "object") return value;
+  return Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortedJson(value[key])]));
+}
+
+const versionedContent = structuredClone(contract);
+if (versionedContent.info) delete versionedContent.info.version;
+const fingerprint = createHash("sha256")
+  .update(JSON.stringify(sortedJson(versionedContent)))
+  .digest("hex");
+try {
+  const registry = JSON.parse(fs.readFileSync(path.join(path.dirname(contractPath), "revisions.json"), "utf8"));
+  if (!Array.isArray(registry.revisions) || registry.revisions.length === 0) {
+    throw new Error("revisions must be a nonempty array");
+  }
+  let previous = [-1, -1, -1];
+  const fingerprints = new Set();
+  for (const revision of registry.revisions) {
+    const match = /^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)-draft$/.exec(revision.version);
+    if (!match || !/^[0-9a-f]{64}$/.test(revision.sha256)) {
+      throw new Error("each revision needs a numeric X.Y.Z-draft version and SHA-256");
+    }
+    const current = match.slice(1).map(Number);
+    const firstDifference = current.findIndex((value, index) => value !== previous[index]);
+    if (current.some((value) => !Number.isSafeInteger(value)) || firstDifference < 0 || current[firstDifference] < previous[firstDifference]) {
+      throw new Error("revision versions must strictly increase");
+    }
+    if (fingerprints.has(revision.sha256)) throw new Error("duplicate contract content revision");
+    fingerprints.add(revision.sha256);
+    previous = current;
+  }
+  const latest = registry.revisions.at(-1);
+  if (contract.info?.version !== latest.version || fingerprint !== latest.sha256) {
+    fail("contract revision drift: info.version must name the latest registered content; " +
+      "for changed content, bump info.version and append its SHA-256 to api/local/v1/revisions.json (actual SHA-256=" + fingerprint + ")");
+  }
+  if (process.env.LOCAL_API_BASE_REF) {
+    const base = readRevisionBase(process.env.LOCAL_API_BASE_REF);
+    assertRevisionHistory(contract, registry, base.contract, base.registry);
+  }
+} catch (error) {
+  fail("invalid contract revision registry: " + error.message);
 }
 
 function decodePointerToken(token) {

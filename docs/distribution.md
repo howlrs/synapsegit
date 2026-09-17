@@ -3,7 +3,7 @@
 Audience: maintainer、release担当、公開文書を更新するcontributor
 Status: Stage 0運用runbook
 Applies to: v0.8.x
-Last verified: 2026-09-09
+Last verified: 2026-09-17
 
 この文書は、SynapseGitを「GitHub上で見つける」「現在の用途を判断する」「安全に試す」までの
 公開導線とrelease手順を定義する。protocolの規範仕様ではない。
@@ -18,7 +18,7 @@ boundedな三file import、same-process Human review、read-only diagnostics、�
 `fsck`はv0.4.0にも収録される。この範囲に限ってwrite-capable／maintenance-capableである。
 
 v0.5.0でgeneric-artifact v1 workflow／schema／local projectionはtagged sourceのworkspace
-libraryとして固定され、v0.5.1、v0.6.0、v0.7.0、v0.8.0にも変更なく引き継がれるが、release archiveの
+libraryとして固定され、v0.5.1、v0.6.0、v0.7.0、v0.8.0、v0.8.1にも変更なく引き継がれるが、release archiveの
 利用者向けsurfaceには追加しない。generic-artifact用のHTTP／CLI／browser UI、新binary、remote
 publish adapterは提供しない。
 
@@ -29,7 +29,7 @@ archive export API（`POST /archive-exports`）とbounded empty-target archive r
 preflight、manual image comparison、decision review、Creator private notes／derived candidates／public-text
 formを三binaryに収録する。既存三binary構成に変更はない。
 
-公開文面では、将来の利用構想とv0.8.0で実行できる能力を同じものとして表示しない。
+公開文面では、将来の利用構想とv0.8.1で実行できる能力を同じものとして表示しない。
 
 ## 公開surface
 
@@ -104,7 +104,7 @@ GitHub SettingsのSocial previewへ明示的にuploadしない限り、repositor
 
 ## Release asset構成
 
-v0.8.0 archiveは、v0.7.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
+v0.8.1 archiveは、v0.8.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
 generic-artifact v1のworkflow／schema／local projectionはtagged sourceに含まれるworkspace libraryであり、
 archiveへ第四のbinaryや既存binaryのgeneric HTTP／CLI／UI surfaceを追加しない。
 公開済みv0.6.0 archiveも同じ三binary構成であり、後から内容を変更しない。
@@ -140,7 +140,8 @@ tagをpushする前に、次を満たす。
 2. 全crate version、`docs/releases/vX.Y.Z.md`、`CHANGELOG.md`を更新する。
 3. root READMEと日本語READMEのversion、platform、boundaryを更新する。
 4. `docs/project_status.md`とcapability tableを更新する。
-5. 次の検証をclean checkoutで実行する。
+5. 次の検証をclean checkoutで実行する。v0.8.1では、Bash fenced block、workspace direct-dependency
+   diagram、OpenAPI revision registry、publication browser checksもこのgateに含まれる。
 
 ```bash
 cargo fmt --all -- --check
@@ -149,14 +150,27 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 node scripts/verify_core_fixtures.mjs
 node scripts/verify_local_api.mjs
+node scripts/test_local_api_version.mjs
+node scripts/test_local_app.mjs
 node scripts/test_publication_comprehension_scorer.mjs
 node scripts/verify_license.mjs
 node scripts/generate_third_party_notices.mjs --check
 node scripts/verify_docs.mjs
+node scripts/test_verify_docs.mjs
+node scripts/verify_workspace_diagrams.mjs
+node scripts/test_verify_workspace_diagrams.mjs
 node scripts/verify_mermaid.mjs
 node scripts/manage_github_security.mjs --validate
 git diff --check
+npm ci --prefix scripts/browser --ignore-scripts
+scripts/browser/node_modules/.bin/playwright install --with-deps chromium
+npm --prefix scripts/browser test
 ```
+
+browser testはChromiumとbrowser dependencyを必要とする。詳細と一時成果物の扱いは
+[browser regression tests](../CONTRIBUTING.md#browser-regression-tests)を参照する。tag workflow自体は
+release assetを作成する。上記browser checksは`main`／Pull Request CIで実行し、tag前に同じ
+clean checkoutで実行する。
 
 6. release tagはversion commitを指すannotated tagとして作る。署名運用を導入した後はsigned tagを必須にする。
 7. tag workflowがdraft prereleaseを作り、asset upload、checksum、attestation、公開まで成功したことを確認する。
@@ -247,9 +261,9 @@ license変更時は少なくとも次を同じPull Requestで更新する。
 
 - [Installation](./install.md)
 - [Project status](./project_status.md)
-- [Release notes](./releases/v0.8.0.md)
+- [Release notes](./releases/v0.8.1.md)
 - [Security model](./security_model.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Documentation index](./README.md)
 
-v0.8.0 can start a new Creator candidate from any verified complete session in the same project. It reuses exact Original/Current bytes, keeps fresh identities and Human review, and records fixed source lineage across archive/restore. Adopt does not promote the old AI output to Current. Frozen publication v1 refuses derived sessions because it cannot represent reused reference images. See the [reused source contract](../spec/application/creator-source/v1/README.md).
+v0.8.0 introduced a new Creator candidate from any verified complete session in the same project. It reuses exact Original/Current bytes, keeps fresh identities and Human review, and records fixed source lineage across archive/restore. Adopt does not promote the old AI output to Current. Frozen publication v1 refuses derived sessions because it cannot represent reused reference images. See the [reused source contract](../spec/application/creator-source/v1/README.md).
