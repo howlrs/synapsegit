@@ -1173,7 +1173,7 @@ async fn archive_export_is_confirmed_queued_polled_and_no_replace() {
     assert_eq!(page.status(), StatusCode::OK);
     let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
     let page = std::str::from_utf8(&page).unwrap();
-    assert!(page.contains("Archive export"));
+    assert!(page.contains("アーカイブを書き出す"));
     assert!(page.contains("action=\"/api/v1/projects/demo/archive-exports\""));
     assert!(page.contains("data-confirm-maintenance=\"archive-export\""));
     assert!(page.contains("data-success-location=\"/#archives-heading\""));

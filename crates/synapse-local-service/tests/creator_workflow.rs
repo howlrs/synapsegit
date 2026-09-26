@@ -395,68 +395,84 @@ fn changed_live_heads_make_pending_authority_unavailable_without_retry() {
 }
 
 #[test]
-fn dashboard_isolates_a_non_decision_head_from_other_sessions() {
-    let temporary = TempDirectory::new();
-    let repository_path = temporary.directory("repository");
-    let service = service(&repository_path);
-    for session in ["valid", "broken"] {
-        let pending = service
-            .begin_creator_session(
-                "project",
-                "server-instance-a",
-                begin_request(&temporary, session),
-            )
+fn dashboard_isolates_invalid_heads_from_other_sessions() {
+    for mutation in ["non-decision", "missing", "corrupt"] {
+        let temporary = TempDirectory::new();
+        let repository_path = temporary.directory("repository");
+        let service = service(&repository_path);
+        for session in ["valid", "broken"] {
+            let pending = service
+                .begin_creator_session(
+                    "project",
+                    "server-instance-a",
+                    begin_request(&temporary, session),
+                )
+                .unwrap();
+            service
+                .decide_creator_session(
+                    "project",
+                    session,
+                    "server-instance-a",
+                    decision(&pending.review_id, CreatorDecision::Adopt),
+                )
+                .unwrap();
+        }
+        let before = service.list_creator_sessions("project").unwrap();
+        let broken = before
+            .sessions
+            .iter()
+            .find(|summary| summary.session == "broken")
             .unwrap();
-        service
-            .decide_creator_session(
-                "project",
-                session,
-                "server-instance-a",
-                decision(&pending.review_id, CreatorDecision::Adopt),
-            )
-            .unwrap();
-    }
-    let before = service.list_creator_sessions("project").unwrap();
-    let broken = before
-        .sessions
-        .iter()
-        .find(|summary| summary.session == "broken")
-        .unwrap();
-    let broken_head = broken.decision_head.as_deref().unwrap().to_owned();
-    // The proposal Commit is a real reachable object, but is invalid at the
-    // decision Ref. This lets the Ref store retain the mixed snapshot while
-    // the strict detail path continues to reject the session.
-    let invalid_head = broken.proposal_head.as_deref().unwrap().to_owned();
-    let mut repository = Repository::open(&repository_path).unwrap();
-    repository
-        .update_ref(RefUpdate {
-            ref_name: "decision/creator/broken",
-            expected_head: Some(&broken_head),
-            new_head: &invalid_head,
-            metadata: ReflogMetadata::at(999),
-        })
-        .unwrap();
-    drop(repository);
+        let broken_head = broken.decision_head.as_deref().unwrap().to_owned();
+        if mutation == "non-decision" {
+            let invalid_head = broken.proposal_head.as_deref().unwrap().to_owned();
+            let mut repository = Repository::open(&repository_path).unwrap();
+            repository
+                .update_ref(RefUpdate {
+                    ref_name: "decision/creator/broken",
+                    expected_head: Some(&broken_head),
+                    new_head: &invalid_head,
+                    metadata: ReflogMetadata::at(999),
+                })
+                .unwrap();
+        } else {
+            let digest = broken_head.rsplit(':').next().unwrap();
+            let path = repository_path
+                .join("cas/objects/commit")
+                .join(&digest[..2])
+                .join(&digest[2..]);
+            if mutation == "missing" {
+                fs::remove_file(path).unwrap();
+            } else {
+                fs::write(path, b"invalid structured object").unwrap();
+            }
+        }
 
-    let summaries = service.list_creator_sessions("project").unwrap().sessions;
-    assert_eq!(summaries.len(), 2);
-    let valid = summaries
-        .iter()
-        .find(|summary| summary.session == "valid")
-        .unwrap();
-    assert_eq!(valid.state, CreatorSessionState::Complete);
-    assert_eq!(valid.subject_label.as_deref(), Some("North wall mural"));
-    let broken = summaries
-        .iter()
-        .find(|summary| summary.session == "broken")
-        .unwrap();
-    assert_eq!(broken.state, CreatorSessionState::Incomplete);
-    assert_eq!(broken.subject_label.as_deref(), Some("North wall mural"));
-    assert!(broken.disposition.is_none());
-    assert!(matches!(
-        service.get_creator_session("project", "broken").unwrap(),
-        CreatorSessionDetail::Incomplete(_)
-    ));
+        let summaries = service.list_creator_sessions("project").unwrap().sessions;
+        assert_eq!(summaries.len(), 2);
+        let valid = summaries
+            .iter()
+            .find(|summary| summary.session == "valid")
+            .unwrap();
+        assert_eq!(valid.state, CreatorSessionState::Complete);
+        assert_eq!(valid.subject_label.as_deref(), Some("North wall mural"));
+        let broken = summaries
+            .iter()
+            .find(|summary| summary.session == "broken")
+            .unwrap();
+        assert_eq!(broken.state, CreatorSessionState::Incomplete);
+        assert!(broken.disposition.is_none());
+        if mutation == "non-decision" {
+            assert_eq!(broken.subject_label.as_deref(), Some("North wall mural"));
+            assert!(matches!(
+                service.get_creator_session("project", "broken").unwrap(),
+                CreatorSessionDetail::Incomplete(_)
+            ));
+        } else {
+            assert!(broken.subject_label.is_none());
+            assert!(service.get_creator_session("project", "broken").is_err());
+        }
+    }
 }
 
 #[test]
