@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
+unset CDPATH
 
 # Exercises the mural tutorial bundle (three binaries, the runner, its sample
 # images, and TUTORIAL.md at the bundle root) the same way package_release.sh
@@ -35,6 +36,14 @@ if [[ "${1:-}" == "--bundle" ]]; then
     usage
     exit 2
   fi
+  if [[ ! -d "$bundle" ]]; then
+    echo "tutorial_bundle_error: not a directory: $bundle" >&2
+    exit 1
+  fi
+  # Resolve to an absolute path now: this script cd's into a scratch
+  # directory below, and a caller-supplied relative path would otherwise be
+  # interpreted from there instead of from the caller's original cwd.
+  bundle="$(cd -- "$bundle" && pwd -P)"
   if [[ ! -x "$bundle/scripts/run_mural_tutorial.sh" ]]; then
     echo "tutorial_bundle_error: missing or non-executable $bundle/scripts/run_mural_tutorial.sh" >&2
     exit 1
