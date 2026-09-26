@@ -768,7 +768,7 @@ impl LocalService {
             generation_note: request.generation_note,
         };
         let _writer = self.acquire_project_writer(project_key)?;
-        self.begin_creator_session_locked(project_key, server_instance, begin, None)
+        self.begin_creator_session_locked(project_key, server_instance, begin, None, None)
     }
 
     /// Release a preview the user no longer intends to import.
