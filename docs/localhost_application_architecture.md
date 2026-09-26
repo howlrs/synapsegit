@@ -201,7 +201,7 @@ path family; they do not identify each extension within that family. Keep the
 a revision bump nor the `v1` path promises stable protocol compatibility.
 
 The current contract is `0.6.4-draft`: it combines configured import-inbox
-staging routes with confirmed three-Blob reuse for interrupted and deferred
+staging and cancellation routes with confirmed three-Blob reuse for interrupted and deferred
 Creator sessions without restoring old authority. The previous independent
 revision was `0.6.3-draft`. Earlier releases must still be identified by their Git tag because
 `0.4.0-draft` was used for multiple different documents. Releasing unchanged

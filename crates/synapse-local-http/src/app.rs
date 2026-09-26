@@ -9,10 +9,9 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use synapse_local_service::LocalService;
 use tokio::sync::Semaphore;
 
-use crate::handlers::MAX_DECISION_JSON_BYTES;
 use crate::handlers::{
     api_archives, api_begin_creator_session, api_begin_derived_creator_session,
-    api_begin_staged_import_inbox, api_creator_image, api_creator_reuse,
+    api_begin_staged_import_inbox, api_cancel_staged_import_inbox, api_creator_image, api_creator_reuse,
     api_creator_reuse_source, api_creator_session,
     api_creator_session_diagnostics, api_creator_sessions, api_creator_source,
     api_decide_creator_session, api_health, api_import_inbox, api_operation,
@@ -161,9 +160,14 @@ pub(crate) fn build_with_identity(
             get(api_staged_import_image),
         )
         .route(
+            "/api/v1/projects/{project_key}/import-inbox/stages/{stage_id}",
+            axum::routing::delete(api_cancel_staged_import_inbox),
+        )
+        .route(
             "/api/v1/projects/{project_key}/import-inbox/stages/{stage_id}/creator-sessions",
-            axum::routing::post(api_begin_staged_import_inbox)
-                .layer(DefaultBodyLimit::max(MAX_DECISION_JSON_BYTES)),
+            axum::routing::post(api_begin_staged_import_inbox).layer(DefaultBodyLimit::max(
+                crate::handlers::MAX_STAGED_IMPORT_JSON_BYTES,
+            )),
         )
         .route(
             "/api/v1/projects/{project_key}/reflog",

@@ -258,6 +258,8 @@ project ACL／FIFO fenceを通して`HumanDecisionRuntime::publish_decision`を�
 
 手書きJSONなしで、一つのlocal single-creator sessionをcreateする。
 
+ブラウザで判断前の候補を確認する用途は`creator-run`ではなく、`synapse-local --import-root KEY=PATH`のmanifest-last inboxを使う。browser requestはpathを送らずlogical slugだけを送り、一覧へ戻る操作はprivate stagingを破棄する。
+
 ```bash
 synapse creator-run .synapse-creator mural-1 \
   original.png current.png ai-output.png \

@@ -678,6 +678,16 @@
         "responses": {"200": {"description": "Staged image bytes"}, "default": {"$ref": "#/components/responses/Problem"}}
       }
     },
+    "/projects/{projectKey}/import-inbox/stages/{stageId}": {
+      "delete": {
+        "operationId": "cancelStagedImportInbox",
+        "tags": ["creator-sessions"],
+        "summary": "Discard a process-local staged preview",
+        "x-synapse-implementation-slice": 8,
+        "parameters": [{"$ref": "#/components/parameters/ProjectKey"}, {"name": "stageId", "in": "path", "required": true, "schema": {"type": "string", "minLength": 64, "maxLength": 64}}],
+        "responses": {"204": {"description": "Staging discarded"}, "default": {"$ref": "#/components/responses/Problem"}}
+      }
+    },
     "/projects/{projectKey}/import-inbox/stages/{stageId}/creator-sessions": {
       "post": {
         "operationId": "beginStagedImportInbox",

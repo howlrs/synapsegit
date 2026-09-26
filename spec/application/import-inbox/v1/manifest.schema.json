@@ -16,7 +16,7 @@
       "properties": {
         "subject_label": {"type": "string", "minLength": 1, "maxLength": 500},
         "creator_name": {"type": "string", "minLength": 1, "maxLength": 300},
-        "generation_note": {"type": "object", "additionalProperties": false, "properties": {"tool": {"type":"string", "maxLength":300}, "model": {"type":"string", "maxLength":300}, "prompt": {"type":"string", "maxLength":8192}, "intent": {"type":"string", "maxLength":2048}}}
+        "generation_note": {"type": "object", "additionalProperties": false, "required": ["tool", "model", "prompt", "intent"], "properties": {"tool": {"type":"string", "maxLength":300}, "model": {"type":"string", "maxLength":300}, "prompt": {"type":"string", "maxLength":8192}, "intent": {"type":"string", "maxLength":2048}}}
       }
     }
   },

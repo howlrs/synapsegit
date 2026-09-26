@@ -2144,6 +2144,19 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
                 "post" if resolved_path.ends_with("/derivations") => app.clone().oneshot(unsafe_api_request(&full_path, "multipart/form-data; boundary=empty", Body::from("--empty--\r\n"))).await.unwrap(),
                 "post" if resolved_path.ends_with("/presentation-sidecars") => app.clone().oneshot(unsafe_api_request(&full_path, "application/json", Body::from(r#"{"session":"render-session"}"#))).await.unwrap(),
                 "post" if resolved_path.ends_with("/stages") => app.clone().oneshot(unsafe_api_request(&full_path, "application/json", Body::from("{}"))).await.unwrap(),
+                "delete" if resolved_path.contains("/import-inbox/stages/") => app
+                    .clone()
+                    .oneshot(
+                        request(&full_path)
+                            .method("DELETE")
+                            .header("x-synapse-local-token", "a".repeat(64))
+                            .header(ORIGIN, "http://127.0.0.1:43123")
+                            .header("sec-fetch-site", "same-origin")
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
                 "post" if resolved_path.ends_with("/decisions") => {
                     let decision_body = serde_json::to_vec(&serde_json::json!({
                         "review_id": review_id,
@@ -2236,8 +2249,8 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
     // would fail loudly instead of this test quietly checking nothing.
     assert_eq!(
         checked.len(),
-        23,
-        "expected 23 implemented operations, checked: {checked:?}"
+        24,
+        "expected 24 implemented operations, checked: {checked:?}"
     );
     assert_eq!(
         skipped_unimplemented_archive.len(),

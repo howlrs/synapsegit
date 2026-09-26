@@ -267,9 +267,9 @@ with any repository, archive root, or other inbox root. A producer writes
 `manifest.json` last using the versioned schema at
 [`spec/application/import-inbox/v1`](../../spec/application/import-inbox/v1/manifest.schema.json).
 The browser supplies only the logical slug. It can preview and edit metadata
-after the service has copied verified no-follow regular files into private
+after the service has opened the root, candidate, and leaf names without following links and copied verified bounded regular files into private
 process staging; proposal creation reads those staged bytes and never rereads
-the inbox. Inbox contents and metadata are caller-supplied, not execution
+the inbox. Returning to the list discards that staging immediately. Inbox contents and metadata are caller-supplied, not execution
 evidence, and no decision is made until the browser records an explicit Human
 Decision.
 

@@ -168,6 +168,7 @@ const expectedOperations = new Map([
   ["GET /projects/{projectKey}/import-inbox", ["listImportInbox", 8]],
   ["POST /projects/{projectKey}/import-inbox/{slug}/stages", ["stageImportInbox", 8]],
   ["GET /projects/{projectKey}/import-inbox/stages/{stageId}/images/{role}", ["getStagedImportImage", 8]],
+  ["DELETE /projects/{projectKey}/import-inbox/stages/{stageId}", ["cancelStagedImportInbox", 8]],
   ["POST /projects/{projectKey}/import-inbox/stages/{stageId}/creator-sessions", ["beginStagedImportInbox", 8]],
   ["POST /projects/{projectKey}/creator-sessions", ["beginCreatorSession", 4]],
   ["GET /projects/{projectKey}/creator-sessions/{session}/derivations", ["prepareCreatorSource", 4]],
@@ -260,10 +261,11 @@ for (const [route, pathItem] of Object.entries(contract.paths ?? {})) {
     }
 
     if (method !== "get" && method !== "head" && method !== "options") {
-      if (method !== "post") {
-        fail("the first contract permits state-changing POST only: " + method.toUpperCase() + " " + route);
+      const isStagedImportCancellation = method === "delete" && route === "/projects/{projectKey}/import-inbox/stages/{stageId}";
+      if (method !== "post" && !isStagedImportCancellation) {
+        fail("unexpected state-changing method: " + method.toUpperCase() + " " + route);
       }
-      if (!operation.requestBody) {
+      if (!isStagedImportCancellation && !operation.requestBody) {
         fail(method.toUpperCase() + " " + route + " must have a request body");
       }
     }
@@ -296,6 +298,7 @@ const expectedParameters = new Map([
   ["listImportInbox", ["path:projectKey"]],
   ["stageImportInbox", ["path:projectKey", "path:slug"]],
   ["getStagedImportImage", ["path:projectKey", "path:role", "path:stageId"]],
+  ["cancelStagedImportInbox", ["path:projectKey", "path:stageId"]],
   ["beginStagedImportInbox", ["path:projectKey", "path:stageId"]],
   ["beginCreatorSession", ["path:projectKey"]],
   ["getCreatorSession", ["path:projectKey", "path:session"]],

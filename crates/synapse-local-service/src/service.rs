@@ -3,11 +3,9 @@ use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt::{self, Write as _};
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, File};
 use std::io::{Read, Write};
 use std::mem;
-#[cfg(unix)]
-use std::os::unix::fs::OpenOptionsExt;
 use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
@@ -402,6 +400,24 @@ struct StagedImport {
     staged_at: Instant,
 }
 
+impl Drop for StagedImport {
+    fn drop(&mut self) {
+        // Staging is process-private and disposable.  This also covers TTL
+        // eviction, cancellation, and orderly service shutdown.
+        let _ = fs::remove_dir_all(&self.directory);
+    }
+}
+
+impl Drop for LocalService {
+    fn drop(&mut self) {
+        let stages = match self.staged_imports.get_mut() {
+            Ok(stages) => stages,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        stages.clear();
+    }
+}
+
 impl fmt::Debug for LocalService {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter
@@ -469,13 +485,17 @@ impl LocalService {
             })?;
         }
         for (key, root) in &import_roots {
-            let entry = self.catalog.get(key).ok_or_else(|| {
+            self.catalog.get(key).ok_or_else(|| {
                 CatalogError::new(
                     "local_request_denied",
                     "--import-root refers to an unregistered project key",
                 )
             })?;
-            if overlaps(root, entry.repository_path()) {
+            if self
+                .catalog
+                .values()
+                .any(|registered| overlaps(root, registered.repository_path()))
+            {
                 return Err(CatalogError::new(
                     "local_request_denied",
                     "an import root must not overlap its repository",
@@ -547,7 +567,7 @@ impl LocalService {
             if fs::symlink_metadata(&manifest).is_err() {
                 continue;
             } // manifest-last: no manifest is still writing
-            match inspect_inbox_manifest(&entry.path()) {
+            match inspect_inbox_manifest(root, &slug) {
                 Ok(_) => items.push(ImportInboxItem {
                     slug,
                     ready: true,
@@ -583,11 +603,7 @@ impl LocalService {
                 false,
             )
         })?;
-        let candidate = root.join(slug);
-        let manifest = inspect_inbox_manifest(&candidate)?;
-        let original = read_inbox_file(&candidate, &manifest.original)?;
-        let current = read_inbox_file(&candidate, &manifest.current)?;
-        let output = read_inbox_file(&candidate, &manifest.ai_output)?;
+        let manifest = inspect_inbox_manifest(root, slug)?;
         let stage_id = random_review_id()?;
         let preview = StagedImportInboxPreview {
             stage_id: stage_id.clone(),
@@ -612,15 +628,9 @@ impl LocalService {
             let original_path = directory.join("original.bin");
             let current_path = directory.join("current.bin");
             let output_path = directory.join("ai-output.bin");
-            fs::File::create(&original_path)
-                .and_then(|mut file| file.write_all(&original))
-                .map_err(|_| inbox_denied("The staged original could not be written."))?;
-            fs::File::create(&current_path)
-                .and_then(|mut file| file.write_all(&current))
-                .map_err(|_| inbox_denied("The staged current image could not be written."))?;
-            fs::File::create(&output_path)
-                .and_then(|mut file| file.write_all(&output))
-                .map_err(|_| inbox_denied("The staged AI output could not be written."))?;
+            copy_inbox_file(&manifest.directory, &manifest.original, &original_path)?;
+            copy_inbox_file(&manifest.directory, &manifest.current, &current_path)?;
+            copy_inbox_file(&manifest.directory, &manifest.ai_output, &output_path)?;
             Ok::<_, ServiceError>(StagedImport {
                 project_key: project_key.to_owned(),
                 directory: directory.clone(),
@@ -672,7 +682,7 @@ impl LocalService {
             )
         })?;
         Ok(CreatorImage {
-            blob_oid: format!("staged:{}", stage_id),
+            blob_oid: format!("staged:{stage_id}"),
             media_type: classify_image_media_type(&bytes),
             disposition: if classify_image_media_type(&bytes).is_attachment() {
                 ImageDisposition::Attachment
@@ -723,17 +733,37 @@ impl LocalService {
             .expect("checked staged import exists");
         let begin = BeginCreatorSessionRequest {
             session: request.session,
-            original_image: staged.original,
-            current_image: staged.current,
-            ai_output: staged.output,
+            original_image: staged.original.clone(),
+            current_image: staged.current.clone(),
+            ai_output: staged.output.clone(),
             subject_label: request.subject_label,
             creator_name: request.creator_name,
             generation_note: request.generation_note,
         };
         let _writer = self.acquire_project_writer(project_key)?;
         let outcome = self.begin_creator_session_locked(project_key, server_instance, begin, None);
-        let _ = fs::remove_dir_all(staged.directory);
         outcome
+    }
+
+    /// Release a preview the user no longer intends to import.
+    pub fn cancel_staged_import_inbox(
+        &self,
+        project_key: &str,
+        stage_id: &str,
+    ) -> Result<(), ServiceError> {
+        let mut stages = lock_stages(&self.staged_imports);
+        purge_expired_stages(&mut stages);
+        match stages.get(stage_id) {
+            Some(staged) if staged.project_key == project_key => {
+                stages.remove(stage_id);
+                Ok(())
+            }
+            _ => Err(ServiceError::new(
+                "local_request_denied",
+                "The staged inbox import is unavailable.",
+                false,
+            )),
+        }
     }
 
     pub fn health(&self, server_instance: impl Into<String>) -> HealthResponse {
@@ -1923,6 +1953,7 @@ struct InboxMetadata {
 }
 
 struct CheckedInboxManifest {
+    directory: File,
     original: InboxFile,
     current: InboxFile,
     ai_output: InboxFile,
@@ -1935,35 +1966,23 @@ fn inbox_denied(detail: impl Into<String>) -> ServiceError {
     ServiceError::new("local_request_denied", detail, false)
 }
 
-fn inspect_inbox_manifest(candidate: &Path) -> Result<CheckedInboxManifest, ServiceError> {
-    let candidate_metadata = fs::symlink_metadata(candidate)
-        .map_err(|_| inbox_denied("The inbox candidate is unavailable."))?;
-    if candidate_metadata.file_type().is_symlink() || !candidate_metadata.is_dir() {
-        return Err(inbox_denied(
-            "The inbox candidate must be a regular directory.",
-        ));
-    }
-    let manifest_path = candidate.join("manifest.json");
-    let manifest_metadata = fs::symlink_metadata(&manifest_path)
-        .map_err(|_| inbox_denied("The inbox candidate has no manifest."))?;
-    if manifest_metadata.file_type().is_symlink()
-        || !manifest_metadata.is_file()
-        || manifest_metadata.len() > 64 * 1024
-    {
+fn inspect_inbox_manifest(root: &Path, slug: &str) -> Result<CheckedInboxManifest, ServiceError> {
+    let directory = open_inbox_directory(root, slug)?;
+    let mut manifest_file = open_inbox_leaf(&directory, "manifest.json")?;
+    let manifest_metadata = manifest_file
+        .metadata()
+        .map_err(|_| inbox_denied("The inbox manifest metadata could not be read."))?;
+    if !manifest_metadata.is_file() || manifest_metadata.len() > 64 * 1024 {
         return Err(inbox_denied(
             "The inbox manifest must be a regular file no larger than 64 KiB.",
         ));
     }
-    let mut manifest_file = open_nofollow(&manifest_path)?;
-    let mut bytes = Vec::with_capacity(manifest_metadata.len() as usize);
-    manifest_file
-        .read_to_end(&mut bytes)
-        .map_err(|_| inbox_denied("The inbox manifest could not be read."))?;
-    if bytes.len() as u64 != manifest_metadata.len() {
-        return Err(inbox_denied(
-            "The inbox manifest changed while it was read.",
-        ));
-    }
+    let bytes = read_exact_bounded(
+        &mut manifest_file,
+        manifest_metadata.len(),
+        64 * 1024,
+        "The inbox manifest",
+    )?;
     let manifest: InboxManifest = serde_json::from_slice(&bytes)
         .map_err(|_| inbox_denied("The inbox manifest is not valid strict JSON."))?;
     if manifest.version != "synapsegit-import-inbox-v1" {
@@ -1986,6 +2005,7 @@ fn inspect_inbox_manifest(candidate: &Path) -> Result<CheckedInboxManifest, Serv
             .map_err(|_| inbox_denied("The inbox generation note exceeds its limits."))?;
     }
     Ok(CheckedInboxManifest {
+        directory,
         original: manifest.original,
         current: manifest.current,
         ai_output: manifest.ai_output,
@@ -2017,19 +2037,76 @@ fn validate_inbox_file(file: &InboxFile) -> Result<(), ServiceError> {
     Ok(())
 }
 
-fn open_nofollow(path: &Path) -> Result<File, ServiceError> {
-    let mut options = OpenOptions::new();
-    options.read(true);
-    #[cfg(unix)]
-    options.custom_flags(libc::O_NOFOLLOW);
-    options
-        .open(path)
-        .map_err(|_| inbox_denied("The inbox path cannot be opened without following links."))
+#[cfg(unix)]
+fn open_inbox_directory(root: &Path, slug: &str) -> Result<File, ServiceError> {
+    use rustix::fs::{Mode, OFlags, openat};
+    let root =
+        File::open(root).map_err(|_| inbox_denied("The import inbox root is unavailable."))?;
+    let fd = openat(
+        &root,
+        slug,
+        OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|_| inbox_denied("The inbox candidate must be a regular directory."))?;
+    Ok(File::from(fd))
 }
 
-fn read_inbox_file(candidate: &Path, expected: &InboxFile) -> Result<Vec<u8>, ServiceError> {
-    let path = candidate.join(&expected.name);
-    let mut file = open_nofollow(&path)?;
+#[cfg(not(unix))]
+fn open_inbox_directory(_root: &Path, _slug: &str) -> Result<File, ServiceError> {
+    Err(inbox_denied(
+        "Import inbox no-follow access is unsupported on this platform.",
+    ))
+}
+
+#[cfg(unix)]
+fn open_inbox_leaf(directory: &File, name: &str) -> Result<File, ServiceError> {
+    use rustix::fs::{Mode, OFlags, openat};
+    // O_NONBLOCK ensures a FIFO can never park a blocking worker before fstat
+    // rejects it.  Every opened descriptor is checked as a regular file.
+    let fd = openat(
+        directory,
+        name,
+        OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+        Mode::empty(),
+    )
+    .map_err(|_| inbox_denied("The inbox path cannot be opened without following links."))?;
+    Ok(File::from(fd))
+}
+
+#[cfg(not(unix))]
+fn open_inbox_leaf(_directory: &File, _name: &str) -> Result<File, ServiceError> {
+    Err(inbox_denied(
+        "Import inbox no-follow access is unsupported on this platform.",
+    ))
+}
+
+fn read_exact_bounded(
+    file: &mut File,
+    expected: u64,
+    maximum: u64,
+    what: &str,
+) -> Result<Vec<u8>, ServiceError> {
+    if expected > maximum {
+        return Err(inbox_denied(format!("{what} exceeds its byte limit.")));
+    }
+    let mut bytes = Vec::with_capacity(expected as usize);
+    Read::by_ref(file)
+        .take(expected.saturating_add(1))
+        .read_to_end(&mut bytes)
+        .map_err(|_| inbox_denied(format!("{what} could not be read.")))?;
+    if bytes.len() as u64 != expected {
+        return Err(inbox_denied(format!("{what} changed while it was read.")));
+    }
+    Ok(bytes)
+}
+
+fn copy_inbox_file(
+    directory: &File,
+    expected: &InboxFile,
+    destination: &Path,
+) -> Result<(), ServiceError> {
+    let mut file = open_inbox_leaf(directory, &expected.name)?;
     let metadata = file
         .metadata()
         .map_err(|_| inbox_denied("The inbox file metadata could not be read."))?;
@@ -2041,16 +2118,36 @@ fn read_inbox_file(candidate: &Path, expected: &InboxFile) -> Result<Vec<u8>, Se
             "An inbox file is not the manifest's bounded regular file.",
         ));
     }
-    let mut bytes = Vec::with_capacity(expected.size as usize);
-    Read::by_ref(&mut file)
-        .take(IMAGE_RESPONSE_MAX_BYTES + 1)
-        .read_to_end(&mut bytes)
-        .map_err(|_| inbox_denied("An inbox file could not be read."))?;
-    if bytes.len() as u64 != expected.size {
+    let mut destination = File::create(destination)
+        .map_err(|_| inbox_denied("The staged inbox file could not be written."))?;
+    let mut hash = Sha256::new();
+    let mut remaining = expected.size;
+    let mut buffer = [0_u8; 64 * 1024];
+    while remaining > 0 {
+        let chunk_len = remaining.min(buffer.len() as u64) as usize;
+        let count = file
+            .read(&mut buffer[..chunk_len])
+            .map_err(|_| inbox_denied("An inbox file could not be read."))?;
+        if count == 0 {
+            return Err(inbox_denied("An inbox file changed while it was read."));
+        }
+        destination
+            .write_all(&buffer[..count])
+            .map_err(|_| inbox_denied("The staged inbox file could not be written."))?;
+        hash.update(&buffer[..count]);
+        remaining -= count as u64;
+    }
+    let mut extra = [0_u8; 1];
+    if file
+        .read(&mut extra)
+        .map_err(|_| inbox_denied("An inbox file could not be read."))?
+        != 0
+    {
         return Err(inbox_denied("An inbox file changed while it was read."));
     }
     if let Some(expected_hash) = &expected.sha256 {
-        let actual = Sha256::digest(&bytes)
+        let actual = hash
+            .finalize()
             .iter()
             .map(|byte| format!("{byte:02x}"))
             .collect::<String>();
@@ -2058,7 +2155,7 @@ fn read_inbox_file(candidate: &Path, expected: &InboxFile) -> Result<Vec<u8>, Se
             return Err(inbox_denied("An inbox file does not match its SHA-256."));
         }
     }
-    Ok(bytes)
+    Ok(())
 }
 
 fn overlaps(left: &Path, right: &Path) -> bool {
@@ -2082,9 +2179,7 @@ fn purge_expired_stages(stages: &mut BTreeMap<String, StagedImport>) {
         })
         .collect::<Vec<_>>();
     for id in expired {
-        if let Some(staged) = stages.remove(&id) {
-            let _ = fs::remove_dir_all(staged.directory);
-        }
+        stages.remove(&id);
     }
 }
 

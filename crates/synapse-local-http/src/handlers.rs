@@ -28,6 +28,7 @@ use crate::views::{
 };
 
 pub(crate) const MAX_DECISION_JSON_BYTES: usize = 8 * 1024;
+pub(crate) const MAX_STAGED_IMPORT_JSON_BYTES: usize = 20 * 1024;
 const MAX_MAINTENANCE_JSON_BYTES: usize = 8 * 1024;
 
 pub(crate) async fn api_health(State(state): State<AppState>) -> Json<HealthResponse> {
@@ -905,6 +906,25 @@ pub(crate) async fn api_staged_import_image(
     }
 }
 
+pub(crate) async fn api_cancel_staged_import_inbox(
+    State(state): State<AppState>,
+    Path((project_key, stage_id)): Path<(String, String)>,
+) -> Response {
+    let gate_key = project_key.clone();
+    match run_blocking(state.clone(), Some(gate_key), move |service| {
+        service.cancel_staged_import_inbox(&project_key, &stage_id)
+    })
+    .await
+    {
+        Ok(()) => StatusCode::NO_CONTENT.into_response(),
+        Err(BlockingError::Service(error)) => failure_response(HttpFailure::service(&state, error)),
+        Err(BlockingError::Task) => failure_response(HttpFailure::internal(
+            &state,
+            "The staged inbox cancellation task failed.",
+        )),
+    }
+}
+
 pub(crate) async fn api_begin_staged_import_inbox(
     State(state): State<AppState>,
     Path((project_key, stage_id)): Path<(String, String)>,
@@ -917,12 +937,12 @@ pub(crate) async fn api_begin_staged_import_inbox(
             "The request Content-Type must be exactly application/json.",
         ));
     }
-    let body = match to_bytes(request.into_body(), MAX_DECISION_JSON_BYTES).await {
+    let body = match to_bytes(request.into_body(), MAX_STAGED_IMPORT_JSON_BYTES).await {
         Ok(body) => body,
         Err(_) => {
             return failure_response(HttpFailure::limit(
                 &state,
-                "The staged import request exceeds the 8 KiB wire limit.",
+                "The staged import request exceeds the 20 KiB wire limit.",
             ));
         }
     };
