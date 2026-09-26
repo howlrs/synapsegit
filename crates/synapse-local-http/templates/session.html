@@ -90,24 +90,16 @@
       <input id="comparison-opacity" data-synapse-compare-opacity type="range" min="0" max="100" value="50" step="1" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
       <p class="field__hint">画像 B 本来の透明部分はそのまま保持します。</p>
     </div>
+    <div class="image-comparison__sources">
+      <div class="field"><label for="comparison-source-a">比較画像 A</label><select id="comparison-source-a" data-synapse-compare-source>{% for image in images %}<option value="{{ loop.index0 }}">{{ image.label }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="comparison-source-b">比較画像 B</label><select id="comparison-source-b" data-synapse-compare-source>{% for image in images %}<option value="{{ loop.index0 }}">{{ image.label }}</option>{% endfor %}</select></div>
+    </div>
     <div class="image-comparison__panes">
       <figure class="image-comparison__pane" data-synapse-compare-pane>
-        <div class="field">
-          <label for="comparison-source-a">比較画像 A</label>
-          <select id="comparison-source-a" data-synapse-compare-source>
-            {% for image in images %}<option value="{{ loop.index0 }}">{{ image.label }}</option>{% endfor %}
-          </select>
-        </div>
         <div class="image-comparison__viewport" data-synapse-compare-viewport tabindex="0" role="region" aria-label="比較画像 Aの表示領域"><img data-synapse-compare-image alt="" hidden></div>
         <figcaption data-synapse-compare-caption class="field__hint" aria-live="polite"></figcaption>
       </figure>
       <figure class="image-comparison__pane" data-synapse-compare-pane>
-        <div class="field">
-          <label for="comparison-source-b">比較画像 B</label>
-          <select id="comparison-source-b" data-synapse-compare-source>
-            {% for image in images %}<option value="{{ loop.index0 }}">{{ image.label }}</option>{% endfor %}
-          </select>
-        </div>
         <div class="image-comparison__viewport" data-synapse-compare-viewport tabindex="0" role="region" aria-label="比較画像 Bの表示領域"><img data-synapse-compare-image alt="" hidden></div>
         <figcaption data-synapse-compare-caption class="field__hint" aria-live="polite"></figcaption>
       </figure>

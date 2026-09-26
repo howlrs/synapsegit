@@ -74,7 +74,9 @@ test("matching decoded images overlay at a shared origin with integer opacity", 
   await overlayMode.focus();
   await page.keyboard.press("Space");
   await expect(page.locator("[data-synapse-compare-overlay]")).toBeVisible();
-  await expect(page.locator("[data-synapse-compare-pane]").first()).not.toBeVisible();
+  await expect(page.getByLabel("比較画像 A", { exact: true })).toBeVisible();
+  await page.getByLabel("比較画像 A", { exact: true }).selectOption("0");
+  await expect(page.locator("[data-synapse-compare-overlay-caption]")).toContainText("Original を下");
   const slider = dialog(page).getByLabel(/画像 B の不透明度/);
   for (const [value, opacity] of [["0", "0"], ["37", "0.37"], ["50", "0.5"], ["100", "1"]]) {
     await slider.fill(value);
@@ -87,6 +89,9 @@ test("matching decoded images overlay at a shared origin with integer opacity", 
   await expect(page.locator("[data-synapse-compare-overlay-canvas]")).toHaveAttribute("width", "2");
   await page.keyboard.press("Escape");
   await expect(opener(page)).toBeFocused();
+  await openComparison(page);
+  await expect(slider).toHaveValue("50");
+  await expect(slider).toHaveAttribute("aria-valuenow", "50");
 });
 
 test("different decoded dimensions keep the side-by-side comparison available", async ({ page, app }) => {

@@ -1328,10 +1328,22 @@ details[open] > summary {
   overscroll-behavior: contain;
 }
 
+/* Keep the frequent creation and review work directly below the overview.
+   Source order remains a fully readable no-script document. */
+.page-shell:has(.project-creator-upload) {
+  display: flex;
+  flex-direction: column;
+}
+.project-creator-upload { order: 1; }
+.project-sessions { order: 2; }
+.project-maintenance { order: 3; }
+.project-detail { order: 4; }
+
 .image-comparison[open] {
   display: grid;
   height: min(94dvh, 64rem);
-  grid-template-rows: auto auto auto minmax(10rem, 1fr);
+  /* Header, help, zoom, mode, opacity, source pickers, then the image area. */
+  grid-template-rows: repeat(6, auto) minmax(10rem, 1fr);
 }
 
 .image-comparison::backdrop {
@@ -1381,6 +1393,12 @@ details[open] > summary {
 
 .image-comparison__opacity input {
   max-width: 30rem;
+}
+
+.image-comparison__sources {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
 }
 
 .image-comparison__panes {
@@ -1452,6 +1470,10 @@ details[open] > summary {
   }
 
   .image-comparison__panes {
+    grid-template-columns: 1fr;
+  }
+
+  .image-comparison__sources {
     grid-template-columns: 1fr;
   }
 

@@ -455,8 +455,11 @@ export function enhanceImageComparison(root = document) {
   };
   const overlayCaption = dialog.querySelector("[data-synapse-compare-overlay-caption]");
   const sources = [...section.querySelectorAll("img[data-synapse-image]")];
-  const panes = [...dialog.querySelectorAll("[data-synapse-compare-pane]")].map((pane) => ({
-    select: pane.querySelector("[data-synapse-compare-source]"),
+  // The selectors stay above both presentation modes, so changing modes never
+  // hides the A/B choice or destroys its keyboard focus.
+  const sourceSelectors = [...dialog.querySelectorAll("[data-synapse-compare-source]")];
+  const panes = [...dialog.querySelectorAll("[data-synapse-compare-pane]")].map((pane, index) => ({
+    select: sourceSelectors[index],
     image: pane.querySelector("[data-synapse-compare-image]"),
     caption: pane.querySelector("[data-synapse-compare-caption]"),
     viewport: pane.querySelector("[data-synapse-compare-viewport]"),
@@ -561,6 +564,7 @@ export function enhanceImageComparison(root = document) {
     zoom.value = "fit";
     modes.find((mode) => mode.value === "side-by-side").checked = true;
     opacity.value = "50";
+    opacity.setAttribute("aria-valuenow", "50");
     opacityValue.value = "50%";
     opacityValue.textContent = "50%";
     dialog.showModal();
