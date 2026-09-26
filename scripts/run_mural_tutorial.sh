@@ -25,6 +25,7 @@ script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 project_root="$(cd -- "$script_directory/.." && pwd -P)"
 assets="$project_root/docs/tutorial/assets"
 
+synapse init "$repository"
 synapse creator-run "$repository" mural-treatment-01 \
   "$assets/mural-original.png" \
   "$assets/mural-current.png" \

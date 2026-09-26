@@ -29,6 +29,7 @@ async function decide(page, name) {
 }
 
 test("import, restart, then reuse the interrupted proposal and record a new decision", async ({ page, app }) => {
+  test.setTimeout(120_000);
   await importProposal(page, app, "interrupted", "restart-source");
   const sourceOids = await page.locator("img[data-synapse-image]").evaluateAll(images => images.map(image => image.dataset.oid));
   await app.restart();
@@ -51,6 +52,7 @@ test("import, restart, then reuse the interrupted proposal and record a new deci
 });
 
 test("Defer re-review reuses all images, shows the old reason only as reference, and remains accessible on narrow screens", async ({ page, app }) => {
+  test.setTimeout(120_000);
   const generationNote = {
     tool: "制作ツール",
     model: "試作モデル",

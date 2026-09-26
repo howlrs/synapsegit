@@ -45,6 +45,7 @@ test ! -e "$SYNAPSE_TUTORIAL_REPO"
 sample pathを解決できるよう、cloneしたSynapseGit repository rootで実行します。
 
 ```bash
+synapse init "$SYNAPSE_TUTORIAL_REPO"
 synapse creator-run "$SYNAPSE_TUTORIAL_REPO" mural-treatment-01 \
   docs/tutorial/assets/mural-original.png \
   docs/tutorial/assets/mural-current.png \
