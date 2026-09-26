@@ -436,8 +436,8 @@ field削除・rename・意味変更のような非互換な変更は新しいfor
 （present）」を区別するため、`source`、`reuse_source`、`generation_note`は
 `"availability": "absent" | "present"`、`decision_pins`は`"availability": "absent" | "present" | "unavailable"`
 を持つobjectである。`comparison`は
-`"availability": "present" | "unavailable"`を持つ（legacy-shaped sessionにcomparison entryが一つも
-ないときが`unavailable`で、それ以外は常に`present`になる）が、byte-identity analysisそのものの結果である
+`"availability": "absent" | "present"`を持つ（legacy-shaped sessionにcomparison entryが一つも
+ないときが`absent`で、それ以外は`present`になる）が、byte-identity analysisそのものの結果である
 `status`／`comparability`／`outcome`とはfieldを分けている。`rationale`は記録がなければ`null`である。
 
 **固定key設計**: `CreatorReportDocument`の各objectは`availability`に関わらず同じkey集合を常に出力する。
@@ -634,8 +634,8 @@ verifyしてから一つの完全なdocumentへ組み立て、それを丸ごと
 | `format` | string? | binding formatの識別子（例：`synapsegit-creator-source-v1`）。`absent`なら`null`。 |
 | `session` | string? | 派生元／再利用元のsession名。`absent`なら`null`。 |
 | `proposal_head` / `decision_head` | string? | 派生元／再利用元のRef head。`absent`なら`null`。 |
-| `disposition` | string? | `source`のみ。派生元のdisposition。`reuse_source`にはない。 |
-| `kind` | string? | `reuse_source`のみ（例：`deferred_rereview`）。`source`にはない。 |
+| `disposition` | string? | `source`のみ。派生元の`"adopt"` \| `"reject"` \| `"defer"`。`reuse_source`にはない。 |
+| `kind` | string? | `reuse_source`のみ。`"deferred_rereview"` \| `"interrupted_pending"`。`source`にはない。 |
 | `original_blob_oid` / `current_blob_oid` | string? | 派生元／再利用元のBlob OID。`absent`なら`null`。 |
 | `ai_output_blob_oid` | string? | `reuse_source`のみ。`source`にはない。 |
 
@@ -654,21 +654,21 @@ verifyしてから一つの完全なdocumentへ組み立て、それを丸ごと
 | `format` | string? | pin setのformat識別子（例：`synapsegit-creator-decision-pins-v1`）。`present`でなければ`null`。 |
 | `pins` | array | `{ "role": "original"\|"current"\|"ai_output", "blob_oid": string, "x": integer, "y": integer, "note": string }`の配列。`present`でなければ`[]`。 |
 
-`comparison`（availability: `present` \| `unavailable`）:
+`comparison`（availability: `absent` \| `present`）:
 
 | field | type | 意味 |
 | --- | --- | --- |
-| `availability` | string | base Treeにcomparison entryが一つもないlegacy-shaped sessionだけ`unavailable`。それ以外は`present`。 |
-| `analysis_oid` / `tool_id` / `tool_actor_oid` / `implementation_oid` / `configuration_oid` | string? | comparison recordを構成するOID群。`unavailable`なら`null`。 |
-| `adapter_id` / `adapter_version` | string? | comparison adapterの識別子とversion。`unavailable`なら`null`。 |
-| `status` | string? | analysis adapter自身の実行結果（例：`succeeded`）。`comparison.availability`とは別concept。 |
-| `comparability` | string? | 比較の限界（例：`partial`）。 |
-| `outcome` | string? | byte-identityの結果（`identical`\|`different`）。 |
-| `reason_codes` | array | reason codeの配列。`unavailable`なら`[]`。 |
-| `warnings` | array | conservative interpretation warningの配列。`unavailable`なら`[]`。 |
-| `base_observation_oid` / `target_observation_oid` / `base_media_oid` / `target_media_oid` | string? | 比較対象のOID群。`unavailable`なら`null`。 |
-| `replay_ready` | bool? | prerequisite objectがProjectionから利用可能と確認できたか。`unavailable`なら`null`。 |
-| `reachable_from` | array | 到達元Ref名の配列。`unavailable`なら`[]`。 |
+| `availability` | string | base Treeにcomparison entryが一つもないlegacy-shaped sessionだけ`absent`。それ以外は`present`。不完全・不正なcomparison entryは`unavailable`として出力せず、report全体を`creator_report_invalid`で拒否する。 |
+| `analysis_oid` / `tool_id` / `tool_actor_oid` / `implementation_oid` / `configuration_oid` | string? | comparison recordを構成するOID群。`absent`なら`null`。 |
+| `adapter_id` / `adapter_version` | string? | comparison adapterの識別子とversion。presentではそれぞれ`"synapsegit.observation.byte-identity"`と`"1"`、`absent`なら`null`。 |
+| `status` | string? | presentでは常に`"succeeded"`。analysis adapter自身の実行結果であり、`comparison.availability`とは別concept。`absent`なら`null`。 |
+| `comparability` | string? | presentでは常に`"partial"`。`absent`なら`null`。 |
+| `outcome` | string? | presentでは`"identical"` \| `"different"`。`absent`なら`null`。 |
+| `reason_codes` | array | presentでは常に`"byte_identity_only"`、`"capture_profile_imported"`、`"capture_time_unknown"`から成る順序付き配列。`absent`なら`[]`。 |
+| `warnings` | array | presentではoutcomeに対応する保守的解釈warningを一件持つ。`absent`なら`[]`。 |
+| `base_observation_oid` / `target_observation_oid` / `base_media_oid` / `target_media_oid` | string? | 比較対象のOID群。`absent`なら`null`。 |
+| `replay_ready` | bool? | presentでは常に`true`。prerequisite objectがProjectionから利用可能と確認できたことを表す。`absent`なら`null`。 |
+| `reachable_from` | array | 到達元Ref名の配列。presentでは`decision/creator/<session>`と`proposal/creator-agent/<session>`の昇順二要素、`absent`なら`[]`。 |
 
 `timeline`の各entry:
 

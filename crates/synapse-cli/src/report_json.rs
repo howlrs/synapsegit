@@ -251,7 +251,12 @@ impl ComparisonJson {
     fn from_comparison(comparison: Option<&CreatorComparisonReport>) -> Self {
         match comparison {
             None => Self {
-                availability: Availability::Unavailable,
+                // A legacy-shaped session without the complete comparison
+                // entry set never recorded a comparison.  `unavailable` is
+                // reserved for evidence which was recorded but cannot be
+                // represented; that state cannot reach this report because
+                // malformed comparison evidence fails verification.
+                availability: Availability::Absent,
                 analysis_oid: None,
                 tool_id: None,
                 tool_actor_oid: None,
@@ -292,6 +297,56 @@ impl ComparisonJson {
                 replay_ready: Some(comparison.replay_ready),
                 reachable_from: comparison.reachable_from.clone(),
             },
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::ComparisonJson;
+
+    #[test]
+    fn missing_comparison_is_absent_with_the_fixed_empty_shape() {
+        let value = serde_json::to_value(ComparisonJson::from_comparison(None)).unwrap();
+        let object = value
+            .as_object()
+            .expect("comparison JSON value must be an object");
+
+        assert_eq!(value["availability"], "absent");
+        assert_eq!(object.len(), 19, "comparison must retain its fixed key set");
+        for field in [
+            "analysis_oid",
+            "tool_id",
+            "tool_actor_oid",
+            "adapter_id",
+            "adapter_version",
+            "implementation_oid",
+            "configuration_oid",
+            "status",
+            "comparability",
+            "outcome",
+            "base_observation_oid",
+            "target_observation_oid",
+            "base_media_oid",
+            "target_media_oid",
+            "replay_ready",
+        ] {
+            assert!(
+                object
+                    .get(field)
+                    .expect("comparison must contain every fixed scalar key")
+                    .is_null(),
+                "{field} should be null"
+            );
+        }
+        for field in ["reason_codes", "warnings", "reachable_from"] {
+            assert_eq!(
+                object
+                    .get(field)
+                    .expect("comparison must contain every fixed array key"),
+                &serde_json::json!([]),
+                "{field} should be empty"
+            );
         }
     }
 }
