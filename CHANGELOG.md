@@ -11,10 +11,10 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 - The release archive now bundles the mural tutorial runner
   (`scripts/run_mural_tutorial.sh`), its three synthetic sample images
   (`docs/tutorial/assets/`), and a self-contained, bilingual guide
-  (`scripts/ARCHIVE_TUTORIAL.md`) so the tutorial can be completed from a
-  freshly extracted archive alone, with the three binaries on `PATH` and no
-  network access at run time. Archives at `v0.9.0` and earlier do not include
-  them.
+  (`TUTORIAL.md` at the archive root, next to `README.md`) so the tutorial
+  can be completed from a freshly extracted archive alone, with the three
+  binaries on `PATH` and no network access at run time. Archives at `v0.9.0`
+  and earlier do not include them.
 
 ## [0.9.0] - 2026-09-26
 

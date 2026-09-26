@@ -58,10 +58,11 @@ You can also run the sample in one command after installing `synapse`:
 scripts/run_mural_tutorial.sh "$HOME/SynapseGit/mural-tutorial" adopt
 ```
 
-Run that from a source checkout, or, for archives released after `v0.9.0`,
-from inside the extracted release archive (the runner and sample images are
-bundled there too; see `scripts/ARCHIVE_TUTORIAL.md` in the archive). The
-`v0.9.0` archive does not include the runner or sample images.
+Run that with the working directory at a source checkout's repository root,
+or, for archives released after `v0.9.0`, with the working directory inside
+the extracted release archive directory (the runner and sample images are
+bundled there too; see `TUTORIAL.md` at the archive root). The `v0.9.0`
+archive does not include the runner or sample images.
 
 The sample images are generated, non-sensitive fixtures. They are not evidence
 of a real artwork or treatment. The tutorial actually runs them through

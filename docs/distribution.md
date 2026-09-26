@@ -34,8 +34,9 @@ boundedなproject概要と画像overlayを追加する。既存repository向け�
 Core object／OID／archive formatは変更しない。
 v0.9.0より後のreleaseから、archiveは壁画tutorial runner(`scripts/run_mural_tutorial.sh`)、
 その3枚のsynthetic sample画像(`docs/tutorial/assets/`)、tag固定linkを含む同梱guide
-(`scripts/ARCHIVE_TUTORIAL.md`)も含む。展開したarchiveだけでtutorialを実行できるようにする
-ためで、三binary構成自体には変更がない。v0.9.0 archiveにはこれらは含まれない。
+(archive rootの`TUTORIAL.md`。tracked sourceは`scripts/ARCHIVE_TUTORIAL.md`)も含む。
+展開したarchiveだけでtutorialを実行できるようにするためで、三binary構成自体には変更が
+ない。v0.9.0 archiveにはこれらは含まれない。
 
 公開文面では、将来の利用構想とv0.9.0で実行できる能力を同じものとして表示しない。
 
@@ -133,9 +134,9 @@ synapsegit-vX.Y.Z-TARGET/
   CHANGELOG.md
   LICENSE
   THIRD_PARTY_NOTICES.md
+  TUTORIAL.md
   scripts/
     run_mural_tutorial.sh
-    ARCHIVE_TUTORIAL.md
   docs/
     tutorial/
       assets/
@@ -144,8 +145,10 @@ synapsegit-vX.Y.Z-TARGET/
         mural-ai-proposal.png
 ```
 
-`scripts/`と`docs/tutorial/assets/`はv0.9.0より後のreleaseから追加された。それ以前の
-release archiveにはこれらのpathは存在しない。
+`TUTORIAL.md`、`scripts/`、`docs/tutorial/assets/`はv0.9.0より後のreleaseから追加された。
+それ以前のrelease archiveにはこれらのpathは存在しない。`TUTORIAL.md`はarchive rootに
+置き、`README.md`(release notes)の隣で見つけやすくしている。tracked sourceは
+`scripts/ARCHIVE_TUTORIAL.md`で、package時にtagを埋め込んでarchive rootへcopyする。
 
 Releaseにはarchive、全archiveを列挙した`SHA256SUMS`、tag-pinned release notesを置く。
 更新後のworkflowで作るrelease archiveにはGitHub artifact attestationを生成する。checksumは

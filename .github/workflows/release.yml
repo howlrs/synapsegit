@@ -140,41 +140,20 @@ jobs:
           unpacked="$(mktemp -d)"
           trap 'rm -rf "$unpacked"' EXIT
           tar -xzf "dist/$bundle.tar.gz" -C "$unpacked"
-          for file in scripts/run_mural_tutorial.sh scripts/ARCHIVE_TUTORIAL.md \
+          for file in TUTORIAL.md scripts/run_mural_tutorial.sh \
             docs/tutorial/assets/mural-original.png \
             docs/tutorial/assets/mural-current.png \
             docs/tutorial/assets/mural-ai-proposal.png; do
             test -s "$unpacked/$bundle/$file"
           done
           test -x "$unpacked/$bundle/scripts/run_mural_tutorial.sh"
-          if grep -q '{{RELEASE_TAG}}' "$unpacked/$bundle/scripts/ARCHIVE_TUTORIAL.md"; then
+          if grep -q '{{RELEASE_TAG}}' "$unpacked/$bundle/TUTORIAL.md"; then
             echo "release_error: unresolved RELEASE_TAG placeholder in bundled guide" >&2
             exit 1
           fi
-          grep -q "/blob/$GITHUB_REF_NAME/" "$unpacked/$bundle/scripts/ARCHIVE_TUTORIAL.md"
+          grep -q "/blob/$GITHUB_REF_NAME/" "$unpacked/$bundle/TUTORIAL.md"
 
-          export PATH="$unpacked/$bundle:$PATH"
-          runner="$unpacked/$bundle/scripts/run_mural_tutorial.sh"
-          cd "$unpacked"
-
-          for decision in adopt reject defer; do
-            repository="$unpacked/tutorial-$decision"
-            output="$("$runner" "$repository" "$decision")"
-            grep -q "disposition=$decision" <<<"$output"
-            grep -q "fsck=clean" <<<"$output"
-          done
-
-          set +e
-          "$runner" "$unpacked/tutorial-bad-decision" not-a-decision >/dev/null 2>&1
-          bad_decision_status=$?
-          set -e
-          test "$bad_decision_status" = 2
-
-          set +e
-          "$runner" "$unpacked/tutorial-adopt" adopt >/dev/null 2>&1
-          existing_path_status=$?
-          set -e
-          test "$existing_path_status" = 1
+          bash scripts/test_tutorial_bundle.sh --bundle "$unpacked/$bundle"
 
       - name: Attest the release archive
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4

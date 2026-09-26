@@ -83,7 +83,7 @@ for asset in "${tutorial_assets[@]}"; do
   install -m 0644 "$asset" "$bundle_directory/$asset"
 done
 
-bundled_guide="$bundle_directory/$tutorial_guide"
+bundled_guide="$bundle_directory/TUTORIAL.md"
 sed "s/{{RELEASE_TAG}}/$tag/g" "$tutorial_guide" > "$bundled_guide"
 chmod 0644 "$bundled_guide"
 if grep -q '{{RELEASE_TAG}}' "$bundled_guide"; then

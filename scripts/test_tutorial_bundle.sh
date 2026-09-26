@@ -1,48 +1,79 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Assembles the same bundle layout package_release.sh ships (three binaries,
-# the mural tutorial runner, its sample images, and the bundled guide) into a
-# fresh directory outside this checkout, then runs the runner from a
-# different current directory for adopt, reject, and defer, plus the
-# existing argument-validation and refusal checks. This is the CI-reachable
-# counterpart of the release workflow's packaged-archive smoke: it uses
-# whatever binaries the caller already built (debug binaries in CI) so it can
-# run on every push and pull request, not only at tag time.
+# Exercises the mural tutorial bundle (three binaries, the runner, its sample
+# images, and TUTORIAL.md at the bundle root) the same way package_release.sh
+# ships it. Two modes:
 #
-# usage: scripts/test_tutorial_bundle.sh SYNAPSE_BIN SYNAPSE_LOCAL_BIN SYNAPSE_PRESENT_BIN
+#   scripts/test_tutorial_bundle.sh SYNAPSE_BIN SYNAPSE_LOCAL_BIN SYNAPSE_PRESENT_BIN
+#     Assembles a fresh bundle directory from the given binaries (debug
+#     binaries in CI) plus this checkout's runner/assets/guide, so it can run
+#     on every push and pull request, not only at tag time.
+#
+#   scripts/test_tutorial_bundle.sh --bundle BUNDLE_DIR
+#     Reuses an already-extracted bundle directory as-is (for example the
+#     real packaged archive in the release workflow). The caller is
+#     responsible for any file/mode/tag-substitution checks specific to that
+#     bundle; this script only exercises the runner.
+#
+# In both modes, the runner is invoked from a directory that is neither the
+# checkout nor the bundle, for adopt, reject, and defer, plus the existing
+# argument-validation and refusal checks, and the report's `selected` field
+# is checked against the decision (`true` for adopt, `false` otherwise).
 
-synapse_bin="${1:-}"
-synapse_local_bin="${2:-}"
-synapse_present_bin="${3:-}"
-
-if [[ -z "$synapse_bin" || -z "$synapse_local_bin" || -z "$synapse_present_bin" ]]; then
+usage() {
   echo "tutorial_bundle_error: usage: scripts/test_tutorial_bundle.sh SYNAPSE_BIN SYNAPSE_LOCAL_BIN SYNAPSE_PRESENT_BIN" >&2
-  exit 2
-fi
-for bin in "$synapse_bin" "$synapse_local_bin" "$synapse_present_bin"; do
-  if [[ ! -x "$bin" ]]; then
-    echo "tutorial_bundle_error: missing or non-executable $bin" >&2
-    exit 1
-  fi
-done
+  echo "   or: scripts/test_tutorial_bundle.sh --bundle BUNDLE_DIR" >&2
+}
 
-repository_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-bundle="$work/bundle"
-mkdir -p "$bundle/scripts" "$bundle/docs/tutorial/assets"
-install -m 0755 "$synapse_bin" "$bundle/synapse"
-install -m 0755 "$synapse_local_bin" "$bundle/synapse-local"
-install -m 0755 "$synapse_present_bin" "$bundle/synapse-present"
-install -m 0755 "$repository_root/scripts/run_mural_tutorial.sh" "$bundle/scripts/run_mural_tutorial.sh"
-install -m 0644 "$repository_root/scripts/ARCHIVE_TUTORIAL.md" "$bundle/scripts/ARCHIVE_TUTORIAL.md"
-for asset in mural-original.png mural-current.png mural-ai-proposal.png; do
-  install -m 0644 \
-    "$repository_root/docs/tutorial/assets/$asset" \
-    "$bundle/docs/tutorial/assets/$asset"
-done
+if [[ "${1:-}" == "--bundle" ]]; then
+  bundle="${2:-}"
+  if [[ -z "$bundle" ]]; then
+    usage
+    exit 2
+  fi
+  if [[ ! -x "$bundle/scripts/run_mural_tutorial.sh" ]]; then
+    echo "tutorial_bundle_error: missing or non-executable $bundle/scripts/run_mural_tutorial.sh" >&2
+    exit 1
+  fi
+else
+  synapse_bin="${1:-}"
+  synapse_local_bin="${2:-}"
+  synapse_present_bin="${3:-}"
+
+  if [[ -z "$synapse_bin" || -z "$synapse_local_bin" || -z "$synapse_present_bin" ]]; then
+    usage
+    exit 2
+  fi
+  for bin in "$synapse_bin" "$synapse_local_bin" "$synapse_present_bin"; do
+    if [[ ! -x "$bin" ]]; then
+      echo "tutorial_bundle_error: missing or non-executable $bin" >&2
+      exit 1
+    fi
+  done
+
+  repository_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
+  bundle="$work/bundle"
+  mkdir -p "$bundle/scripts" "$bundle/docs/tutorial/assets"
+  install -m 0755 "$synapse_bin" "$bundle/synapse"
+  install -m 0755 "$synapse_local_bin" "$bundle/synapse-local"
+  install -m 0755 "$synapse_present_bin" "$bundle/synapse-present"
+  install -m 0755 "$repository_root/scripts/run_mural_tutorial.sh" "$bundle/scripts/run_mural_tutorial.sh"
+  sed "s/{{RELEASE_TAG}}/ci-test/g" "$repository_root/scripts/ARCHIVE_TUTORIAL.md" > "$bundle/TUTORIAL.md"
+  chmod 0644 "$bundle/TUTORIAL.md"
+  if grep -q '{{RELEASE_TAG}}' "$bundle/TUTORIAL.md"; then
+    echo "tutorial_bundle_error: unresolved {{RELEASE_TAG}} placeholder in $bundle/TUTORIAL.md" >&2
+    exit 1
+  fi
+  for asset in mural-original.png mural-current.png mural-ai-proposal.png; do
+    install -m 0644 \
+      "$repository_root/docs/tutorial/assets/$asset" \
+      "$bundle/docs/tutorial/assets/$asset"
+  done
+fi
 
 export PATH="$bundle:$PATH"
 runner="$bundle/scripts/run_mural_tutorial.sh"
@@ -56,6 +87,15 @@ for decision in adopt reject defer; do
   output="$("$runner" "$repository" "$decision")"
   if ! grep -q "disposition=$decision" <<<"$output"; then
     echo "tutorial_bundle_error: missing disposition=$decision in runner output" >&2
+    exit 1
+  fi
+  if [[ "$decision" == "adopt" ]]; then
+    expected_selected="selected=true"
+  else
+    expected_selected="selected=false"
+  fi
+  if ! grep -q "$expected_selected" <<<"$output"; then
+    echo "tutorial_bundle_error: expected $expected_selected for decision $decision" >&2
     exit 1
   fi
   if ! grep -q "fsck=clean" <<<"$output"; then
