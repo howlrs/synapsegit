@@ -332,6 +332,52 @@ fn test_app_with_creator(label: &str) -> (TestDirectory, Router, CreatorFixture)
     (directory, application.into_router(), fixture)
 }
 
+#[tokio::test]
+async fn project_page_keeps_valid_sessions_visible_when_a_decision_object_is_missing() {
+    let (directory, app, _) = test_app_with_creator("Demo project");
+    let repository = directory.0.join("repository");
+    let original = directory.0.join("missing-decision-original.png");
+    let current = directory.0.join("missing-decision-current.png");
+    let ai_output = directory.0.join("missing-decision-ai-output.png");
+    fs::write(&original, b"\x89PNG\r\n\x1a\nmissing-decision-original").unwrap();
+    fs::write(&current, b"\x89PNG\r\n\x1a\nmissing-decision-current").unwrap();
+    fs::write(&ai_output, b"GIF89amissing-decision-ai-output").unwrap();
+    let broken = run_creator_session(&CreatorRunOptions {
+        repository: repository.clone(),
+        session: "missing-decision".into(),
+        original_image: original,
+        current_image: current,
+        ai_output,
+        subject_label: "Missing decision fixture".into(),
+        creator_name: "Test creator".into(),
+        disposition: CreatorDisposition::Adopt,
+        rationale: Some("The dashboard must isolate this missing object.".into()),
+    })
+    .unwrap();
+    let digest = broken.decision_head.rsplit(':').next().unwrap();
+    fs::remove_file(
+        repository
+            .join("cas/objects/commit")
+            .join(&digest[..2])
+            .join(&digest[2..]),
+    )
+    .unwrap();
+
+    let response = app
+        .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let body = to_bytes(response.into_body(), 2 * 1024 * 1024)
+        .await
+        .unwrap();
+    let page = std::str::from_utf8(&body).unwrap();
+    assert!(page.contains("render-session"));
+    assert!(page.contains("HTTP fixture"));
+    assert!(page.contains("missing-decision"));
+    assert!(page.contains("取得できません"));
+}
+
 fn test_app_with_incomplete() -> (TestDirectory, Router, IncompleteFixture) {
     let directory = TestDirectory::new();
     let repository = directory.0.join("repository");
