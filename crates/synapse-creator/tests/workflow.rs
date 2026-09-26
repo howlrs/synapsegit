@@ -3,11 +3,12 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_core::Repository;
 use synapse_creator::{
-    AnalysisComparability, AnalysisStatus, ByteIdentityOutcome, CreatorBeginOptions,
-    CreatorDecisionOptions, CreatorDisposition, CreatorError, CreatorPendingDecisionState,
-    CreatorRunOptions, CreatorSessionState, PreparedCreatorReportReader, begin_creator_session,
-    begin_creator_session_existing, creator_report, creator_report_from_snapshot,
-    decide_creator_session, discover_creator_sessions, run_creator_session,
+    begin_creator_session, begin_creator_session_existing, creator_report,
+    creator_report_from_snapshot, decide_creator_session, discover_creator_sessions,
+    run_creator_session, AnalysisComparability, AnalysisStatus, ByteIdentityOutcome,
+    CreatorBeginOptions, CreatorDecisionOptions, CreatorDisposition, CreatorError,
+    CreatorPendingDecisionState, CreatorRunOptions, CreatorSessionState,
+    PreparedCreatorReportReader,
 };
 use synapse_projection::{ProjectionLimits, SqliteProjectionStore};
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
@@ -254,11 +255,9 @@ fn creator_workflow_uses_ai_and_human_routes_and_survives_restore() {
     let snapshot_report =
         creator_report_from_snapshot(&snapshot_repository, &snapshot, "mural-1").unwrap();
     assert_eq!(snapshot_report.report, report);
-    assert!(
-        snapshot_report
-            .projection_source_fingerprint
-            .starts_with("projection-source-v1:sha256:")
-    );
+    assert!(snapshot_report
+        .projection_source_fingerprint
+        .starts_with("projection-source-v1:sha256:"));
     let mut independent_projection = SqliteProjectionStore::open_in_memory().unwrap();
     let independent_rebuild = independent_projection
         .rebuild_with_limits(
@@ -329,12 +328,10 @@ fn creator_workflow_uses_ai_and_human_routes_and_survives_restore() {
         ["Different Blob bytes do not establish visual or physical change."]
     );
     assert_eq!(report.timeline.len(), 4);
-    assert!(
-        report
-            .timeline
-            .iter()
-            .all(|entry| entry.time_basis.ends_with("recorded_at_fallback"))
-    );
+    assert!(report
+        .timeline
+        .iter()
+        .all(|entry| entry.time_basis.ends_with("recorded_at_fallback")));
     assert_eq!(
         report
             .timeline
@@ -348,12 +345,10 @@ fn creator_workflow_uses_ai_and_human_routes_and_survives_restore() {
             "ai_proposal"
         ]
     );
-    assert!(
-        report
-            .timeline
-            .windows(2)
-            .all(|pair| pair[0].ordering_time < pair[1].ordering_time)
-    );
+    assert!(report
+        .timeline
+        .windows(2)
+        .all(|pair| pair[0].ordering_time < pair[1].ordering_time));
     assert!(report.selected_ai_output);
     assert_eq!(report.decision_snapshot, report.proposal_snapshot);
     assert_eq!(
@@ -921,10 +916,11 @@ fn oversized_generation_notes_do_not_publish_refs() {
             "intent" => note.intent = "x".repeat(2049),
             _ => note.prompt = "\0".repeat(8192),
         }
-        assert!(
-            synapse_creator::begin_creator_session_with_note(&begin_options(&run), Some(&note))
-                .is_err()
-        );
+        assert!(synapse_creator::begin_creator_session_with_note(
+            &begin_options(&run),
+            Some(&note)
+        )
+        .is_err());
         assert_eq!(repository.refs().snapshot().unwrap(), before);
     }
 }
@@ -932,8 +928,8 @@ fn oversized_generation_notes_do_not_publish_refs() {
 #[test]
 fn private_pins_are_atomic_with_each_decision_and_survive_restore() {
     use synapse_creator::{
-        ANNOTATIONS_FORMAT, CreatorAnnotations, CreatorImageRole, CreatorPin,
-        decide_creator_session_with_annotations,
+        decide_creator_session_with_annotations, CreatorAnnotations, CreatorImageRole, CreatorPin,
+        ANNOTATIONS_FORMAT,
     };
     let temporary = TempDirectory::new();
     let path = temporary.join("pins-repo");
@@ -1107,7 +1103,7 @@ fn malformed_pin_extension_is_unavailable_without_invalidating_decision_lineage(
 
 #[test]
 fn derived_sessions_keep_reference_images_and_fixed_source_lineage_after_restore() {
-    use synapse_creator::{CreatorSourceBinding, begin_creator_session_with_source};
+    use synapse_creator::{begin_creator_session_with_source, CreatorSourceBinding};
     let temporary = TempDirectory::new();
     let path = temporary.join("derived-repo");
     for disposition in [
@@ -1225,7 +1221,7 @@ fn derived_sessions_keep_reference_images_and_fixed_source_lineage_after_restore
 
 #[test]
 fn derivation_refuses_stale_source_and_wrong_reference_bytes_before_publication() {
-    use synapse_creator::{CreatorSourceBinding, begin_creator_session_with_source};
+    use synapse_creator::{begin_creator_session_with_source, CreatorSourceBinding};
     let temporary = TempDirectory::new();
     let path = temporary.join("invalid-derived");
     let original = options(&temporary, &path, "source", CreatorDisposition::Adopt);
@@ -1255,7 +1251,7 @@ fn interrupted_and_deferred_three_blob_sources_are_fresh_and_never_restore_autho
     let path = temporary.join("reuse-source");
     let input = options(&temporary, &path, "interrupted", CreatorDisposition::Defer);
     let pending = begin_creator_session(&begin_options(&input)).unwrap();
-    let repository = Repository::open(&path).unwrap();
+    let mut repository = Repository::open(&path).unwrap();
     let snapshot = repository.refs().snapshot().unwrap();
     let source = creator_reuse_source_from_snapshot(&repository, &snapshot, "interrupted").unwrap();
     assert_eq!(source.kind, "interrupted_pending");
@@ -1268,11 +1264,15 @@ fn interrupted_and_deferred_three_blob_sources_are_fresh_and_never_restore_autho
     next.original_image = input.original_image.clone();
     next.current_image = input.current_image.clone();
     next.ai_output = input.ai_output.clone();
-    let mut fresh = begin_creator_session_with_reuse_source(&begin_options(&next), &source).unwrap();
+    let mut fresh =
+        begin_creator_session_with_reuse_source(&begin_options(&next), &source).unwrap();
     assert_eq!(fresh.receipt().reuse_source, Some(source.clone()));
     decide_creator_session(
         &mut fresh,
-        &CreatorDecisionOptions { disposition: CreatorDisposition::Adopt, rationale: None },
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Adopt,
+            rationale: None,
+        },
     )
     .unwrap();
     let reused_report = creator_report(&path, "review-again").unwrap();
@@ -1288,7 +1288,12 @@ fn interrupted_and_deferred_three_blob_sources_are_fresh_and_never_restore_autho
     let legacy_source = synapse_creator::CreatorSourceBinding::from_report(
         &creator_report(&path, "legacy-root").unwrap(),
     );
-    let mut mixed = options(&temporary, &path, "mixed-derived", CreatorDisposition::Defer);
+    let mut mixed = options(
+        &temporary,
+        &path,
+        "mixed-derived",
+        CreatorDisposition::Defer,
+    );
     mixed.original_image = legacy_root.original_image.clone();
     mixed.current_image = legacy_root.current_image.clone();
     let mut mixed_pending = synapse_creator::begin_creator_session_with_source(
@@ -1299,7 +1304,10 @@ fn interrupted_and_deferred_three_blob_sources_are_fresh_and_never_restore_autho
     .unwrap();
     decide_creator_session(
         &mut mixed_pending,
-        &CreatorDecisionOptions { disposition: CreatorDisposition::Defer, rationale: None },
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Defer,
+            rationale: None,
+        },
     )
     .unwrap();
     let mixed_source = creator_reuse_source_from_snapshot(
@@ -1308,35 +1316,57 @@ fn interrupted_and_deferred_three_blob_sources_are_fresh_and_never_restore_autho
         "mixed-derived",
     )
     .unwrap();
-    let mut mixed_reuse = options(&temporary, &path, "mixed-rereview", CreatorDisposition::Adopt);
+    let mut mixed_reuse = options(
+        &temporary,
+        &path,
+        "mixed-rereview",
+        CreatorDisposition::Adopt,
+    );
     mixed_reuse.original_image = mixed.original_image.clone();
     mixed_reuse.current_image = mixed.current_image.clone();
     mixed_reuse.ai_output = mixed.ai_output.clone();
-    let mut mixed_pending = begin_creator_session_with_reuse_source(
-        &begin_options(&mixed_reuse),
-        &mixed_source,
-    )
-    .unwrap();
+    let mut mixed_pending =
+        begin_creator_session_with_reuse_source(&begin_options(&mixed_reuse), &mixed_source)
+            .unwrap();
     decide_creator_session(
         &mut mixed_pending,
-        &CreatorDecisionOptions { disposition: CreatorDisposition::Adopt, rationale: None },
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Adopt,
+            rationale: None,
+        },
     )
     .unwrap();
-    assert_eq!(creator_report(&path, "mixed-rereview").unwrap().source_depth, 2);
+    assert_eq!(
+        creator_report(&path, "mixed-rereview")
+            .unwrap()
+            .source_depth,
+        2
+    );
+    // Reuse bindings carry typed source-head edges, so archive reachability
+    // must preserve them byte-for-byte through a restore.
+    let archive = temporary.join("reuse-archive");
+    let restored = temporary.join("reuse-restored");
+    repository.export_archive(&archive).unwrap();
+    Repository::restore_archive(&archive, &restored).unwrap();
+    for session in ["review-again", "mixed-rereview"] {
+        assert_eq!(
+            creator_report(&path, session).unwrap(),
+            creator_report(&restored, session).unwrap(),
+            "reuse lineage changed after archive restore for {session}"
+        );
+    }
     let mut invalid = deferred.clone();
     invalid.kind = "interrupted_pending".into();
-    assert!(
-        begin_creator_session_with_reuse_source(
-            &begin_options(&options(
-                &temporary,
-                &path,
-                "invalid",
-                CreatorDisposition::Adopt
-            )),
-            &invalid
-        )
-        .is_err()
-    );
+    assert!(begin_creator_session_with_reuse_source(
+        &begin_options(&options(
+            &temporary,
+            &path,
+            "invalid",
+            CreatorDisposition::Adopt
+        )),
+        &invalid
+    )
+    .is_err());
 }
 
 #[test]
@@ -1366,25 +1396,23 @@ fn conditional_publication_rechecks_source_head_in_the_writer_transaction() {
         })
         .unwrap();
     let before = writer.refs().snapshot().unwrap();
-    assert!(
-        observer
-            .update_ref_with_preconditions(
-                RefUpdate {
-                    ref_name: "refs/heads/conditional-child",
-                    expected_head: None,
-                    new_head: &receipt.base_head,
-                    metadata: ReflogMetadata {
-                        occurred_at_unix_nanos: 11,
-                        actor: None,
-                        message: None
-                    }
-                },
-                &[RefPrecondition {
-                    ref_name: &receipt.decision_ref,
-                    expected_head: Some(&receipt.decision_head)
-                }]
-            )
-            .is_err()
-    );
+    assert!(observer
+        .update_ref_with_preconditions(
+            RefUpdate {
+                ref_name: "refs/heads/conditional-child",
+                expected_head: None,
+                new_head: &receipt.base_head,
+                metadata: ReflogMetadata {
+                    occurred_at_unix_nanos: 11,
+                    actor: None,
+                    message: None
+                }
+            },
+            &[RefPrecondition {
+                ref_name: &receipt.decision_ref,
+                expected_head: Some(&receipt.decision_head)
+            }]
+        )
+        .is_err());
     assert_eq!(writer.refs().snapshot().unwrap(), before);
 }

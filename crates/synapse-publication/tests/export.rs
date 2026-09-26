@@ -4,16 +4,19 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_canonical::{canonical_bytes, parse_strict};
+use synapse_core::Repository;
 use synapse_creator::{
-    ANNOTATIONS_FORMAT, CreatorAnnotations, CreatorBeginOptions, CreatorDecisionOptions,
-    CreatorDisposition, CreatorGenerationNote, CreatorImageRole, CreatorPin, CreatorSourceBinding,
-    begin_creator_session, begin_creator_session_with_note, begin_creator_session_with_source,
-    creator_report, decide_creator_session, decide_creator_session_with_annotations,
+    begin_creator_session, begin_creator_session_with_note,
+    begin_creator_session_with_reuse_source, begin_creator_session_with_source, creator_report,
+    creator_reuse_source_from_snapshot, decide_creator_session,
+    decide_creator_session_with_annotations, CreatorAnnotations, CreatorBeginOptions,
+    CreatorDecisionOptions, CreatorDisposition, CreatorGenerationNote, CreatorImageRole,
+    CreatorPin, CreatorSourceBinding, ANNOTATIONS_FORMAT,
 };
 use synapse_publication::{
-    BundleManifest, ChecksumsDocument, DEFAULT_MAX_SESSIONS, ExportOptions, OutputTarget,
-    PresentationInput, ProjectionOptions, PublicationError, PublicationVisibility,
-    SessionPresentationInput, ValueOrigin, build_public_projection, export_bundle, verify_bundle,
+    build_public_projection, export_bundle, verify_bundle, BundleManifest, ChecksumsDocument,
+    ExportOptions, OutputTarget, PresentationInput, ProjectionOptions, PublicationError,
+    PublicationVisibility, SessionPresentationInput, ValueOrigin, DEFAULT_MAX_SESSIONS,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -203,13 +206,63 @@ fn frozen_v1_refuses_derived_sessions_without_writing_a_bundle() {
                 matches!(&error, PublicationError::InvalidArgument(_)),
                 "{error}"
             );
-            assert!(
-                error
-                    .to_string()
-                    .contains("cannot represent reused reference images")
-            );
+            assert!(error
+                .to_string()
+                .contains("cannot represent reused reference images"));
             assert!(!destination.exists());
         }
+    }
+    // The newer three-Blob reuse lineage is also private-only. Check both a
+    // selected session and the all-session form, since either must fail
+    // closed before a public bundle directory is created.
+    let repository = Repository::open(root.join("repo")).unwrap();
+    let reuse = creator_reuse_source_from_snapshot(
+        &repository,
+        &repository.refs().snapshot().unwrap(),
+        "defer-story",
+    )
+    .unwrap();
+    let mut pending = begin_creator_session_with_reuse_source(
+        &CreatorBeginOptions {
+            repository: root.join("repo"),
+            session: "reused-defer-story".into(),
+            original_image: root.join("inputs/original.bin"),
+            current_image: root.join("inputs/current.bin"),
+            ai_output: root.join("inputs/proposal.bin"),
+            subject_label: "Reuse review".into(),
+            creator_name: "Creator".into(),
+        },
+        &reuse,
+    )
+    .unwrap();
+    decide_creator_session(
+        &mut pending,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Adopt,
+            rationale: None,
+        },
+    )
+    .unwrap();
+    drop(pending);
+    drop(repository);
+    for selected in [Some("reused-defer-story".into()), None] {
+        let destination = root.join("reused-refused-bundle");
+        let mut projection = projection_options(root.join("repo"));
+        projection.session = selected;
+        let error = export_bundle(&ExportOptions {
+            projection,
+            destination: destination.clone(),
+            target: OutputTarget::Github,
+        })
+        .unwrap_err();
+        assert!(
+            matches!(&error, PublicationError::InvalidArgument(_)),
+            "{error:?}"
+        );
+        assert!(error
+            .to_string()
+            .contains("cannot represent reused reference images"));
+        assert!(!destination.exists());
     }
     // A normal session in the same repository remains exportable, and the
     // frozen verifier still accepts the resulting bundle.
@@ -353,11 +406,9 @@ fn verification_rejects_a_checksummed_human_view_that_does_not_render_from_proje
     reconcile_bundle_checksums(&bundle);
 
     let error = verify_bundle(bundle).unwrap_err();
-    assert!(
-        error
-            .to_string()
-            .contains("do not render from projection.json")
-    );
+    assert!(error
+        .to_string()
+        .contains("do not render from projection.json"));
 }
 
 #[test]
