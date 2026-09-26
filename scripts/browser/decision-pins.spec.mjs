@@ -36,6 +36,9 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     expect(payload.annotations.pins[0]).toMatchObject({ role: "ai_output", x: 510000, y: 499000, note });
     expect(payload.annotations.pins[0].blob_oid).toMatch(/^blob:sg-oid-v1:sha256:/u);
     await navigation;
+    // The frame-navigation event precedes the new document becoming ready.
+    // Wait for the completed view before starting another navigation.
+    await expect(page.getByRole("heading", { name: "Timeline", exact: true })).toBeVisible();
     await page.reload();
     const stored = JSON.parse(await page.locator("[data-creator-pins]").getAttribute("data-annotations"));
     expect(stored).toEqual(payload.annotations);
