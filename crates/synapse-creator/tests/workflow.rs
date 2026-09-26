@@ -1268,9 +1268,16 @@ fn interrupted_and_deferred_three_blob_sources_are_fresh_and_never_restore_autho
     next.original_image = input.original_image.clone();
     next.current_image = input.current_image.clone();
     next.ai_output = input.ai_output.clone();
-    let fresh = begin_creator_session_with_reuse_source(&begin_options(&next), &source).unwrap();
+    let mut fresh = begin_creator_session_with_reuse_source(&begin_options(&next), &source).unwrap();
     assert_eq!(fresh.receipt().reuse_source, Some(source.clone()));
-    drop(fresh);
+    decide_creator_session(
+        &mut fresh,
+        &CreatorDecisionOptions { disposition: CreatorDisposition::Adopt, rationale: None },
+    )
+    .unwrap();
+    let reused_report = creator_report(&path, "review-again").unwrap();
+    assert_eq!(reused_report.reuse_source.as_ref(), Some(&source));
+    assert_eq!(reused_report.source_depth, 1);
     let complete = options(&temporary, &path, "deferred", CreatorDisposition::Defer);
     run_creator_session(&complete).unwrap();
     let snapshot = repository.refs().snapshot().unwrap();

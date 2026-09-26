@@ -365,6 +365,9 @@ fn begin_creator_session_with_bindings_and_limits(
         fsck_limits.tombstone_scan,
         require_existing_repository,
     )?;
+    if let Some(source) = reuse_source {
+        crate::report::validate_reuse_source_binding(&repository, source, 0)?;
+    }
     let existing_decision = repository.refs().get(&decision_ref)?;
     let existing_proposal = repository.refs().get(&proposal_ref)?;
     if existing_decision.is_some() || existing_proposal.is_some() {

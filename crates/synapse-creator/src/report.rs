@@ -193,7 +193,7 @@ pub fn creator_reuse_source_from_snapshot(
 
 /// Validate a reuse binding from its immutable pinned heads, without using the
 /// source session's current Refs (which may have moved after publication).
-fn validate_reuse_source_binding(
+pub(crate) fn validate_reuse_source_binding(
     repository: &Repository,
     source: &CreatorReuseSourceBinding,
     depth: usize,
