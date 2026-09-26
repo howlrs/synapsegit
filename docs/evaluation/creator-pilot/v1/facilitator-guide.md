@@ -20,12 +20,35 @@
 - 参加者にCLIとブラウザUIのどちらの経路を課題1で使ってもらうか、事前に決めます
   （両方比べたい場合は、課題4の任意セッションで別経路を試してもらう方法もあります）。
 - ブラウザUIでAdopt／Reject／Deferを確定する際は、ブラウザ標準の確認ポップアップ
-  （`確認`／`キャンセル`）が表示されます。ポップアップブロッカーで隠れないこと、
-  参加者がポップアップの内容を読んでから選べることを事前に確認してください。
-- 課題3b（公開用文章の下見）のために、CLI経路をCLIオプションで補足する場合は、
+  （`確認`／`キャンセル`）が表示されます。確認ダイアログが表示され、参加者が内容を
+  読んでから選べることを事前に確認してください。
+- 課題3b（公開用文章の下見）のために、CLI経路を選ぶ場合は、
   export先に使うまだ存在しない空ディレクトリを一つ用意しておきます
   （`synapse-present export`は既存pathへ書き出せません）。ブラウザ経路では
   プロジェクト画面の「公開用の制作ノートを作る」を開くだけで追加準備は不要です。
+
+### releaseと画像だけで準備する場合
+
+v0.9.0のbinary archiveには練習画像は含まれていません。以下のtag固定画像を保存し、
+参加者へ3つのローカルpathを渡します。source checkoutがある場合は同名の
+`docs/tutorial/assets/`内の画像を使えます。
+
+- [Original: mural-original.png](https://raw.githubusercontent.com/howlrs/synapsegit/v0.9.0/docs/tutorial/assets/mural-original.png)
+- [Current: mural-current.png](https://raw.githubusercontent.com/howlrs/synapsegit/v0.9.0/docs/tutorial/assets/mural-current.png)
+- [AI output: mural-ai-proposal.png](https://raw.githubusercontent.com/howlrs/synapsegit/v0.9.0/docs/tutorial/assets/mural-ai-proposal.png)
+
+既存の作品repositoryとは別に、まだ存在しないpathで練習repositoryを初期化します。
+次の`REPO`をそのpathに置き換えます。ブラウザ経路では続けてserverを起動し、
+表示されたURLを開いて`mural`プロジェクトへ進みます。CLI経路なら2行目は不要です。
+
+```bash
+synapse init REPO
+synapse-local --project mural=REPO --port 0
+```
+
+参加者ごとに新しいrepositoryを用意し、終了後はserverを停止します。課題3bの`OUT`も
+既存pathを使わず別の未作成pathを指定します。実際に使ったbinary versionと経路は
+結果templateへ記録してください。
 
 ## 2. セッション中の進め方
 
@@ -85,7 +108,7 @@ yes/no形式）は使っていません。回答は自由記述で受け取り�
 セッションごとに`result-template.md`へ次を分けて記録してください。カテゴリを混ぜないことが
 重要です。
 
-- **完了／中断**: 4つの操作課題（import→比較→判断→読み返し）を最後まで完了したか、
+- **完了／中断**: 課題1〜3（import→比較→判断→読み返し）と課題3b（公開用文章の下見）を完了したか、
   途中で中断したか。中断した場合はどの課題番号で、何が理由か。
 - **補助が必要だった箇所**: 進行役が説明・操作を代行・助言した箇所と、その内容。
 - **誤解していた文言**: 参加者が画面や文書の言葉をどう読み違えたか（例: 「AI」という語を

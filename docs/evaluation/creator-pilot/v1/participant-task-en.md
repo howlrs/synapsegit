@@ -21,8 +21,7 @@ anything that felt cumbersome.
     (`http://127.0.0.1:...`).
   - **The application's browser screens are Japanese-only in this version.**
     If you do not read Japanese, expect to need facilitator help reading the
-    UI (an English UI is being developed separately and is not part of this
-    release).
+    UI. An English UI is not part of this release.
 - **Roles of the three images used in this exercise** (synthetic practice
   images, not a real mural):
   1. **Original** — an earlier reference state before visible damage.
@@ -74,7 +73,8 @@ synapse creator-run REPO SESSION \
 Open the project page the facilitator started with `synapse-local` (use the
 `http://127.0.0.1:...` URL the facilitator gives you).
 
-1. Start a new session and enter a session name and a display name.
+1. Start a new session and fill in Session (session name), Creator name
+   (display name), and Subject label (the name of the subject).
 2. Choose the Original, Current, and AI output (AI-attributed proposal)
    images in their respective fields. Selecting files alone does not submit
    anything.
@@ -140,7 +140,7 @@ local screen or local files.**
   creative note) from the project page. Confirm that you can select the
   session you completed in Task 1, then note what each field contains when
   the page opens. Do not submit the form.
-- **CLI path (optional)**: using a destination path the facilitator gives
+- **CLI path**: using a destination path the facilitator gives
   you that does not exist yet, called `OUT` below, run:
 
   ```bash
