@@ -408,6 +408,33 @@ impl SqliteRefStore {
         Self::initialize(connection)
     }
 
+    /// Open an existing writable RefStore without initializing or migrating it.
+    ///
+    /// The database file and every required table must already exist. This
+    /// validates the layout before any schema-changing statement, so callers
+    /// can reject an invalid repository without turning an arbitrary
+    /// `refs.sqlite3` file into a RefStore.
+    pub fn open_existing(path: impl AsRef<Path>) -> Result<Self> {
+        let requested = path.as_ref();
+        let metadata = std::fs::symlink_metadata(requested)
+            .map_err(|_| rusqlite::Error::InvalidPath(requested.to_path_buf()))?;
+        if metadata.file_type().is_symlink() || !metadata.is_file() {
+            return Err(rusqlite::Error::InvalidPath(requested.to_path_buf()).into());
+        }
+        let path = std::fs::canonicalize(requested)
+            .map_err(|_| rusqlite::Error::InvalidPath(requested.to_path_buf()))?;
+        let connection = Connection::open(&path)?;
+        connection.busy_timeout(Duration::from_secs(10))?;
+        connection.pragma_update(None, "foreign_keys", "ON")?;
+        connection.pragma_update(None, "synchronous", "FULL")?;
+        validate_existing_schema(&connection)?;
+        Ok(Self {
+            connection,
+            read_only: false,
+            _read_snapshot: None,
+        })
+    }
+
     /// Open an existing RefStore through a stable private read snapshot.
     ///
     /// This path never initializes or migrates schema and does not create a
@@ -435,23 +462,7 @@ impl SqliteRefStore {
         connection.busy_timeout(Duration::from_secs(10))?;
         connection.pragma_update(None, "query_only", "ON")?;
 
-        let found = connection.query_row(
-            "SELECT value FROM synapse_ref_meta WHERE key = 'schema_version'",
-            [],
-            |row| row.get::<_, i64>(0),
-        )?;
-        if found != REF_STORE_SCHEMA_VERSION {
-            return Err(RefStoreError::UnsupportedSchemaVersion { found });
-        }
-        // Prepare a query over every required table so a partial database fails
-        // during open without issuing schema-changing statements.
-        connection.prepare(
-            "SELECT r.name, r.head, r.updated_event_id,
-                    e.ref_name, e.old_head, e.new_head, e.occurred_at_unix_nanos,
-                    e.actor, e.message
-             FROM refs r LEFT JOIN ref_events e ON e.id = r.updated_event_id
-             LIMIT 0",
-        )?;
+        validate_existing_schema(&connection)?;
 
         Ok(Self {
             connection,
@@ -1004,6 +1015,27 @@ impl SqliteRefStore {
             Ok(())
         }
     }
+}
+
+fn validate_existing_schema(connection: &Connection) -> Result<()> {
+    let found = connection.query_row(
+        "SELECT value FROM synapse_ref_meta WHERE key = 'schema_version'",
+        [],
+        |row| row.get::<_, i64>(0),
+    )?;
+    if found != REF_STORE_SCHEMA_VERSION {
+        return Err(RefStoreError::UnsupportedSchemaVersion { found });
+    }
+    // Prepare a query over every required table so a partial database fails
+    // during open without issuing schema-changing statements.
+    connection.prepare(
+        "SELECT r.name, r.head, r.updated_event_id,
+                e.ref_name, e.old_head, e.new_head, e.occurred_at_unix_nanos,
+                e.actor, e.message
+         FROM refs r LEFT JOIN ref_events e ON e.id = r.updated_event_id
+         LIMIT 0",
+    )?;
+    Ok(())
 }
 
 fn reject_read_only_sidecars(path: &Path) -> Result<()> {

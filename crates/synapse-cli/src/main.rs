@@ -39,6 +39,7 @@ const VERSION: &str = concat!("synapse ", env!("CARGO_PKG_VERSION"));
 #[derive(Debug)]
 enum CliError {
     Usage(String),
+    InitTargetNotEmpty(PathBuf),
     Io {
         operation: &'static str,
         path: PathBuf,
@@ -58,6 +59,7 @@ impl CliError {
     fn code(&self) -> &str {
         match self {
             Self::Usage(_) => "usage_error",
+            Self::InitTargetNotEmpty(_) => "repository_not_empty",
             Self::Io { .. } | Self::Clock(_) => "storage_error",
             Self::Core(error) => error.code(),
             Self::Creator(error) => error.code(),
@@ -81,6 +83,11 @@ impl fmt::Display for CliError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Usage(message) => formatter.write_str(message),
+            Self::InitTargetNotEmpty(path) => write!(
+                formatter,
+                "repository path {} is not empty and is not a complete SynapseGit repository; choose an empty directory or inspect the partial layout before retrying",
+                path.display()
+            ),
             Self::Io {
                 operation,
                 path,
@@ -143,7 +150,7 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
     match command {
         "init" => {
             require_len(&args, 2)?;
-            Repository::open(&args[1])?;
+            init_repository(Path::new(&args[1]))?;
             println!("initialized {}", args[1]);
         }
         "put-blob" => put_blob(&args)?,
@@ -154,14 +161,14 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
         "update-ref" => update_ref(&args)?,
         "refs" => {
             require_len(&args, 2)?;
-            let repository = Repository::open(&args[1])?;
+            let repository = Repository::open_existing(&args[1])?;
             for record in repository.refs().list().map_err(RepositoryError::from)? {
                 println!("{}\t{}", record.name, record.head);
             }
         }
         "fsck" => {
             require_len(&args, 2)?;
-            let repository = Repository::open(&args[1])?;
+            let repository = Repository::open_existing(&args[1])?;
             let report = repository.fsck()?;
             println!(
                 "objects={} verified={} closures={} issues={}",
@@ -179,7 +186,7 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
         }
         "export" => {
             require_len(&args, 3)?;
-            let mut repository = Repository::open(&args[1])?;
+            let mut repository = Repository::open_existing(&args[1])?;
             repository.export_archive(&args[2])?;
             println!("exported {}", args[2]);
         }
@@ -197,6 +204,30 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
         "version" | "--version" | "-V" => println!("{VERSION}"),
         other => return Err(CliError::Usage(format!("unknown command {other:?}"))),
     }
+    Ok(())
+}
+
+fn init_repository(path: &Path) -> Result<(), CliError> {
+    match std::fs::metadata(path) {
+        Ok(metadata) if !metadata.is_dir() => {
+            return Err(CliError::InitTargetNotEmpty(path.to_path_buf()));
+        }
+        Ok(_) => match Repository::open_existing(path) {
+            Ok(_) => return Ok(()),
+            Err(_)
+                if std::fs::read_dir(path)
+                    .map_err(|source| CliError::io("inspect repository path", path, source))?
+                    .next()
+                    .is_some() =>
+            {
+                return Err(CliError::InitTargetNotEmpty(path.to_path_buf()));
+            }
+            Err(_) => {}
+        },
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(source) => return Err(CliError::io("inspect repository path", path, source)),
+    }
+    Repository::open(path)?;
     Ok(())
 }
 
@@ -346,7 +377,7 @@ fn print_creator_report(report: &CreatorReport) {
 
 fn put_blob(args: &[String]) -> Result<(), CliError> {
     let (repo, file, claimed) = parse_put_args(args)?;
-    let repository = Repository::open(repo)?;
+    let repository = Repository::open_existing(repo)?;
     let input =
         File::open(file).map_err(|source| CliError::io("open blob input file", file, source))?;
     let result = match claimed {
@@ -360,7 +391,7 @@ fn put_blob(args: &[String]) -> Result<(), CliError> {
 fn put_structured(args: &[String], expected: Option<ObjectKind>) -> Result<(), CliError> {
     let (repo, file, claimed) = parse_put_args(args)?;
     let bytes = read_structured(Path::new(file))?;
-    let repository = Repository::open(repo)?;
+    let repository = Repository::open_existing(repo)?;
     let result = match (expected, claimed) {
         (Some(kind), Some(oid)) => repository.put_object_claimed_as(kind, oid, &bytes)?,
         (Some(kind), None) => repository.put_object_as(kind, &bytes)?,
@@ -411,7 +442,7 @@ fn update_ref(args: &[String]) -> Result<(), CliError> {
 
     let occurred_at = now_unix_nanos()?;
     let expected = (args[3] != "-").then_some(args[3].as_str());
-    let mut repository = Repository::open(&args[1])?;
+    let mut repository = Repository::open_existing(&args[1])?;
     repository.update_ref(RefUpdate {
         ref_name: &args[2],
         expected_head: expected,

@@ -6,6 +6,23 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+### Changed
+
+- Existing-repository CLI commands now reject missing, partial, and invalid
+  repository paths without creating a layout. `synapse init` creates only in a
+  missing or empty directory and rejects nonempty nonrepositories; this is a
+  Stage 0 breaking change for commands that previously created an empty
+  repository implicitly. `synapse-local` follows the same policy at startup
+  and while reopening a project at runtime.
+- `RepositoryError` adds `RepositoryNotFound`; downstream exhaustive matches
+  must handle the new Stage 0 error variant.
+
+### Fixed
+
+- `synapse export REPOSITORY out` now succeeds for a bare relative archive
+  destination after syncing the current directory, rather than reporting an
+  error after publishing a valid archive.
+
 ## [0.8.1] - 2026-09-17
 
 ### Added

@@ -541,6 +541,7 @@ fn creator_session_is_create_only() {
 fn report_requires_both_creator_refs() {
     let temporary = TempDirectory::new();
     let repository_path = temporary.join("repo");
+    Repository::open(&repository_path).unwrap();
     let error = creator_report(&repository_path, "missing-session").unwrap_err();
     assert!(
         matches!(error, CreatorError::SessionNotFound(session) if session == "missing-session")

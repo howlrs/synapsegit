@@ -180,6 +180,8 @@ impl Default for ArchiveRestoreLimits {
 pub enum RepositoryError {
     /// A mutating operation was attempted through a read-only repository.
     ReadOnly,
+    /// The requested path is not a complete existing repository.
+    RepositoryNotFound(PathBuf),
     Core(CoreError),
     Store(StoreError),
     RefStore(RefStoreError),
@@ -199,6 +201,7 @@ impl RepositoryError {
     pub fn code(&self) -> &str {
         match self {
             Self::ReadOnly => "read_only",
+            Self::RepositoryNotFound(_) => "repository_not_found",
             Self::Core(error) => error.code().as_str(),
             Self::Store(error) => error.code().map_or("storage_error", ErrorCode::as_str),
             Self::RefStore(error) => error.code(),
@@ -223,6 +226,12 @@ impl fmt::Display for RepositoryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ReadOnly => formatter.write_str("repository is read-only"),
+            Self::RepositoryNotFound(path) => write!(
+                formatter,
+                "repository not found at {}; create one with `synapse init {}`",
+                path.display(),
+                path.display()
+            ),
             Self::Core(error) => error.fmt(formatter),
             Self::Store(error) => error.fmt(formatter),
             Self::RefStore(error) => error.fmt(formatter),
@@ -252,6 +261,7 @@ impl Error for RepositoryError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::ReadOnly => None,
+            Self::RepositoryNotFound(_) => None,
             Self::Core(error) => Some(error),
             Self::Store(error) => Some(error),
             Self::RefStore(error) => Some(error),
@@ -300,6 +310,43 @@ pub struct Repository {
 impl Repository {
     pub fn open(root: impl AsRef<Path>) -> Result<Self> {
         Self::open_with_limits(root, StoreLimits::default(), GraphLimits::default())
+    }
+
+    /// Open a complete existing repository without creating repository paths.
+    ///
+    /// This writable handle is for operations that require an existing
+    /// repository but may subsequently mutate it. Unlike [`Self::open`], a
+    /// missing, partial, or wrongly typed layout returns
+    /// [`RepositoryError::RepositoryNotFound`] and leaves the filesystem
+    /// unchanged.
+    pub fn open_existing(root: impl AsRef<Path>) -> Result<Self> {
+        let requested = root.as_ref();
+        let metadata = fs::metadata(requested)
+            .map_err(|_| RepositoryError::RepositoryNotFound(requested.to_path_buf()))?;
+        if !metadata.is_dir() {
+            return Err(RepositoryError::RepositoryNotFound(requested.to_path_buf()));
+        }
+        let root = fs::canonicalize(requested)
+            .map_err(|_| RepositoryError::RepositoryNotFound(requested.to_path_buf()))?;
+        let cas = root.join("cas");
+        let refs = root.join("refs.sqlite3");
+        if !fs::metadata(&cas).is_ok_and(|metadata| metadata.is_dir())
+            || !fs::metadata(&refs).is_ok_and(|metadata| metadata.is_file())
+        {
+            return Err(RepositoryError::RepositoryNotFound(requested.to_path_buf()));
+        }
+        let objects = FileObjectStore::open_existing(&cas)
+            .map_err(|_| RepositoryError::RepositoryNotFound(requested.to_path_buf()))?;
+        let refs = SqliteRefStore::open_existing(&refs)
+            .map_err(|_| RepositoryError::RepositoryNotFound(requested.to_path_buf()))?;
+        Ok(Self {
+            root,
+            objects,
+            refs,
+            graph_limits: GraphLimits::default(),
+            tombstone_scan_limits: TombstoneScanLimits::default(),
+            read_only: false,
+        })
     }
 
     /// Open an existing repository without creating or modifying source paths.

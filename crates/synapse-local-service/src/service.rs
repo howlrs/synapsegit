@@ -883,7 +883,8 @@ impl LocalService {
         let repository_path = self.entry(project_key)?.repository_path().to_owned();
         let review_id = self.reserve_pending(project_key, &request.session, server_instance)?;
 
-        let repository = match Repository::open(&repository_path).map_err(repository_error) {
+        let repository = match Repository::open_existing(&repository_path).map_err(repository_error)
+        {
             Ok(repository) => repository,
             Err(error) => {
                 self.remove_reserved(&review_id);
