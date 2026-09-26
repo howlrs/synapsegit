@@ -2,6 +2,7 @@ use askama::Template;
 use axum::http::header::CONTENT_TYPE;
 use axum::response::{IntoResponse, Response};
 
+use crate::i18n::Messages;
 use crate::views::{
     ArchiveView, ImageView, ProjectCardView, RefView, ReflogView, SessionSummaryView, TimelineView,
 };
@@ -20,6 +21,7 @@ pub(crate) async fn js_asset() -> Response {
 #[derive(Template)]
 #[template(path = "index.html")]
 pub(crate) struct IndexTemplate<'a> {
+    pub(crate) m: &'static Messages,
     pub(crate) page_title: &'a str,
     pub(crate) token: &'a str,
     pub(crate) projects: &'a [ProjectCardView],
@@ -30,6 +32,7 @@ pub(crate) struct IndexTemplate<'a> {
 #[derive(Template)]
 #[template(path = "project.html")]
 pub(crate) struct ProjectTemplate<'a> {
+    pub(crate) m: &'static Messages,
     pub(crate) page_title: &'a str,
     pub(crate) token: &'a str,
     pub(crate) project_key: &'a str,
@@ -55,6 +58,7 @@ pub(crate) struct ProjectTemplate<'a> {
 #[derive(Template)]
 #[template(path = "session.html")]
 pub(crate) struct SessionTemplate<'a> {
+    pub(crate) m: &'static Messages,
     pub(crate) page_title: &'a str,
     pub(crate) token: &'a str,
     pub(crate) project_key: &'a str,
@@ -102,10 +106,12 @@ pub(crate) struct SessionTemplate<'a> {
 #[derive(Template)]
 #[template(path = "error.html")]
 pub(crate) struct ErrorTemplate<'a> {
+    pub(crate) m: &'static Messages,
     pub(crate) page_title: &'a str,
     pub(crate) token: &'a str,
     pub(crate) status: &'a str,
-    pub(crate) title: &'a str,
+    pub(crate) heading: &'a str,
+    pub(crate) summary: &'a str,
     pub(crate) detail: &'a str,
     pub(crate) request_id: &'a str,
 }
@@ -113,6 +119,7 @@ pub(crate) struct ErrorTemplate<'a> {
 #[derive(Template)]
 #[template(path = "derive.html")]
 pub(crate) struct DeriveTemplate<'a> {
+    pub(crate) m: &'static Messages,
     pub(crate) page_title: &'a str,
     pub(crate) token: &'a str,
     pub(crate) project_key: &'a str,
@@ -123,6 +130,7 @@ pub(crate) struct DeriveTemplate<'a> {
 #[derive(Template)]
 #[template(path = "reuse.html")]
 pub(crate) struct ReuseTemplate<'a> {
+    pub(crate) m: &'static Messages,
     pub(crate) page_title: &'a str,
     pub(crate) token: &'a str,
     pub(crate) project_key: &'a str,
@@ -133,6 +141,7 @@ pub(crate) struct ReuseTemplate<'a> {
 #[derive(Template)]
 #[template(path = "presentation.html")]
 pub(crate) struct PresentationTemplate<'a> {
+    pub(crate) m: &'static Messages,
     pub(crate) page_title: &'a str,
     pub(crate) token: &'a str,
     pub(crate) project_key: &'a str,

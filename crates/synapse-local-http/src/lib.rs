@@ -4,6 +4,7 @@
 
 mod app;
 mod handlers;
+mod i18n;
 mod problem;
 mod security;
 mod staging;

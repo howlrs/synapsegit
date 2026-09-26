@@ -97,7 +97,7 @@ test("restore refusals preserve the target refs", async ({ page, app }) => {
   await key.fill("wrong-target");
   await empty.check();
   await button.click();
-  await expect(status(restore)).toContainText("The archive restore confirmation is invalid.");
+  await expect(status(restore)).toContainText("アーカイブ復元の確認内容が正しくありません。");
   expect(app.refs("restore")).toBe(initialRefs);
   expect(requests).toBe(0);
   expect(dialogs).toBe(0);
@@ -118,7 +118,7 @@ test("restore refusals preserve the target refs", async ({ page, app }) => {
   expect(occupiedRefs).not.toBe(initialRefs);
   await empty.check();
   await button.click();
-  await expect(status(restore)).toContainText("The target project already contains Ref or reflog history.");
+  await expect(status(restore)).toContainText("復元先のプロジェクトに既存の履歴があります。");
   expect(app.refs("restore")).toBe(occupiedRefs);
   expect(requests).toBe(1);
   expect(dialogs).toBe(1);

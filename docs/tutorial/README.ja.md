@@ -106,6 +106,13 @@ synapse-local \
 terminalに表示されたexactな`http://127.0.0.1:...` originを開きます。reverse proxyで
 外部公開しないでください。
 
+page headerの**日本語**または**English**で表示言語を選択できます。明示的な選択はこの
+browserに保存され、page移動・reload後も維持されます。選択しない場合はbrowserの対応言語
+設定を使い、それもない場合は日本語です。変わるのはapplicationのlabelとmessageだけで、
+Subject、メモ、rationale、保存済み履歴、API identifier、error codeは記録どおりです。
+この表示言語選択は未リリースmainの機能です。試すには現在のsourceをbuildしてください。
+installしたtagged v0.9.0 binaryのUIは日本語のみです。
+
 ![このtutorial repositoryから生成した実際のSynapseGit Local overview](./assets/tutorial-overview.png)
 
 _tutorial fixtureを読み込んだ実際の`synapse-local`画面です。2 Refs、完了session 1件、
@@ -118,6 +125,11 @@ projectと完了sessionを開き、次を確認します。
 - Proposal／Decision Ref
 - comparison limitationとreplay readiness
 - 4 eventのtimeline
+
+browserで新しい判断を作る場合は、projectを開いて**Creator session を開始**を選び、
+Original、Current、AI outputを追加して**Proposalを作成**します。review pageの**Adopt**、
+**Reject**、**Defer**はいずれも記録するとそのsessionを完了します。Deferはreviewを開いた
+ままにしません。記録済み画像を再度検討する場合は、別sessionで再レビューする操作を使います。
 
 同じ実装UIによる詳しい完了session画面も参照できます。
 

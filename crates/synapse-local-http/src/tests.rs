@@ -98,6 +98,69 @@ fn test_app_with_import_root() -> (TestDirectory, Router) {
 }
 
 #[tokio::test]
+async fn pages_negotiate_and_persist_display_language_without_localizing_api_responses() {
+    let (_directory, app) = test_app();
+
+    let explicit = app
+        .clone()
+        .oneshot(
+            request("/projects/demo?filter=complete&lang=en")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(explicit.status(), StatusCode::SEE_OTHER);
+    assert_eq!(
+        explicit.headers().get(header::LOCATION).unwrap(),
+        "http://127.0.0.1:43123/projects/demo?filter=complete"
+    );
+    assert!(
+        explicit
+            .headers()
+            .get(header::SET_COOKIE)
+            .unwrap()
+            .to_str()
+            .unwrap()
+            .starts_with("synapse_local_lang=en;")
+    );
+
+    let english = app
+        .clone()
+        .oneshot(
+            request("/projects/demo")
+                .header(header::COOKIE, "synapse_local_lang=en")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(english.status(), StatusCode::OK);
+    assert_eq!(
+        english.headers().get(header::CONTENT_LANGUAGE).unwrap(),
+        "en"
+    );
+    assert_eq!(
+        english.headers().get(header::VARY).unwrap(),
+        "Accept-Language, Cookie"
+    );
+    let english = to_bytes(english.into_body(), 2 * 1024 * 1024)
+        .await
+        .unwrap();
+    let english = std::str::from_utf8(&english).unwrap();
+    assert!(english.contains("<html lang=\"en\">"));
+    assert!(english.contains("Start a creator session"));
+
+    let api = app
+        .oneshot(request("/api/v1/health").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(api.status(), StatusCode::OK);
+    assert!(api.headers().get(header::CONTENT_LANGUAGE).is_none());
+    assert!(api.headers().get(header::SET_COOKIE).is_none());
+}
+
+#[tokio::test]
 async fn import_inbox_page_is_rendered_only_for_configured_projects() {
     let (_directory, app) = test_app();
     let page = app

@@ -20,6 +20,7 @@ use crate::handlers::{
     api_start_archive_restore, api_start_fsck, derive_page, index_page, method_not_allowed,
     not_found, presentation_page, project_page, reuse_page, session_page,
 };
+use crate::i18n::negotiate_page_language;
 use crate::security::{SecurityPolicy, enforce_local_request};
 use crate::staging::MAX_CREATOR_FILE_AGGREGATE_BYTES;
 use crate::state::{AppState, BlockingGates, OperationRegistry};
@@ -212,6 +213,12 @@ pub(crate) fn build_with_identity(
         .fallback(not_found)
         .method_not_allowed_fallback(method_not_allowed)
         .with_state(state)
+        // Layers run outermost-last: every request passes the local security
+        // policy before an HTML page negotiates its display language.
+        .layer(middleware::from_fn_with_state(
+            security.clone(),
+            negotiate_page_language,
+        ))
         .layer(middleware::from_fn_with_state(
             security,
             enforce_local_request,

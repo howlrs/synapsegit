@@ -112,6 +112,15 @@ synapse-local \
 Open the exact `http://127.0.0.1:...` origin printed in the terminal. Do not
 expose it through a reverse proxy.
 
+Use the **English** or **日本語** control in the page header to choose the
+display language. An explicit choice is stored in this browser and remains in
+effect when you move between pages or reload. Without one, the application
+uses a supported browser language preference and otherwise starts in Japanese.
+Only application labels and messages change: your subject, notes, rationale,
+stored history, API identifiers, and error codes remain exactly as recorded.
+This language selector is an unreleased main feature: build the current source
+to use it. The installed tagged v0.9.0 binary has the Japanese UI only.
+
 ![Actual SynapseGit Local overview generated from this tutorial repository](./assets/tutorial-overview.png)
 
 _Actual `synapse-local` output from the tutorial fixture. It shows two Refs,
@@ -124,6 +133,13 @@ Open the project and the completed session to inspect:
 - Proposal and Decision Refs;
 - the comparison limitation and replay readiness; and
 - the four-event timeline.
+
+To make a new decision in the browser, open a project, choose **Start a
+creator session**, add Original, Current, and AI output, then select **Create
+proposal**. On the review page, **Adopt**, **Reject**, and **Defer** each
+finish that session once recorded. A Defer is not an open review; use the
+separate new-session review action if you want to consider the recorded images
+again.
 
 For a detailed completed-session view, see this additional capture from the
 same implemented UI:

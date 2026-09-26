@@ -30,6 +30,7 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 - timeline、decision、evidence、replay prerequisiteを検査するcreator report
 - **未リリースmainのみ:** `creator-report --format json`によるversion付きprivate-local JSON document。v0.9.0 archiveは従来のtext reportのみ
 - project、session、evidence、画像を読むloopback-only localhost UI
+- 未リリースmainでのheader選択式の日本語・英語localhost UI（source buildで試せる次release向け機能）。tagged v0.9.0 archiveは日本語のみ。選択はbrowser cookieに保持し、対応する`Accept-Language`、日本語の順で解決する。利用者入力・保存済みtext、API identifier、error codeは翻訳しない
 - pending／complete sessionで、表示可能な2画像の選択、全体表示／100%／200%拡大、同寸法画像の重ね表示と0〜100%の不透明度、keyboard操作、狭い画面の縦配置を提供するread-only比較ビュー（位置合わせ・差分解析は行わない）
 - プロジェクト画面では未検証のbounded（最大200件）セッション概要をレビュー待ち優先・最近のRef更新順で表示し、状態／判断で絞り込める。概要にはSubject、Creator、判断、ordering time／time basis、派生元を含み、理由本文は表示しない
 - 完了セッションには派生先への逆リンクを表示し、取り込みとセッション一覧を保守操作より先に配置する。fsck／archive操作の確認強度は変更しない

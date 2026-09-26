@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="ja">
+<html lang="{{ m.locale.code() }}">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -10,16 +10,24 @@
     <script type="module" src="/assets/app.js"></script>
   </head>
   <body>
-    <a class="skip-link" href="#main">本文へ移動</a>
+    <a class="skip-link" href="#main">{{ m.common.skip_link }}</a>
     <header class="site-header">
       <div class="site-header__inner">
         <a class="brand" href="/">
           <span class="brand__mark" aria-hidden="true">SG</span>
           <span>SynapseGit Local</span>
         </a>
-        <nav class="primary-nav" aria-label="メインナビゲーション">
-          <ul><li><a href="/">プロジェクト</a></li></ul>
-        </nav>
+        <div class="site-header__navs">
+          <nav class="primary-nav" aria-label="{{ m.common.primary_nav }}">
+            <ul><li><a href="/">{{ m.common.nav_projects }}</a></li></ul>
+          </nav>
+          <nav class="language-switch" aria-label="{{ m.common.language_nav }}">
+            <ul>
+              <li><a href="?lang=ja" lang="ja" hreflang="ja"{% if m.locale.is_ja() %} aria-current="page"{% endif %}>日本語</a></li>
+              <li><a href="?lang=en" lang="en" hreflang="en"{% if m.locale.is_en() %} aria-current="page"{% endif %}>English</a></li>
+            </ul>
+          </nav>
+        </div>
       </div>
     </header>
     <main id="main" class="page-shell">

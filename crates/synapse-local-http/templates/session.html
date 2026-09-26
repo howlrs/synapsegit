@@ -1,9 +1,9 @@
 {% extends "base.html" %}
 
 {% block content %}
-<nav class="breadcrumbs" aria-label="パンくずリスト">
+<nav class="breadcrumbs" aria-label="{{ m.common.breadcrumb }}">
   <ol>
-    <li><a href="/">プロジェクト</a></li>
+    <li><a href="/">{{ m.common.nav_projects }}</a></li>
     <li><a href="/projects/{{ project_key }}">{{ project_label }}</a></li>
     <li aria-current="page">{{ session }}</li>
   </ol>
@@ -14,120 +14,120 @@
 </header>
 
 {% if complete %}
-<p><a class="button" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/derive">この記録から次の案を試す</a></p>
-{% if reuse_available %}<p><a class="button button--secondary" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/reuse">保留した提案を改めて判断する</a></p>{% endif %}
-<section class="metric-grid" aria-label="レビュー結果">
+<p><a class="button" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/derive">{{ m.session.try_next }}</a></p>
+{% if reuse_available %}<p><a class="button button--secondary" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/reuse">{{ m.session.rereview_deferred }}</a></p>{% endif %}
+<section class="metric-grid" aria-label="{{ m.session.result_label }}">
   <article class="metric"><span class="metric__label">Disposition</span><strong>{{ disposition }}</strong></article>
   <article class="metric"><span class="metric__label">AI output selected</span><strong>{{ selected }}</strong></article>
   <article class="metric"><span class="metric__label">Verified objects</span><strong>{{ fsck_objects }}</strong></article>
 </section>
 <section class="card decision-summary" aria-labelledby="recorded-decision-heading">
-  <div class="card__header"><div><p class="eyebrow">Human Decision</p><h2 id="recorded-decision-heading">記録した判断</h2></div></div>
+  <div class="card__header"><div><p class="eyebrow">Human Decision</p><h2 id="recorded-decision-heading">{{ m.session.recorded_decision }}</h2></div></div>
   <p data-decision-outcome>{{ decision_outcome }}</p>
-  <h3>記録された理由</h3>
+  <h3>{{ m.session.recorded_rationale }}</h3>
   {% if rationale.is_empty() %}
-  <p class="muted" data-decision-rationale>理由は記録されていません。</p>
+  <p class="muted" data-decision-rationale>{{ m.session.no_rationale }}</p>
   {% else %}
   <p class="decision-rationale" data-decision-rationale>{{ rationale }}</p>
   {% endif %}
-  <p class="field__hint">現在のRefsとCASから検証した記録です。理由は記録されたテキストであり、その内容の正しさを検証したものではありません。</p>
-  <p class="field__hint">Deferも含め、記録後にこのセッションの判断を変更・再開する機能はありません。</p>
+  <p class="field__hint">{{ m.session.recorded_hint }}</p>
+  <p class="field__hint">{{ m.common.decision_finality }}</p>
 </section>
 {% endif %}
 
 {% if pending %}
 <div class="notice" data-tone="warning">
-  <h2>Human reviewが必要です</h2>
-  <p>AI output sourceは <code>{{ ai_output_source }}</code> です。これはcaller-supplied inputであり、このlocalhost processや特定のmodelが生成したという主張ではありません。</p>
-  <p>3つのbytesとevidenceを確認してから、adopt・reject・deferのいずれかを選んでください。</p>
+  <h2>{{ m.session.review_required }}</h2>
+  <p>{{ m.session.source_before }}<code>{{ ai_output_source }}</code>{{ m.session.source_after }}</p>
+  <p>{{ m.session.review_instruction }}</p>
 </div>
 {% endif %}
 
 {% if let Some(source) = source %}
 <section class="card" aria-labelledby="source-heading" data-creator-source>
-  <h2 id="source-heading">再利用した参照画像の派生元</h2>
-  <p><a href="/projects/{{ project_key }}/creator-sessions/{{ source.session }}">{{ source.session }}</a> · 元の判断: {{ source.disposition }}</p>
-  <p>元のOriginal／Currentのexactなbytesを参照として再利用しました。新しい撮影・観測ではありません。元のAI outputをCurrentへ昇格していません。表示名の一致は同一人物・同一の物理Subjectの証明ではありません。</p>
-  <dl class="detail-list"><div><dt>固定したProposal</dt><dd><code>{{ source.proposal_head }}</code></dd></div><div><dt>固定したDecision</dt><dd><code>{{ source.decision_head }}</code></dd></div><div><dt>Original Blob</dt><dd><code>{{ source.original_blob_oid }}</code></dd></div><div><dt>Current Blob</dt><dd><code>{{ source.current_blob_oid }}</code></dd></div></dl>
-  <p class="field__hint">派生元リンクは現在のRefsを表示します。この記録は上の固定したheadsへの対応を保持します。</p>
+  <h2 id="source-heading">{{ m.session.derived_source_heading }}</h2>
+  <p><a href="/projects/{{ project_key }}/creator-sessions/{{ source.session }}">{{ source.session }}</a>{{ m.common.original_decision_prefix }}{{ source.disposition }}</p>
+  <p>{{ m.session.derived_source_help }}</p>
+  <dl class="detail-list"><div><dt>{{ m.common.pinned_proposal }}</dt><dd><code>{{ source.proposal_head }}</code></dd></div><div><dt>{{ m.common.pinned_decision }}</dt><dd><code>{{ source.decision_head }}</code></dd></div><div><dt>Original Blob</dt><dd><code>{{ source.original_blob_oid }}</code></dd></div><div><dt>Current Blob</dt><dd><code>{{ source.current_blob_oid }}</code></dd></div></dl>
+  <p class="field__hint">{{ m.session.derived_source_hint }}</p>
 </section>
 {% endif %}
 
 {% if let Some(source) = reuse_source %}
 <section class="card" aria-labelledby="reuse-source-heading" data-creator-reuse-source>
-  <h2 id="reuse-source-heading">記録済みの提案を引き継ぎました</h2>
-  <p><a href="/projects/{{ project_key }}/creator-sessions/{{ source.session }}">元のセッション {{ source.session }}</a> の3つの画像を確認用に使っています。</p>
-  <p>新しい生成や元の判断の変更ではありません。元の理由とメモは参照用で、新しい判断にはコピーされません。</p>
-  <dl class="detail-list"><div><dt>元のProposal</dt><dd><code>{{ source.proposal_head }}</code></dd></div><div><dt>元のDecision</dt><dd><code>{{ source.decision_head }}</code></dd></div><div><dt>AI output</dt><dd><code>{{ source.ai_output_blob_oid }}</code></dd></div></dl>
+  <h2 id="reuse-source-heading">{{ m.session.reuse_source_heading }}</h2>
+  <p><a href="/projects/{{ project_key }}/creator-sessions/{{ source.session }}">{{ m.session.reuse_source_link_prefix }}{{ source.session }}</a>{{ m.session.reuse_source_after }}</p>
+  <p>{{ m.session.reuse_source_help }}</p>
+  <dl class="detail-list"><div><dt>{{ m.session.original_proposal }}</dt><dd><code>{{ source.proposal_head }}</code></dd></div><div><dt>{{ m.session.original_decision }}</dt><dd><code>{{ source.decision_head }}</code></dd></div><div><dt>AI output</dt><dd><code>{{ source.ai_output_blob_oid }}</code></dd></div></dl>
 </section>
 {% endif %}
 
 {% if let Some(reference) = reuse_reference %}
 <section class="card" aria-labelledby="reuse-reference-heading" data-creator-reuse-reference>
-  <h2 id="reuse-reference-heading">元の記録（参照のみ）</h2>
-  <p>元の{% if reference.kind == "deferred_rereview" %}保留した{% else %}中断した{% endif %}提案の情報です。新しいセッションのメモ、ピン、理由にはコピーされません。</p>
-  {% if reference.unavailable %}<p role="status">元の参照情報を取得できませんでした。</p>{% endif %}
-  {% if let Some(note) = reference.generation_note %}<h3>元の生成メモ</h3><dl class="detail-list"><div><dt>使用ツール</dt><dd>{{ note.tool }}</dd></div><div><dt>モデル名</dt><dd>{{ note.model }}</dd></div><div><dt>プロンプト</dt><dd>{{ note.prompt }}</dd></div><div><dt>制作意図</dt><dd>{{ note.intent }}</dd></div></dl>{% endif %}
-  {% if let Some(rationale) = reference.deferred_rationale %}<h3>元のDefer理由</h3><p class="decision-rationale">{{ rationale }}</p>{% endif %}
-  {% if let Some(annotations) = reference.annotations %}<h3>元の画像上の判断メモ</h3><ol>{% for pin in annotations.pins %}<li>{{ pin.role.as_str() }} · ({{ pin.x }}, {{ pin.y }}) · {{ pin.note }}</li>{% endfor %}</ol>{% endif %}
+  <h2 id="reuse-reference-heading">{{ m.session.reference_heading }}</h2>
+  <p>{% if reference.kind == "deferred_rereview" %}{{ m.session.reference_deferred }}{% else %}{{ m.session.reference_interrupted }}{% endif %}</p>
+  {% if reference.unavailable %}<p role="status">{{ m.session.reference_unavailable }}</p>{% endif %}
+  {% if let Some(note) = reference.generation_note %}<h3>{{ m.session.reference_note_heading }}</h3><dl class="detail-list"><div><dt>{{ m.common.note_tool }}</dt><dd>{{ note.tool }}</dd></div><div><dt>{{ m.common.note_model }}</dt><dd>{{ note.model }}</dd></div><div><dt>{{ m.common.note_prompt }}</dt><dd>{{ note.prompt }}</dd></div><div><dt>{{ m.common.note_intent }}</dt><dd>{{ note.intent }}</dd></div></dl>{% endif %}
+  {% if let Some(rationale) = reference.deferred_rationale %}<h3>{{ m.session.reference_defer_heading }}</h3><p class="decision-rationale">{{ rationale }}</p>{% endif %}
+  {% if let Some(annotations) = reference.annotations %}<h3>{{ m.session.reference_pins_heading }}</h3><ol>{% for pin in annotations.pins %}<li>{{ pin.role.as_str() }} · ({{ pin.x }}, {{ pin.y }}) · {{ pin.note }}</li>{% endfor %}</ol>{% endif %}
 </section>
 {% endif %}
 
 {% if show_evidence %}
 <section class="card" aria-labelledby="generation-note-heading">
-  <h2 id="generation-note-heading">提案の生成メモ</h2>
-  <p class="field__hint">利用者申告のprivateメモです。モデルの実行・実作者の証明ではありません。通常のCore archiveには含まれます。</p>
-  {% if generation_note.is_empty() %}<p>生成メモなし</p>{% else %}<p class="decision-rationale" data-generation-note>{{ generation_note }}</p>{% endif %}
+  <h2 id="generation-note-heading">{{ m.session.note_heading }}</h2>
+  <p class="field__hint">{{ m.session.note_hint }}</p>
+  {% if generation_note.is_empty() %}<p>{{ m.session.no_note }}</p>{% else %}<p class="decision-rationale" data-generation-note>{{ generation_note }}</p>{% endif %}
 </section>
 
 <section aria-labelledby="images-heading" data-synapse-comparison>
-  <div class="section-heading"><div><h2 id="images-heading">画像と出力</h2><p class="muted">画像は現在の検証済みセッションからroleを解決し、認証付きfetchで読み込みます。</p></div></div>
+  <div class="section-heading"><div><h2 id="images-heading">{{ m.session.images_heading }}</h2><p class="muted">{{ m.session.images_help }}</p></div></div>
   <div class="actions">
-    <button type="button" data-synapse-compare-open aria-haspopup="dialog" aria-controls="image-comparison" hidden>画像を拡大して比較</button>
+    <button type="button" data-synapse-compare-open aria-haspopup="dialog" aria-controls="image-comparison" hidden>{{ m.session.compare_open }}</button>
   </div>
   <p data-synapse-compare-status class="field__hint" role="status" hidden></p>
   <dialog id="image-comparison" class="image-comparison" aria-labelledby="comparison-title" aria-describedby="comparison-help">
     <div class="image-comparison__header">
-      <h2 id="comparison-title">画像を見比べる</h2>
-      <button type="button" data-synapse-compare-close data-variant="secondary" autofocus>閉じる</button>
+      <h2 id="comparison-title">{{ m.session.compare_title }}</h2>
+      <button type="button" data-synapse-compare-close data-variant="secondary" autofocus>{{ m.session.compare_close }}</button>
     </div>
-    <p id="comparison-help" class="field__hint">目視確認用です。位置合わせ・差分解析は行いません。100%は画像の1 pixelを1 CSS pixelで表示します。拡大時は各画像をスクロールできます。Escで閉じます。</p>
+    <p id="comparison-help" class="field__hint">{{ m.session.compare_help }}</p>
     <div class="image-comparison__zoom">
-      <label for="comparison-zoom">表示倍率</label>
+      <label for="comparison-zoom">{{ m.session.zoom_label }}</label>
       <select id="comparison-zoom" data-synapse-compare-zoom>
-        <option value="fit">全体を表示</option>
+        <option value="fit">{{ m.common.zoom_fit }}</option>
         <option value="1">100%</option>
         <option value="2">200%</option>
       </select>
     </div>
     <fieldset class="image-comparison__mode">
-      <legend>表示方法</legend>
-      <label><input type="radio" name="comparison-mode" value="side-by-side" data-synapse-compare-mode checked> 並べて表示</label>
-      <label><input type="radio" name="comparison-mode" value="overlay" data-synapse-compare-mode> 重ねて表示</label>
+      <legend>{{ m.session.mode_legend }}</legend>
+      <label><input type="radio" name="comparison-mode" value="side-by-side" data-synapse-compare-mode checked> {{ m.session.mode_side_by_side }}</label>
+      <label><input type="radio" name="comparison-mode" value="overlay" data-synapse-compare-mode> {{ m.session.mode_overlay }}</label>
     </fieldset>
-    <p class="field__hint" data-synapse-compare-overlay-unavailable hidden>重ねて表示するには、A と B のデコード後の幅と高さが一致している必要があります。並べて表示で確認できます。</p>
+    <p class="field__hint" data-synapse-compare-overlay-unavailable hidden>{{ m.session.overlay_unavailable }}</p>
     <div class="image-comparison__opacity" data-synapse-compare-opacity-control hidden>
-      <label for="comparison-opacity">画像 B の不透明度 <output for="comparison-opacity" data-synapse-compare-opacity-value>50%</output></label>
+      <label for="comparison-opacity">{{ m.session.opacity_label }}<output for="comparison-opacity" data-synapse-compare-opacity-value>50%</output></label>
       <input id="comparison-opacity" data-synapse-compare-opacity type="range" min="0" max="100" value="50" step="1" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
-      <p class="field__hint">画像 B 本来の透明部分はそのまま保持します。</p>
+      <p class="field__hint">{{ m.session.opacity_hint }}</p>
     </div>
     <div class="image-comparison__sources">
-      <div class="field"><label for="comparison-source-a">比較画像 A</label><select id="comparison-source-a" data-synapse-compare-source>{% for image in images %}<option value="{{ loop.index0 }}">{{ image.label }}</option>{% endfor %}</select></div>
-      <div class="field"><label for="comparison-source-b">比較画像 B</label><select id="comparison-source-b" data-synapse-compare-source>{% for image in images %}<option value="{{ loop.index0 }}">{{ image.label }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="comparison-source-a">{{ m.session.source_a }}</label><select id="comparison-source-a" data-synapse-compare-source>{% for image in images %}<option value="{{ loop.index0 }}">{{ image.label }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="comparison-source-b">{{ m.session.source_b }}</label><select id="comparison-source-b" data-synapse-compare-source>{% for image in images %}<option value="{{ loop.index0 }}">{{ image.label }}</option>{% endfor %}</select></div>
     </div>
     <div class="image-comparison__panes">
       <figure class="image-comparison__pane" data-synapse-compare-pane>
-        <div class="image-comparison__viewport" data-synapse-compare-viewport tabindex="0" role="region" aria-label="比較画像 Aの表示領域"><img data-synapse-compare-image alt="" hidden></div>
+        <div class="image-comparison__viewport" data-synapse-compare-viewport tabindex="0" role="region" aria-label="{{ m.session.viewport_a }}"><img data-synapse-compare-image alt="" hidden></div>
         <figcaption data-synapse-compare-caption class="field__hint" aria-live="polite"></figcaption>
       </figure>
       <figure class="image-comparison__pane" data-synapse-compare-pane>
-        <div class="image-comparison__viewport" data-synapse-compare-viewport tabindex="0" role="region" aria-label="比較画像 Bの表示領域"><img data-synapse-compare-image alt="" hidden></div>
+        <div class="image-comparison__viewport" data-synapse-compare-viewport tabindex="0" role="region" aria-label="{{ m.session.viewport_b }}"><img data-synapse-compare-image alt="" hidden></div>
         <figcaption data-synapse-compare-caption class="field__hint" aria-live="polite"></figcaption>
       </figure>
     </div>
     <figure class="image-comparison__overlay" data-synapse-compare-overlay hidden>
-      <div class="image-comparison__viewport" data-synapse-compare-overlay-viewport tabindex="0" role="region" aria-label="重ねた比較画像の表示領域">
-        <svg data-synapse-compare-overlay-canvas aria-label="比較画像 A を下、画像 B を上に重ねた表示" role="img" xmlns="http://www.w3.org/2000/svg">
+      <div class="image-comparison__viewport" data-synapse-compare-overlay-viewport tabindex="0" role="region" aria-label="{{ m.session.overlay_viewport }}">
+        <svg data-synapse-compare-overlay-canvas aria-label="{{ m.session.overlay_canvas }}" role="img" xmlns="http://www.w3.org/2000/svg">
           <image data-synapse-compare-overlay-image-a preserveAspectRatio="none" />
           <image data-synapse-compare-overlay-image-b preserveAspectRatio="none" opacity="0.5" />
         </svg>
@@ -141,8 +141,8 @@
       <div class="media-card__preview"><img data-synapse-image data-oid="{{ image.oid }}" data-label="{{ image.label }}" data-url="{{ image.url }}" alt="{{ image.alt }}"></div>
       <figcaption>
         <strong>{{ image.label }}</strong>
-        <p data-synapse-image-status class="muted">読み込み待ち</p>
-        <a class="button button--secondary" data-synapse-image-download download="{{ image.download_name }}" hidden>検証済みraw bytesをdownload</a>
+        <p data-synapse-image-status class="muted">{{ m.common.waiting_to_load }}</p>
+        <a class="button button--secondary" data-synapse-image-download download="{{ image.download_name }}" hidden>{{ m.common.download_verified }}</a>
         <code>{{ image.oid }}</code>
       </figcaption>
     </figure>
@@ -151,22 +151,22 @@
 </section>
 
 <section class="card" aria-labelledby="pins-heading" data-creator-pins data-editable="{{ pending }}" data-annotations="{{ annotations_json }}" data-unavailable="{{ annotations_unavailable }}">
-  <h2 id="pins-heading">画像上の判断メモ</h2>
-  <p>Humanが記すprivateなピンです。Adopt／Reject／DeferはProposal全体への判断です。ピンごとの部分採用や画像分析を表しません。通常のCore archiveには含まれます。</p>
-  {% if annotations_unavailable %}<p class="notice" data-tone="warning">注釈は未知の形式または不正な画像対応のため利用できません。判断来歴本体の検証とは別の表示結果です。</p>{% endif %}
+  <h2 id="pins-heading">{{ m.session.pins_heading }}</h2>
+  <p>{{ m.session.pins_help }}</p>
+  {% if annotations_unavailable %}<p class="notice" data-tone="warning">{{ m.session.pins_unavailable }}</p>{% endif %}
   <div data-pin-controls hidden>
     <div class="form-grid">
-      <div class="field"><label for="pin-image-role">ピンの対象画像</label><select id="pin-image-role" data-pin-image-role><option value="original">Original</option><option value="current">Current</option><option value="ai_output">AI output</option></select></div>
-      <div class="field"><label for="pin-image-zoom">ピン画像の表示倍率</label><select id="pin-image-zoom" data-pin-zoom><option value="fit">全体を表示</option><option value="1">100%</option><option value="2">200%</option></select></div>
+      <div class="field"><label for="pin-image-role">{{ m.session.pin_target }}</label><select id="pin-image-role" data-pin-image-role><option value="original">Original</option><option value="current">Current</option><option value="ai_output">AI output</option></select></div>
+      <div class="field"><label for="pin-image-zoom">{{ m.session.pin_zoom }}</label><select id="pin-image-zoom" data-pin-zoom><option value="fit">{{ m.common.zoom_fit }}</option><option value="1">100%</option><option value="2">200%</option></select></div>
     </div>
     <p data-pin-status class="field__hint" role="status"></p>
-    <div class="pin-viewport" tabindex="0" role="region" aria-label="ピン画像の表示領域"><div class="pin-canvas" data-pin-canvas><img data-pin-preview alt="判断メモの対象画像" hidden><div data-pin-markers></div></div></div>
-    {% if pending %}<button type="button" data-pin-add>中央にピンを追加</button><p class="field__hint">画像をクリック／タップして追加できます。ピンはドラッグまたは矢印キーで移動（Shiftで細かく移動）、Deleteで削除できます。一覧の座標でも移動できます。左上が(0, 0)、右下が(1000000, 1000000)です。最大10件、各メモ200 UTF-8 bytes以内。</p>{% endif %}
+    <div class="pin-viewport" tabindex="0" role="region" aria-label="{{ m.session.pin_viewport }}"><div class="pin-canvas" data-pin-canvas><img data-pin-preview alt="{{ m.session.pin_image_alt }}" hidden><div data-pin-markers></div></div></div>
+    {% if pending %}<button type="button" data-pin-add>{{ m.session.pin_add }}</button><p class="field__hint">{{ m.session.pin_help }}</p>{% endif %}
   </div>
   <ol data-pin-list class="pin-list">
     {% for pin in annotations %}<li>{{ pin.role.as_str() }} · ({{ pin.x }}, {{ pin.y }}) <p class="decision-rationale">{{ pin.note }}</p></li>{% endfor %}
   </ol>
-  {% if complete && annotations.is_empty() && !annotations_unavailable %}<p>記録されたピンなし</p>{% endif %}
+  {% if complete && annotations.is_empty() && !annotations_unavailable %}<p>{{ m.session.no_pins }}</p>{% endif %}
 </section>
 
 <section aria-labelledby="evidence-heading">
@@ -175,7 +175,7 @@
   <div class="notice" data-tone="warning">
     <h3>{{ comparison_outcome }}</h3>
     <p>{{ comparison_warning }}</p>
-    <p>同じbytesでも物理的なsubjectが変化していないとは証明できず、異なるbytesでも視覚的・物理的変化を証明するものではありません。</p>
+    <p>{{ m.session.evidence_limit }}</p>
   </div>
   <dl class="detail-list">
     <div><dt>Status</dt><dd>{{ comparison_status }}</dd></div>
@@ -184,7 +184,7 @@
     <div><dt>Replay ready</dt><dd>{{ comparison_replay }}</dd></div>
   </dl>
   {% else %}
-  <div class="notice"><h3>比較情報なし</h3><p>この履歴からbyte identity evidenceは復元できません。</p></div>
+  <div class="notice"><h3>{{ m.session.no_comparison_heading }}</h3><p>{{ m.session.no_comparison }}</p></div>
   {% endif %}
 </section>
 {% endif %}
@@ -192,26 +192,26 @@
 {% if !complete && !pending %}
 <section aria-labelledby="diagnostics-heading">
   <div class="notice" data-tone="warning">
-    <h2 id="diagnostics-heading">セッションは未完了です</h2>
+    <h2 id="diagnostics-heading">{{ m.session.incomplete_heading }}</h2>
     <p>{{ diagnostic }}</p>
-    {% if reuse_available %}<p>このセッションの判断は再開できません。記録済みの3画像を引き継いで、新しいセッションでレビューできます。</p>{% else %}<p>このセッションの判断は再開できません。記録済みの画像を引き継いだレビューは現在利用できません。</p>{% endif %}
-    <p>履歴を自動で書き換えたり削除したりはしません。問題が疑われる場合はfsckを実行してください。</p>
+    {% if reuse_available %}<p>{{ m.session.cannot_resume_reuse }}</p>{% else %}<p>{{ m.session.cannot_resume_no_reuse }}</p>{% endif %}
+    <p>{{ m.session.no_automatic_change }}</p>
   </div>
   <dl class="detail-list" aria-label="Creator session diagnostics">
     <div><dt>Proposal Ref</dt><dd><code>{{ diagnostic_proposal_ref }}</code></dd></div>
     <div><dt>Proposal head</dt><dd><code>{{ diagnostic_proposal_head }}</code></dd></div>
     <div><dt>Decision Ref</dt><dd><code>{{ diagnostic_decision_ref }}</code></dd></div>
     <div><dt>Decision head</dt><dd><code>{{ diagnostic_decision_head }}</code></dd></div>
-    <div><dt>Automatic resume</dt><dd>サポートされません</dd></div>
-    <div><dt>Automatic cleanup</dt><dd>サポートされません</dd></div>
+    <div><dt>Automatic resume</dt><dd>{{ m.session.not_supported }}</dd></div>
+    <div><dt>Automatic cleanup</dt><dd>{{ m.session.not_supported }}</dd></div>
   </dl>
-  {% if reuse_available %}<p><a class="button" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/reuse">この提案を新しいセッションでレビューする</a></p>{% endif %}
+  {% if reuse_available %}<p><a class="button" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/reuse">{{ m.common.review_in_new_session }}</a></p>{% endif %}
 </section>
 {% endif %}
 
 {% if pending %}
 <section class="card" aria-labelledby="decision-heading">
-  <div class="card__header"><div><p class="eyebrow">Human gate</p><h2 id="decision-heading">判断を記録</h2></div></div>
+  <div class="card__header"><div><p class="eyebrow">Human gate</p><h2 id="decision-heading">{{ m.session.decision_heading }}</h2></div></div>
   <form
     hidden
     method="post"
@@ -221,45 +221,45 @@
     data-confirm-project="{{ project_key }}"
     data-synapse-decision="true"
     data-success-reload="true"
-    data-busy-message="Human decisionを検証して公開しています…"
-    data-success-message="Decisionを公開しました。ページを再読み込みします。"
+    data-busy-message="{{ m.session.decision_busy }}"
+    data-success-message="{{ m.session.decision_success }}"
   >
     <input type="hidden" name="review_id" value="{{ review_id }}">
     <div class="field">
-      <label for="decision-rationale">Rationale（任意）</label>
-      <textarea id="decision-rationale" name="rationale" maxlength="5000" data-max-utf8-bytes="5000" rows="5" aria-describedby="rationale-help rationale-count" placeholder="この判断の理由や、後から確認したい点"></textarea>
-      <span id="rationale-help" class="field__hint">UTF-8で5000 bytes以内。記録後、このセッションで読み返せます。</span>
+      <label for="decision-rationale">{{ m.session.rationale_label }}</label>
+      <textarea id="decision-rationale" name="rationale" maxlength="5000" data-max-utf8-bytes="5000" rows="5" aria-describedby="rationale-help rationale-count" placeholder="{{ m.session.rationale_placeholder }}"></textarea>
+      <span id="rationale-help" class="field__hint">{{ m.session.rationale_hint }}</span>
       <span id="rationale-count" class="field__hint" data-decision-text-count hidden></span>
     </div>
     <p data-decision-json-count class="field__hint" aria-live="polite"></p>
-    <p id="decision-finality" class="field__hint">Deferも含め、記録後にこのセッションの判断を変更・再開する機能はありません。</p>
+    <p id="decision-finality" class="field__hint">{{ m.common.decision_finality }}</p>
     <div class="decision-choices" role="group" aria-label="Disposition" aria-describedby="decision-finality">
       <div class="decision-choice">
-        <h3>採用</h3>
-        <p id="adopt-help">AI outputを変更せず採用します。</p>
-        <button type="submit" name="disposition" value="adopt" aria-describedby="adopt-help" data-decision-summary="AI outputを変更せず採用します。" data-synapse-submit>Adopt</button>
+        <h3>{{ m.session.adopt_heading }}</h3>
+        <p id="adopt-help">{{ m.session.adopt_help }}</p>
+        <button type="submit" name="disposition" value="adopt" aria-describedby="adopt-help" data-decision-summary="{{ m.session.adopt_help }}" data-synapse-submit>Adopt</button>
       </div>
       <div class="decision-choice">
-        <h3>不採用</h3>
-        <p id="reject-help">AI outputを採用しない判断を記録します。</p>
-        <button type="submit" name="disposition" value="reject" aria-describedby="reject-help" data-decision-summary="AI outputを採用しない判断を記録します。" data-variant="danger" data-synapse-submit>Reject</button>
+        <h3>{{ m.session.reject_heading }}</h3>
+        <p id="reject-help">{{ m.session.reject_help }}</p>
+        <button type="submit" name="disposition" value="reject" aria-describedby="reject-help" data-decision-summary="{{ m.session.reject_help }}" data-variant="danger" data-synapse-submit>Reject</button>
       </div>
       <div class="decision-choice">
-        <h3>保留</h3>
-        <p id="defer-help">AI outputの採用を保留する判断を記録します。</p>
-        <button type="submit" name="disposition" value="defer" aria-describedby="defer-help" data-decision-summary="AI outputの採用を保留する判断を記録します。" data-variant="secondary" data-synapse-submit>Defer</button>
+        <h3>{{ m.session.defer_heading }}</h3>
+        <p id="defer-help">{{ m.session.defer_help }}</p>
+        <button type="submit" name="disposition" value="defer" aria-describedby="defer-help" data-decision-summary="{{ m.session.defer_help }}" data-variant="secondary" data-synapse-submit>Defer</button>
       </div>
     </div>
-    <p class="field__hint">Decision writeには、このページのJavaScriptとprocess-local tokenが必要です。</p>
+    <p class="field__hint">{{ m.session.decision_js_hint }}</p>
     <p data-synapse-status hidden></p>
   </form>
-  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、この画面ではDecisionを送信できません。3つのevidenceはread-onlyで確認できます。</p></div></noscript>
+  <noscript><div class="notice" data-tone="warning"><p>{{ m.session.decision_noscript }}</p></div></noscript>
 </section>
 {% endif %}
 
 {% if complete %}
 <section aria-labelledby="timeline-heading">
-  <div class="section-heading"><h2 id="timeline-heading">Timeline</h2><span class="badge">{{ timeline.len() }} 件</span></div>
+  <div class="section-heading"><h2 id="timeline-heading">Timeline</h2><span class="badge">{{ m.count_events(timeline.len()) }}</span></div>
   <ol class="timeline">
     {% for entry in timeline %}
     <li class="timeline__item"><div class="timeline__marker" aria-hidden="true"></div><div><p><strong>{{ entry.stage }}</strong> <span class="badge">{{ entry.kind }}</span></p><p>{{ entry.ordering_time }}</p><p class="muted">{{ entry.time_basis }} · <code>{{ entry.oid }}</code></p></div></li>
@@ -269,8 +269,8 @@
 {% endif %}
 {% if !derived_sessions.is_empty() %}
 <section class="card" aria-labelledby="derived-sessions-heading">
-  <h2 id="derived-sessions-heading">このセッションから派生したセッション</h2>
-  <p class="field__hint">未検証の参照一覧です。派生先を開くと、現在のRefsとCASから詳細を検証します。</p>
+  <h2 id="derived-sessions-heading">{{ m.session.derived_heading }}</h2>
+  <p class="field__hint">{{ m.session.derived_hint }}</p>
   <ul>{% for derived in derived_sessions %}<li><a href="/projects/{{ project_key }}/creator-sessions/{{ derived }}">{{ derived }}</a></li>{% endfor %}</ul>
 </section>
 {% endif %}
