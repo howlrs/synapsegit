@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<p><a class="button button--secondary" href="/projects/{{ project_key }}/presentation">公開用の制作ノートを作る</a></p>
+<p class="project-presentation-action"><a class="button button--secondary" href="/projects/{{ project_key }}/presentation">公開用の制作ノートを作る</a></p>
 <nav class="breadcrumbs" aria-label="パンくずリスト">
   <ol><li><a href="/">プロジェクト</a></li><li aria-current="page">{{ project_label }}</li></ol>
 </nav>
@@ -13,6 +13,7 @@
   </div>
   <span class="status-badge" data-tone="success">ローカル・利用可能</span>
 </header>
+<noscript><p><a class="button button--secondary" href="/projects/{{ project_key }}/presentation">公開用の制作ノートを作る</a></p></noscript>
 
 <section class="metric-grid" aria-label="プロジェクト概要">
   <article class="metric"><span class="metric__label">Refs</span><strong>{{ refs.len() }}</strong></article>
@@ -279,6 +280,14 @@
   </table></div>
   {% endif %}
 </section>
+
+<noscript>
+  <style>.project-maintenance,.project-presentation-action{display:none}</style>
+  <section class="card" aria-labelledby="maintenance-noscript-heading">
+    <h2 id="maintenance-noscript-heading">メンテナンス</h2>
+    <p>整合性の確認、アーカイブの書き出し、復元はJavaScriptを必要とする保守操作です。確認対象のproject key入力と、復元先が空であることの確認は有効時にも変わりません。</p>
+  </section>
+</noscript>
 
 <div class="split-grid project-detail">
   <section aria-labelledby="refs-heading">
