@@ -851,6 +851,7 @@ async fn incomplete_session_diagnostics_are_read_only_structured_and_rendered() 
     let page = std::str::from_utf8(&page).unwrap();
     assert!(page.contains("セッションは未完了です"), "{page}");
     assert!(page.contains("新しいセッションでレビューできます"));
+    assert!(!page.contains("引き継いだレビューは現在利用できません"));
     assert!(page.contains("data-synapse-comparison"));
     assert!(page.contains("data-synapse-compare-open"));
     assert!(page.contains(&fixture.proposal_ref));

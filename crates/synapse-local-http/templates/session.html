@@ -194,7 +194,7 @@
   <div class="notice" data-tone="warning">
     <h2 id="diagnostics-heading">セッションは未完了です</h2>
     <p>{{ diagnostic }}</p>
-    <p>このセッションの判断は再開できません。記録済みの3画像を引き継いで、新しいセッションでレビューできます。</p>
+    {% if reuse_available %}<p>このセッションの判断は再開できません。記録済みの3画像を引き継いで、新しいセッションでレビューできます。</p>{% else %}<p>このセッションの判断は再開できません。記録済みの画像を引き継いだレビューは現在利用できません。</p>{% endif %}
     <p>履歴を自動で書き換えたり削除したりはしません。問題が疑われる場合はfsckを実行してください。</p>
   </div>
   <dl class="detail-list" aria-label="Creator session diagnostics">
