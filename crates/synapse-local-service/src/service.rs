@@ -1471,10 +1471,19 @@ impl LocalService {
     ) -> Result<Vec<String>, ServiceError> {
         let repository = self.open_repository(project_key)?;
         let snapshot = capture_snapshot(&repository)?;
-        Ok(derived_session_names(
-            self.sessions_with_pending(&repository, &snapshot, project_key)?,
-            source_session,
-        ))
+        let ready = self.ready_pending(project_key, &snapshot)?;
+        let mut derived = Vec::new();
+        for summary in overlay_pending_sessions(discover_sessions(&repository, &snapshot)?, ready) {
+            let source = summary
+                .source_session
+                .clone()
+                .or_else(|| shallow_source_session(&repository, &summary));
+            if source.as_deref() == Some(source_session) {
+                derived.push(summary.session);
+            }
+        }
+        derived.sort();
+        Ok(derived)
     }
 
     /// Build the session detail and, when incomplete, its structured
@@ -2447,6 +2456,7 @@ fn display_session_summaries(
     sessions
 }
 
+#[cfg(test)]
 fn derived_session_names(
     sessions: Vec<CreatorSessionSummary>,
     source_session: &str,
@@ -2459,6 +2469,38 @@ fn derived_session_names(
         .collect::<Vec<_>>();
     derived.sort();
     derived
+}
+
+const CREATOR_SOURCE_KEYS: [&str; 2] = [
+    "org.synapsegit.creator-source",
+    "org.synapsegit.creator-reuse-source",
+];
+
+/// Read at most a Commit, its snapshot Tree, and its import Activity. This is
+/// intentionally an unverified navigation hint; destination pages rebuild a
+/// verified report before showing record detail.
+fn shallow_source_session(
+    repository: &Repository,
+    summary: &CreatorSessionSummary,
+) -> Option<String> {
+    let head = summary
+        .decision_head
+        .as_deref()
+        .or(summary.proposal_head.as_deref())?;
+    let commit = read_pending_json(repository, head).ok()?;
+    let tree_oid = commit.get("snapshot")?.as_str()?;
+    let tree = read_pending_json(repository, tree_oid).ok()?;
+    let activity_oid = tree
+        .get("entries")?
+        .get("image-import.activity.json")?
+        .get("oid")?
+        .as_str()?;
+    let activity = read_pending_json(repository, activity_oid).ok()?;
+    let extensions = activity.get("extensions")?;
+    CREATOR_SOURCE_KEYS.into_iter().find_map(|key| {
+        let session = extensions.get(key)?.get("session")?.as_str()?;
+        is_slug(session).then(|| session.to_owned())
+    })
 }
 
 fn diagnostic_from_fixed_summary(
