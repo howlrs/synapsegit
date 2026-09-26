@@ -324,6 +324,33 @@ fn print_creator_report(report: &CreatorReport) {
     if let Some(source) = &report.source {
         println!("reused_reference_source={source:?}");
     }
+    if let Some(source) = &report.reuse_source {
+        // Keep every field escaped: this is a human-readable report surface,
+        // not a shell-safe serialization format.
+        println!("reused_three_blob_source_format={:?}", source.format);
+        println!("reused_three_blob_source_kind={:?}", source.kind);
+        println!("reused_three_blob_source_session={:?}", source.session);
+        println!(
+            "reused_three_blob_source_proposal_head={:?}",
+            source.proposal_head
+        );
+        println!(
+            "reused_three_blob_source_decision_head={:?}",
+            source.decision_head
+        );
+        println!(
+            "reused_three_blob_source_original_blob_oid={:?}",
+            source.original_blob_oid
+        );
+        println!(
+            "reused_three_blob_source_current_blob_oid={:?}",
+            source.current_blob_oid
+        );
+        println!(
+            "reused_three_blob_source_ai_output_blob_oid={:?}",
+            source.ai_output_blob_oid
+        );
+    }
     if report.annotations_unavailable {
         println!("decision_pins=unavailable");
     }

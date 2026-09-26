@@ -287,6 +287,37 @@ pub fn begin_creator_session_with_source_existing(
     )
 }
 
+/// Begin a fresh review using all three verified Blob bytes from a prior
+/// interrupted or deferred review. This never restores its Human authority.
+pub fn begin_creator_session_with_reuse_source(
+    options: &CreatorBeginOptions,
+    source: &crate::CreatorReuseSourceBinding,
+) -> Result<PendingCreatorSession> {
+    begin_creator_session_with_bindings_and_limits(
+        options,
+        None,
+        None,
+        Some(source),
+        CREATOR_FSCK_LIMITS,
+        false,
+    )
+}
+
+/// Begin a three-Blob reuse review only in an existing complete repository.
+pub fn begin_creator_session_with_reuse_source_existing(
+    options: &CreatorBeginOptions,
+    source: &crate::CreatorReuseSourceBinding,
+) -> Result<PendingCreatorSession> {
+    begin_creator_session_with_bindings_and_limits(
+        options,
+        None,
+        None,
+        Some(source),
+        CREATOR_FSCK_LIMITS,
+        true,
+    )
+}
+
 fn begin_creator_session_with_source_and_limits(
     options: &CreatorBeginOptions,
     note: Option<&crate::CreatorGenerationNote>,
@@ -294,10 +325,34 @@ fn begin_creator_session_with_source_and_limits(
     fsck_limits: FsckLimits,
     require_existing_repository: bool,
 ) -> Result<PendingCreatorSession> {
+    begin_creator_session_with_bindings_and_limits(
+        options,
+        note,
+        source,
+        None,
+        fsck_limits,
+        require_existing_repository,
+    )
+}
+
+fn begin_creator_session_with_bindings_and_limits(
+    options: &CreatorBeginOptions,
+    note: Option<&crate::CreatorGenerationNote>,
+    source: Option<&crate::CreatorSourceBinding>,
+    reuse_source: Option<&crate::CreatorReuseSourceBinding>,
+    fsck_limits: FsckLimits,
+    require_existing_repository: bool,
+) -> Result<PendingCreatorSession> {
+    if source.is_some() && reuse_source.is_some() {
+        return Err(crate::source::invalid_source());
+    }
     if let Some(note) = note {
         note.validate()?;
     }
     if let Some(source) = source {
+        source.validate_shape()?;
+    }
+    if let Some(source) = reuse_source {
         source.validate_shape()?;
     }
     validate_begin_metadata(options)?;
@@ -318,6 +373,9 @@ fn begin_creator_session_with_source_and_limits(
         fsck_limits.tombstone_scan,
         require_existing_repository,
     )?;
+    if let Some(source) = reuse_source {
+        crate::report::validate_reuse_source_binding(&repository, source, 0)?;
+    }
     let existing_decision = repository.refs().get(&decision_ref)?;
     let existing_proposal = repository.refs().get(&proposal_ref)?;
     if existing_decision.is_some() || existing_proposal.is_some() {
@@ -354,6 +412,24 @@ fn begin_creator_session_with_source_and_limits(
             return Err(crate::source::invalid_source());
         }
     }
+    if let Some(source) = reuse_source {
+        // A source marked interrupted deliberately has no completed Decision
+        // to rebuild. Ref freshness and all exact Blob equality are checked
+        // again at publication below.
+        if !source.is_interrupted() {
+            let snapshot = repository
+                .refs()
+                .snapshot_limited(fsck_limits.max_ref_roots)?;
+            let report =
+                crate::creator_report_from_snapshot(&repository, &snapshot, &source.session)?
+                    .report;
+            if !source.matches_report(&report)
+                || report.source_depth >= crate::CREATOR_MAX_SOURCE_DEPTH
+            {
+                return Err(crate::source::invalid_source());
+            }
+        }
+    }
     validate_input_files(
         &options.original_image,
         &options.current_image,
@@ -363,12 +439,18 @@ fn begin_creator_session_with_source_and_limits(
     let original_blob_oid = put_file(&repository, &options.original_image)?;
     let current_blob_oid = put_file(&repository, &options.current_image)?;
     let ai_output_blob_oid = put_file(&repository, &options.ai_output)?;
-    if let Some(source) = source {
-        if original_blob_oid != source.original_blob_oid
+    if let Some(source) = source
+        && (original_blob_oid != source.original_blob_oid
+            || current_blob_oid != source.current_blob_oid)
+    {
+        return Err(crate::source::invalid_source());
+    }
+    if let Some(source) = reuse_source
+        && (original_blob_oid != source.original_blob_oid
             || current_blob_oid != source.current_blob_oid
-        {
-            return Err(crate::source::invalid_source());
-        }
+            || ai_output_blob_oid != source.ai_output_blob_oid)
+    {
+        return Err(crate::source::invalid_source());
     }
     let mut recording_clock = RecordingClock::default();
     let base_recorded_at = recording_clock.tick()?;
@@ -489,6 +571,9 @@ fn begin_creator_session_with_source_and_limits(
     );
     if let Some(source) = source {
         crate::source::attach_source(&mut import_activity, source)?;
+    }
+    if let Some(source) = reuse_source {
+        crate::source::attach_reuse_source(&mut import_activity, source)?;
     }
     let import_activity_oid = put_json(&repository, import_activity)?;
 
@@ -668,6 +753,8 @@ fn begin_creator_session_with_source_and_limits(
 
     let source_decision_ref = source.map(|s| crate::session::decision_ref(&s.session));
     let source_proposal_ref = source.map(|s| crate::session::proposal_ref(&s.session));
+    let reuse_source_decision_ref = reuse_source.map(|s| crate::session::decision_ref(&s.session));
+    let reuse_source_proposal_ref = reuse_source.map(|s| crate::session::proposal_ref(&s.session));
     let mut source_preconditions = Vec::new();
     if let Some(source) = source {
         source_preconditions.push(synapse_sqlite::RefPrecondition {
@@ -678,6 +765,27 @@ fn begin_creator_session_with_source_and_limits(
             ref_name: source_proposal_ref.as_deref().expect("source Ref"),
             expected_head: Some(&source.proposal_head),
         });
+        source_preconditions.push(synapse_sqlite::RefPrecondition {
+            ref_name: &proposal_ref,
+            expected_head: None,
+        });
+    }
+    if let Some(source) = reuse_source {
+        source_preconditions.push(synapse_sqlite::RefPrecondition {
+            ref_name: reuse_source_decision_ref
+                .as_deref()
+                .expect("reuse source Ref"),
+            expected_head: Some(&source.decision_head),
+        });
+        source_preconditions.push(synapse_sqlite::RefPrecondition {
+            ref_name: reuse_source_proposal_ref
+                .as_deref()
+                .expect("reuse source Ref"),
+            expected_head: Some(&source.proposal_head),
+        });
+        // Both Ref publications are create-only.  Check the target Proposal
+        // before initializing its Decision Ref so a duplicate session cannot
+        // leave a partial target behind.
         source_preconditions.push(synapse_sqlite::RefPrecondition {
             ref_name: &proposal_ref,
             expected_head: None,
@@ -756,6 +864,7 @@ fn begin_creator_session_with_source_and_limits(
     reachable_from.sort();
     let pending_receipt = CreatorPendingReceipt {
         source: source.cloned(),
+        reuse_source: reuse_source.cloned(),
         generation_note,
         session: options.session.clone(),
         project_id: ids.project.clone(),

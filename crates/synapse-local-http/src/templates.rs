@@ -73,6 +73,9 @@ pub(crate) struct SessionTemplate<'a> {
     pub(crate) rationale: &'a str,
     pub(crate) generation_note: &'a str,
     pub(crate) source: Option<&'a synapse_local_service::CreatorSourceBinding>,
+    pub(crate) reuse_source: Option<&'a synapse_local_service::CreatorReuseSourceBinding>,
+    pub(crate) reuse_available: bool,
+    pub(crate) reuse_reference: Option<&'a synapse_local_service::CreatorReuseReferenceContext>,
     pub(crate) annotations: &'a [synapse_local_service::CreatorPin],
     pub(crate) annotations_json: &'a str,
     pub(crate) annotations_unavailable: bool,
@@ -113,6 +116,16 @@ pub(crate) struct DeriveTemplate<'a> {
     pub(crate) project_key: &'a str,
     pub(crate) project_label: &'a str,
     pub(crate) preview: &'a synapse_local_service::CreatorSourcePreview,
+}
+
+#[derive(Template)]
+#[template(path = "reuse.html")]
+pub(crate) struct ReuseTemplate<'a> {
+    pub(crate) page_title: &'a str,
+    pub(crate) token: &'a str,
+    pub(crate) project_key: &'a str,
+    pub(crate) project_label: &'a str,
+    pub(crate) preview: &'a synapse_local_service::CreatorReuseSourcePreview,
 }
 
 #[derive(Template)]

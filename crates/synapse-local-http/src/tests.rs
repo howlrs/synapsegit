@@ -849,9 +849,11 @@ async fn incomplete_session_diagnostics_are_read_only_structured_and_rendered() 
     assert_eq!(page.status(), StatusCode::OK);
     let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
     let page = std::str::from_utf8(&page).unwrap();
-    assert!(page.contains("Creator session diagnostics"));
-    assert!(!page.contains("data-synapse-comparison"));
-    assert!(!page.contains("data-synapse-compare-open"));
+    assert!(page.contains("セッションは未完了です"), "{page}");
+    assert!(page.contains("新しいセッションでレビューできます"));
+    assert!(!page.contains("引き継いだレビューは現在利用できません"));
+    assert!(page.contains("data-synapse-comparison"));
+    assert!(page.contains("data-synapse-compare-open"));
     assert!(page.contains(&fixture.proposal_ref));
     assert!(page.contains(&fixture.proposal_head));
     assert!(page.contains(&fixture.decision_ref));
@@ -2190,6 +2192,15 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
                     ))
                     .await
                     .unwrap(),
+                "post" if resolved_path.ends_with("/reuse") => app
+                    .clone()
+                    .oneshot(unsafe_api_request(
+                        &full_path,
+                        "application/json",
+                        Body::from(r#"{"confirmation_id":"0000000000000000000000000000000000000000000000000000000000000000","session":"reuse-check","creator_name":"Creator","subject_label":"Subject"}"#),
+                    ))
+                    .await
+                    .unwrap(),
                 other => panic!(
                     "unhandled implemented-operation method {other} for {path_template}; \
                      add a substitution branch above"
@@ -2222,8 +2233,8 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
     // would fail loudly instead of this test quietly checking nothing.
     assert_eq!(
         checked.len(),
-        19,
-        "expected 19 implemented operations, checked: {checked:?}"
+        21,
+        "expected 21 implemented operations, checked: {checked:?}"
     );
     assert_eq!(
         skipped_unimplemented_archive.len(),
@@ -2583,4 +2594,169 @@ async fn confirmed_source_images_use_header_and_preserve_exact_bytes() {
         .await
         .unwrap();
     assert_eq!(denied.status(), StatusCode::BAD_REQUEST);
+}
+
+#[tokio::test]
+async fn authenticated_reuse_preview_and_begin_support_interrupted_and_deferred_sources() {
+    // A restart-interrupted proposal is usable only through a fresh
+    // confirmation, and all three recorded roles are readable through the
+    // authenticated preview route before a new review begins.
+    let (_directory, app, interrupted) = test_app_with_incomplete();
+    let preview_response = app
+        .clone()
+        .oneshot(
+            request("/api/v1/projects/demo/creator-sessions/incomplete-session/reuse")
+                .header("x-synapse-local-token", "a".repeat(64))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(preview_response.status(), StatusCode::OK);
+    let preview: serde_json::Value = serde_json::from_slice(
+        &to_bytes(preview_response.into_body(), 64 * 1024)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(preview["source"]["kind"], "interrupted_pending");
+    assert_eq!(
+        preview["source"]["proposal_head"],
+        interrupted.proposal_head
+    );
+    assert_eq!(
+        preview["source"]["decision_head"],
+        interrupted.decision_head
+    );
+    let confirmation_id = preview["confirmation_id"].as_str().unwrap();
+    for role in ["original", "current", "ai-output"] {
+        let response = app
+            .clone()
+            .oneshot(
+                request(&format!(
+                    "/api/v1/projects/demo/creator-sessions/incomplete-session/images/{role}"
+                ))
+                .header("x-synapse-local-token", "a".repeat(64))
+                .header("x-synapse-source-confirmation", confirmation_id)
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{role}");
+        assert!(
+            !to_bytes(response.into_body(), 64 * 1024)
+                .await
+                .unwrap()
+                .is_empty()
+        );
+    }
+    let created = app
+        .clone()
+        .oneshot(unsafe_api_request(
+            "/api/v1/projects/demo/creator-sessions/incomplete-session/reuse",
+            "application/json",
+            Body::from(
+                serde_json::to_vec(&serde_json::json!({
+                    "confirmation_id": confirmation_id,
+                    "session": "interrupted-again",
+                    "creator_name": "Test creator",
+                    "subject_label": "Incomplete HTTP fixture"
+                }))
+                .unwrap(),
+            ),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(created.status(), StatusCode::CREATED);
+    let created: serde_json::Value =
+        serde_json::from_slice(&to_bytes(created.into_body(), 64 * 1024).await.unwrap()).unwrap();
+    assert_eq!(created["state"], "pending_review");
+    assert_eq!(created["reuse_source"]["kind"], "interrupted_pending");
+
+    // A completed Defer uses the same endpoint, but remains a distinct source
+    // kind and still exposes the exact three recorded roles.
+    let (_directory, app) = test_app();
+    let boundary = "reuse-defer-boundary";
+    let upload = app
+        .clone()
+        .oneshot(unsafe_api_request(
+            "/api/v1/projects/demo/creator-sessions",
+            format!("multipart/form-data; boundary={boundary}"),
+            Body::from(valid_creator_multipart(boundary)),
+        ))
+        .await
+        .unwrap();
+    let pending: serde_json::Value =
+        serde_json::from_slice(&to_bytes(upload.into_body(), 64 * 1024).await.unwrap()).unwrap();
+    let decided = app
+        .clone()
+        .oneshot(unsafe_api_request(
+            "/api/v1/projects/demo/creator-sessions/web-review/decisions",
+            "application/json",
+            Body::from(
+                serde_json::to_vec(&serde_json::json!({
+                    "review_id": pending["review_id"],
+                    "disposition": "defer",
+                    "rationale": "Need another review."
+                }))
+                .unwrap(),
+            ),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(decided.status(), StatusCode::OK);
+    let preview_response = app
+        .clone()
+        .oneshot(
+            request("/api/v1/projects/demo/creator-sessions/web-review/reuse")
+                .header("x-synapse-local-token", "a".repeat(64))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(preview_response.status(), StatusCode::OK);
+    let preview: serde_json::Value = serde_json::from_slice(
+        &to_bytes(preview_response.into_body(), 64 * 1024)
+            .await
+            .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(preview["source"]["kind"], "deferred_rereview");
+    assert_eq!(preview["deferred_rationale"], "Need another review.");
+    let confirmation_id = preview["confirmation_id"].as_str().unwrap();
+    for role in ["original", "current", "ai-output"] {
+        let response = app
+            .clone()
+            .oneshot(
+                request(&format!(
+                    "/api/v1/projects/demo/creator-sessions/web-review/images/{role}"
+                ))
+                .header("x-synapse-local-token", "a".repeat(64))
+                .header("x-synapse-source-confirmation", confirmation_id)
+                .body(Body::empty())
+                .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK, "{role}");
+    }
+    let created = app
+        .oneshot(unsafe_api_request(
+            "/api/v1/projects/demo/creator-sessions/web-review/reuse",
+            "application/json",
+            Body::from(
+                serde_json::to_vec(&serde_json::json!({
+                    "confirmation_id": confirmation_id,
+                    "session": "deferred-again",
+                    "creator_name": "HTTP creator",
+                    "subject_label": "Web transport fixture"
+                }))
+                .unwrap(),
+            ),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(created.status(), StatusCode::CREATED);
 }

@@ -241,6 +241,7 @@ accepted base for the next Proposal; each attempt has a fresh deterministic Ref
 and immutable identity, while prior Proposal history remains reachable.
 
 The same-process pending authority remains non-serializable and one-shot.
+After a restart, a verified interrupted proposal can be reviewed in a new session using its recorded three images; a Defer can use the same fresh-review path. The original session is never resumed or changed.
 `decide_artifact_proposal` additionally requires an opaque, expiring
 `ArtifactDecisionApproval` issued only after the embedding host authenticates
 the reviewer and checks a server-owned project ACL. The approval is bound to

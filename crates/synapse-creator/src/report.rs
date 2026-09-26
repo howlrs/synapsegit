@@ -6,8 +6,9 @@ use crate::session::{
     PROPOSAL_PREFIX, SessionIds, decision_ref, proposal_ref, related_entity_id, validate_session,
 };
 use crate::{
-    CreatorComparisonReport, CreatorDisposition, CreatorError, CreatorReport, CreatorSessionState,
-    CreatorSessionSummary, CreatorSnapshotReport, CreatorTimelineEntry, Result,
+    CreatorComparisonReport, CreatorDisposition, CreatorError, CreatorReport,
+    CreatorReuseSourceBinding, CreatorSessionState, CreatorSessionSummary, CreatorSnapshotReport,
+    CreatorTimelineEntry, Result,
 };
 use serde_json::{Map as JsonMap, Value as JsonValue};
 use std::collections::BTreeMap;
@@ -48,6 +49,411 @@ pub fn creator_report_from_snapshot(
     session: &str,
 ) -> Result<CreatorSnapshotReport> {
     creator_report_from_snapshot_with_limits(repository, snapshot, session, CREATOR_FSCK_LIMITS)
+}
+
+/// Verify and describe a source whose three recorded blobs can be reviewed
+/// again.  This is deliberately a read-only recovery aid: callers receive no
+/// prior Human authority.
+pub fn creator_reuse_source_from_snapshot(
+    repository: &Repository,
+    snapshot: &RefSnapshot,
+    session: &str,
+) -> Result<crate::CreatorReuseSourceBinding> {
+    validate_session(session)?;
+    let verification = verify_creator_report_snapshot(repository, snapshot, CREATOR_FSCK_LIMITS)?;
+    let decision_ref = decision_ref(session);
+    let proposal_ref = proposal_ref(session);
+    let decision_head = snapshot
+        .refs
+        .iter()
+        .find(|r| r.name == decision_ref)
+        .map(|r| r.head.clone())
+        .ok_or_else(|| CreatorError::SessionNotFound(session.into()))?;
+    let proposal_head = snapshot
+        .refs
+        .iter()
+        .find(|r| r.name == proposal_ref)
+        .map(|r| r.head.clone())
+        .ok_or_else(|| CreatorError::SessionIncomplete(session.into()))?;
+
+    // A completed Defer is verified by the normal report path.  Every other
+    // complete disposition is excluded by the caller-facing contract.
+    match creator_report_from_snapshot(repository, snapshot, session) {
+        Ok(report) => {
+            if report.report.disposition != CreatorDisposition::Defer {
+                return Err(CreatorError::ReportInvalid(
+                    "only a deferred creator session can be reviewed again".into(),
+                ));
+            }
+            return crate::CreatorReuseSourceBinding::new(&report.report, "deferred_rereview");
+        }
+        Err(CreatorError::SessionIncomplete(_)) => {}
+        Err(error) => return Err(error),
+    }
+
+    // The interrupted shape is exactly the base checkpoint in the Decision
+    // Ref and a proposal checkpoint parented by it.  Validate a bounded full
+    // inventory first, then the proposal/base records that bind all blobs.
+    let base = read_json(repository, &decision_head)?;
+    require_stored_value(&base, "object_type", "commit", "interrupted decision base")?;
+    require_stored_value(
+        &base,
+        "commit_kind",
+        "checkpoint",
+        "interrupted decision base",
+    )?;
+    let base_snapshot = string_field(&base, "snapshot", "interrupted decision base")?;
+    let ids = load_session_ids_from_base(repository, session, base_snapshot)?;
+    require_stored_value(
+        &base,
+        "author_ref",
+        &ids.creator,
+        "interrupted decision base",
+    )?;
+    let proposal = read_json(repository, &proposal_head)?;
+    require_stored_value(&proposal, "object_type", "commit", "interrupted proposal")?;
+    require_stored_value(
+        &proposal,
+        "commit_kind",
+        "checkpoint",
+        "interrupted proposal",
+    )?;
+    require_stored_value(&proposal, "author_ref", &ids.agent, "interrupted proposal")?;
+    if single_string_array(&proposal, "parents", "interrupted proposal parents")? != decision_head {
+        return Err(CreatorError::SessionIncomplete(session.into()));
+    }
+    let ai_oid = single_string_array(
+        &proposal,
+        "transition_refs",
+        "interrupted proposal transition",
+    )?;
+    let ai = read_json(repository, ai_oid)?;
+    require_stored_value(&ai, "record_type", "activity", "interrupted AI activity")?;
+    require_stored_value(
+        &ai,
+        "entity_id",
+        &ids.ai_activity,
+        "interrupted AI activity",
+    )?;
+    let ai_blob = role_oid(
+        object_field(&ai, "payload", "interrupted AI payload")?,
+        "output_refs",
+        "proposal",
+    )?;
+    let base_pointers = load_base_snapshot_pointers(repository, base_snapshot)?;
+    let import = read_json(repository, &base_pointers.import_activity_oid)?;
+    require_stored_value(
+        &import,
+        "record_type",
+        "activity",
+        "interrupted import activity",
+    )?;
+    require_stored_value(
+        &import,
+        "entity_id",
+        &ids.import_activity,
+        "interrupted import activity",
+    )?;
+    let import_payload = object_field(&import, "payload", "interrupted import payload")?;
+    let original = role_oid(import_payload, "output_refs", "original")?;
+    let current = role_oid(import_payload, "output_refs", "current")?;
+    let _ = verification;
+    crate::CreatorReuseSourceBinding::new(
+        &CreatorReport {
+            source: None,
+            reuse_source: None,
+            source_depth: 0,
+            annotations: None,
+            annotations_unavailable: false,
+            generation_note: None,
+            session: session.into(),
+            project_id: ids.project,
+            subject_id: ids.subject,
+            creator_id: ids.creator,
+            agent_id: ids.agent,
+            decision_ref,
+            proposal_ref,
+            decision_head,
+            proposal_head,
+            base_head: String::new(),
+            base_snapshot: base_snapshot.into(),
+            proposal_snapshot: String::new(),
+            decision_snapshot: String::new(),
+            disposition: CreatorDisposition::Defer,
+            selected_ai_output: false,
+            rationale: None,
+            original_blob_oid: original,
+            current_blob_oid: current,
+            ai_output_blob_oid: ai_blob,
+            comparison: None,
+            timeline: vec![],
+            fsck_objects: 0,
+        },
+        "interrupted_pending",
+    )
+}
+
+/// Validate a reuse binding from its immutable pinned heads, without using the
+/// source session's current Refs (which may have moved after publication).
+pub(crate) fn validate_reuse_source_binding(
+    repository: &Repository,
+    source: &CreatorReuseSourceBinding,
+    depth: usize,
+) -> Result<usize> {
+    source.validate_shape()?;
+    if depth >= crate::CREATOR_MAX_SOURCE_DEPTH {
+        return Err(crate::source::invalid_source());
+    }
+    let (ids, import_oid, ai_oid) = if source.kind == "deferred_rereview" {
+        let ids = load_session_ids(repository, &source.session, &source.decision_head)?;
+        let lineage = validate_report_lineage(
+            repository,
+            &ids,
+            &source.decision_head,
+            &source.proposal_head,
+        )?;
+        if lineage.disposition != CreatorDisposition::Defer {
+            return Err(crate::source::invalid_source());
+        }
+        (ids, lineage.import_activity_oid, lineage.ai_activity_oid)
+    } else if source.kind == "interrupted_pending" {
+        let base = read_json(repository, &source.decision_head)?;
+        require_stored_value(&base, "object_type", "commit", "interrupted decision base")?;
+        require_stored_value(
+            &base,
+            "commit_kind",
+            "checkpoint",
+            "interrupted decision base",
+        )?;
+        let base_snapshot = string_field(&base, "snapshot", "interrupted decision base")?;
+        let ids = load_session_ids_from_base(repository, &source.session, base_snapshot)?;
+        require_stored_value(
+            &base,
+            "author_ref",
+            &ids.creator,
+            "interrupted decision base",
+        )?;
+        let proposal = read_json(repository, &source.proposal_head)?;
+        require_stored_value(&proposal, "object_type", "commit", "interrupted proposal")?;
+        require_stored_value(
+            &proposal,
+            "commit_kind",
+            "checkpoint",
+            "interrupted proposal",
+        )?;
+        require_stored_value(&proposal, "author_ref", &ids.agent, "interrupted proposal")?;
+        if single_string_array(&proposal, "parents", "interrupted proposal parents")?
+            != source.decision_head
+        {
+            return Err(crate::source::invalid_source());
+        }
+        let ai_oid = single_string_array(
+            &proposal,
+            "transition_refs",
+            "interrupted proposal transition",
+        )?
+        .to_owned();
+        let pointers = load_base_snapshot_pointers(repository, base_snapshot)?;
+        (ids, pointers.import_activity_oid, ai_oid)
+    } else {
+        return Err(crate::source::invalid_source());
+    };
+    let import = read_json(repository, &import_oid)?;
+    require_stored_value(&import, "record_type", "activity", "reuse source import")?;
+    require_stored_value(
+        &import,
+        "entity_id",
+        &ids.import_activity,
+        "reuse source import",
+    )?;
+    let payload = object_field(&import, "payload", "reuse source import payload")?;
+    let original = role_oid(payload, "output_refs", "original")?;
+    let current = role_oid(payload, "output_refs", "current")?;
+    let ai = read_json(repository, &ai_oid)?;
+    require_stored_value(&ai, "record_type", "activity", "reuse source AI activity")?;
+    require_stored_value(
+        &ai,
+        "entity_id",
+        &ids.ai_activity,
+        "reuse source AI activity",
+    )?;
+    let proposal = role_oid(
+        object_field(&ai, "payload", "reuse source AI payload")?,
+        "output_refs",
+        "proposal",
+    )?;
+    if original != source.original_blob_oid
+        || current != source.current_blob_oid
+        || proposal != source.ai_output_blob_oid
+    {
+        return Err(crate::source::invalid_source());
+    }
+    Ok(1 + nested_source_depth(repository, &import, depth + 1)?)
+}
+
+/// Read reference-only source context from the binding's pinned heads.
+/// Current source Refs are deliberately not consulted.
+pub fn creator_reuse_source_context_from_binding(
+    repository: &Repository,
+    source: &CreatorReuseSourceBinding,
+) -> Result<(
+    Option<String>,
+    Option<crate::CreatorGenerationNote>,
+    Option<crate::CreatorAnnotations>,
+)> {
+    validate_reuse_source_binding(repository, source, 0)?;
+    if source.kind == "interrupted_pending" {
+        let proposal = read_json(repository, &source.proposal_head)?;
+        let ai_oid = single_string_array(&proposal, "transition_refs", "reuse source proposal")?;
+        let ai = read_json(repository, ai_oid)?;
+        return Ok((
+            None,
+            crate::notes::read_generation_note(&ai, &source.ai_output_blob_oid)?,
+            None,
+        ));
+    }
+    let ids = load_session_ids(repository, &source.session, &source.decision_head)?;
+    let lineage = validate_report_lineage(
+        repository,
+        &ids,
+        &source.decision_head,
+        &source.proposal_head,
+    )?;
+    let ai = read_json(repository, &lineage.ai_activity_oid)?;
+    let note = crate::notes::read_generation_note(&ai, &source.ai_output_blob_oid)?;
+    let feedback = read_json(repository, &lineage.feedback_oid)?;
+    let (annotations, _) = crate::annotations::read_annotations(
+        &feedback,
+        &source.original_blob_oid,
+        &source.current_blob_oid,
+        &source.ai_output_blob_oid,
+    );
+    Ok((lineage.rationale, note, annotations))
+}
+
+fn validate_source_binding(
+    repository: &Repository,
+    source: &crate::CreatorSourceBinding,
+    depth: usize,
+) -> Result<usize> {
+    source.validate_shape()?;
+    if depth >= crate::CREATOR_MAX_SOURCE_DEPTH {
+        return Err(crate::source::invalid_source());
+    }
+    let ids = load_session_ids(repository, &source.session, &source.decision_head)?;
+    let lineage = validate_report_lineage(
+        repository,
+        &ids,
+        &source.decision_head,
+        &source.proposal_head,
+    )?;
+    if lineage.disposition.as_cli_str() != source.disposition {
+        return Err(crate::source::invalid_source());
+    }
+    let import = read_json(repository, &lineage.import_activity_oid)?;
+    require_stored_value(&import, "record_type", "activity", "source import")?;
+    require_stored_value(&import, "entity_id", &ids.import_activity, "source import")?;
+    let payload = object_field(&import, "payload", "source import payload")?;
+    if role_oid(payload, "output_refs", "original")? != source.original_blob_oid
+        || role_oid(payload, "output_refs", "current")? != source.current_blob_oid
+    {
+        return Err(crate::source::invalid_source());
+    }
+    Ok(1 + nested_source_depth(repository, &import, depth + 1)?)
+}
+
+fn nested_source_depth(repository: &Repository, import: &JsonValue, depth: usize) -> Result<usize> {
+    let source = crate::source::read_source(import)?;
+    let reuse = crate::source::read_reuse_source(import)?;
+    match (source, reuse) {
+        (Some(_), Some(_)) => Err(crate::source::invalid_source()),
+        (Some(source), None) => validate_source_binding(repository, &source, depth),
+        (None, Some(source)) => validate_reuse_source_binding(repository, &source, depth),
+        (None, None) => Ok(0),
+    }
+}
+
+/// Read the recorded labels only after `creator_reuse_source_from_snapshot`
+/// has validated the source closure. These labels are display defaults, not an
+/// identity claim or copied authority.
+pub type CreatorReuseSourceDisplay = (
+    CreatorReuseSourceBinding,
+    String,
+    String,
+    Option<String>,
+    Option<crate::CreatorGenerationNote>,
+    Option<crate::CreatorAnnotations>,
+);
+
+pub fn creator_reuse_source_display_from_snapshot(
+    repository: &Repository,
+    snapshot: &RefSnapshot,
+    session: &str,
+) -> Result<CreatorReuseSourceDisplay> {
+    let source = creator_reuse_source_from_snapshot(repository, snapshot, session)?;
+    // Use the binding's immutable heads for reference-only fields.  A later
+    // source Ref movement must not change what this confirmation shows.
+    let (rationale, generation_note, annotations) =
+        creator_reuse_source_context_from_binding(repository, &source)?;
+    if let Ok(report) = creator_report_from_snapshot(repository, snapshot, session) {
+        let tree = read_json(repository, &report.report.base_snapshot)?;
+        return source_display_from_base_tree(repository, &tree).map(|(creator, subject)| {
+            (
+                source,
+                creator,
+                subject,
+                rationale,
+                generation_note,
+                annotations,
+            )
+        });
+    }
+    let base = read_json(repository, &source.decision_head)?;
+    let tree = read_json(
+        repository,
+        string_field(&base, "snapshot", "reuse source base")?,
+    )?;
+    source_display_from_base_tree(repository, &tree).map(|(creator, subject)| {
+        (
+            source,
+            creator,
+            subject,
+            rationale,
+            generation_note,
+            annotations,
+        )
+    })
+}
+
+fn source_display_from_base_tree(
+    repository: &Repository,
+    tree: &JsonValue,
+) -> Result<(String, String)> {
+    let entries = tree
+        .get("entries")
+        .and_then(JsonValue::as_object)
+        .ok_or_else(|| CreatorError::ReportInvalid("creator base Tree has no entries".into()))?;
+    let display = |name: &str, field: &str| -> Result<String> {
+        let oid = entries
+            .get(name)
+            .and_then(JsonValue::as_object)
+            .and_then(|entry| entry.get("oid"))
+            .and_then(JsonValue::as_str)
+            .ok_or_else(|| {
+                CreatorError::ReportInvalid("creator base Tree display entry is absent".into())
+            })?;
+        let record = read_json(repository, oid)?;
+        string_field(
+            object_field(&record, "payload", "creator source display")?,
+            field,
+            "creator source display",
+        )
+        .map(str::to_owned)
+    };
+    Ok((
+        display("creator.actor.json", "display_name")?,
+        display("subject.json", "label")?,
+    ))
 }
 
 pub(crate) fn creator_report_from_snapshot_with_limits(
@@ -373,7 +779,12 @@ impl<'source> PreparedCreatorReportReader<'source> {
             })
             .transpose()?;
 
-        let source = crate::source::read_source(&read_json(repository, &import_activity_oid)?)?;
+        let import_activity = read_json(repository, &import_activity_oid)?;
+        let source = crate::source::read_source(&import_activity)?;
+        let reuse_source = crate::source::read_reuse_source(&import_activity)?;
+        if source.is_some() && reuse_source.is_some() {
+            return Err(crate::source::invalid_source());
+        }
         let mut source_depth = 0;
         if let Some(source) = &source {
             if original_blob_oid != source.original_blob_oid
@@ -408,6 +819,15 @@ impl<'source> PreparedCreatorReportReader<'source> {
             }
             source_depth = source_report.source_depth + 1;
         }
+        if let Some(source) = &reuse_source {
+            if original_blob_oid != source.original_blob_oid
+                || current_blob_oid != source.current_blob_oid
+                || ai_output_blob_oid != source.ai_output_blob_oid
+            {
+                return Err(crate::source::invalid_source());
+            }
+            source_depth = validate_reuse_source_binding(repository, source, depth)?;
+        }
 
         let timeline = timeline
             .into_iter()
@@ -428,6 +848,7 @@ impl<'source> PreparedCreatorReportReader<'source> {
         Ok(CreatorSnapshotReport {
             report: CreatorReport {
                 source,
+                reuse_source,
                 source_depth,
                 annotations,
                 annotations_unavailable,
@@ -605,6 +1026,81 @@ fn load_session_ids(
         .and_then(JsonValue::as_object)
         .and_then(|extensions| extensions.get("org.synapsegit.creator-session"))
         .filter(|value| value.is_object())
+        .ok_or_else(|| {
+            CreatorError::ReportInvalid("creator Subject has no session manifest".into())
+        })?;
+    require_stored_value(
+        manifest,
+        "format",
+        "synapsegit-creator-session-v1",
+        "creator session manifest format",
+    )?;
+    require_stored_value(
+        manifest,
+        "session",
+        session,
+        "creator session manifest name",
+    )?;
+    let ids = SessionIds {
+        creator: manifest_id(manifest, "creator_id")?,
+        agent: manifest_id(manifest, "agent_id")?,
+        project: manifest_id(manifest, "project_id")?,
+        subject: manifest_id(manifest, "subject_id")?,
+        series: manifest_id(manifest, "series_id")?,
+        original_observation: manifest_id(manifest, "original_observation_id")?,
+        current_observation: manifest_id(manifest, "current_observation_id")?,
+        import_activity: manifest_id(manifest, "import_activity_id")?,
+        policy: manifest_id(manifest, "policy_id")?,
+        grant: manifest_id(manifest, "grant_id")?,
+        context: manifest_id(manifest, "context_id")?,
+        ai_activity: manifest_id(manifest, "ai_activity_id")?,
+        feedback: manifest_id(manifest, "feedback_id")?,
+    };
+    require_stored_value(
+        &subject,
+        "entity_id",
+        &ids.subject,
+        "creator Subject entity_id",
+    )?;
+    Ok(ids)
+}
+
+fn load_session_ids_from_base(
+    repository: &Repository,
+    session: &str,
+    base_snapshot: &str,
+) -> Result<SessionIds> {
+    let base = serde_json::json!({"snapshot": base_snapshot});
+    // Keep this parser in lockstep with `load_session_ids`; interrupted
+    // sessions have the base checkpoint directly in their Decision Ref.
+    let base_tree_oid = string_field(&base, "snapshot", "creator base snapshot")?;
+    let base_tree = read_json(repository, base_tree_oid)?;
+    let entries = base_tree
+        .get("entries")
+        .and_then(JsonValue::as_object)
+        .ok_or_else(|| CreatorError::ReportInvalid("creator base Tree has no entries".into()))?;
+    let subject_oid = entries
+        .get("subject.json")
+        .and_then(JsonValue::as_object)
+        .and_then(|entry| entry.get("oid"))
+        .and_then(JsonValue::as_str)
+        .ok_or_else(|| {
+            CreatorError::ReportInvalid(
+                "creator base Tree has no subject session-manifest entry".into(),
+            )
+        })?;
+    let subject = read_json(repository, subject_oid)?;
+    require_stored_value(
+        &subject,
+        "record_type",
+        "subject",
+        "creator Subject record_type",
+    )?;
+    let manifest = subject
+        .get("extensions")
+        .and_then(JsonValue::as_object)
+        .and_then(|e| e.get("org.synapsegit.creator-session"))
+        .filter(|v| v.is_object())
         .ok_or_else(|| {
             CreatorError::ReportInvalid("creator Subject has no session manifest".into())
         })?;

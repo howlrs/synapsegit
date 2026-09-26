@@ -347,6 +347,8 @@ pub struct CreatorReport {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<synapse_creator::CreatorSourceBinding>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reuse_source: Option<synapse_creator::CreatorReuseSourceBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub annotations: Option<synapse_creator::CreatorAnnotations>,
     #[serde(default)]
     pub annotations_unavailable: bool,
@@ -480,6 +482,10 @@ pub struct PendingCreatorSession {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<synapse_creator::CreatorSourceBinding>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reuse_source: Option<synapse_creator::CreatorReuseSourceBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reuse_reference: Option<CreatorReuseReferenceContext>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generation_note: Option<synapse_creator::CreatorGenerationNote>,
     pub state: PendingReviewState,
     pub snapshot: SnapshotContext,
@@ -499,11 +505,28 @@ pub struct PendingCreatorSession {
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
+pub struct CreatorReuseReferenceContext {
+    pub kind: String,
+    /// The pinned source cannot currently be read.  This is reference-only
+    /// display data; the pending session itself remains available.
+    pub unavailable: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deferred_rationale: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generation_note: Option<synapse_creator::CreatorGenerationNote>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<synapse_creator::CreatorAnnotations>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct IncompleteCreatorSession {
     pub state: IncompleteState,
     pub snapshot: SnapshotContext,
     pub session: String,
     pub recovery_supported: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reuse_source: Option<synapse_creator::CreatorReuseSourceBinding>,
     pub diagnostic: String,
 }
 
@@ -650,6 +673,30 @@ pub struct Problem {
 pub struct CreatorSourcePreview {
     pub confirmation_id: String,
     pub source: synapse_creator::CreatorSourceBinding,
+    pub creator_name: String,
+    pub subject_label: String,
+}
+
+/// A process-local confirmation for a read-only three-Blob reuse operation.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreatorReuseSourcePreview {
+    pub confirmation_id: String,
+    pub source: synapse_creator::CreatorReuseSourceBinding,
+    pub creator_name: String,
+    pub subject_label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deferred_rationale: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_generation_note: Option<synapse_creator::CreatorGenerationNote>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_annotations: Option<synapse_creator::CreatorAnnotations>,
+}
+
+#[derive(Debug)]
+pub struct BeginReuseCreatorSessionRequest {
+    pub confirmation_id: String,
+    pub session: String,
     pub creator_name: String,
     pub subject_label: String,
 }

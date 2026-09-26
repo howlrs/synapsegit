@@ -168,6 +168,8 @@ const expectedOperations = new Map([
   ["POST /projects/{projectKey}/creator-sessions", ["beginCreatorSession", 4]],
   ["GET /projects/{projectKey}/creator-sessions/{session}/derivations", ["prepareCreatorSource", 4]],
   ["POST /projects/{projectKey}/creator-sessions/{session}/derivations", ["beginDerivedCreatorSession", 4]],
+  ["GET /projects/{projectKey}/creator-sessions/{session}/reuse", ["prepareCreatorReuseSource", 5]],
+  ["POST /projects/{projectKey}/creator-sessions/{session}/reuse", ["beginReuseCreatorSession", 5]],
   ["GET /projects/{projectKey}/creator-sessions/{session}", ["getCreatorSession", 2]],
   [
     "GET /projects/{projectKey}/creator-sessions/{session}/images/{role}",
@@ -291,6 +293,8 @@ const expectedParameters = new Map([
   ["getCreatorSession", ["path:projectKey", "path:session"]],
   ["prepareCreatorSource", ["path:projectKey", "path:session"]],
   ["beginDerivedCreatorSession", ["path:projectKey", "path:session"]],
+  ["prepareCreatorReuseSource", ["path:projectKey", "path:session"]],
+  ["beginReuseCreatorSession", ["path:projectKey", "path:session"]],
   ["getCreatorSessionImage", ["header:X-Synapse-Source-Confirmation", "path:projectKey", "path:role", "path:session"]],
   ["decideCreatorSession", ["path:projectKey", "path:session"]],
   ["getCreatorSessionDiagnostics", ["path:projectKey", "path:session"]],
@@ -379,6 +383,7 @@ function collectSchemaProperties(schema, properties, visitedReferences = new Set
 const expectedWrites = new Map([
   ["preparePresentationSidecar", {mediaType: "application/json", properties: ["creator_display_name", "current_caption", "original_caption", "proposal_agent_display_name", "proposal_caption", "public_decision_note", "session", "session_title", "summary", "title"], required: ["session"]}],
   ["beginDerivedCreatorSession", {mediaType: "multipart/form-data", properties: ["ai_output", "confirmation_id", "creator_name", "generation_intent", "generation_model", "generation_prompt", "generation_tool", "session", "subject_label"], required: ["ai_output", "confirmation_id", "creator_name", "session", "subject_label"]}],
+  ["beginReuseCreatorSession", {mediaType: "application/json", properties: ["confirmation_id", "creator_name", "session", "subject_label"], required: ["confirmation_id", "creator_name", "session", "subject_label"]}],
   [
     "beginCreatorSession",
     {

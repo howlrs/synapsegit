@@ -11,11 +11,12 @@ use tokio::sync::Semaphore;
 
 use crate::handlers::{
     api_archives, api_begin_creator_session, api_begin_derived_creator_session, api_creator_image,
-    api_creator_session, api_creator_session_diagnostics, api_creator_sessions, api_creator_source,
+    api_creator_reuse, api_creator_reuse_source, api_creator_session,
+    api_creator_session_diagnostics, api_creator_sessions, api_creator_source,
     api_decide_creator_session, api_health, api_operation, api_presentation_sidecar,
     api_project_reflog, api_project_refs, api_project_status, api_projects,
     api_start_archive_export, api_start_archive_restore, api_start_fsck, derive_page, index_page,
-    method_not_allowed, not_found, presentation_page, project_page, session_page,
+    method_not_allowed, not_found, presentation_page, project_page, reuse_page, session_page,
 };
 use crate::security::{SecurityPolicy, enforce_local_request};
 use crate::staging::MAX_CREATOR_FILE_AGGREGATE_BYTES;
@@ -108,6 +109,10 @@ pub(crate) fn build_with_identity(
             get(presentation_page),
         )
         .route(
+            "/api/v1/projects/{project_key}/creator-sessions/{session}/reuse",
+            get(api_creator_reuse_source).post(api_creator_reuse),
+        )
+        .route(
             "/api/v1/projects/{project_key}/presentation-sidecars",
             axum::routing::post(api_presentation_sidecar).layer(DefaultBodyLimit::max(128 * 1024)),
         )
@@ -118,6 +123,10 @@ pub(crate) fn build_with_identity(
         .route(
             "/projects/{project_key}/creator-sessions/{session}/derive",
             get(derive_page),
+        )
+        .route(
+            "/projects/{project_key}/creator-sessions/{session}/reuse",
+            get(reuse_page),
         )
         .route(
             "/api/v1/projects/{project_key}/creator-sessions/{session}/derivations",

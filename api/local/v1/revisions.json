@@ -3,6 +3,22 @@
     {
       "version": "0.5.0-draft",
       "sha256": "2dcff4f394abf52fe44892d2b3f1875430ae94a2709beffed6197606426311ab"
+    },
+    {
+      "version": "0.6.0-draft",
+      "sha256": "01664c3690b37f648710811de108cb372eaf170ae90ed202a7c9de7883deddbb"
+    },
+    {
+      "version": "0.6.1-draft",
+      "sha256": "efdb578d18e3e46628761456f024089cccac36341cb572d14a9415a399f1023a"
+    },
+    {
+      "version": "0.6.2-draft",
+      "sha256": "6db6836504b113f34a867d888b2edb130652312e2ccbbff12ae6e177890d9dcb"
+    },
+    {
+      "version": "0.6.3-draft",
+      "sha256": "25fd98c43e0a69cc8cc2e8d7bae23b3831b60873dc73cfeeb9fe597b93acb5f7"
     }
   ]
 }

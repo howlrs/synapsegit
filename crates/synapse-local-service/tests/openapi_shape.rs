@@ -30,6 +30,7 @@
 
 use serde_json::Value;
 use std::fs;
+use synapse_creator::CreatorReuseSourceBinding;
 use synapse_local_service::{
     ArchiveExportRequest, ArchiveList, ArchiveRestoreRequest, ArchiveResult, ArchiveResultKind,
     ArchiveState, ArchiveSummary, CommittedCreatorSession, CommittedState, ComparisonEvidence,
@@ -221,6 +222,7 @@ fn sample_creator_report() -> CreatorReport {
     let commit_oid = |seed: &str| format!("commit:sg-oid-v1:sha256:{}", seed.repeat(64));
     let blob_oid = |seed: &str| format!("blob:sg-oid-v1:sha256:{}", seed.repeat(64));
     CreatorReport {
+        reuse_source: None,
         source: None,
         annotations: None,
         annotations_unavailable: false,
@@ -708,6 +710,8 @@ fn creator_session_detail_complete_variant_matches_the_openapi_schema() {
 fn creator_session_detail_pending_variant_matches_the_openapi_schema() {
     let document = openapi_document();
     let pending = PendingCreatorSession {
+        reuse_source: None,
+        reuse_reference: None,
         source: None,
         generation_note: None,
         state: PendingReviewState::PendingReview,
@@ -736,10 +740,20 @@ fn creator_session_detail_pending_variant_matches_the_openapi_schema() {
 fn creator_session_detail_incomplete_variant_matches_the_openapi_schema() {
     let document = openapi_document();
     let incomplete = IncompleteCreatorSession {
+        reuse_source: Some(CreatorReuseSourceBinding {
+            format: "synapsegit-creator-reuse-source-v1".into(),
+            kind: "interrupted_pending".into(),
+            session: "source-session".into(),
+            proposal_head: format!("commit:sg-oid-v1:sha256:{}", "a".repeat(64)),
+            decision_head: format!("commit:sg-oid-v1:sha256:{}", "b".repeat(64)),
+            original_blob_oid: format!("blob:sg-oid-v1:sha256:{}", "c".repeat(64)),
+            current_blob_oid: format!("blob:sg-oid-v1:sha256:{}", "d".repeat(64)),
+            ai_output_blob_oid: format!("blob:sg-oid-v1:sha256:{}", "e".repeat(64)),
+        }),
         state: IncompleteState::Incomplete,
         snapshot: sample_snapshot(),
         session: "incomplete-session".into(),
-        recovery_supported: false,
+        recovery_supported: true,
         diagnostic: "The proposal Ref is unreachable from the current snapshot.".into(),
     };
     assert_matches_openapi_schema(

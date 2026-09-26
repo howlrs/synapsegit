@@ -106,6 +106,7 @@ pub struct CreatorDecisionOptions {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CreatorPendingReceipt {
     pub source: Option<crate::CreatorSourceBinding>,
+    pub reuse_source: Option<crate::CreatorReuseSourceBinding>,
     pub generation_note: Option<crate::CreatorGenerationNote>,
     pub session: String,
     pub project_id: String,
@@ -209,6 +210,7 @@ pub struct CreatorTimelineEntry {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CreatorReport {
     pub source: Option<crate::CreatorSourceBinding>,
+    pub reuse_source: Option<crate::CreatorReuseSourceBinding>,
     pub source_depth: usize,
     pub annotations: Option<crate::CreatorAnnotations>,
     pub annotations_unavailable: bool,

@@ -20,8 +20,11 @@ use synapse_creator::{
     CreatorRunReceipt as CoreRunReceipt, CreatorSessionState as CoreCreatorSessionState,
     CreatorSnapshotReport, CreatorTimelineEntry as CoreTimelineEntry,
     PendingCreatorSession as CorePendingCreatorSession,
-    begin_creator_session_with_note_existing as core_begin, creator_report_from_snapshot,
-    decide_creator_session_with_annotations as core_decide, discover_creator_sessions,
+    begin_creator_session_with_note_existing as core_begin,
+    begin_creator_session_with_reuse_source_existing, creator_report_from_snapshot,
+    creator_reuse_source_context_from_binding, creator_reuse_source_display_from_snapshot,
+    creator_reuse_source_from_snapshot, decide_creator_session_with_annotations as core_decide,
+    discover_creator_sessions,
 };
 use synapse_sqlite::{
     MAX_REF_SNAPSHOT_ENTRIES, MAX_REFLOG_PAGE_ENTRIES, RefArchiveExportLimits, RefSnapshot,
@@ -170,14 +173,6 @@ impl ServiceError {
         Self::new(
             "creator_session_not_found",
             "The requested creator session was not found.",
-            false,
-        )
-    }
-
-    fn session_incomplete() -> Self {
-        Self::new(
-            "creator_session_incomplete",
-            "The creator session is incomplete and cannot serve this resource.",
             false,
         )
     }
@@ -385,6 +380,7 @@ pub struct LocalService {
     project_writers: BTreeMap<String, Mutex<()>>,
     archive_root: Option<PathBuf>,
     source_confirmations: Mutex<BTreeMap<String, SourceConfirmation>>,
+    reuse_confirmations: Mutex<BTreeMap<String, ReuseSourceConfirmation>>,
 }
 
 impl fmt::Debug for LocalService {
@@ -414,6 +410,7 @@ impl LocalService {
             project_writers,
             archive_root: None,
             source_confirmations: Mutex::new(BTreeMap::new()),
+            reuse_confirmations: Mutex::new(BTreeMap::new()),
         })
     }
 
@@ -869,7 +866,7 @@ impl LocalService {
         request: BeginCreatorSessionRequest,
     ) -> Result<PendingCreatorSession, ServiceError> {
         let _writer = self.acquire_project_writer(project_key)?;
-        self.begin_creator_session_locked(project_key, server_instance, request, None)
+        self.begin_creator_session_locked(project_key, server_instance, request, None, None)
     }
 
     fn begin_creator_session_locked(
@@ -878,6 +875,7 @@ impl LocalService {
         server_instance: &str,
         request: BeginCreatorSessionRequest,
         source: Option<&synapse_creator::CreatorSourceBinding>,
+        reuse_source: Option<&synapse_creator::CreatorReuseSourceBinding>,
     ) -> Result<PendingCreatorSession, ServiceError> {
         validate_begin_request(server_instance, &request)?;
         let repository_path = self.entry(project_key)?.repository_path().to_owned();
@@ -908,13 +906,17 @@ impl LocalService {
             subject_label: request.subject_label,
             creator_name: request.creator_name,
         };
-        let outcome = catch_unwind(AssertUnwindSafe(|| match source {
-            Some(source) => synapse_creator::begin_creator_session_with_source_existing(
+        let outcome = catch_unwind(AssertUnwindSafe(|| match (source, reuse_source) {
+            (Some(source), None) => synapse_creator::begin_creator_session_with_source_existing(
                 &options,
                 request.generation_note.as_ref(),
                 source,
             ),
-            None => core_begin(&options, request.generation_note.as_ref()),
+            (None, Some(source)) => {
+                begin_creator_session_with_reuse_source_existing(&options, source)
+            }
+            (None, None) => core_begin(&options, request.generation_note.as_ref()),
+            (Some(_), Some(_)) => unreachable!("only one source form is allowed"),
         }));
         let (pending, receipt) = match outcome {
             Ok(Ok(pending)) => {
@@ -946,7 +948,8 @@ impl LocalService {
         self.ready_pending(project_key, &snapshot)?
             .into_iter()
             .find(|pending| pending.review_id == review_id)
-            .map(|pending| pending_session(&snapshot, pending))
+            .map(|pending| pending_session(&repository, &snapshot, pending))
+            .transpose()?
             .ok_or_else(ServiceError::outcome_unknown)
     }
 
@@ -1158,7 +1161,14 @@ impl LocalService {
         let snapshot_report = match creator_report_from_snapshot(&repository, &snapshot, session) {
             Ok(report) => report,
             Err(CreatorError::SessionIncomplete(_)) => {
-                return Err(ServiceError::session_incomplete());
+                let source = creator_reuse_source_from_snapshot(&repository, &snapshot, session)
+                    .map_err(creator_error)?;
+                let blob_oid = match role {
+                    ImageRole::Original => source.original_blob_oid,
+                    ImageRole::Current => source.current_blob_oid,
+                    ImageRole::AiOutput => source.ai_output_blob_oid,
+                };
+                return load_creator_image(&repository, blob_oid);
             }
             Err(CreatorError::SessionNotFound(_)) => {
                 return Err(ServiceError::session_not_found());
@@ -1618,7 +1628,7 @@ fn creator_session_from_snapshot_with_pending(
         .cloned()
     {
         return Ok(CreatorSessionDetail::PendingReview(Box::new(
-            pending_session(snapshot, pending),
+            pending_session(repository, snapshot, pending)?,
         )));
     }
     match creator_report_from_snapshot(repository, snapshot, session) {
@@ -1626,9 +1636,12 @@ fn creator_session_from_snapshot_with_pending(
             snapshot,
             snapshot_report,
         )))),
-        Err(CreatorError::SessionIncomplete(_)) => Ok(CreatorSessionDetail::Incomplete(Box::new(
-            incomplete_session(snapshot, session),
-        ))),
+        Err(CreatorError::SessionIncomplete(_)) => {
+            let source = creator_reuse_source_from_snapshot(repository, snapshot, session).ok();
+            Ok(CreatorSessionDetail::Incomplete(Box::new(
+                incomplete_session(snapshot, session, source),
+            )))
+        }
         Err(CreatorError::SessionNotFound(_)) => Err(ServiceError::session_not_found()),
         Err(error) => Err(creator_error(error)),
     }
@@ -1703,9 +1716,35 @@ fn overlay_pending_sessions(
     sessions
 }
 
-fn pending_session(snapshot: &RefSnapshot, pending: ReadyPending) -> PendingCreatorSession {
+fn pending_session(
+    repository: &Repository,
+    snapshot: &RefSnapshot,
+    pending: ReadyPending,
+) -> Result<PendingCreatorSession, ServiceError> {
     let receipt = pending.receipt;
-    PendingCreatorSession {
+    let reuse_reference = receipt.reuse_source.as_ref().map(|binding| {
+        match creator_reuse_source_context_from_binding(repository, binding) {
+            Ok((deferred_rationale, generation_note, annotations)) => {
+                CreatorReuseReferenceContext {
+                    kind: binding.kind.clone(),
+                    unavailable: false,
+                    deferred_rationale,
+                    generation_note,
+                    annotations,
+                }
+            }
+            // Reference text is deliberately non-authoritative.  Surface an
+            // unavailable state instead of substituting current source Refs.
+            Err(_) => CreatorReuseReferenceContext {
+                kind: binding.kind.clone(),
+                unavailable: true,
+                deferred_rationale: None,
+                generation_note: None,
+                annotations: None,
+            },
+        }
+    });
+    Ok(PendingCreatorSession {
         state: PendingReviewState::PendingReview,
         snapshot: snapshot_context(snapshot, None),
         server_instance: pending.server_instance,
@@ -1721,8 +1760,10 @@ fn pending_session(snapshot: &RefSnapshot, pending: ReadyPending) -> PendingCrea
         ai_output_source: "caller_supplied".into(),
         generation_note: receipt.generation_note,
         source: receipt.source,
+        reuse_source: receipt.reuse_source,
+        reuse_reference,
         comparison: comparison_evidence(receipt.comparison),
-    }
+    })
 }
 
 fn core_disposition(decision: CreatorDecision) -> CoreCreatorDisposition {
@@ -2161,12 +2202,17 @@ fn committed_session(receipt: &CoreRunReceipt) -> CommittedCreatorSession {
     }
 }
 
-fn incomplete_session(snapshot: &RefSnapshot, session: &str) -> IncompleteCreatorSession {
+fn incomplete_session(
+    snapshot: &RefSnapshot,
+    session: &str,
+    reuse_source: Option<synapse_creator::CreatorReuseSourceBinding>,
+) -> IncompleteCreatorSession {
     IncompleteCreatorSession {
         state: IncompleteState::Incomplete,
         snapshot: snapshot_context(snapshot, None),
         session: session.to_owned(),
-        recovery_supported: false,
+        recovery_supported: reuse_source.is_some(),
+        reuse_source,
         diagnostic: "The current creator Refs do not form a complete validated session. Automatic resume, cleanup, and history mutation are not supported.".into(),
     }
 }
@@ -2225,6 +2271,7 @@ fn creator_report(snapshot: SnapshotContext, report: CoreCreatorReport) -> Creat
         annotations_unavailable: report.annotations_unavailable,
         generation_note: report.generation_note,
         source: report.source,
+        reuse_source: report.reuse_source,
         original_blob_oid: report.original_blob_oid,
         current_blob_oid: report.current_blob_oid,
         ai_output_blob_oid: report.ai_output_blob_oid,
@@ -2538,6 +2585,7 @@ mod tests {
 
         let pending = CorePendingReceipt {
             source: None,
+            reuse_source: None,
             generation_note: None,
             session: "session".into(),
             project_id: "project-id".into(),
@@ -2669,6 +2717,197 @@ struct SourceConfirmation {
     source: synapse_creator::CreatorSourceBinding,
 }
 
+#[derive(Clone)]
+struct ReuseSourceConfirmation {
+    project_key: String,
+    server_instance: String,
+    source: synapse_creator::CreatorReuseSourceBinding,
+}
+
+impl LocalService {
+    /// Confirm either a durable Defer or a restart-interrupted proposal for a
+    /// new, independent Human review. Active in-process reviews are excluded.
+    pub fn prepare_creator_reuse_source(
+        &self,
+        project_key: &str,
+        session: &str,
+        server_instance: &str,
+    ) -> Result<CreatorReuseSourcePreview, ServiceError> {
+        let repository = self.open_repository(project_key)?;
+        let snapshot = capture_snapshot(&repository)?;
+        if self
+            .ready_pending(project_key, &snapshot)?
+            .iter()
+            .any(|p| p.receipt.session == session)
+        {
+            return Err(ServiceError::review_state_lost());
+        }
+        let (
+            source,
+            creator_name,
+            subject_label,
+            deferred_rationale,
+            source_generation_note,
+            source_annotations,
+        ) = creator_reuse_source_display_from_snapshot(&repository, &snapshot, session)
+            .map_err(creator_error)?;
+        let mut confirmations = self
+            .reuse_confirmations
+            .lock()
+            .map_err(|_| ServiceError::storage())?;
+        confirmations
+            .retain(|_, entry| entry.project_key != project_key || entry.source.session != session);
+        if confirmations.len() >= 64
+            || confirmations
+                .values()
+                .filter(|e| e.project_key == project_key)
+                .count()
+                >= 16
+        {
+            return Err(ServiceError::new(
+                "resource_limit",
+                "Too many source confirmations are retained in this process.",
+                false,
+            ));
+        }
+        let confirmation_id = random_review_id()?;
+        confirmations.insert(
+            confirmation_id.clone(),
+            ReuseSourceConfirmation {
+                project_key: project_key.into(),
+                server_instance: server_instance.into(),
+                source: source.clone(),
+            },
+        );
+        Ok(CreatorReuseSourcePreview {
+            confirmation_id,
+            source,
+            creator_name,
+            subject_label,
+            deferred_rationale,
+            source_generation_note,
+            source_annotations,
+        })
+    }
+
+    pub fn begin_reuse_creator_session(
+        &self,
+        project_key: &str,
+        source_session: &str,
+        server_instance: &str,
+        request: BeginReuseCreatorSessionRequest,
+    ) -> Result<PendingCreatorSession, ServiceError> {
+        self.entry(project_key)?;
+        let _writer = self.acquire_project_writer(project_key)?;
+        let confirmation = self
+            .reuse_confirmations
+            .lock()
+            .map_err(|_| ServiceError::storage())?
+            .get(&request.confirmation_id)
+            .cloned()
+            .ok_or_else(stale_source_confirmation)?;
+        if confirmation.project_key != project_key
+            || confirmation.server_instance != server_instance
+            || confirmation.source.session != source_session
+        {
+            return Err(stale_source_confirmation());
+        }
+        let repository = self.open_repository(project_key)?;
+        let snapshot = capture_snapshot(&repository)?;
+        if self
+            .ready_pending(project_key, &snapshot)?
+            .iter()
+            .any(|p| p.receipt.session == source_session)
+        {
+            return Err(ServiceError::review_state_lost());
+        }
+        let fresh = creator_reuse_source_from_snapshot(&repository, &snapshot, source_session)
+            .map_err(creator_error)?;
+        if fresh != confirmation.source {
+            return Err(stale_source_confirmation());
+        }
+        let staging = SourceImageStaging::new()?;
+        staging.write(
+            "original",
+            &load_creator_image(&repository, fresh.original_blob_oid.clone())?.bytes,
+        )?;
+        staging.write(
+            "current",
+            &load_creator_image(&repository, fresh.current_blob_oid.clone())?.bytes,
+        )?;
+        staging.write(
+            "ai-output",
+            &load_creator_image(&repository, fresh.ai_output_blob_oid.clone())?.bytes,
+        )?;
+        let outcome = self.begin_creator_session_locked(
+            project_key,
+            server_instance,
+            BeginCreatorSessionRequest {
+                generation_note: None,
+                session: request.session,
+                creator_name: request.creator_name,
+                subject_label: request.subject_label,
+                original_image: staging.0.join("original"),
+                current_image: staging.0.join("current"),
+                ai_output: staging.0.join("ai-output"),
+            },
+            None,
+            Some(&confirmation.source),
+        );
+        if outcome.is_ok() {
+            self.reuse_confirmations
+                .lock()
+                .map_err(|_| ServiceError::storage())?
+                .remove(&request.confirmation_id);
+        }
+        outcome
+    }
+
+    pub fn get_creator_reuse_source_image(
+        &self,
+        project_key: &str,
+        session: &str,
+        server_instance: &str,
+        confirmation_id: &str,
+        role: ImageRole,
+    ) -> Result<CreatorImage, ServiceError> {
+        let confirmation = self
+            .reuse_confirmations
+            .lock()
+            .map_err(|_| ServiceError::storage())?
+            .get(confirmation_id)
+            .cloned()
+            .ok_or_else(stale_source_confirmation)?;
+        if confirmation.project_key != project_key
+            || confirmation.server_instance != server_instance
+            || confirmation.source.session != session
+        {
+            return Err(stale_source_confirmation());
+        }
+        let repository = self.open_repository(project_key)?;
+        let snapshot = capture_snapshot(&repository)?;
+        if self
+            .ready_pending(project_key, &snapshot)?
+            .iter()
+            .any(|p| p.receipt.session == session)
+        {
+            return Err(ServiceError::review_state_lost());
+        }
+        if creator_reuse_source_from_snapshot(&repository, &snapshot, session)
+            .map_err(creator_error)?
+            != confirmation.source
+        {
+            return Err(stale_source_confirmation());
+        }
+        let oid = match role {
+            ImageRole::Original => confirmation.source.original_blob_oid,
+            ImageRole::Current => confirmation.source.current_blob_oid,
+            ImageRole::AiOutput => confirmation.source.ai_output_blob_oid,
+        };
+        load_creator_image(&repository, oid)
+    }
+}
+
 impl LocalService {
     /// Capture one verified complete source for an explicit, same-process derivation.
     pub fn prepare_creator_source(
@@ -2793,6 +3032,7 @@ impl LocalService {
                 ai_output: request.ai_output,
             },
             Some(&confirmation.source),
+            None,
         );
         if outcome.is_ok() {
             self.source_confirmations
@@ -2939,7 +3179,7 @@ impl LocalService {
         let report = creator_report_from_snapshot(&repository, &snapshot, &request.session)
             .map_err(creator_error)?
             .report;
-        if report.source.is_some() {
+        if report.source.is_some() || report.reuse_source.is_some() {
             return Err(ServiceError::new(
                 "local_request_denied",
                 "参照画像を再利用した派生セッションは公開形式v1に未対応です。通常のセッションを選択してください。",

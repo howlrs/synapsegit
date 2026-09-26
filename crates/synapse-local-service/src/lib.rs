@@ -20,5 +20,6 @@ pub use service::{
     MAX_PROJECTS, MAX_REFS, ServiceError,
 };
 pub use synapse_creator::{
-    CreatorAnnotations, CreatorGenerationNote, CreatorImageRole, CreatorPin, CreatorSourceBinding,
+    CreatorAnnotations, CreatorGenerationNote, CreatorImageRole, CreatorPin,
+    CreatorReuseSourceBinding, CreatorSourceBinding,
 };

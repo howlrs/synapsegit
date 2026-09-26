@@ -175,6 +175,9 @@ pub(crate) struct SessionPageView {
     pub(crate) rationale: String,
     pub(crate) generation_note: String,
     pub(crate) source: Option<synapse_local_service::CreatorSourceBinding>,
+    pub(crate) reuse_source: Option<synapse_local_service::CreatorReuseSourceBinding>,
+    pub(crate) reuse_available: bool,
+    pub(crate) reuse_reference: Option<synapse_local_service::CreatorReuseReferenceContext>,
     pub(crate) annotations: Vec<synapse_local_service::CreatorPin>,
     pub(crate) annotations_json: String,
     pub(crate) annotations_unavailable: bool,
@@ -238,6 +241,9 @@ impl SessionPageView {
                     annotations_unavailable: false,
                     generation_note: format_generation_note(detail.generation_note.as_ref()),
                     source: detail.source,
+                    reuse_source: detail.reuse_source,
+                    reuse_available: false,
+                    reuse_reference: detail.reuse_reference,
                     selected: "—".into(),
                     fsck_objects: 0,
                     images,
@@ -265,6 +271,17 @@ impl SessionPageView {
                 }
             }
             CreatorSessionDetail::Incomplete(incomplete) => {
+                let reuse_source = incomplete.reuse_source.clone();
+                let reuse_available = incomplete.recovery_supported;
+                let images = reuse_source.as_ref().map_or_else(Vec::new, |source| {
+                    Self::images(
+                        project_key,
+                        session,
+                        &source.original_blob_oid,
+                        &source.current_blob_oid,
+                        &source.ai_output_blob_oid,
+                    )
+                });
                 let (
                     diagnostic,
                     diagnostic_proposal_ref,
@@ -274,7 +291,7 @@ impl SessionPageView {
                 ) = diagnostic.map_or_else(
                     || {
                         (
-                            incomplete.diagnostic,
+                            incomplete_diagnostic_message(reuse_available),
                             "—".into(),
                             "—".into(),
                             "—".into(),
@@ -283,7 +300,7 @@ impl SessionPageView {
                     },
                     |diagnostic| {
                         (
-                            diagnostic.recommended_action,
+                            incomplete_diagnostic_message(reuse_available),
                             diagnostic.proposal_ref.unwrap_or_else(|| "—".into()),
                             diagnostic.proposal_head.unwrap_or_else(|| "—".into()),
                             diagnostic.decision_ref.unwrap_or_else(|| "—".into()),
@@ -294,11 +311,14 @@ impl SessionPageView {
                 Self {
                     complete: false,
                     pending: false,
-                    show_evidence: false,
+                    show_evidence: reuse_available,
                     state_label: "未完了".into(),
                     state_tone: "warning".into(),
-                    state_description: "現在のRefsは完了したCreator sessionを構成していません。"
-                        .into(),
+                    state_description: if reuse_available {
+                        "判断前に中断されたセッションです。記録済みの画像を新しいセッションで確認できます。".into()
+                    } else {
+                        "現在の記録を確認できません。fsckを実行して状態を確認してください。".into()
+                    },
                     ai_output_source: String::new(),
                     review_id: String::new(),
                     decision_url: String::new(),
@@ -310,9 +330,12 @@ impl SessionPageView {
                     annotations_unavailable: false,
                     generation_note: String::new(),
                     source: None,
+                    reuse_source: None,
+                    reuse_available,
+                    reuse_reference: None,
                     selected: "—".into(),
                     fsck_objects: 0,
-                    images: Vec::new(),
+                    images,
                     has_comparison: false,
                     comparison_outcome: String::new(),
                     comparison_warning: String::new(),
@@ -406,6 +429,9 @@ impl SessionPageView {
             rationale: report.rationale.unwrap_or_default(),
             generation_note: format_generation_note(report.generation_note.as_ref()),
             source: report.source,
+            reuse_source: report.reuse_source,
+            reuse_available: report.disposition == "defer",
+            reuse_reference: None,
             annotations: report.annotations.map(|a| a.pins).unwrap_or_default(),
             annotations_json,
             annotations_unavailable: report.annotations_unavailable,
@@ -465,6 +491,15 @@ impl SessionPageView {
                 download_name: format!("{session}-ai-output.bin"),
             },
         ]
+    }
+}
+
+fn incomplete_diagnostic_message(reuse_available: bool) -> String {
+    if reuse_available {
+        "判断前に中断された記録です。記録済みの3画像を確認し、新しいセッションでレビューできます。"
+            .into()
+    } else {
+        "現在の記録を確認できません。fsckを実行して状態を確認してください。".into()
     }
 }
 

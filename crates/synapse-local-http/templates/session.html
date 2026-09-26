@@ -15,6 +15,7 @@
 
 {% if complete %}
 <p><a class="button" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/derive">この記録から次の案を試す</a></p>
+{% if reuse_available %}<p><a class="button button--secondary" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/reuse">保留した提案を改めて判断する</a></p>{% endif %}
 <section class="metric-grid" aria-label="レビュー結果">
   <article class="metric"><span class="metric__label">Disposition</span><strong>{{ disposition }}</strong></article>
   <article class="metric"><span class="metric__label">AI output selected</span><strong>{{ selected }}</strong></article>
@@ -49,6 +50,26 @@
   <p>元のOriginal／Currentのexactなbytesを参照として再利用しました。新しい撮影・観測ではありません。元のAI outputをCurrentへ昇格していません。表示名の一致は同一人物・同一の物理Subjectの証明ではありません。</p>
   <dl class="detail-list"><div><dt>固定したProposal</dt><dd><code>{{ source.proposal_head }}</code></dd></div><div><dt>固定したDecision</dt><dd><code>{{ source.decision_head }}</code></dd></div><div><dt>Original Blob</dt><dd><code>{{ source.original_blob_oid }}</code></dd></div><div><dt>Current Blob</dt><dd><code>{{ source.current_blob_oid }}</code></dd></div></dl>
   <p class="field__hint">派生元リンクは現在のRefsを表示します。この記録は上の固定したheadsへの対応を保持します。</p>
+</section>
+{% endif %}
+
+{% if let Some(source) = reuse_source %}
+<section class="card" aria-labelledby="reuse-source-heading" data-creator-reuse-source>
+  <h2 id="reuse-source-heading">記録済みの提案を引き継ぎました</h2>
+  <p><a href="/projects/{{ project_key }}/creator-sessions/{{ source.session }}">元のセッション {{ source.session }}</a> の3つの画像を確認用に使っています。</p>
+  <p>新しい生成や元の判断の変更ではありません。元の理由とメモは参照用で、新しい判断にはコピーされません。</p>
+  <dl class="detail-list"><div><dt>元のProposal</dt><dd><code>{{ source.proposal_head }}</code></dd></div><div><dt>元のDecision</dt><dd><code>{{ source.decision_head }}</code></dd></div><div><dt>AI output</dt><dd><code>{{ source.ai_output_blob_oid }}</code></dd></div></dl>
+</section>
+{% endif %}
+
+{% if let Some(reference) = reuse_reference %}
+<section class="card" aria-labelledby="reuse-reference-heading" data-creator-reuse-reference>
+  <h2 id="reuse-reference-heading">元の記録（参照のみ）</h2>
+  <p>元の{% if reference.kind == "deferred_rereview" %}保留した{% else %}中断した{% endif %}提案の情報です。新しいセッションのメモ、ピン、理由にはコピーされません。</p>
+  {% if reference.unavailable %}<p role="status">元の参照情報を取得できませんでした。</p>{% endif %}
+  {% if let Some(note) = reference.generation_note %}<h3>元の生成メモ</h3><dl class="detail-list"><div><dt>使用ツール</dt><dd>{{ note.tool }}</dd></div><div><dt>モデル名</dt><dd>{{ note.model }}</dd></div><div><dt>プロンプト</dt><dd>{{ note.prompt }}</dd></div><div><dt>制作意図</dt><dd>{{ note.intent }}</dd></div></dl>{% endif %}
+  {% if let Some(rationale) = reference.deferred_rationale %}<h3>元のDefer理由</h3><p class="decision-rationale">{{ rationale }}</p>{% endif %}
+  {% if let Some(annotations) = reference.annotations %}<h3>元の画像上の判断メモ</h3><ol>{% for pin in annotations.pins %}<li>{{ pin.role.as_str() }} · ({{ pin.x }}, {{ pin.y }}) · {{ pin.note }}</li>{% endfor %}</ol>{% endif %}
 </section>
 {% endif %}
 
@@ -166,12 +187,15 @@
   <div class="notice"><h3>比較情報なし</h3><p>この履歴からbyte identity evidenceは復元できません。</p></div>
   {% endif %}
 </section>
-{% else %}
+{% endif %}
+
+{% if !complete && !pending %}
 <section aria-labelledby="diagnostics-heading">
   <div class="notice" data-tone="warning">
     <h2 id="diagnostics-heading">セッションは未完了です</h2>
     <p>{{ diagnostic }}</p>
-    <p>表示されたRef/headからauthorityを再構築せず、履歴を自動で書き換えたり削除したりもしません。</p>
+    {% if reuse_available %}<p>このセッションの判断は再開できません。記録済みの3画像を引き継いで、新しいセッションでレビューできます。</p>{% else %}<p>このセッションの判断は再開できません。記録済みの画像を引き継いだレビューは現在利用できません。</p>{% endif %}
+    <p>履歴を自動で書き換えたり削除したりはしません。問題が疑われる場合はfsckを実行してください。</p>
   </div>
   <dl class="detail-list" aria-label="Creator session diagnostics">
     <div><dt>Proposal Ref</dt><dd><code>{{ diagnostic_proposal_ref }}</code></dd></div>
@@ -181,6 +205,7 @@
     <div><dt>Automatic resume</dt><dd>サポートされません</dd></div>
     <div><dt>Automatic cleanup</dt><dd>サポートされません</dd></div>
   </dl>
+  {% if reuse_available %}<p><a class="button" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/reuse">この提案を新しいセッションでレビューする</a></p>{% endif %}
 </section>
 {% endif %}
 

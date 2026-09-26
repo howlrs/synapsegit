@@ -1247,6 +1247,135 @@ fn derivation_refuses_stale_source_and_wrong_reference_bytes_before_publication(
 }
 
 #[test]
+fn interrupted_and_deferred_three_blob_sources_are_fresh_and_never_restore_authority() {
+    use synapse_creator::{
+        begin_creator_session_with_reuse_source, creator_reuse_source_from_snapshot,
+    };
+    let temporary = TempDirectory::new();
+    let path = temporary.join("reuse-source");
+    let input = options(&temporary, &path, "interrupted", CreatorDisposition::Defer);
+    let pending = begin_creator_session(&begin_options(&input)).unwrap();
+    let mut repository = Repository::open(&path).unwrap();
+    let snapshot = repository.refs().snapshot().unwrap();
+    let source = creator_reuse_source_from_snapshot(&repository, &snapshot, "interrupted").unwrap();
+    assert_eq!(source.kind, "interrupted_pending");
+    assert_eq!(
+        source.ai_output_blob_oid,
+        pending.receipt().ai_output_blob_oid
+    );
+    drop(pending);
+    let mut next = options(&temporary, &path, "review-again", CreatorDisposition::Adopt);
+    next.original_image = input.original_image.clone();
+    next.current_image = input.current_image.clone();
+    next.ai_output = input.ai_output.clone();
+    let mut fresh =
+        begin_creator_session_with_reuse_source(&begin_options(&next), &source).unwrap();
+    assert_eq!(fresh.receipt().reuse_source, Some(source.clone()));
+    decide_creator_session(
+        &mut fresh,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Adopt,
+            rationale: None,
+        },
+    )
+    .unwrap();
+    let reused_report = creator_report(&path, "review-again").unwrap();
+    assert_eq!(reused_report.reuse_source.as_ref(), Some(&source));
+    assert_eq!(reused_report.source_depth, 1);
+    let complete = options(&temporary, &path, "deferred", CreatorDisposition::Defer);
+    run_creator_session(&complete).unwrap();
+    let snapshot = repository.refs().snapshot().unwrap();
+    let deferred = creator_reuse_source_from_snapshot(&repository, &snapshot, "deferred").unwrap();
+    assert_eq!(deferred.kind, "deferred_rereview");
+    let legacy_root = options(&temporary, &path, "legacy-root", CreatorDisposition::Adopt);
+    run_creator_session(&legacy_root).unwrap();
+    let legacy_source = synapse_creator::CreatorSourceBinding::from_report(
+        &creator_report(&path, "legacy-root").unwrap(),
+    );
+    let mut mixed = options(
+        &temporary,
+        &path,
+        "mixed-derived",
+        CreatorDisposition::Defer,
+    );
+    mixed.original_image = legacy_root.original_image.clone();
+    mixed.current_image = legacy_root.current_image.clone();
+    let mut mixed_pending = synapse_creator::begin_creator_session_with_source(
+        &begin_options(&mixed),
+        None,
+        &legacy_source,
+    )
+    .unwrap();
+    decide_creator_session(
+        &mut mixed_pending,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Defer,
+            rationale: None,
+        },
+    )
+    .unwrap();
+    let mixed_source = creator_reuse_source_from_snapshot(
+        &repository,
+        &repository.refs().snapshot().unwrap(),
+        "mixed-derived",
+    )
+    .unwrap();
+    let mut mixed_reuse = options(
+        &temporary,
+        &path,
+        "mixed-rereview",
+        CreatorDisposition::Adopt,
+    );
+    mixed_reuse.original_image = mixed.original_image.clone();
+    mixed_reuse.current_image = mixed.current_image.clone();
+    mixed_reuse.ai_output = mixed.ai_output.clone();
+    let mut mixed_pending =
+        begin_creator_session_with_reuse_source(&begin_options(&mixed_reuse), &mixed_source)
+            .unwrap();
+    decide_creator_session(
+        &mut mixed_pending,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Adopt,
+            rationale: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        creator_report(&path, "mixed-rereview")
+            .unwrap()
+            .source_depth,
+        2
+    );
+    // Reuse bindings carry typed source-head edges, so archive reachability
+    // must preserve them byte-for-byte through a restore.
+    let archive = temporary.join("reuse-archive");
+    let restored = temporary.join("reuse-restored");
+    repository.export_archive(&archive).unwrap();
+    Repository::restore_archive(&archive, &restored).unwrap();
+    for session in ["review-again", "mixed-rereview"] {
+        assert_eq!(
+            creator_report(&path, session).unwrap(),
+            creator_report(&restored, session).unwrap(),
+            "reuse lineage changed after archive restore for {session}"
+        );
+    }
+    let mut invalid = deferred.clone();
+    invalid.kind = "interrupted_pending".into();
+    assert!(
+        begin_creator_session_with_reuse_source(
+            &begin_options(&options(
+                &temporary,
+                &path,
+                "invalid",
+                CreatorDisposition::Adopt
+            )),
+            &invalid
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn conditional_publication_rechecks_source_head_in_the_writer_transaction() {
     use synapse_sqlite::RefPrecondition;
     let temporary = TempDirectory::new();

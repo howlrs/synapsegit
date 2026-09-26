@@ -76,5 +76,14 @@ completeな派生セッションを含む全件exportも失敗し、bundle出力
 - [生成メモの保存契約](../spec/application/creator-generation-note/v1/README.md)
 - [判断ピンの保存契約](../spec/application/creator-decision-pins/v1/README.md)
 - [派生元の保存契約](../spec/application/creator-source/v1/README.md)
+- [3画像を引き継ぐ再レビューの保存契約](../spec/application/creator-reuse-source/v1/README.md)
 - [CLIとerror code](cli_reference.md)
 - [実装状況と未対応範囲](project_status.md)
+
+## 中断した提案・保留した提案を改めて判断する
+
+再起動後の未完了セッションは元の判断を再開できません。ただしProposalと3画像を検証できる場合は、画面で画像を確認・ダウンロードし、「この提案を新しいセッションでレビューする」を選べます。確認画面で新しいセッション名を入力すると、Original／Current／AI outputを引き継いだ新しいレビューが始まります。
+
+`Defer`で完了したセッションでは「保留した提案を改めて判断する」を選べます。確認画面と新しいレビュー画面では、元の生成メモ、Defer理由、画像上のメモを「参照のみ」として確認できます。新しい判断にはコピーされません。どちらの場合も元のRefと判断は変更せず、確認後に元のheadが変われば作成を拒否します。固定した元の記録を読めないときは、画面がその旨を表示します。
+
+通常のarchive export／restoreはこの関係を保持します。公開形式v1と公開用文章フォームはこのprivateな来歴を表せないため、再レビューしたセッション、またはそれを含む全件exportを拒否します。今回確認したpre-reuse v0.8.1 binaryではarchive restore、fsck、`creator-report`は成功しますが、`creator-report`の出力にはこの関係を表示しません。この版の`creator-report`とlocalhost applicationで固定した来歴を検証・表示してください。古いbinaryは再利用した履歴に対する公開形式v1の拒否も保証しないため、公開前には現在のtoolを使います。
