@@ -222,6 +222,19 @@ fn init_refuses_a_nonempty_nonrepository_directory() {
 }
 
 #[test]
+fn existing_repository_commands_preserve_deep_cas_layout_failures() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repository");
+    Repository::open(&repository_path).unwrap();
+    fs::remove_dir(repository_path.join("cas/objects/blob")).unwrap();
+
+    let output = run(&["fsck", repository_path.to_str().unwrap()]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("schema_invalid"));
+    assert!(!repository_path.join("cas/objects/blob").exists());
+}
+
+#[test]
 fn concurrent_cli_exports_restore_consistent_ref_update_prefixes() {
     const ROUNDS: usize = 16;
     const REF_NAME: &str = "proposal/agent/export-race";

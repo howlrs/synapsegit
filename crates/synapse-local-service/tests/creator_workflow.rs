@@ -204,7 +204,8 @@ fn creator_service_never_recreates_a_removed_repository_during_begin_or_decide()
     let begin_error = service
         .begin_creator_session("project", "instance", begin_request(&temporary, "missing"))
         .unwrap_err();
-    assert_eq!(begin_error.code(), "repository_not_found");
+    assert_eq!(begin_error.code(), "storage_error");
+    assert!(begin_error.retryable());
     assert!(!repository.exists());
 
     fs::create_dir(&repository).unwrap();

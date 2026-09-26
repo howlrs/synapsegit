@@ -8,7 +8,7 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ### Changed
 
-- Existing-repository CLI commands now reject missing, partial, and invalid
+- Existing-repository CLI commands now reject missing or invalid top-level
   repository paths without creating a layout. `synapse init` creates only in a
   missing or empty directory and rejects nonempty nonrepositories; this is a
   Stage 0 breaking change for commands that previously created an empty

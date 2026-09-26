@@ -290,10 +290,21 @@ fn writable_existing_open_requires_a_complete_layout_without_mutation() {
     let refs = invalid_refs.join("refs.sqlite3");
     fs::remove_file(&refs).unwrap();
     fs::write(&refs, b"not sqlite").unwrap();
-    let before = fs::read(&refs).unwrap();
+    let before = filesystem_snapshot(&invalid_refs);
     let error = Repository::open_existing(&invalid_refs).err().unwrap();
     assert!(matches!(error, RepositoryError::RefStore(_)));
-    assert_eq!(fs::read(&refs).unwrap(), before);
+    assert_filesystem_unchanged(&before, &filesystem_snapshot(&invalid_refs));
+
+    let deep_cas = temporary.join("deep-cas");
+    Repository::open(&deep_cas).unwrap();
+    fs::remove_dir(deep_cas.join("cas/objects/blob")).unwrap();
+    let before = filesystem_snapshot(&deep_cas);
+    let error = Repository::open_existing(&deep_cas).err().unwrap();
+    assert!(matches!(
+        error,
+        RepositoryError::Store(StoreError::InvalidStoreLayout { .. })
+    ));
+    assert_filesystem_unchanged(&before, &filesystem_snapshot(&deep_cas));
 }
 
 #[test]

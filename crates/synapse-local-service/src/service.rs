@@ -1912,14 +1912,20 @@ fn load_creator_image(
 }
 
 fn repository_error(error: RepositoryError) -> ServiceError {
-    let code = error.code().to_owned();
-    let retryable = code == "storage_error";
+    let diagnostic = error.to_string();
+    let unavailable = matches!(error, RepositoryError::RepositoryNotFound(_));
+    let code = if unavailable {
+        "storage_error".to_owned()
+    } else {
+        error.code().to_owned()
+    };
+    let retryable = unavailable || code == "storage_error";
     ServiceError::new(
         code,
         "The local project could not be opened for a creator operation.",
         retryable,
     )
-    .with_diagnostic(error.to_string())
+    .with_diagnostic(diagnostic)
 }
 
 fn maintenance_fsck_error(error: RepositoryError) -> ServiceError {
@@ -2326,7 +2332,15 @@ fn ref_store_error(error: RefStoreError) -> ServiceError {
 
 fn creator_error(error: CreatorError) -> ServiceError {
     let diagnostic = error.to_string();
-    let code = error.code().to_owned();
+    let unavailable = matches!(
+        error,
+        CreatorError::Repository(RepositoryError::RepositoryNotFound(_))
+    );
+    let code = if unavailable {
+        "storage_error".to_owned()
+    } else {
+        error.code().to_owned()
+    };
     let detail = match code.as_str() {
         "usage_error" => "The creator request is invalid.",
         "creator_session_exists" => "The creator session already exists.",
@@ -2346,7 +2360,7 @@ fn creator_error(error: CreatorError) -> ServiceError {
         }
         _ => "The creator operation failed.",
     };
-    let retryable = matches!(code.as_str(), "storage_error" | "service_unavailable");
+    let retryable = unavailable || matches!(code.as_str(), "storage_error" | "service_unavailable");
     ServiceError::new(code, detail, retryable).with_diagnostic(diagnostic)
 }
 
