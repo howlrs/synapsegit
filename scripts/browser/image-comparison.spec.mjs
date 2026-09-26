@@ -49,6 +49,15 @@ test("complete session: keyboard open, role selection, aspect-correct zoom, clos
   await viewport.focus();
   await page.keyboard.press("ArrowRight");
   await expect.poll(() => viewport.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  await dialog(page).getByRole("radio", { name: "重ねて表示" }).check();
+  const overlayViewport = page.getByRole("region", { name: "重ねた比較画像の表示領域" });
+  const geometry = await page.locator("[data-synapse-compare-overlay-canvas] image").evaluateAll((images) => images.map((image) => { const b = image.getBoundingClientRect(); return [b.x, b.y, b.width, b.height]; }));
+  expect(geometry[0]).toEqual(geometry[1]);
+  expect(geometry[0].slice(2)).toEqual(dimensions.map((dimension) => dimension * 2));
+  await overlayViewport.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(() => overlayViewport.evaluate((element) => element.scrollLeft)).toBeGreaterThan(0);
+  await dialog(page).getByRole("radio", { name: "並べて表示" }).check();
   await page.getByLabel("比較画像 A", { exact: true }).selectOption("0");
   await expect(compareImages(page).first()).toHaveAttribute("src", await cards(page).first().getAttribute("src"));
   await expect(page.locator("[data-synapse-compare-caption]").first()).toContainText("Original");
@@ -67,8 +76,11 @@ test("complete session: keyboard open, role selection, aspect-correct zoom, clos
   expect(await page.evaluate(() => window.cspViolations)).toEqual([]);
 });
 
-test("matching decoded images overlay at a shared origin with integer opacity", async ({ page, app }) => {
+test("matching decoded images overlay at a shared origin with integer opacity", async ({ page, browser, app }) => {
+  const requests = [];
+  page.on("request", (request) => { if (request.url().includes("/api/")) requests.push(request.method()); });
   await visit(page, app, "transparent");
+  const initialRequests = requests.length;
   await openComparison(page);
   const overlayMode = dialog(page).getByRole("radio", { name: "重ねて表示" });
   await overlayMode.focus();
@@ -77,21 +89,51 @@ test("matching decoded images overlay at a shared origin with integer opacity", 
   await expect(page.getByLabel("比較画像 A", { exact: true })).toBeVisible();
   await page.getByLabel("比較画像 A", { exact: true }).selectOption("0");
   await expect(page.locator("[data-synapse-compare-overlay-caption]")).toContainText("Original を下");
+  await dialog(page).getByLabel("表示倍率", { exact: true }).selectOption("1");
+  const pixelPage = await browser.newPage();
   const slider = dialog(page).getByLabel(/画像 B の不透明度/);
   for (const [value, opacity] of [["0", "0"], ["37", "0.37"], ["50", "0.5"], ["100", "1"]]) {
     await slider.fill(value);
     await expect(slider).toHaveAttribute("aria-valuenow", value);
     await expect(page.locator("[data-synapse-compare-opacity-value]")).toHaveText(`${value}%`);
     await expect(page.locator("[data-synapse-compare-overlay-image-b]")).toHaveAttribute("opacity", opacity);
+    // Sample the actual browser rendering, independently of the presentation attribute.
+    const screenshot = await page.locator("[data-synapse-compare-overlay-canvas]").screenshot();
+    const pixels = await pixelPage.evaluate(async (encoded) => {
+      const image = new Image();
+      image.src = `data:image/png;base64,${encoded}`;
+      await image.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = image.width;
+      canvas.height = image.height;
+      const context = canvas.getContext("2d");
+      context.drawImage(image, 0, 0);
+      return [16, 48].map((x) => [...context.getImageData(x, 16, 1, 1).data]);
+    }, screenshot.toString("base64"));
+    expect(pixels[0]).toEqual([255, 0, 0, 255]); // Transparent B preserves red A.
+    for (const [channel, expected] of [[0, 255 * (1 - Number(opacity))], [1, 0], [2, 255 * Number(opacity)]]) {
+      expect(Math.abs(pixels[1][channel] - expected)).toBeLessThanOrEqual(1);
+    }
   }
+  await pixelPage.close();
+  await slider.focus();
+  await page.keyboard.press("Home");
+  await expect(slider).toHaveValue("0");
+  await page.keyboard.press("ArrowRight");
+  await expect(slider).toHaveValue("1");
   await expect(page.locator("[data-synapse-compare-overlay-caption]")).toContainText("位置合わせ・差分解析は行いません");
   await dialog(page).getByLabel("表示倍率", { exact: true }).selectOption("2");
-  await expect(page.locator("[data-synapse-compare-overlay-canvas]")).toHaveAttribute("width", "2");
+  await expect(page.locator("[data-synapse-compare-overlay-canvas]")).toHaveAttribute("width", "128");
+  const layers = await page.locator("[data-synapse-compare-overlay-canvas] image").evaluateAll((images) => images.map((image) => { const b = image.getBoundingClientRect(); return [b.x, b.y, b.width, b.height]; }));
+  expect(layers[0]).toEqual(layers[1]);
+  expect(layers[0].slice(2)).toEqual([128, 64]);
   await page.keyboard.press("Escape");
   await expect(opener(page)).toBeFocused();
   await openComparison(page);
   await expect(slider).toHaveValue("50");
   await expect(slider).toHaveAttribute("aria-valuenow", "50");
+  expect(requests.length).toBe(initialRequests);
+  expect(requests.every((method) => method === "GET")).toBe(true);
 });
 
 test("different decoded dimensions keep the side-by-side comparison available", async ({ page, app }) => {
@@ -118,6 +160,9 @@ test("mobile, dark and reduced motion: visible controls, modal focus and automat
     await page.keyboard.press("Tab");
     expect(await page.evaluate(() => document.activeElement === document.body || document.querySelector("dialog").contains(document.activeElement))).toBe(true);
   }
+  await dialog(page).getByRole("radio", { name: "重ねて表示" }).check();
+  await expect(dialog(page).getByLabel(/画像 B の不透明度/)).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   const results = await new AxeBuilder({ page }).include("#image-comparison").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(results.violations).toEqual([]);
   await page.keyboard.press("Escape");
@@ -166,11 +211,13 @@ test("attachment-only roles never enter comparison and broken rasters show actio
 test("page lifecycle releases comparison sources and re-fetches after a persisted restore", async ({ page, app }) => {
   await visit(page, app);
   await openComparison(page);
+  await dialog(page).getByRole("radio", { name: "重ねて表示" }).check();
   const oldUrls = await cards(page).evaluateAll((images) => images.map((image) => image.src));
   await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true })));
   await expect(dialog(page)).not.toBeVisible();
   await expect(page.locator("[data-synapse-compare-image][src]")).toHaveCount(0);
   await expect(page.locator("img[data-synapse-image][src]")).toHaveCount(0);
+  await expect(page.locator("[data-synapse-compare-overlay-canvas] image[href]")).toHaveCount(0);
   await expect(opener(page)).toBeDisabled();
   await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
   await openComparison(page);

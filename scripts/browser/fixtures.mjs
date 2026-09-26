@@ -20,17 +20,20 @@ async function appFixture({ archives = false }, use) {
       const opaque = path.join(directory, "opaque.txt");
       const broken = path.join(directory, "broken.png");
       const transparent = path.join(directory, "transparent.png");
+      const red = path.join(directory, "red.png");
       const archiveRoot = path.join(directory, "archives");
       if (archives) await mkdir(archiveRoot);
       await writeFile(opaque, "opaque attachment, not an image");
       await writeFile(broken, Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0]));
-      await writeFile(transparent, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScL/AAAAAElFTkSuQmCC", "base64"));
+      // 64x32 RGBA: solid red A and blue B whose left half is fully transparent.
+      await writeFile(red, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAWElEQVR4nO3QMREAMBDDsPAn/YWhoR60+7zb7mfTAVoDdIDWAB2gNUAHaA3QAVoDdIDWAB2gNUAHaA3QAVoDdIDWAB2gNUAHaA3QAVoDdIDWAB2gNUAHaA8g8vDiJft7OwAAAABJRU5ErkJggg==", "base64"));
+      await writeFile(transparent, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAQUlEQVR4nO3QMQ0AAAwDoPo33alY+nBggCTNWLcEzAkQIECAAAECBAgQIECAAAECBAgQIECAAAECBAgQIECAgG8Hmy/0pnlzDEEAAAAASUVORK5CYII=", "base64"));
       const cli = (...args) => execFileSync(path.join(binaries, "synapse"), args, { encoding: "utf8" });
       for (const [key, files] of [
         ["complete", [original, current, output]],
         ["mixed", [original, opaque, output]],
         ["broken", [broken, opaque, broken]],
-        ["transparent", [transparent, transparent, transparent]],
+        ["transparent", [red, red, transparent]],
         ["mismatch", [original, current, mismatchedOutput]],
       ]) {
         cli("creator-run", path.join(directory, key), "sample", ...files,
