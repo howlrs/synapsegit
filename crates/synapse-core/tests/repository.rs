@@ -292,7 +292,7 @@ fn writable_existing_open_requires_a_complete_layout_without_mutation() {
     fs::write(&refs, b"not sqlite").unwrap();
     let before = fs::read(&refs).unwrap();
     let error = Repository::open_existing(&invalid_refs).err().unwrap();
-    assert!(matches!(error, RepositoryError::RepositoryNotFound(path) if path == invalid_refs));
+    assert!(matches!(error, RepositoryError::RefStore(_)));
     assert_eq!(fs::read(&refs).unwrap(), before);
 }
 

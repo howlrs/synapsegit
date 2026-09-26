@@ -143,6 +143,7 @@ pub struct PendingCreatorSession {
     comparison_status: AnalysisStatus,
     comparison_comparability: AnalysisComparability,
     recording_clock: RecordingClock,
+    require_existing_repository: bool,
     decision_state: PendingDecisionState,
 }
 
@@ -213,22 +214,47 @@ pub(crate) fn begin_creator_session_with_limits(
     options: &CreatorBeginOptions,
     fsck_limits: FsckLimits,
 ) -> Result<PendingCreatorSession> {
-    begin_creator_session_with_note_and_limits(options, None, fsck_limits)
+    begin_creator_session_with_note_and_limits(options, None, fsck_limits, false)
+}
+
+/// Begin a session only in an existing complete repository.
+///
+/// This is for long-running hosts that have already admitted an existing
+/// project path and must never recreate it after a filesystem change.
+pub fn begin_creator_session_existing(
+    options: &CreatorBeginOptions,
+) -> Result<PendingCreatorSession> {
+    begin_creator_session_with_note_and_limits(options, None, CREATOR_FSCK_LIMITS, true)
 }
 
 pub fn begin_creator_session_with_note(
     options: &CreatorBeginOptions,
     note: Option<&crate::CreatorGenerationNote>,
 ) -> Result<PendingCreatorSession> {
-    begin_creator_session_with_note_and_limits(options, note, CREATOR_FSCK_LIMITS)
+    begin_creator_session_with_note_and_limits(options, note, CREATOR_FSCK_LIMITS, false)
+}
+
+/// Begin a noted session only in an existing complete repository.
+pub fn begin_creator_session_with_note_existing(
+    options: &CreatorBeginOptions,
+    note: Option<&crate::CreatorGenerationNote>,
+) -> Result<PendingCreatorSession> {
+    begin_creator_session_with_note_and_limits(options, note, CREATOR_FSCK_LIMITS, true)
 }
 
 fn begin_creator_session_with_note_and_limits(
     options: &CreatorBeginOptions,
     note: Option<&crate::CreatorGenerationNote>,
     fsck_limits: FsckLimits,
+    require_existing_repository: bool,
 ) -> Result<PendingCreatorSession> {
-    begin_creator_session_with_source_and_limits(options, note, None, fsck_limits)
+    begin_creator_session_with_source_and_limits(
+        options,
+        note,
+        None,
+        fsck_limits,
+        require_existing_repository,
+    )
 }
 
 /// Begin with exact reference images from a verified complete session in this repository.
@@ -237,7 +263,28 @@ pub fn begin_creator_session_with_source(
     note: Option<&crate::CreatorGenerationNote>,
     source: &crate::CreatorSourceBinding,
 ) -> Result<PendingCreatorSession> {
-    begin_creator_session_with_source_and_limits(options, note, Some(source), CREATOR_FSCK_LIMITS)
+    begin_creator_session_with_source_and_limits(
+        options,
+        note,
+        Some(source),
+        CREATOR_FSCK_LIMITS,
+        false,
+    )
+}
+
+/// Begin a derived session only in an existing complete repository.
+pub fn begin_creator_session_with_source_existing(
+    options: &CreatorBeginOptions,
+    note: Option<&crate::CreatorGenerationNote>,
+    source: &crate::CreatorSourceBinding,
+) -> Result<PendingCreatorSession> {
+    begin_creator_session_with_source_and_limits(
+        options,
+        note,
+        Some(source),
+        CREATOR_FSCK_LIMITS,
+        true,
+    )
 }
 
 fn begin_creator_session_with_source_and_limits(
@@ -245,6 +292,7 @@ fn begin_creator_session_with_source_and_limits(
     note: Option<&crate::CreatorGenerationNote>,
     source: Option<&crate::CreatorSourceBinding>,
     fsck_limits: FsckLimits,
+    require_existing_repository: bool,
 ) -> Result<PendingCreatorSession> {
     if let Some(note) = note {
         note.validate()?;
@@ -265,9 +313,10 @@ fn begin_creator_session_with_source_and_limits(
     )?;
     let decision_ref = decision_ref(&options.session);
     let proposal_ref = proposal_ref(&options.session);
-    let mut repository = Repository::open_with_tombstone_scan_limits(
+    let mut repository = open_creator_repository(
         &options.repository,
         fsck_limits.tombstone_scan,
+        require_existing_repository,
     )?;
     let existing_decision = repository.refs().get(&decision_ref)?;
     let existing_proposal = repository.refs().get(&proposal_ref)?;
@@ -759,6 +808,7 @@ fn begin_creator_session_with_source_and_limits(
         comparison_status: comparison.status,
         comparison_comparability: comparison.comparability,
         recording_clock,
+        require_existing_repository,
         decision_state: PendingDecisionState::Ready,
     };
     Ok(pending)
@@ -839,9 +889,10 @@ fn decide_creator_session_with_annotations_and_limits(
         .as_deref()
         .unwrap_or_else(|| decision.disposition.default_rationale());
     let decision_recorded_at = pending.recording_clock.tick()?;
-    let repository = Repository::open_with_tombstone_scan_limits(
+    let repository = open_creator_repository(
         &pending.repository_path,
         fsck_limits.tombstone_scan,
+        pending.require_existing_repository,
     )?;
     let preflight = repository.fsck_with_limits(decision_admission_limits)?;
     if !preflight.is_clean() {
@@ -968,7 +1019,11 @@ fn decide_creator_session_with_annotations_and_limits(
     }
     pending.decision_state = PendingDecisionState::Consumed(Box::new(completed.clone()));
 
-    let repository = Repository::open(&pending.repository_path)?;
+    let repository = if pending.require_existing_repository {
+        Repository::open_existing(&pending.repository_path)?
+    } else {
+        Repository::open(&pending.repository_path)?
+    };
     let fsck = repository.fsck_with_limits(fsck_limits)?;
     if !fsck.is_clean() {
         return Err(CreatorError::Integrity(format!(
@@ -1006,6 +1061,24 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
             .expect("completed receipt was just observed")
             .clone()),
         Err(error) => Err(error),
+    }
+}
+
+fn open_creator_repository(
+    path: &Path,
+    tombstone_scan_limits: TombstoneScanLimits,
+    require_existing_repository: bool,
+) -> Result<Repository> {
+    if require_existing_repository {
+        Ok(Repository::open_existing_with_tombstone_scan_limits(
+            path,
+            tombstone_scan_limits,
+        )?)
+    } else {
+        Ok(Repository::open_with_tombstone_scan_limits(
+            path,
+            tombstone_scan_limits,
+        )?)
     }
 }
 

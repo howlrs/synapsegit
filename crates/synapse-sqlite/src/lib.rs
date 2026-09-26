@@ -423,7 +423,7 @@ impl SqliteRefStore {
         }
         let path = std::fs::canonicalize(requested)
             .map_err(|_| rusqlite::Error::InvalidPath(requested.to_path_buf()))?;
-        let connection = Connection::open(&path)?;
+        let connection = Connection::open_with_flags(&path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
         connection.busy_timeout(Duration::from_secs(10))?;
         connection.pragma_update(None, "foreign_keys", "ON")?;
         connection.pragma_update(None, "synchronous", "FULL")?;

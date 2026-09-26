@@ -20,7 +20,7 @@ use synapse_creator::{
     CreatorRunReceipt as CoreRunReceipt, CreatorSessionState as CoreCreatorSessionState,
     CreatorSnapshotReport, CreatorTimelineEntry as CoreTimelineEntry,
     PendingCreatorSession as CorePendingCreatorSession,
-    begin_creator_session_with_note as core_begin, creator_report_from_snapshot,
+    begin_creator_session_with_note_existing as core_begin, creator_report_from_snapshot,
     decide_creator_session_with_annotations as core_decide, discover_creator_sessions,
 };
 use synapse_sqlite::{
@@ -909,7 +909,7 @@ impl LocalService {
             creator_name: request.creator_name,
         };
         let outcome = catch_unwind(AssertUnwindSafe(|| match source {
-            Some(source) => synapse_creator::begin_creator_session_with_source(
+            Some(source) => synapse_creator::begin_creator_session_with_source_existing(
                 &options,
                 request.generation_note.as_ref(),
                 source,

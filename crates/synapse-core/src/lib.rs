@@ -321,24 +321,25 @@ impl Repository {
     /// unchanged.
     pub fn open_existing(root: impl AsRef<Path>) -> Result<Self> {
         let requested = root.as_ref();
-        let metadata = fs::metadata(requested)
-            .map_err(|_| RepositoryError::RepositoryNotFound(requested.to_path_buf()))?;
+        let metadata = match fs::metadata(requested) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Err(RepositoryError::RepositoryNotFound(requested.to_path_buf()));
+            }
+            Err(error) => return Err(RepositoryError::io("inspect repository", requested, error)),
+        };
         if !metadata.is_dir() {
             return Err(RepositoryError::RepositoryNotFound(requested.to_path_buf()));
         }
-        let root = fs::canonicalize(requested)
-            .map_err(|_| RepositoryError::RepositoryNotFound(requested.to_path_buf()))?;
+        let root = fs::canonicalize(requested).map_err(|error| {
+            RepositoryError::io("canonicalize existing repository", requested, error)
+        })?;
         let cas = root.join("cas");
         let refs = root.join("refs.sqlite3");
-        if !fs::metadata(&cas).is_ok_and(|metadata| metadata.is_dir())
-            || !fs::metadata(&refs).is_ok_and(|metadata| metadata.is_file())
-        {
-            return Err(RepositoryError::RepositoryNotFound(requested.to_path_buf()));
-        }
-        let objects = FileObjectStore::open_existing(&cas)
-            .map_err(|_| RepositoryError::RepositoryNotFound(requested.to_path_buf()))?;
-        let refs = SqliteRefStore::open_existing(&refs)
-            .map_err(|_| RepositoryError::RepositoryNotFound(requested.to_path_buf()))?;
+        require_repository_directory(&cas, requested)?;
+        require_repository_file(&refs, requested)?;
+        let objects = FileObjectStore::open_existing(&cas)?;
+        let refs = SqliteRefStore::open_existing(&refs)?;
         Ok(Self {
             root,
             objects,
@@ -347,6 +348,17 @@ impl Repository {
             tombstone_scan_limits: TombstoneScanLimits::default(),
             read_only: false,
         })
+    }
+
+    /// Open an existing writable repository with a caller-owned Tombstone
+    /// scan limit, without creating any repository path.
+    pub fn open_existing_with_tombstone_scan_limits(
+        root: impl AsRef<Path>,
+        tombstone_scan_limits: TombstoneScanLimits,
+    ) -> Result<Self> {
+        let mut repository = Self::open_existing(root)?;
+        repository.tombstone_scan_limits = tombstone_scan_limits;
+        Ok(repository)
     }
 
     /// Open an existing repository without creating or modifying source paths.
@@ -1131,6 +1143,36 @@ impl Repository {
             ObjectKind::Blob => self.objects.limits().max_blob_bytes,
             _ => self.objects.limits().structured.max_input_bytes as u64,
         })
+    }
+}
+
+fn require_repository_directory(path: &Path, requested: &Path) -> Result<()> {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_dir() => Ok(()),
+        Ok(_) => Err(RepositoryError::RepositoryNotFound(requested.to_path_buf())),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            Err(RepositoryError::RepositoryNotFound(requested.to_path_buf()))
+        }
+        Err(error) => Err(RepositoryError::io(
+            "inspect repository layout",
+            path,
+            error,
+        )),
+    }
+}
+
+fn require_repository_file(path: &Path, requested: &Path) -> Result<()> {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() => Ok(()),
+        Ok(_) => Err(RepositoryError::RepositoryNotFound(requested.to_path_buf())),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            Err(RepositoryError::RepositoryNotFound(requested.to_path_buf()))
+        }
+        Err(error) => Err(RepositoryError::io(
+            "inspect repository layout",
+            path,
+            error,
+        )),
     }
 }
 

@@ -229,6 +229,17 @@ fn read_only_open_does_not_create_a_missing_database() {
 }
 
 #[test]
+fn writable_existing_open_does_not_create_a_missing_database() {
+    let temporary = TestDirectory::new("missing-writable-existing");
+    let path = temporary.database_path();
+    assert!(
+        SqliteRefStore::open_existing(&path).is_err(),
+        "writable existing open must require an existing database"
+    );
+    assert!(!path.exists());
+}
+
+#[test]
 fn read_only_open_rejects_source_one_byte_over_snapshot_limit_without_touching_it() {
     let temporary = TestDirectory::new("oversized-read-only");
     let path = temporary.database_path();

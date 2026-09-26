@@ -195,6 +195,37 @@ fn begin_overlays_ready_state_and_decide_rebuilds_a_complete_report() {
 }
 
 #[test]
+fn creator_service_never_recreates_a_removed_repository_during_begin_or_decide() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let service = service(&repository);
+    fs::remove_dir_all(&repository).unwrap();
+
+    let begin_error = service
+        .begin_creator_session("project", "instance", begin_request(&temporary, "missing"))
+        .unwrap_err();
+    assert_eq!(begin_error.code(), "repository_not_found");
+    assert!(!repository.exists());
+
+    fs::create_dir(&repository).unwrap();
+    Repository::open(&repository).unwrap();
+    let pending = service
+        .begin_creator_session("project", "instance", begin_request(&temporary, "removed"))
+        .unwrap();
+    fs::remove_dir_all(&repository).unwrap();
+    let decision_error = service
+        .decide_creator_session(
+            "project",
+            "removed",
+            "instance",
+            decision(pending.review_id, CreatorDecision::Adopt),
+        )
+        .unwrap_err();
+    assert_eq!(decision_error.code(), "storage_error");
+    assert!(!repository.exists());
+}
+
+#[test]
 fn rejected_inputs_and_wrong_bindings_leave_the_ready_review_available() {
     let temporary = TempDirectory::new();
     let repository = temporary.directory("repository");

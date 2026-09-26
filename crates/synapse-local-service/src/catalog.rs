@@ -217,14 +217,18 @@ impl ProjectCatalog {
 
 fn canonical_directory(registration: &ProjectRegistration) -> Result<PathBuf, CatalogError> {
     let metadata = fs::metadata(&registration.repository_path).map_err(|error| {
-        CatalogError::new(
-            "storage_error",
+        let detail = if error.kind() == std::io::ErrorKind::NotFound {
             format!(
                 "repository path for project {:?} does not exist",
                 registration.project_key
-            ),
-        )
-        .with_diagnostic(format!(
+            )
+        } else {
+            format!(
+                "repository path for project {:?} could not be inspected",
+                registration.project_key
+            )
+        };
+        CatalogError::new("storage_error", detail).with_diagnostic(format!(
             "{}: {error}",
             registration.repository_path.display()
         ))
@@ -236,7 +240,8 @@ fn canonical_directory(registration: &ProjectRegistration) -> Result<PathBuf, Ca
                 "repository path for project {:?} is not a directory",
                 registration.project_key
             ),
-        ));
+        )
+        .with_diagnostic(registration.repository_path.display().to_string()));
     }
     fs::canonicalize(&registration.repository_path).map_err(|error| {
         CatalogError::new(

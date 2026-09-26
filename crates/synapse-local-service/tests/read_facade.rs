@@ -169,6 +169,7 @@ fn catalog_rejects_missing_file_and_nonempty_nonrepository_paths_without_writing
     let file_error = LocalService::new([registration("project", "Project", &file)]).unwrap_err();
     assert_eq!(file_error.code(), "local_request_denied");
     assert!(file_error.to_string().contains("not a directory"));
+    assert!(file_error.to_string().contains(file.to_str().unwrap()));
 
     let nonrepository = temporary.directory("nonrepository");
     fs::write(nonrepository.join("keep.txt"), b"keep").unwrap();

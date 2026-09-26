@@ -6,8 +6,8 @@ use synapse_creator::{
     AnalysisComparability, AnalysisStatus, ByteIdentityOutcome, CreatorBeginOptions,
     CreatorDecisionOptions, CreatorDisposition, CreatorError, CreatorPendingDecisionState,
     CreatorRunOptions, CreatorSessionState, PreparedCreatorReportReader, begin_creator_session,
-    creator_report, creator_report_from_snapshot, decide_creator_session,
-    discover_creator_sessions, run_creator_session,
+    begin_creator_session_existing, creator_report, creator_report_from_snapshot,
+    decide_creator_session, discover_creator_sessions, run_creator_session,
 };
 use synapse_projection::{ProjectionLimits, SqliteProjectionStore};
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
@@ -169,6 +169,35 @@ fn creator_workflow_pauses_with_same_process_authority_until_human_decision() {
         .snapshot()
         .unwrap();
     assert_eq!(snapshot_after_retry, snapshot_before_retry);
+}
+
+#[test]
+fn existing_creator_session_never_recreates_a_removed_repository() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repo");
+    let run = options(
+        &temporary,
+        &repository_path,
+        "existing-only",
+        CreatorDisposition::Adopt,
+    );
+    let missing = begin_creator_session_existing(&begin_options(&run)).unwrap_err();
+    assert!(matches!(missing, CreatorError::Repository(_)));
+    assert!(!repository_path.exists());
+
+    Repository::open(&repository_path).unwrap();
+    let mut pending = begin_creator_session_existing(&begin_options(&run)).unwrap();
+    fs::remove_dir_all(&repository_path).unwrap();
+    let error = decide_creator_session(
+        &mut pending,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Adopt,
+            rationale: None,
+        },
+    )
+    .unwrap_err();
+    assert!(matches!(error, CreatorError::Repository(_)));
+    assert!(!repository_path.exists());
 }
 
 impl Drop for TempDirectory {
