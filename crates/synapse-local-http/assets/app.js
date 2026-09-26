@@ -1647,6 +1647,7 @@ function enhanceCreatorPins(root = document) {
 
 function start() {
   document.documentElement.classList.add("has-js");
+  preserveLanguageSwitchQuery();
   enhancePresentationForm();
   enhanceCreatorPins();
   enhanceApiForms();
@@ -1655,6 +1656,20 @@ function start() {
   enhanceImageComparison();
   enhanceApiImages();
   enhanceImportInbox();
+}
+
+// The server removes only `lang` while preserving other page parameters. A
+// relative `?lang=en` link would discard those parameters before that rule can
+// run, so merge the current page query into each explicit language choice.
+function preserveLanguageSwitchQuery() {
+  const current = new URL(window.location.href);
+  for (const link of document.querySelectorAll(".language-switch a[hreflang]")) {
+    const locale = link.getAttribute("hreflang");
+    if (locale !== "ja" && locale !== "en") continue;
+    const destination = new URL(current);
+    destination.searchParams.set("lang", locale);
+    link.setAttribute("href", `${destination.pathname}${destination.search}${destination.hash}`);
+  }
 }
 
 if (document.readyState === "loading") {

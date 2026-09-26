@@ -59,15 +59,16 @@ test("English selection persists through import, decision, recorded rationale, a
   await expect(page.locator("[data-decision-rationale]")).toHaveText("The English rationale is retained after recording.");
 });
 
-test("the explicit language choice takes priority and preserves the path", async ({ page, app }) => {
-  await page.goto(`${app.origin}/projects/complete?lang=en`);
+test("the explicit language choice takes priority and preserves unrelated page parameters", async ({ page, app }) => {
+  await page.goto(`${app.origin}/projects/complete?filter=complete&lang=en`);
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
-  await expect(page).toHaveURL(`${app.origin}/projects/complete`);
-  await page.goto(`${app.origin}/projects/complete`);
+  await expect(page).toHaveURL(`${app.origin}/projects/complete?filter=complete`);
+  await expect(page.getByRole("link", { name: "日本語", exact: true })).toHaveAttribute("href", "/projects/complete?filter=complete&lang=ja");
+  await page.goto(`${app.origin}/projects/complete?filter=complete`);
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await page.getByRole("link", { name: "日本語", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("lang", "ja");
-  await expect(page).toHaveURL(`${app.origin}/projects/complete`);
+  await expect(page).toHaveURL(`${app.origin}/projects/complete?filter=complete`);
 });
 
 for (const [button, disposition, description, outcome] of [
