@@ -18,6 +18,7 @@ test("project dashboard keeps creation first and filters readable session summar
   await page.getByLabel("状態・判断で絞り込む").selectOption("defer");
   await expect(page.locator("[data-creator-session-row]:visible")).toHaveCount(1);
   await expect(page.locator("[data-creator-session-count]")).toHaveText("1 件");
+  await expect(page.locator("[data-creator-session-row]")).toContainText("Browser tester");
   await page.setViewportSize({ width: 360, height: 800 });
   await expect(page.getByLabel("状態・判断で絞り込む")).toBeVisible();
   const results = await new AxeBuilder({ page }).include("#main").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();

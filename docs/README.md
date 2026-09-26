@@ -42,7 +42,8 @@ identity mapping、GitHub App、hosted serviceは[separate roadmap](./generic_ar
 single-user／loopback-onlyのcreator-facing image applicationはarchitectureとversioned HTTP contractに加え、
 slices 1-4/6、slice 7のbounded `fsck`／job基盤、slice 8のread-only diagnostics部分のsafe facade、
 server、route、UIまで実装されている。project status、Refs／reflog、creator sessionの
-report／timeline／evidence／画像を閲覧でき、boundedな三file import、same-process Human review、project keyの
+report／timeline／evidence／画像を閲覧できる。プロジェクトでは未検証の概要を最大200件まで表示し、
+レビュー待ちと最近の履歴を探し、状態／判断で絞り込める。boundedな三file import、same-process Human review、project keyの
 明示確認を伴うbackground `fsck`を実行できる。incomplete sessionではcurrent creator Ref／headと推奨actionを
 表示するが、resume、cleanup、history書換えは行わない。archive listはbounded read-only API／UI（`GET /archives`、
 `--archive-root`起動flag指定時のみ有効）としてtagged v0.6.0 binaryに含まれる。

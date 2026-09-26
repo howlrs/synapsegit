@@ -635,7 +635,7 @@ function enhanceCreatorSessionFilter(root = document) {
         || (selected === "pending" && row.dataset.state === "レビュー待ち")
         || (selected === "complete" && row.dataset.state === "完了")
         || (selected === "incomplete" && row.dataset.state === "未完了")
-        || row.dataset.disposition.toLowerCase() === selected;
+        || (row.dataset.disposition || "").toLowerCase() === selected;
       row.hidden = !matches;
       visible += Number(matches);
     }

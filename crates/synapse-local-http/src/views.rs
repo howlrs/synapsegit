@@ -557,6 +557,7 @@ pub(crate) struct SessionSummaryView {
     pub(crate) recorded_at: String,
     pub(crate) recorded_time_basis: String,
     pub(crate) source_session: String,
+    pub(crate) creator_name: String,
 }
 
 pub(crate) struct ImageView {

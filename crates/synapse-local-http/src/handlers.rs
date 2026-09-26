@@ -1197,6 +1197,9 @@ pub(crate) async fn project_page(
         .sessions
         .into_iter()
         .map(|session| SessionSummaryView {
+            creator_name: session
+                .creator_name
+                .unwrap_or_else(|| "取得できません".into()),
             session: session.session,
             state_label: session_state_label(session.state),
             tone: session_state_tone(session.state),

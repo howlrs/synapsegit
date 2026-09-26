@@ -126,7 +126,7 @@
 
 <section class="project-sessions" aria-labelledby="sessions-heading" data-creator-session-list>
   <div class="section-heading"><h2 id="sessions-heading">セッション</h2><span class="badge" data-creator-session-count>{{ sessions.len() }} 件</span></div>
-  <p class="field__hint">未検証の概要です。最近のRef更新順で上位200件を表示し、各行は最大6個の構造化CAS readだけで補足します。取得できない項目や日時は推測で埋めません。詳細と理由は各セッション画面で検証して確認します。</p>
+  <p class="field__hint">レビュー待ちを優先し、履歴の更新が新しい順に最大200件を表示します。概要は未検証です。取得できない項目は推測せず、セッションを開いて詳細を検証・確認できます。記録日時は制作時刻を証明するものではありません。</p>
   <label class="field"><span>状態・判断で絞り込む</span><select data-creator-session-filter><option value="all">すべて</option><option value="pending">レビュー待ち</option><option value="complete">完了</option><option value="adopt">Adopt</option><option value="reject">Reject</option><option value="defer">Defer</option><option value="incomplete">未完了</option></select></label>
   {% if sessions.is_empty() %}
   <div class="empty-state"><h3>セッションはまだありません</h3><p>上のフォームから3ファイルを取り込み、最初のproposalとHuman reviewを開始できます。</p></div>
@@ -136,7 +136,7 @@
     <tbody>
       {% for session in sessions %}
       <tr data-creator-session-row data-state="{{ session.state_label }}" data-disposition="{{ session.disposition }}">
-        <th scope="row"><a href="/projects/{{ project_key }}/creator-sessions/{{ session.session }}">{{ session.session }}</a><br><span class="muted">{{ session.subject_label }}</span></th>
+        <th scope="row"><a href="/projects/{{ project_key }}/creator-sessions/{{ session.session }}">{{ session.session }}</a><br><span class="muted">{{ session.subject_label }}</span><br><span class="muted">{{ session.creator_name }}</span></th>
         <td><span class="status-badge" data-tone="{{ session.tone }}">{{ session.state_label }}</span> {{ session.disposition }}</td>
         <td>{{ session.recorded_at }}<br><span class="muted">{{ session.recorded_time_basis }}</span></td>
         <td>{% if session.source_session == "—" %}—{% else %}<a href="/projects/{{ project_key }}/creator-sessions/{{ session.source_session }}">{{ session.source_session }}</a>{% endif %}</td>
