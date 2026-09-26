@@ -281,6 +281,9 @@ struct PendingEntry {
     session: String,
     server_instance: String,
     proposal_head: Option<String>,
+    subject_label: String,
+    creator_name: String,
+    source_session: Option<String>,
     state: PendingEntryState,
 }
 
@@ -301,6 +304,9 @@ struct ReadyPending {
     review_id: String,
     server_instance: String,
     receipt: CorePendingReceipt,
+    subject_label: String,
+    creator_name: String,
+    source_session: Option<String>,
 }
 
 impl PendingRegistry {
@@ -310,6 +316,9 @@ impl PendingRegistry {
         project_key: &str,
         session: &str,
         server_instance: &str,
+        subject_label: &str,
+        creator_name: &str,
+        source_session: Option<&str>,
     ) -> Result<(), ServiceError> {
         if self.entries.len() >= MAX_PENDING_CREATOR_SESSIONS {
             return Err(ServiceError::new(
@@ -366,6 +375,9 @@ impl PendingRegistry {
                 session: session.to_owned(),
                 server_instance: server_instance.to_owned(),
                 proposal_head: None,
+                subject_label: subject_label.to_owned(),
+                creator_name: creator_name.to_owned(),
+                source_session: source_session.map(str::to_owned),
                 state: PendingEntryState::Reserved,
             },
         );
@@ -1247,7 +1259,14 @@ impl LocalService {
     ) -> Result<PendingCreatorSession, ServiceError> {
         validate_begin_request(server_instance, &request)?;
         let repository_path = self.entry(project_key)?.repository_path().to_owned();
-        let review_id = self.reserve_pending(project_key, &request.session, server_instance)?;
+        let review_id = self.reserve_pending(
+            project_key,
+            &request.session,
+            server_instance,
+            &request.subject_label,
+            &request.creator_name,
+            source.map(|binding| binding.session.as_str()),
+        )?;
 
         let repository = match Repository::open_existing(&repository_path).map_err(repository_error)
         {
@@ -1566,6 +1585,9 @@ impl LocalService {
         project_key: &str,
         session: &str,
         server_instance: &str,
+        subject_label: &str,
+        creator_name: &str,
+        source_session: Option<&str>,
     ) -> Result<String, ServiceError> {
         let review_id = random_review_id()?;
         lock_registry(&self.pending).reserve(
@@ -1573,6 +1595,9 @@ impl LocalService {
             project_key,
             session,
             server_instance,
+            subject_label,
+            creator_name,
+            source_session,
         )?;
         Ok(review_id)
     }
@@ -1655,6 +1680,9 @@ impl LocalService {
                     review_id: review_id.clone(),
                     server_instance: entry.server_instance.clone(),
                     receipt,
+                    subject_label: entry.subject_label.clone(),
+                    creator_name: entry.creator_name.clone(),
+                    source_session: entry.source_session.clone(),
                 });
             } else {
                 entry.state = PendingEntryState::OutcomeUnknown;
@@ -2390,12 +2418,12 @@ fn overlay_pending_sessions(
             proposal_head: Some(pending.receipt.proposal_head.clone()),
             decision_ref: Some(pending.receipt.decision_ref.clone()),
             decision_head: Some(pending.receipt.base_head.clone()),
-            subject_label: None,
-            creator_name: None,
+            subject_label: Some(pending.subject_label),
+            creator_name: Some(pending.creator_name),
             disposition: None,
             recorded_at: None,
             recorded_time_basis: None,
-            source_session: None,
+            source_session: pending.source_session,
         };
         if let Some(existing) = sessions
             .iter_mut()
@@ -3265,12 +3293,28 @@ mod tests {
     fn committed_fallback_releases_the_consumed_review_slot() {
         let mut registry = PendingRegistry::default();
         registry
-            .reserve("review-one".into(), "project", "session-one", "server")
+            .reserve(
+                "review-one".into(),
+                "project",
+                "session-one",
+                "server",
+                "subject",
+                "creator",
+                None,
+            )
             .unwrap();
         registry.consume_committed("review-one");
         assert!(registry.entries.is_empty());
         registry
-            .reserve("review-two".into(), "project", "session-two", "server")
+            .reserve(
+                "review-two".into(),
+                "project",
+                "session-two",
+                "server",
+                "subject",
+                "creator",
+                None,
+            )
             .unwrap();
     }
 
@@ -3386,6 +3430,9 @@ mod tests {
                         &format!("project-{project}"),
                         &format!("session-{session}"),
                         "server-instance",
+                        "subject",
+                        "creator",
+                        None,
                     )
                     .unwrap();
             }
@@ -3396,6 +3443,9 @@ mod tests {
                         "project-0",
                         "session-over-limit",
                         "server-instance",
+                        "subject",
+                        "creator",
+                        None,
                     )
                     .unwrap_err();
                 assert_eq!(error.code(), "resource_limit");
@@ -3409,6 +3459,9 @@ mod tests {
                 "project-over-limit",
                 "session",
                 "server-instance",
+                "subject",
+                "creator",
+                None,
             )
             .unwrap_err();
         assert_eq!(error.code(), "resource_limit");
