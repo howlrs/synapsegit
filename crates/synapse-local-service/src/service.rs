@@ -310,6 +310,7 @@ struct ReadyPending {
 }
 
 impl PendingRegistry {
+    #[allow(clippy::too_many_arguments)]
     fn reserve(
         &mut self,
         review_id: String,
@@ -2411,34 +2412,40 @@ fn enrich_display_session_summaries(
     }
 }
 
-fn sort_ref_shaped_summaries(snapshot: &RefSnapshot, sessions: &mut [CreatorSessionSummary]) {
-    sessions.sort_by(|left, right| {
-        session_display_priority(right)
-            .cmp(&session_display_priority(left))
-            .then_with(|| {
-                ref_update_sequence(snapshot, right)
-                    .cmp(&ref_update_sequence(snapshot, left))
-                    .then_with(|| right.session.cmp(&left.session))
-            })
+fn sort_ref_shaped_summaries(snapshot: &RefSnapshot, sessions: &mut Vec<CreatorSessionSummary>) {
+    let updates = snapshot
+        .refs
+        .iter()
+        .map(|reference| (reference.name.as_str(), reference.updated_event_id))
+        .collect::<BTreeMap<_, _>>();
+    let mut ranked = mem::take(sessions)
+        .into_iter()
+        .map(|summary| {
+            let sequence = [
+                summary.proposal_ref.as_deref(),
+                summary.decision_ref.as_deref(),
+            ]
+            .into_iter()
+            .flatten()
+            .filter_map(|name| updates.get(name).copied())
+            .max()
+            .unwrap_or(0);
+            (
+                session_display_priority(&summary),
+                sequence,
+                summary.session.clone(),
+                summary,
+            )
+        })
+        .collect::<Vec<_>>();
+    ranked.sort_by(|left, right| {
+        right
+            .0
+            .cmp(&left.0)
+            .then_with(|| right.1.cmp(&left.1))
+            .then_with(|| right.2.cmp(&left.2))
     });
-}
-
-fn ref_update_sequence(snapshot: &RefSnapshot, summary: &CreatorSessionSummary) -> i64 {
-    [
-        summary.proposal_ref.as_deref(),
-        summary.decision_ref.as_deref(),
-    ]
-    .into_iter()
-    .flatten()
-    .filter_map(|name| {
-        snapshot
-            .refs
-            .iter()
-            .find(|reference| reference.name == name)
-    })
-    .map(|reference| reference.updated_event_id)
-    .max()
-    .unwrap_or(0)
+    sessions.extend(ranked.into_iter().map(|(_, _, _, summary)| summary));
 }
 
 fn session_display_priority(summary: &CreatorSessionSummary) -> u8 {
