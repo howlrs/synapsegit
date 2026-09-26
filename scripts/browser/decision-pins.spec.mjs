@@ -110,7 +110,7 @@ test("pin and JSON limits prevent submission, cancellation and failure preserve 
   await page.route("**/creator-sessions/pins-limit/decisions", route => route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ title: "Temporary", detail: "Temporary failure", code: "internal_error" }) }));
   page.once("dialog", dialog => dialog.accept());
   await page.getByRole("button", { name: "Defer", exact: true }).click();
-  await expect(page.locator("[data-synapse-status]")).toHaveText("Temporary failure");
+  await expect(page.locator("[data-synapse-status]")).toContainText("Temporary failure");
   await expect(page.getByLabel("ピン 10 のメモ", { exact: true })).toHaveValue("a".repeat(200));
   await expect(page.getByLabel("ピン 10 のメモ", { exact: true })).toBeEnabled();
   await expect(page.getByRole("button", { name: "中央にピンを追加" })).toBeDisabled();

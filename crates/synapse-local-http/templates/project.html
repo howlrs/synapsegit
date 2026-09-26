@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
 {% block content %}
-<nav class="breadcrumbs" aria-label="パンくずリスト">
-  <ol><li><a href="/">プロジェクト</a></li><li aria-current="page">{{ project_label }}</li></ol>
+<nav class="breadcrumbs" aria-label="{{ m.common.breadcrumb }}">
+  <ol><li><a href="/">{{ m.common.nav_projects }}</a></li><li aria-current="page">{{ project_label }}</li></ol>
 </nav>
 <header class="page-header">
   <div class="page-header__intro">
@@ -11,26 +11,26 @@
     <p class="muted">Ref snapshot <code>{{ watermark }}</code></p>
   </div>
   <div class="actions">
-    <span class="status-badge" data-tone="success">ローカル・利用可能</span>
-    <a class="button button--secondary" href="/projects/{{ project_key }}/presentation">公開用の制作ノートを作る</a>
+    <span class="status-badge" data-tone="success">{{ m.project.local_available }}</span>
+    <a class="button button--secondary" href="/projects/{{ project_key }}/presentation">{{ m.project.create_public_notes }}</a>
   </div>
 </header>
 
-<section class="metric-grid" aria-label="プロジェクト概要">
+<section class="metric-grid" aria-label="{{ m.project.overview_label }}">
   <article class="metric"><span class="metric__label">Refs</span><strong>{{ refs.len() }}</strong></article>
-  <article class="metric"><span class="metric__label">完了</span><strong>{{ complete_sessions }}</strong></article>
-  <article class="metric"><span class="metric__label">レビュー待ち</span><strong>{{ pending_sessions }}</strong></article>
-  <article class="metric"><span class="metric__label">未完了</span><strong>{{ incomplete_sessions }}</strong></article>
+  <article class="metric"><span class="metric__label">{{ m.common.state_complete }}</span><strong>{{ complete_sessions }}</strong></article>
+  <article class="metric"><span class="metric__label">{{ m.common.state_pending }}</span><strong>{{ pending_sessions }}</strong></article>
+  <article class="metric"><span class="metric__label">{{ m.common.state_incomplete }}</span><strong>{{ incomplete_sessions }}</strong></article>
 </section>
 
 {% if import_inbox_supported %}
 <section class="card" hidden data-import-inbox data-project-key="{{ project_key }}" aria-labelledby="import-inbox-heading">
-  <div class="card__header"><div><p class="eyebrow">Manifest-last inbox</p><h2 id="import-inbox-heading">取り込み待ち</h2><p class="muted">確認時に検証・stagingしたbytesだけをproposalへ取り込みます。</p></div></div>
+  <div class="card__header"><div><p class="eyebrow">Manifest-last inbox</p><h2 id="import-inbox-heading">{{ m.project.inbox_heading }}</h2><p class="muted">{{ m.project.inbox_help }}</p></div></div>
   <p data-import-inbox-status role="status"></p>
   <ul data-import-inbox-list class="stack"></ul>
   <form hidden data-import-inbox-preview>
-    <h3 tabindex="-1">取り込み内容を確認</h3>
-    <p class="notice" data-tone="warning">AI outputと生成メモはcaller-suppliedです。明示的な判断を行うまでDecisionは記録されません。</p>
+    <h3 tabindex="-1">{{ m.project.inbox_review_heading }}</h3>
+    <p class="notice" data-tone="warning">{{ m.project.inbox_warning }}</p>
     <div class="upload-grid" data-import-inbox-images></div>
     <div class="form-grid">
       <label class="field"><span>Inbox session</span><input name="inbox_session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}"></label>
@@ -41,7 +41,7 @@
       <label class="field form-grid__wide"><span>Inbox generation prompt</span><textarea name="inbox_generation_prompt" maxlength="8192" rows="3"></textarea></label>
       <label class="field form-grid__wide"><span>Inbox generation intent</span><textarea name="inbox_generation_intent" maxlength="2048" rows="2"></textarea></label>
     </div>
-    <div class="actions"><button type="submit" data-synapse-submit>Proposalを作成</button><button type="button" data-variant="secondary" data-import-inbox-cancel>一覧へ戻る</button></div>
+    <div class="actions"><button type="submit" data-synapse-submit>{{ m.common.create_proposal }}</button><button type="button" data-variant="secondary" data-import-inbox-cancel>{{ m.project.back_to_list }}</button></div>
   </form>
 </section>
 {% endif %}
@@ -49,13 +49,13 @@
   <div class="card__header">
     <div>
       <p class="eyebrow">Proposal-only import</p>
-      <h2 id="creator-upload-heading">Creator session を開始</h2>
-      <p class="muted">3ファイルをローカルでstagingし、AI proposalを公開してHuman reviewへ進めます。</p>
+      <h2 id="creator-upload-heading">{{ m.project.upload_heading }}</h2>
+      <p class="muted">{{ m.project.upload_help }}</p>
     </div>
   </div>
   <div class="notice" data-tone="warning">
-    <h3>AI output は caller-supplied です</h3>
-    <p>この画面やlocalhost processがAI出力を生成したという意味ではありません。判断前に必ず3つの内容とbyte identity evidenceを確認してください。</p>
+    <h3>{{ m.project.upload_warning_heading }}</h3>
+    <p>{{ m.project.upload_warning }}</p>
   </div>
   <form
     hidden
@@ -65,76 +65,76 @@
     data-synapse-api-form="multipart"
     data-synapse-creator-upload
     data-success-session-base="/projects/{{ project_key }}/creator-sessions/"
-    data-busy-message="ファイルを取り込み、proposalを公開しています…"
-    data-success-message="Proposalを公開しました。レビュー画面へ移動します。"
+    data-busy-message="{{ m.project.upload_busy }}"
+    data-success-message="{{ m.project.upload_success }}"
   >
     <div class="form-grid">
       <div class="field">
         <label for="creator-session">Session</label>
         <input id="creator-session" name="session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" aria-describedby="creator-session-hint" autocomplete="off" placeholder="first-review">
-        <span id="creator-session-hint" class="field__hint">小文字英数字とハイフン、1–64文字。新しい名前で作成します。</span>
+        <span id="creator-session-hint" class="field__hint">{{ m.project.session_hint }}</span>
       </div>
       <div class="field">
         <label for="creator-name">Creator name</label>
         <input id="creator-name" name="creator_name" required maxlength="300" aria-describedby="creator-name-hint creator-name-count" autocomplete="name">
-        <span id="creator-name-hint" class="field__hint">UTF-8で300 bytes以内。</span>
+        <span id="creator-name-hint" class="field__hint">{{ m.project.creator_name_hint }}</span>
         <span id="creator-name-count" class="field__hint" data-creator-text-count="creator_name" aria-live="polite" hidden></span>
       </div>
       <div class="field form-grid__wide">
         <label for="creator-subject">Subject label</label>
         <input id="creator-subject" name="subject_label" required maxlength="500" aria-describedby="creator-subject-hint creator-subject-count" autocomplete="off">
-        <span id="creator-subject-hint" class="field__hint">UTF-8で500 bytes以内。</span>
+        <span id="creator-subject-hint" class="field__hint">{{ m.project.subject_hint }}</span>
         <span id="creator-subject-count" class="field__hint" data-creator-text-count="subject_label" aria-live="polite" hidden></span>
       </div>
     </div>
-    <p class="field__hint upload-hint" data-creator-preview-note hidden>ローカルプレビューです。ファイルを選ぶだけでは送信・保存されません。Original／Current／AI outputの取り違えがないか確認してください。</p>
+    <p class="field__hint upload-hint" data-creator-preview-note hidden>{{ m.project.preview_note }}</p>
     <div class="upload-grid">
       <div class="upload-file" data-creator-file>
         <label for="creator-original_image">Original image</label>
         <input id="creator-original_image" type="file" name="original_image" required aria-describedby="creator-original_image-hint creator-original_image-info creator-original_image-status">
-        <p id="creator-original_image-hint" class="field__hint">raw bytes、64 MiB以内。</p>
+        <p id="creator-original_image-hint" class="field__hint">{{ m.project.raw_bytes_hint }}</p>
         <p id="creator-original_image-info" data-creator-file-info class="field__hint" hidden></p>
-        <img data-creator-preview class="upload-file__preview" alt="Original imageのローカルプレビュー" hidden>
+        <img data-creator-preview class="upload-file__preview" alt="{{ m.local_preview_alt("Original image") }}" hidden>
         <p id="creator-original_image-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
-        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="Original imageの選択を解除" hidden>選択を解除</button>
+        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="{{ m.clear_selection_label("Original image") }}" hidden>{{ m.common.clear_selection }}</button>
       </div>
       <div class="upload-file" data-creator-file>
         <label for="creator-current_image">Current image</label>
         <input id="creator-current_image" type="file" name="current_image" required aria-describedby="creator-current_image-hint creator-current_image-info creator-current_image-status">
-        <p id="creator-current_image-hint" class="field__hint">raw bytes、64 MiB以内。</p>
+        <p id="creator-current_image-hint" class="field__hint">{{ m.project.raw_bytes_hint }}</p>
         <p id="creator-current_image-info" data-creator-file-info class="field__hint" hidden></p>
-        <img data-creator-preview class="upload-file__preview" alt="Current imageのローカルプレビュー" hidden>
+        <img data-creator-preview class="upload-file__preview" alt="{{ m.local_preview_alt("Current image") }}" hidden>
         <p id="creator-current_image-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
-        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="Current imageの選択を解除" hidden>選択を解除</button>
+        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="{{ m.clear_selection_label("Current image") }}" hidden>{{ m.common.clear_selection }}</button>
       </div>
       <div class="upload-file" data-creator-file>
         <label for="creator-ai_output">AI output (caller-supplied)</label>
         <input id="creator-ai_output" type="file" name="ai_output" required aria-describedby="creator-ai_output-hint creator-ai_output-info creator-ai_output-status">
-        <p id="creator-ai_output-hint" class="field__hint">raw bytes、64 MiB以内。</p>
+        <p id="creator-ai_output-hint" class="field__hint">{{ m.project.raw_bytes_hint }}</p>
         <p id="creator-ai_output-info" data-creator-file-info class="field__hint" hidden></p>
-        <img data-creator-preview class="upload-file__preview" alt="AI output (caller-supplied)のローカルプレビュー" hidden>
+        <img data-creator-preview class="upload-file__preview" alt="{{ m.local_preview_alt("AI output (caller-supplied)") }}" hidden>
         <p id="creator-ai_output-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
-        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="AI output (caller-supplied)の選択を解除" hidden>選択を解除</button>
+        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="{{ m.clear_selection_label("AI output (caller-supplied)") }}" hidden>{{ m.common.clear_selection }}</button>
       </div>
     </div>
     {% include "generation-note-fields.html" %}
     <p data-creator-file-summary class="field__hint" role="status" hidden></p>
-    <div class="actions"><button type="submit" data-synapse-submit>Proposalを作成</button></div>
-    <p class="field__hint">安全なwriteには、このページのJavaScriptとprocess-local tokenが必要です。</p>
+    <div class="actions"><button type="submit" data-synapse-submit>{{ m.common.create_proposal }}</button></div>
+    <p class="field__hint">{{ m.project.js_write_hint }}</p>
     <p data-synapse-status hidden></p>
   </form>
-  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、この画面はread-onlyです。安全なuploadにはprocess-local tokenを付けるJavaScriptが必要です。</p></div></noscript>
+  <noscript><div class="notice" data-tone="warning"><p>{{ m.project.upload_noscript }}</p></div></noscript>
 </section>
 
 <section class="project-sessions" aria-labelledby="sessions-heading" data-creator-session-list>
-  <div class="section-heading"><h2 id="sessions-heading">セッション</h2><span class="badge" data-creator-session-count>{{ sessions.len() }} 件</span></div>
-  <p class="field__hint">レビュー待ちを優先し、履歴の更新が新しい順に最大200件を表示します。概要は未検証です。取得できない項目は推測せず、セッションを開いて詳細を検証・確認できます。記録日時は制作時刻を証明するものではありません。</p>
-  <label class="field"><span>状態・判断で絞り込む</span><select data-creator-session-filter><option value="all">すべて</option><option value="pending">レビュー待ち</option><option value="complete">完了</option><option value="adopt">Adopt</option><option value="reject">Reject</option><option value="defer">Defer</option><option value="incomplete">未完了</option></select></label>
+  <div class="section-heading"><h2 id="sessions-heading">{{ m.project.sessions_heading }}</h2><span class="badge" data-creator-session-count>{{ m.count_sessions(sessions.len()) }}</span></div>
+  <p class="field__hint">{{ m.project.sessions_help }}</p>
+  <label class="field"><span>{{ m.project.filter_label }}</span><select data-creator-session-filter><option value="all">{{ m.project.filter_all }}</option><option value="pending">{{ m.common.state_pending }}</option><option value="complete">{{ m.common.state_complete }}</option><option value="adopt">Adopt</option><option value="reject">Reject</option><option value="defer">Defer</option><option value="incomplete">{{ m.common.state_incomplete }}</option></select></label>
   {% if sessions.is_empty() %}
-  <div class="empty-state"><h3>セッションはまだありません</h3><p>上のフォームから3ファイルを取り込み、最初のproposalとHuman reviewを開始できます。</p></div>
+  <div class="empty-state"><h3>{{ m.project.no_sessions_heading }}</h3><p>{{ m.project.no_sessions_help }}</p></div>
   {% else %}
   <div class="table-wrap"><table>
-    <thead><tr><th>セッション／内容</th><th>状態・判断</th><th>記録日時</th><th>派生元</th><th>head</th></tr></thead>
+    <thead><tr><th>{{ m.project.column_session }}</th><th>{{ m.project.column_state }}</th><th>{{ m.project.column_recorded_at }}</th><th>{{ m.project.column_source }}</th><th>head</th></tr></thead>
     <tbody>
       {% for session in sessions %}
       <tr data-creator-session-row data-state="{{ session.state_code }}" data-disposition="{{ session.disposition }}">
@@ -151,19 +151,19 @@
 </section>
 
 <section aria-labelledby="maintenance-heading">
-  <div class="section-heading"><h2 id="maintenance-heading">メンテナンス</h2></div>
+  <div class="section-heading"><h2 id="maintenance-heading">{{ m.project.maintenance_heading }}</h2></div>
 {% if fsck_supported %}
 <section class="card project-maintenance" aria-labelledby="fsck-heading">
   <div class="card__header">
     <div>
-      <p class="eyebrow">メンテナンス</p>
-      <h3 id="fsck-heading">リポジトリ整合性の確認</h3>
-      <p class="muted">現在の履歴と保存データの整合性を、上限を設けて読み取り専用で確認します。</p>
+      <p class="eyebrow">{{ m.project.maintenance_heading }}</p>
+      <h3 id="fsck-heading">{{ m.project.fsck_heading }}</h3>
+      <p class="muted">{{ m.project.fsck_help }}</p>
     </div>
   </div>
   {% if has_last_fsck %}
   <div class="notice" data-tone="{% if last_fsck_clean %}success{% else %}danger{% endif %}">
-    <h3>直近のprocess-local結果: {% if last_fsck_clean %}clean{% else %}issues found{% endif %}</h3>
+    <h3>{{ m.project.last_fsck_prefix }}{% if last_fsck_clean %}clean{% else %}issues found{% endif %}</h3>
     <p>Verified objects: {{ last_fsck_objects }} · Issues: {{ last_fsck_issues }}</p>
   </div>
   {% endif %}
@@ -174,17 +174,17 @@
     data-synapse-api-form="json"
     data-confirm-maintenance="fsck"
     data-success-reload="true"
-    data-busy-message="整合性の確認を開始しています…"
+    data-busy-message="{{ m.project.fsck_busy }}"
   >
     <label class="field">
-      <span>確認のため project key <code>{{ project_key }}</code> を入力</span>
+      <span>{{ m.project.confirm_key_before }}<code>{{ project_key }}</code>{{ m.project.confirm_key_after }}</span>
       <input name="confirm_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
     </label>
-    <div class="actions"><button type="submit" data-synapse-submit>読み取り専用で fsck を実行</button></div>
-    <p class="field__hint">処理はバックグラウンドで実行します。履歴や保存データを変更しません。</p>
+    <div class="actions"><button type="submit" data-synapse-submit>{{ m.project.fsck_submit }}</button></div>
+    <p class="field__hint">{{ m.project.fsck_hint }}</p>
     <p data-synapse-status hidden></p>
   </form>
-  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、メンテナンス操作は開始できません。</p></div></noscript>
+  <noscript><div class="notice" data-tone="warning"><p>{{ m.project.fsck_noscript }}</p></div></noscript>
 </section>
 {% endif %}
 
@@ -192,14 +192,14 @@
 <section class="card project-maintenance" aria-labelledby="archive-export-heading">
   <div class="card__header">
     <div>
-      <p class="eyebrow">メンテナンス</p>
-      <h3 id="archive-export-heading">アーカイブを書き出す</h3>
-      <p class="muted">現在のプロジェクトを、設定済みの保存先へチェックサム付きで保存します。</p>
+      <p class="eyebrow">{{ m.project.maintenance_heading }}</p>
+      <h3 id="archive-export-heading">{{ m.project.export_heading }}</h3>
+      <p class="muted">{{ m.project.export_help }}</p>
     </div>
   </div>
   <div class="notice" data-tone="warning">
-    <h3>既存のアーカイブは上書きしません</h3>
-    <p>新しいアーカイブ名を指定してください。保存先は起動時の設定で固定され、この画面から変更できません。</p>
+    <h3>{{ m.project.export_warning_heading }}</h3>
+    <p>{{ m.project.export_warning }}</p>
   </div>
   <form
     hidden
@@ -208,25 +208,25 @@
     data-synapse-api-form="json"
     data-confirm-maintenance="archive-export"
     data-success-location="/#archives-heading"
-    data-busy-message="アーカイブの書き出しを開始しています…"
+    data-busy-message="{{ m.project.export_busy }}"
   >
     <div class="form-grid">
       <label class="field">
         <span>Archive name</span>
         <input name="archive_name" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="nightly-2026-08-26">
-        <span class="field__hint">小文字英数字とハイフン、1–64文字。新しい名前で作成します。</span>
+        <span class="field__hint">{{ m.project.archive_name_hint }}</span>
       </label>
       <label class="field">
-        <span>確認のため project key <code>{{ project_key }}</code> を入力</span>
+        <span>{{ m.project.confirm_key_before }}<code>{{ project_key }}</code>{{ m.project.confirm_key_after }}</span>
         <input name="confirm_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
-        <span class="field__hint">操作対象を確認するため、表示された値をそのまま入力してください。</span>
+        <span class="field__hint">{{ m.project.confirm_value_hint }}</span>
       </label>
     </div>
-    <div class="actions"><button type="submit" data-synapse-submit>Archiveを作成</button></div>
-    <p class="field__hint">処理はバックグラウンドで実行し、成功後にアーカイブ一覧へ移動します。</p>
+    <div class="actions"><button type="submit" data-synapse-submit>{{ m.project.export_submit }}</button></div>
+    <p class="field__hint">{{ m.project.export_hint }}</p>
     <p data-synapse-status hidden></p>
   </form>
-  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、アーカイブの書き出しは開始できません。</p></div></noscript>
+  <noscript><div class="notice" data-tone="warning"><p>{{ m.project.export_noscript }}</p></div></noscript>
 </section>
 {% endif %}
 
@@ -234,15 +234,15 @@
 <section class="card project-maintenance" aria-labelledby="archive-restore-heading">
   <div class="card__header">
     <div>
-      <p class="eyebrow">メンテナンス</p>
-      <h3 id="archive-restore-heading">アーカイブを復元する</h3>
-      <p class="muted">保存したアーカイブを、このプロジェクトへ復元します。</p>
+      <p class="eyebrow">{{ m.project.maintenance_heading }}</p>
+      <h3 id="archive-restore-heading">{{ m.project.restore_heading }}</h3>
+      <p class="muted">{{ m.project.restore_help }}</p>
     </div>
   </div>
   {% if archive_restore_target_ready %}
   <div class="notice" data-tone="warning">
-    <h3>履歴がないプロジェクトへ復元します</h3>
-    <p>アーカイブの状態は<a href="/#archives-heading">Archives一覧</a>で確認してください。</p>
+    <h3>{{ m.project.restore_warning_heading }}</h3>
+    <p>{{ m.project.restore_warning_before }}<a href="/#archives-heading">{{ m.project.restore_warning_link }}</a>{{ m.project.restore_warning_after }}</p>
   </div>
   <form
     hidden
@@ -251,35 +251,35 @@
     data-synapse-api-form="json"
     data-archive-restore="true"
     data-restore-project-key="{{ project_key }}"
-    data-busy-message="アーカイブの復元を開始しています…"
+    data-busy-message="{{ m.project.restore_busy }}"
   >
     <div class="form-grid">
       <label class="field">
         <span>Archive name</span>
         <input name="archive_name" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="nightly-2026-08-26">
-        <span class="field__hint">Archives一覧の名前を小文字のまま入力してください。</span>
+        <span class="field__hint">{{ m.project.restore_name_hint }}</span>
       </label>
       <label class="field">
-        <span>確認のため復元先の project key <code>{{ project_key }}</code> を入力</span>
+        <span>{{ m.project.restore_confirm_before }}<code>{{ project_key }}</code>{{ m.project.restore_confirm_after }}</span>
         <input name="confirm_target_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
       </label>
       <label class="check-field form-grid__wide">
         <input type="checkbox" name="confirm_empty_target" value="true" required>
-        <span>このプロジェクトに既存の履歴がないことを確認しました。</span>
+        <span>{{ m.project.restore_empty_check }}</span>
       </label>
     </div>
-    <div class="actions"><button type="submit" data-synapse-submit>Archiveを復元</button></div>
-    <p class="field__hint">失敗時や結果不明の場合は、ファイルの一部がコピー済みの可能性があります。自動では再試行しません。再試行する場合は同じアーカイブを使ってください。</p>
+    <div class="actions"><button type="submit" data-synapse-submit>{{ m.project.restore_submit }}</button></div>
+    <p class="field__hint">{{ m.project.restore_hint }}</p>
     <p data-synapse-status hidden></p>
-    <a hidden data-synapse-restore-success-link href="/projects/{{ project_key }}">復元した履歴を確認</a>
+    <a hidden data-synapse-restore-success-link href="/projects/{{ project_key }}">{{ m.project.restore_success_link }}</a>
   </form>
   {% else %}
   <div class="notice" data-tone="warning">
-    <h3>このプロジェクトは復元先にできません</h3>
-    <p>既存の履歴があります。復元用には別の空のプロジェクトを初期化・登録してから開いてください。</p>
+    <h3>{{ m.project.restore_unavailable_heading }}</h3>
+    <p>{{ m.project.restore_unavailable }}</p>
   </div>
   {% endif %}
-  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、アーカイブの復元は開始できません。</p></div></noscript>
+  <noscript><div class="notice" data-tone="warning"><p>{{ m.project.restore_noscript }}</p></div></noscript>
 </section>
 {% endif %}
 
@@ -295,7 +295,7 @@
     </div>
   </section>
   <section aria-labelledby="reflog-heading">
-    <div class="section-heading"><h2 id="reflog-heading">最近の Reflog</h2><span class="badge">{{ reflog.len() }}</span></div>
+    <div class="section-heading"><h2 id="reflog-heading">{{ m.project.reflog_heading }}</h2><span class="badge">{{ reflog.len() }}</span></div>
     <ol class="timeline">
       {% for entry in reflog %}
       <li class="timeline__item"><div class="timeline__marker" aria-hidden="true"></div><div><p><strong>{{ entry.ref_name }}</strong></p><p><code>{{ entry.new_head }}</code></p><p class="muted">event {{ entry.event_id }} · {{ entry.message }}</p></div></li>

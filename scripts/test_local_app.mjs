@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 
 const ORIGIN = "http://127.0.0.1:43123";
 
@@ -119,7 +120,7 @@ globalThis.CustomEvent = class {
 };
 globalThis.document = {
   readyState: "loading",
-  documentElement: { classList: { add() {} } },
+  documentElement: { lang: "en", classList: { add() {} } },
   addEventListener() {},
   querySelector(selector) {
     if (selector === 'meta[name="synapse-api-base"]') return new FakeMetaElement("/api/v1");
@@ -161,11 +162,33 @@ globalThis.window = {
 };
 
 const {
+  LOCAL_MESSAGES,
+  LOCAL_MESSAGE_ENTRY_COUNT,
+  SUPPORTED_LOCALES,
   enhanceApiForms,
   formRequest,
   operationSuccessMessage,
   submitEnhancedForm,
 } = await import("../crates/synapse-local-http/assets/app.js");
+
+// Keep the client catalog fail-closed: a new message must have both supported
+// languages and expose the same interpolation contract in each one.
+assert.deepEqual(SUPPORTED_LOCALES, ["ja", "en"]);
+const messageKeys = Object.keys(LOCAL_MESSAGES.ja).sort();
+assert.equal(messageKeys.length, LOCAL_MESSAGE_ENTRY_COUNT);
+assert.deepEqual(Object.keys(LOCAL_MESSAGES.en).sort(), messageKeys);
+const placeholders = (message) => [...message.matchAll(/\{([^{}]+)\}/gu)].map((match) => match[1]).sort();
+for (const key of messageKeys) {
+  assert.equal(typeof LOCAL_MESSAGES.ja[key], "string", `ja.${key} must be text`);
+  assert.equal(typeof LOCAL_MESSAGES.en[key], "string", `en.${key} must be text`);
+  assert.notEqual(LOCAL_MESSAGES.ja[key], "", `ja.${key} must not be empty`);
+  assert.notEqual(LOCAL_MESSAGES.en[key], "", `en.${key} must not be empty`);
+  assert.deepEqual(placeholders(LOCAL_MESSAGES.ja[key]), placeholders(LOCAL_MESSAGES.en[key]), key);
+}
+const appSource = await readFile(new URL("../crates/synapse-local-http/assets/app.js", import.meta.url), "utf8");
+for (const [, key] of appSource.matchAll(/\bt\("([a-z]+\.[A-Za-z0-9]+)"/gu)) {
+  assert.ok(key in LOCAL_MESSAGES.ja, `missing client message: ${key}`);
+}
 
 const fields = [
   ["archive_name", "nightly-2026-08-27"],
@@ -203,7 +226,7 @@ await submitEnhancedForm({
 assert.equal(prevented, true);
 assert.equal(fetchCalled, false);
 assert.match(confirmPrompt, /nightly-2026-08-27/u);
-assert.equal(form.status.textContent, "Archive exportは開始されませんでした。");
+assert.equal(form.status.textContent, "The archive export was not started.");
 
 const enhancedForm = new FakeForm({
   action: `${ORIGIN}/api/v1/projects/demo/archive-exports`,
@@ -305,7 +328,7 @@ await submitEnhancedForm({
 assert.equal(fetchCalled, false);
 assert.match(confirmPrompt, /aaa-valid/u);
 assert.match(confirmPrompt, /demo/u);
-assert.equal(cancelledRestoreForm.status.textContent, "Archive restoreは開始されませんでした。");
+assert.equal(cancelledRestoreForm.status.textContent, "The archive restore was not started.");
 assert.equal(locationAssigns, 0);
 assert.equal(locationReloads, 0);
 
@@ -416,8 +439,8 @@ for (const [terminal, expectedStatus] of [
     project_key: "other",
     result: { archive_name: "aaa-valid", result_kind: "restored", report_equivalence_required: true },
   }, /maintenance operation status is invalid/u],
-  [{ operation_id: operationId, state: "failed", error: { detail: "restore failed" } }, /restore failed.*コピー済み/u],
-  [{ operation_id: operationId, state: "outcome_unknown", error: { detail: "restore unknown" } }, /restore unknown.*コピー済み/u],
+  [{ operation_id: operationId, state: "failed", error: { detail: "restore failed" } }, /restore failed.*may already have been copied/u],
+  [{ operation_id: operationId, state: "outcome_unknown", error: { detail: "restore unknown" } }, /restore unknown.*may already have been copied/u],
   [{
     operation_id: "b".repeat(22),
     state: "succeeded",

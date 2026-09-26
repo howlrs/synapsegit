@@ -26,6 +26,179 @@ const CREATOR_UPLOADS = new Map();
 const CREATOR_FILE_FIELDS = new Set(["original_image", "current_image", "ai_output"]);
 const UTF8_ENCODER = new TextEncoder();
 
+// Interface messages keyed by stable identifiers. Each entry keeps Japanese
+// and English together; `node scripts/test_local_app.mjs` checks that both
+// are present, non-empty, use the same placeholders, and cover every t() key.
+// User data and API problem fields are never translated.
+const MESSAGE_ENTRIES = [
+  ["client.tokenInvalid", "ローカルブラウザーセッションのtokenがないか、不正です。ページを再読み込みしてください。", "The local browser session token is missing or invalid. Reload the page."],
+  ["client.apiBaseInvalid", "設定されたAPI baseは同一originのpathである必要があります。", "The configured API base must be a same-origin path."],
+  ["client.apiUrlInvalid", "APIへのrequestは同一originのAPI base内に限られます。", "API requests must stay within the same-origin API base."],
+  ["error.withDetail", "{summary}（詳細: {detail}）", "{summary} (Details: {detail})"],
+  ["error.generic", "要求を完了できませんでした。", "The request could not be completed."],
+  ["error.http", "ローカルアプリケーションがHTTP {status}を返しました。", "The local application returned HTTP {status}."],
+  ["error.cancelled", "要求を取り消しました。", "Request cancelled."],
+  ["error.unexpected", "ローカルアプリケーションは要求を完了できませんでした。", "The local application could not complete the request."],
+  ["error.code.project_not_found", "プロジェクトが見つかりません。", "The project was not found."],
+  ["error.code.creator_session_not_found", "セッションが見つかりません。", "The session was not found."],
+  ["error.code.creator_session_exists", "同じ名前のセッションが既にあります。新しい名前を指定してください。", "A session with this name already exists. Use a new name."],
+  ["error.code.creator_session_incomplete", "セッションが未完了のため、この操作はできません。", "The session is incomplete, so this operation is not available."],
+  ["error.code.creator_review_state_lost", "このprocessのレビュー状態が失われました。ページを再読み込みして状態を確認してください。", "This process's review state was lost. Reload the page to check the state."],
+  ["error.code.creator_review_busy", "レビュー処理が混み合っています。時間をおいて再試行してください。", "Review capacity is busy. Try again later."],
+  ["error.code.creator_outcome_unknown", "Decisionの結果を確認できません。再送信せず、ページを再読み込みして状態を確認してください。", "The Decision outcome is unknown. Do not resubmit; reload the page to check the state."],
+  ["error.code.ref_conflict", "操作中にプロジェクトが変更されました。ページを再読み込みしてください。", "The project changed during the operation. Reload the page."],
+  ["error.code.stale_base", "操作中にプロジェクトが変更されました。ページを再読み込みしてください。", "The project changed during the operation. Reload the page."],
+  ["error.code.resource_limit", "ローカルの処理上限を超えました。入力やファイルを小さくしてください。", "A local processing limit was exceeded. Use smaller input or files."],
+  ["error.code.local_request_denied", "ローカルの安全確認で要求が拒否されました。入力と確認内容を見直してください。", "The local safety checks rejected the request. Review the input and the confirmation."],
+  ["error.code.usage_error", "入力内容を処理できません。値を確認してください。", "The input cannot be processed. Check the values."],
+  ["error.code.archive_invalid", "アーカイブを検証できません。Archives一覧で状態を確認してください。", "The archive could not be verified. Check its state in the Archives list."],
+  ["error.code.archive_not_empty", "復元先のプロジェクトに既存の履歴があります。", "The restore target project already has history."],
+  ["error.code.fsck_failed", "整合性の確認を完了できませんでした。", "The integrity check could not be completed."],
+  ["error.code.creator_report_invalid", "記録を検証できませんでした。fsckで状態を確認してください。", "The record could not be verified. Check its state with fsck."],
+  ["error.code.schema_invalid", "入力が記録形式の検証に失敗しました。", "The input failed record-format validation."],
+  ["error.code.storage_error", "ローカルの保存データにアクセスできませんでした。時間をおいて再試行してください。", "The local storage could not be accessed. Try again later."],
+  ["error.code.service_unavailable", "この機能は現在利用できません。", "This feature is not available right now."],
+  ["error.code.operation_state_lost", "メンテナンス操作の状態が失われました。結果をプロジェクト画面で確認してください。", "The maintenance operation state was lost. Check the result on the project page."],
+  ["operation.fsckClean", "整合性の確認が完了しました。{count} objectsを検証し、問題はありませんでした。", "Integrity check completed cleanly after verifying {count} objects."],
+  ["operation.fsckIssues", "整合性の確認が完了し、{count} 件の問題が見つかりました。", "Integrity check completed with {count} issues."],
+  ["operation.fsckResultInvalid", "整合性確認の結果が不正です。", "The integrity-check result is invalid."],
+  ["operation.exportResultInvalid", "アーカイブ書き出しの結果が不正です。", "The archive-export result is invalid."],
+  ["operation.exported", "アーカイブ「{name}」を書き出しました。", "Archive “{name}” was exported."],
+  ["operation.restoreResultInvalid", "アーカイブ復元の結果が不正です。", "The archive-restore result is invalid."],
+  ["operation.restored", "アーカイブ「{name}」を復元しました。復元した履歴を利用する前に、保存元と復元先の creator-report を比較し、一致を確認して保管してください。", "Archive “{name}” was restored. Before using the restored history, compare the creator-report output of the source and the restore target, confirm that they match, and keep the result."],
+  ["operation.completed", "メンテナンス操作が完了しました。", "Maintenance operation completed."],
+  ["operation.receiptInvalid", "メンテナンス操作の受付情報が不正です。", "The maintenance operation receipt is invalid."],
+  ["operation.statusInvalid", "メンテナンス操作の状態が不正です。", "The maintenance operation status is invalid."],
+  ["operation.queued", "メンテナンス操作は待機中です…", "Maintenance operation is queued…"],
+  ["operation.running", "メンテナンス操作を実行中です…", "Maintenance operation is running…"],
+  ["operation.failed", "メンテナンス操作は正常に完了しませんでした。", "The maintenance operation did not complete successfully."],
+  ["operation.restorePartial", "ファイルの一部だけがコピー済みの可能性があります。確認後も同じアーカイブだけを再試行してください。", "Some files may already have been copied. If you retry after checking, use only the same archive."],
+  ["operation.started", "Maintenance operationを開始しました…", "Maintenance operation started…"],
+  ["operation.restoreStarted", "Archive restoreを開始しました…", "Archive restore started…"],
+  ["operation.restoreReceiptInvalid", "アーカイブ復元の受付情報が不正です。", "The archive restore receipt is invalid."],
+  ["image.decodeFailed", "画像を表示できません。画像データが破損しているか、ブラウザーが対応していません。", "The image cannot be shown. The image data is corrupt or the browser does not support it."],
+  ["image.noDownloadAction", "attachment専用の応答に専用のダウンロード操作がありません。", "The attachment-only response has no dedicated download action."],
+  ["image.downloaded", "Download済みです。再取得する場合はページを再読み込みしてください。", "Downloaded. Reload the page to fetch it again."],
+  ["image.attachmentOnly", "Inline表示できない形式です。検証済みraw bytesをdownloadして確認してください。", "This format cannot be shown inline. Download the verified raw bytes to check it."],
+  ["image.sourceUnavailable", "画像の取得元がありません。", "Image source unavailable."],
+  ["image.loading", "画像を読み込んでいます…", "Loading image…"],
+  ["image.unsafeResponse", "応答はinline表示できる安全な画像でも、安全なattachmentでもありません。", "The response is neither an inline-safe raster nor a safe attachment."],
+  ["image.tooLarge", "画像が表示上限の64 MiBを超えています。", "The image exceeds the 64 MiB display limit."],
+  ["compare.overlayUnavailable", "重ねて表示するには、A と B のデコード後の幅と高さが一致している必要があります。並べて表示で確認できます。", "Overlay needs A and B to have the same decoded width and height. You can still compare them side by side."],
+  ["compare.overlayCaption", "{a} を下、{b} を上に重ねています。共通の左上原点で表示する目視補助であり、位置合わせ・差分解析は行いません。{opacity}%", "{a} is below and {b} is overlaid on top from a shared top-left origin. This is a visual aid only; no registration or difference analysis is performed. {opacity}%"],
+  ["compare.paneUnavailable", "この画像は表示できません。元のカードの状態を確認してください。", "This image cannot be shown. Check the state of its original card."],
+  ["compare.ready", "表示できる画像を2枚選んで、全体表示・100%・200%で確認できます。", "Choose two viewable images to compare them fit to view, at 100%, or at 200%."],
+  ["compare.notReady", "比較には表示可能な画像が2枚必要です。読み込み中・表示不可の理由は各カードで確認できます。", "Comparison needs two viewable images. Each card shows whether it is still loading or why it cannot be shown."],
+  ["sessions.count", "{count} 件", "{count} sessions"],
+  ["sessions.countOne", "{count} 件", "{count} session"],
+  ["text.tooLong", "{limit} bytes以内に短くしてください（現在 {count} bytes）。", "Shorten this to {limit} bytes or less (currently {count} bytes)."],
+  ["upload.summary", "選択済み {selected} / {total} ファイル · 合計 {size} / {limit} MiB", "{selected} / {total} files selected · total {size} / {limit} MiB"],
+  ["upload.fileTooLarge", "64 MiB以内のファイルを選び直してください。", "Choose a file of 64 MiB or less."],
+  ["upload.previewLoading", "取り込み前のプレビューを読み込んでいます…", "Loading the preview before import…"],
+  ["upload.previewUnsupported", "この形式はプレビューできません。ファイルはそのまま取り込めます。", "This format cannot be previewed. The file can still be imported as is."],
+  ["upload.previewReady", "{width} × {height} px · ローカルプレビュー", "{width} × {height} px · local preview"],
+  ["upload.previewFailed", "プレビューを表示できません。ファイルの内容を確認してください。そのまま取り込むこともできます。", "The preview cannot be shown. Check the file contents. You can still import it as is."],
+  ["form.fileNeedsUpload", "ファイルを含むフォームには専用のupload処理が必要です。", "File forms require the dedicated upload enhancement."],
+  ["form.fieldOnce", "項目「{name}」はちょうど1回だけ指定してください。", "The field “{name}” must occur exactly once."],
+  ["form.fieldTooLong", "項目「{name}」がUTF-8のbyte上限を超えています。", "The field “{name}” exceeds its UTF-8 byte limit."],
+  ["form.decisionTooLarge", "理由とピンを含むDecision JSONが8 KiBを超えています。", "The decision JSON exceeds 8 KiB including rationale and pins."],
+  ["form.submitterInvalid", "送信ボタンがこのフォームに属していません。", "The submit control does not belong to this form."],
+  ["form.textFieldOnce", "項目「{name}」はテキストとしてちょうど1回だけ指定してください。", "The field “{name}” must occur exactly once as text."],
+  ["form.fileFieldOnce", "項目「{name}」はファイルとしてちょうど1回だけ指定してください。", "The field “{name}” must occur exactly once as a file."],
+  ["form.fileTooLarge", "ファイル「{name}」が64 MiBの上限を超えています。", "The file “{name}” exceeds the 64 MiB limit."],
+  ["form.aggregateTooLarge", "3つのファイルの合計が192 MiBの上限を超えています。", "The three files exceed the 192 MiB aggregate limit."],
+  ["form.fieldNotAllowed", "項目「{name}」はcreator uploadでは使えません。", "The field “{name}” is not allowed in a creator upload."],
+  ["form.uploadFieldsInvalid", "creator uploadに不足または想定外の項目があります。", "The creator upload contains missing or unexpected fields."],
+  ["form.sessionInvalid", "Sessionは小文字英数字とハイフンの有効な名前にしてください。", "The session field is not a valid lowercase slug."],
+  ["form.sourceConfirmationInvalid", "派生元の確認情報が不正です。派生元のページを開き直してください。", "The source confirmation is invalid. Reopen the source page."],
+  ["form.getWithFile", "GETフォームにはファイルを含められません。", "GET forms cannot contain files."],
+  ["form.unknownEnhancement", "APIフォームの種類を認識できません。", "The API form enhancement is not recognized."],
+  ["form.working", "処理しています…", "Working…"],
+  ["form.destinationInvalid", "移動先はローカルアプリケーションのoriginである必要があります。", "The success destination must use the local application origin."],
+  ["form.completed", "完了しました。", "Completed."],
+  ["form.sessionDestinationInvalid", "作成したセッションの移動先が不正です。", "The creator session destination is invalid."],
+  ["note.tooLarge", "生成メモ全体は16 KiB以内にしてください。", "Keep the whole generation note within 16 KiB."],
+  ["restore.targetInvalid", "復元先のプロジェクトが不正です。", "The restore target project is invalid."],
+  ["restore.confirmationInvalid", "アーカイブ復元の確認内容が正しくありません。アーカイブ名、復元先のproject key、既存の履歴がないことの確認を見直してください。", "The archive restore confirmation is invalid. Check the archive name, the target project key, and the empty-history confirmation."],
+  ["restore.confirm", "archive “{archive}” をtarget project “{project}” へ復元します。失敗時もファイルの一部がコピー済みの可能性があり、自動再試行は行いません。続行しますか？", "This restores archive “{archive}” into target project “{project}”. Even if it fails, some files may already have been copied, and it is not retried automatically. Continue?"],
+  ["restore.notStarted", "Archive restoreは開始されませんでした。", "The archive restore was not started."],
+  ["export.confirm", "新しいarchive “{name}” を作成します。既存archiveは上書きされません。続行しますか？", "This creates the new archive “{name}”. Existing archives are not overwritten. Continue?"],
+  ["export.notStarted", "Archive exportは開始されませんでした。", "The archive export was not started."],
+  ["fsck.confirm", "Read-only fsckを開始します。大きなrepositoryでは完了まで時間がかかる場合があります。続行しますか？", "This starts a read-only fsck. It can take a while on a large repository. Continue?"],
+  ["fsck.notStarted", "Integrity checkは開始されませんでした。", "The integrity check was not started."],
+  ["decision.receiptInvalid", "記録済みcreator receiptが不正です。", "The committed creator receipt is invalid."],
+  ["decision.committedWithoutReport", "Decisionは {head} で記録されました。完全なレポートは取得できません。下の永続receiptを確認し、保管してください。", "Decision committed at {head}. The full report is unavailable; inspect and retain the durable receipt below."],
+  ["decision.thisSession", "このセッション", "this session"],
+  ["decision.targetWithProject", "Project “{project}” / Creator session “{session}”", "project “{project}” / creator session “{session}”"],
+  ["decision.target", "Creator session “{session}”", "creator session “{session}”"],
+  ["decision.confirmPublish", "{target} に {disposition} decisionを公開します。", "Publish the {disposition} decision for {target}."],
+  ["decision.finality", "Deferも含め、記録後にこのセッションの判断を変更・再開する機能はありません。", "Every disposition, including Defer, completes this session. A recorded decision cannot be changed or reopened in this session."],
+  ["decision.confirmContinue", "この操作を続けますか？", "Continue with this operation?"],
+  ["decision.notSent", "Decisionは送信されませんでした。", "The Decision was not sent."],
+  ["pins.unreadable", "注釈を表示できません。未知の形式または不正な画像対応です。", "The pins cannot be shown. They use an unknown format or an invalid image binding."],
+  ["pins.invalid", "ピンの画像・座標と、各メモが1〜200 UTF-8 bytesであることを確認してください。", "Check each pin's image and coordinates, and that each note is 1–200 UTF-8 bytes."],
+  ["pins.remaining", "{label}: 残り {bytes} bytes", "{label}: {bytes} bytes left"],
+  ["pins.jsonSummary", "送信JSON全体（上限8192 bytes、理由とピンを含む） · {remaining}", "Whole submitted JSON (limit 8192 bytes, including rationale and pins) · {remaining}"],
+  ["pins.fixInvalid", " · ピンのメモ・座標を修正してください。", " · Fix the pin notes or coordinates."],
+  ["pins.markerLabel", "ピン {number}: {note}", "Pin {number}: {note}"],
+  ["pins.noteMissing", "メモ未入力", "No note yet"],
+  ["pins.show", "ピン {number} · {role}", "Pin {number} · {role}"],
+  ["pins.noteLabel", "ピン {number} のメモ", "Pin {number} note"],
+  ["pins.axisLabel", "ピン {number} {axis}座標", "Pin {number} {axis} coordinate"],
+  ["pins.delete", "ピン {number} を削除", "Delete pin {number}"],
+  ["pins.status", "{label} · {width} × {height} px · 画像の向きを反映した表示", "{label} · {width} × {height} px · shown with the image orientation applied"],
+  ["pins.unavailable", "この画像にはピンを作成・表示できません。読み込み中、attachment扱い、または画像のdecode失敗です。元画像の状態を確認してください。", "Pins cannot be created or shown on this image: it is still loading, is treated as an attachment, or failed to decode. Check the state of the source image."],
+  ["inbox.discarding", "stagingを破棄しています…", "Discarding the staged files…"],
+  ["inbox.discarded", "stagingを破棄しました。候補を選んでください。", "The staged files were discarded. Choose a candidate."],
+  ["inbox.discardFailed", "stagingを破棄できませんでした。{error}", "The staged files could not be discarded. {error}"],
+  ["inbox.stagedAlt", "{label} のstaging済みプレビュー", "Staged preview of {label}"],
+  ["inbox.download", "画像をダウンロード", "Download image"],
+  ["inbox.staging", "候補を検証してstagingしています…", "Verifying and staging the candidate…"],
+  ["inbox.stageInvalid", "staging応答が不正です。", "The staging response is invalid."],
+  ["inbox.staged", "staging済みbytesを確認し、必要ならメタデータを編集してください。", "Check the staged bytes and edit the metadata if needed."],
+  ["inbox.listInvalid", "inbox一覧応答が不正です。", "The inbox list response is invalid."],
+  ["inbox.ready", "manifestは有効です。確認時に3ファイルを検証してstagingします。", "The manifest is valid. The three files are verified and staged when you review it."],
+  ["inbox.notReady", "候補を検査できません。", "The candidate cannot be inspected."],
+  ["inbox.notReadyReason", "候補を検査できません。（詳細: {reason}）", "The candidate cannot be inspected. (Details: {reason})"],
+  ["inbox.review", "確認する", "Review"],
+  ["inbox.choose", "候補を選んでください。", "Choose a candidate."],
+  ["inbox.empty", "manifestを最後に書いた候補はまだありません。", "No candidates are ready yet (the manifest must be written last)."],
+  ["inbox.proposalInvalid", "proposal応答が不正です。", "The proposal response is invalid."],
+  ["presentation.tooLong", "{label}: {bytes} / {limit} UTF-8 bytes。上限を超えています。", "{label}: {bytes} / {limit} UTF-8 bytes. This exceeds the limit."],
+  ["presentation.validating", "文章を検証しています…", "Validating the text…"],
+  ["presentation.responseInvalid", "説明文ファイルの応答が不正です。", "The description file response is invalid."],
+  ["presentation.emptyLabel", "説明文", "Description"],
+  ["presentation.emptyValue", "未入力。既存の省略時動作を使用します。", "Nothing entered. The existing default behavior is used."],
+  ["presentation.size", "対象: {session} · presentation.toml: {bytes} / 65536 bytes", "Session: {session} · presentation.toml: {bytes} / 65536 bytes"],
+  ["presentation.validated", "検証できました。内容を確認して書き出してください。", "Validated. Review the content, then export it."],
+  ["presentation.downloadStarted", "説明文ファイルのダウンロードを開始しました。bundle生成・検証と外部共有はまだ行っていません。", "The description file download has started. The bundle has not been generated or verified, and nothing has been shared externally."],
+];
+
+export const SUPPORTED_LOCALES = Object.freeze(["ja", "en"]);
+export const LOCAL_MESSAGES = Object.freeze({
+  ja: Object.freeze(Object.fromEntries(MESSAGE_ENTRIES.map(([key, ja]) => [key, ja]))),
+  en: Object.freeze(Object.fromEntries(MESSAGE_ENTRIES.map(([key, , en]) => [key, en]))),
+});
+export const LOCAL_MESSAGE_ENTRY_COUNT = MESSAGE_ENTRIES.length;
+
+/**
+ * The server resolves the display language (explicit selection, cookie,
+ * Accept-Language, then Japanese) and renders it into `<html lang>`. The
+ * script follows that value, so templates and client messages never diverge.
+ */
+export function uiLocale() {
+  const lang = globalThis.document?.documentElement?.lang;
+  return typeof lang === "string" && lang.toLowerCase() === "en" ? "en" : "ja";
+}
+
+/** Look up an interface message and replace `{name}` placeholders once. */
+export function t(key, params = {}) {
+  const template = LOCAL_MESSAGES[uiLocale()][key] ?? LOCAL_MESSAGES.ja[key];
+  if (typeof template !== "string") return key;
+  return template.replace(/\{([A-Za-z0-9_]+)\}/gu, (placeholder, name) =>
+    Object.hasOwn(params, name) ? String(params[name]) : placeholder);
+}
+
 let imageComparison;
 let localToken;
 let apiBase;
@@ -36,6 +209,7 @@ export class SynapseApiError extends Error {
     const title = typeof problem?.title === "string" ? problem.title : null;
     super(detail || title || `Request failed with status ${response.status}`);
     this.name = "SynapseApiError";
+    this.serverDetail = detail || title;
     this.status = response.status;
     this.code = typeof problem?.code === "string" ? problem.code : "unexpected_response";
     this.problem = problem;
@@ -53,7 +227,7 @@ function getLocalToken() {
 
   const token = readMetaContent(TOKEN_SELECTOR);
   if (!token || token.length > 4096 || /[\r\n]/u.test(token)) {
-    throw new Error("The local browser session token is missing or invalid.");
+    throw new Error(t("client.tokenInvalid"));
   }
 
   localToken = token;
@@ -66,7 +240,7 @@ function getApiBase() {
   const configured = readMetaContent(API_BASE_SELECTOR) || "/api/v1";
   const resolved = new URL(configured, window.location.origin);
   if (resolved.origin !== window.location.origin || resolved.search || resolved.hash) {
-    throw new Error("The configured API base must be a same-origin path.");
+    throw new Error(t("client.apiBaseInvalid"));
   }
 
   resolved.pathname = resolved.pathname.replace(/\/+$/u, "") || "/";
@@ -82,7 +256,7 @@ function resolveApiUrl(input) {
     resolved.pathname === base.pathname || resolved.pathname.startsWith(`${base.pathname}/`);
 
   if (resolved.origin !== window.location.origin || !withinBase || resolved.username || resolved.password) {
-    throw new TypeError("API requests must stay within the same-origin API base.");
+    throw new TypeError(t("client.apiUrlInvalid"));
   }
 
   resolved.hash = "";
@@ -149,7 +323,7 @@ function validOperationAccepted(value) {
 export function operationSuccessMessage(operation, archiveRestore) {
   if (operation?.state !== "succeeded") return null;
   if (archiveRestore && operation.kind !== "archive_restore") {
-    throw new TypeError("The archive-restore result is invalid.");
+    throw new TypeError(t("operation.restoreResultInvalid"));
   }
   if (operation.kind === "fsck") {
     const result = operation.result;
@@ -159,11 +333,11 @@ export function operationSuccessMessage(operation, archiveRestore) {
       !Number.isSafeInteger(result.objects_verified) ||
       !Number.isSafeInteger(result.issue_count)
     ) {
-      throw new TypeError("The integrity-check result is invalid.");
+      throw new TypeError(t("operation.fsckResultInvalid"));
     }
     return result.clean
-      ? `Integrity check completed cleanly after verifying ${result.objects_verified} objects.`
-      : `Integrity check completed with ${result.issue_count} issues.`;
+      ? t("operation.fsckClean", { count: result.objects_verified })
+      : t("operation.fsckIssues", { count: result.issue_count });
   }
   if (operation.kind === "archive_export") {
     const result = operation.result;
@@ -174,9 +348,9 @@ export function operationSuccessMessage(operation, archiveRestore) {
       result.result_kind !== "exported" ||
       result.report_equivalence_required !== false
     ) {
-      throw new TypeError("The archive-export result is invalid.");
+      throw new TypeError(t("operation.exportResultInvalid"));
     }
-    return `Archive “${result.archive_name}” was exported.`;
+    return t("operation.exported", { name: result.archive_name });
   }
   if (operation.kind === "archive_restore") {
     const result = operation.result;
@@ -189,26 +363,26 @@ export function operationSuccessMessage(operation, archiveRestore) {
       result.result_kind !== "restored" ||
       result.report_equivalence_required !== true
     ) {
-      throw new TypeError("The archive-restore result is invalid.");
+      throw new TypeError(t("operation.restoreResultInvalid"));
     }
-    return `アーカイブ「${result.archive_name}」を復元しました。復元した履歴を利用する前に、保存元と復元先の creator-report を比較し、一致を確認して保管してください。`;
+    return t("operation.restored", { name: result.archive_name });
   }
-  return "Maintenance operation completed.";
+  return t("operation.completed");
 }
 
 async function pollOperation(form, accepted, expectedOperation) {
   if (!validOperationAccepted(accepted)) {
-    throw new TypeError("The maintenance operation receipt is invalid.");
+    throw new TypeError(t("operation.receiptInvalid"));
   }
   const pollUrl = resolveApiUrl(accepted.poll_path);
   let pollDelayMs = 250;
   for (;;) {
     const operation = await apiJson(pollUrl, { method: "GET" });
     if (operation?.operation_id !== accepted.operation_id || typeof operation.state !== "string") {
-      throw new TypeError("The maintenance operation status is invalid.");
+      throw new TypeError(t("operation.statusInvalid"));
     }
     if (operation.state === "queued" || operation.state === "running") {
-      setStatus(form, `Maintenance operation is ${operation.state}…`, null);
+      setStatus(form, t(operation.state === "queued" ? "operation.queued" : "operation.running"), null);
       await new Promise((resolve) => window.setTimeout(resolve, pollDelayMs));
       pollDelayMs = Math.min(pollDelayMs * 2, 2_000);
       continue;
@@ -218,22 +392,19 @@ async function pollOperation(form, accepted, expectedOperation) {
         expectedOperation &&
         (operation.kind !== expectedOperation.kind || operation.project_key !== expectedOperation.projectKey)
       ) {
-        throw new TypeError("The maintenance operation status is invalid.");
+        throw new TypeError(t("operation.statusInvalid"));
       }
       return operation;
     }
     if (operation.state === "failed" || operation.state === "outcome_unknown") {
-      const detail =
-        typeof operation.error?.detail === "string"
-          ? operation.error.detail
-          : "The maintenance operation did not complete successfully.";
+      const detail = operationFailureMessage(operation.error);
       throw new TypeError(
         expectedOperation?.kind === "archive_restore"
-          ? `${detail} ファイルの一部だけがコピー済みの可能性があります。確認後も同じアーカイブだけを再試行してください。`
+          ? `${detail} ${t("operation.restorePartial")}`
           : detail,
       );
     }
-    throw new TypeError("The maintenance operation status is invalid.");
+    throw new TypeError(t("operation.statusInvalid"));
   }
 }
 
@@ -300,7 +471,7 @@ async function installInlineRaster(image, objectUrl) {
   try {
     await image.decode();
   } catch {
-    throw new TypeError("画像を表示できません。画像データが破損しているか、ブラウザーが対応していません。");
+    throw new TypeError(t("image.decodeFailed"));
   }
   if (IMAGE_URLS.get(image) !== objectUrl) return;
   INLINE_IMAGES.add(image);
@@ -311,7 +482,7 @@ async function installInlineRaster(image, objectUrl) {
 function installAttachmentDownload(image, objectUrl) {
   const download = imageDownloadElement(image);
   if (!download || !download.hasAttribute("download")) {
-    throw new TypeError("The attachment-only response has no dedicated download action.");
+    throw new TypeError(t("image.noDownloadAction"));
   }
 
   // Attachment bytes are never assigned to img/frame/navigation. The Blob URL
@@ -323,14 +494,10 @@ function installAttachmentDownload(image, objectUrl) {
     window.setTimeout(() => {
       if (IMAGE_URLS.get(image) !== objectUrl) return;
       revokeImageUrl(image);
-      setImageStatus(image, "Download済みです。再取得する場合はページを再読み込みしてください。", null);
+      setImageStatus(image, t("image.downloaded"), null);
     }, 0);
   };
-  setImageStatus(
-    image,
-    "Inline表示できない形式です。検証済みraw bytesをdownloadして確認してください。",
-    "warning",
-  );
+  setImageStatus(image, t("image.attachmentOnly"), "warning");
 }
 
 async function responseProblem(response) {
@@ -348,7 +515,7 @@ async function responseProblem(response) {
 async function loadApiImage(image) {
   const source = image.dataset.url;
   if (!source) {
-    setImageStatus(image, "Image source unavailable.", "error");
+    setImageStatus(image, t("image.sourceUnavailable"), "error");
     return;
   }
 
@@ -357,7 +524,7 @@ async function loadApiImage(image) {
   revokeImageUrl(image);
   image.removeAttribute("src");
   image.setAttribute("aria-busy", "true");
-  setImageStatus(image, image.dataset.loadingMessage || "Loading image…", null);
+  setImageStatus(image, image.dataset.loadingMessage || t("image.loading"), null);
 
   try {
     const response = await apiFetch(source, {
@@ -370,19 +537,19 @@ async function loadApiImage(image) {
     const disposition = response.headers.get("Content-Disposition")?.trim().toLowerCase() || "";
     const responseMode = type ? creatorImageResponseMode(type, disposition) : null;
     if (!responseMode) {
-      throw new TypeError("The response is neither an inline-safe raster nor a safe attachment.");
+      throw new TypeError(t("image.unsafeResponse"));
     }
 
     const contentLength = response.headers.get("Content-Length");
     if (contentLength) {
       if (!/^\d+$/u.test(contentLength) || BigInt(contentLength) > BigInt(MAX_IMAGE_BYTES)) {
-        throw new TypeError("The image exceeds the 64 MiB display limit.");
+        throw new TypeError(t("image.tooLarge"));
       }
     }
 
     const blob = await response.blob();
     if (blob.size > MAX_IMAGE_BYTES) {
-      throw new TypeError("The image exceeds the 64 MiB display limit.");
+      throw new TypeError(t("image.tooLarge"));
     }
     if (controller.signal.aborted || IMAGE_REQUESTS.get(image) !== controller) return;
 
@@ -500,7 +667,7 @@ export function enhanceImageComparison(root = document) {
     dialog.dataset.comparisonMode = isOverlay && supported ? "overlay" : "side-by-side";
     if (!isOverlay) return;
     if (!supported) {
-      overlayCaption.textContent = "重ねて表示するには、A と B のデコード後の幅と高さが一致している必要があります。並べて表示で確認できます。";
+      overlayCaption.textContent = t("compare.overlayUnavailable");
       return;
     }
     const a = sources[Number(panes[0].select.value)];
@@ -521,7 +688,7 @@ export function enhanceImageComparison(root = document) {
     // multiply the image's own alpha rather than replacing transparent pixels.
     overlayImages.b.setAttribute("opacity", String(Number(opacity.value) / 100));
     overlayViewport.dataset.zoom = zoom.value === "fit" ? "fit" : "actual";
-    overlayCaption.textContent = `${a.dataset.label} を下、${b.dataset.label} を上に重ねています。共通の左上原点で表示する目視補助であり、位置合わせ・差分解析は行いません。${opacity.value}%`;
+    overlayCaption.textContent = t("compare.overlayCaption", { a: a.dataset.label, b: b.dataset.label, opacity: opacity.value });
   };
   const render = () => {
     if (!dialog.open) return;
@@ -530,7 +697,7 @@ export function enhanceImageComparison(root = document) {
       if (!ready(source)) {
         pane.image.removeAttribute("src");
         pane.image.hidden = true;
-        pane.caption.textContent = "この画像は表示できません。元のカードの状態を確認してください。";
+        pane.caption.textContent = t("compare.paneUnavailable");
         continue;
       }
       const url = IMAGE_URLS.get(source);
@@ -549,9 +716,7 @@ export function enhanceImageComparison(root = document) {
   const refresh = () => {
     const count = sources.filter(ready).length;
     opener.disabled = count < 2;
-    status.textContent = count >= 2
-      ? "表示できる画像を2枚選んで、全体表示・100%・200%で確認できます。"
-      : "比較には表示可能な画像が2枚必要です。読み込み中・表示不可の理由は各カードで確認できます。";
+    status.textContent = t(count >= 2 ? "compare.ready" : "compare.notReady");
     for (const pane of panes) {
       for (const option of pane.select.options) option.disabled = !ready(sources[Number(option.value)]);
     }
@@ -637,7 +802,7 @@ function enhanceCreatorSessionFilter(root = document) {
       row.hidden = !matches;
       visible += Number(matches);
     }
-    count.textContent = `${visible} 件`;
+    count.textContent = t(visible === 1 ? "sessions.countOne" : "sessions.count", { count: visible });
   };
   filter.addEventListener("change", applyFilter);
   window.addEventListener("pageshow", applyFilter);
@@ -662,7 +827,7 @@ function fileSizeLabel(bytes) {
 
 function updateUtf8Counter(input, counter, limit) {
   const count = UTF8_ENCODER.encode(input.value).byteLength;
-  const error = count > limit ? `${limit} bytes以内に短くしてください（現在 ${count} bytes）。` : "";
+  const error = count > limit ? t("text.tooLong", { limit, count }) : "";
   input.setCustomValidity(error);
   input.setAttribute("aria-invalid", String(Boolean(error)));
   counter.hidden = false;
@@ -694,7 +859,12 @@ export function enhanceCreatorUploads(root = document) {
     const summary = () => {
       const files = fields.flatMap(({ input }) => [...input.files]);
       const target = form.querySelector("[data-creator-file-summary]");
-      target.textContent = `選択済み ${files.length} / ${fields.length} ファイル · 合計 ${fileSizeLabel(files.reduce((total, file) => total + file.size, 0))} / ${fields.length * 64} MiB`;
+      target.textContent = t("upload.summary", {
+        selected: files.length,
+        total: fields.length,
+        size: fileSizeLabel(files.reduce((total, file) => total + file.size, 0)),
+        limit: fields.length * 64,
+      });
       target.hidden = false;
     };
     const update = async (field) => {
@@ -710,7 +880,7 @@ export function enhanceCreatorUploads(root = document) {
       field.status.hidden = !file;
       field.status.textContent = "";
       delete field.status.dataset.tone;
-      const error = file?.size > MAX_IMAGE_BYTES ? "64 MiB以内のファイルを選び直してください。" : "";
+      const error = file?.size > MAX_IMAGE_BYTES ? t("upload.fileTooLarge") : "";
       field.input.setCustomValidity(error);
       field.input.setAttribute("aria-invalid", String(Boolean(error)));
       summary();
@@ -720,14 +890,14 @@ export function enhanceCreatorUploads(root = document) {
         field.status.dataset.tone = "error";
         return;
       }
-      field.status.textContent = "取り込み前のプレビューを読み込んでいます…";
+      field.status.textContent = t("upload.previewLoading");
       try {
         // Read only the signature before allocating a URL. File.type and the
         // filename are caller supplied and never authorize inline rendering.
         const type = localPreviewMediaType(new Uint8Array(await file.slice(0, 12).arrayBuffer()));
         if (!isCurrent()) return;
         if (!type) {
-          field.status.textContent = "この形式はプレビューできません。ファイルはそのまま取り込めます。";
+          field.status.textContent = t("upload.previewUnsupported");
           return;
         }
         state.url = URL.createObjectURL(file.slice(0, file.size, type));
@@ -735,11 +905,11 @@ export function enhanceCreatorUploads(root = document) {
         await field.image.decode();
         if (!isCurrent()) return;
         field.image.hidden = false;
-        field.status.textContent = `${field.image.naturalWidth} × ${field.image.naturalHeight} px · ローカルプレビュー`;
+        field.status.textContent = t("upload.previewReady", { width: field.image.naturalWidth, height: field.image.naturalHeight });
       } catch {
         if (!isCurrent()) return;
         release(field);
-        field.status.textContent = "プレビューを表示できません。ファイルの内容を確認してください。そのまま取り込むこともできます。";
+        field.status.textContent = t("upload.previewFailed");
       }
     };
     const updateText = () => {
@@ -788,16 +958,16 @@ function formJson(form, submitter) {
 
   for (const [name, value] of data) {
     if (value instanceof File) {
-      throw new TypeError("File forms require the dedicated upload enhancement.");
+      throw new TypeError(t("form.fileNeedsUpload"));
     }
     if (Object.hasOwn(payload, name)) {
-      throw new TypeError(`The field “${name}” must occur exactly once.`);
+      throw new TypeError(t("form.fieldOnce", { name }));
     }
     const control = form.elements.namedItem(name);
     if (control instanceof HTMLElement && control.dataset.maxUtf8Bytes) {
       const limit = Number(control.dataset.maxUtf8Bytes);
       if (!Number.isSafeInteger(limit) || limit < 0 || UTF8_ENCODER.encode(value).byteLength > limit) {
-        throw new TypeError(`The field “${name}” exceeds its UTF-8 byte limit.`);
+        throw new TypeError(t("form.fieldTooLong", { name }));
       }
     }
     payload[name] = value;
@@ -809,7 +979,7 @@ function formJson(form, submitter) {
       const annotations = editor.payload();
       if (annotations) payload.annotations = annotations;
     }
-    if (UTF8_ENCODER.encode(JSON.stringify(payload)).byteLength > 8192) throw new TypeError("The decision JSON exceeds 8 KiB including rationale and pins.");
+    if (UTF8_ENCODER.encode(JSON.stringify(payload)).byteLength > 8192) throw new TypeError(t("form.decisionTooLarge"));
   }
   return payload;
 }
@@ -817,7 +987,7 @@ function formJson(form, submitter) {
 function archiveRestoreJson(form, submitter) {
   const expectedProjectKey = form.dataset.restoreProjectKey;
   if (typeof expectedProjectKey !== "string" || !/^[a-z][a-z0-9-]{0,63}$/u.test(expectedProjectKey)) {
-    throw new TypeError("The restore target project is invalid.");
+    throw new TypeError(t("restore.targetInvalid"));
   }
 
   const fields = new Map();
@@ -827,7 +997,7 @@ function archiveRestoreJson(form, submitter) {
       !["archive_name", "confirm_target_project_key", "confirm_empty_target"].includes(name) ||
       fields.has(name)
     ) {
-      throw new TypeError("The archive restore confirmation is invalid.");
+      throw new TypeError(t("restore.confirmationInvalid"));
     }
     fields.set(name, value);
   }
@@ -841,7 +1011,7 @@ function archiveRestoreJson(form, submitter) {
     targetProjectKey !== expectedProjectKey ||
     fields.get("confirm_empty_target") !== "true"
   ) {
-    throw new TypeError("The archive restore confirmation is invalid.");
+    throw new TypeError(t("restore.confirmationInvalid"));
   }
 
   return {
@@ -858,7 +1028,7 @@ function formDataWithSubmitter(form, submitter) {
       !(submitter instanceof HTMLButtonElement || submitter instanceof HTMLInputElement) ||
       submitter.form !== form
     ) {
-      throw new TypeError("The submit control does not belong to this form.");
+      throw new TypeError(t("form.submitterInvalid"));
     }
     if (submitter.name) data.append(submitter.name, submitter.value);
   }
@@ -878,11 +1048,11 @@ function creatorMultipart(form, submitter) {
   for (const [name, value] of source) {
     if (textFields.has(name)) {
       if (typeof value !== "string" || text.has(name)) {
-        throw new TypeError(`The field “${name}” must occur exactly once as text.`);
+        throw new TypeError(t("form.textFieldOnce", { name }));
       }
       const byteLength = UTF8_ENCODER.encode(value).byteLength;
       if ((!name.startsWith("generation_") && byteLength === 0) || byteLength > textFields.get(name)) {
-        throw new TypeError(`The field “${name}” exceeds its UTF-8 byte limit.`);
+        throw new TypeError(t("form.fieldTooLong", { name }));
       }
       text.set(name, value);
       continue;
@@ -890,32 +1060,32 @@ function creatorMultipart(form, submitter) {
 
     if (fileFields.has(name)) {
       if (!(value instanceof File) || files.has(name)) {
-        throw new TypeError(`The field “${name}” must occur exactly once as a file.`);
+        throw new TypeError(t("form.fileFieldOnce", { name }));
       }
       if (value.size > MAX_IMAGE_BYTES) {
-        throw new TypeError(`The file “${name}” exceeds the 64 MiB limit.`);
+        throw new TypeError(t("form.fileTooLarge", { name }));
       }
       aggregateBytes += value.size;
       if (aggregateBytes > MAX_UPLOAD_AGGREGATE_BYTES) {
-        throw new TypeError("The three files exceed the 192 MiB aggregate limit.");
+        throw new TypeError(t("form.aggregateTooLarge"));
       }
       files.set(name, value);
       continue;
     }
 
-    throw new TypeError(`The field “${name}” is not allowed in a creator upload.`);
+    throw new TypeError(t("form.fieldNotAllowed", { name }));
   }
 
   const note = Object.fromEntries(["tool", "model", "prompt", "intent"].map(key => [key, text.get(`generation_${key}`) || ""]));
-  if (UTF8_ENCODER.encode(JSON.stringify(note)).byteLength > 16384) throw new TypeError("生成メモ全体は16 KiB以内にしてください。");
+  if (UTF8_ENCODER.encode(JSON.stringify(note)).byteLength > 16384) throw new TypeError(t("note.tooLarge"));
   if (!["session", "subject_label", "creator_name"].every(name => text.has(name)) || files.size !== fileFields.size) {
-    throw new TypeError("The creator upload contains missing or unexpected fields.");
+    throw new TypeError(t("form.uploadFieldsInvalid"));
   }
   if (!/^[a-z][a-z0-9-]{0,63}$/u.test(text.get("session"))) {
-    throw new TypeError("The session field is not a valid lowercase slug.");
+    throw new TypeError(t("form.sessionInvalid"));
   }
 
-  if (derived && !/^[0-9a-f]{64}$/u.test(text.get("confirmation_id") || "")) throw new TypeError("The source confirmation is invalid. Reopen the source page.");
+  if (derived && !/^[0-9a-f]{64}$/u.test(text.get("confirmation_id") || "")) throw new TypeError(t("form.sourceConfirmationInvalid"));
   const normalized = new FormData();
   for (const name of textFields.keys()) {
     normalized.append(
@@ -946,9 +1116,9 @@ export function formRequest(form, submitter) {
     const fields = formDataWithSubmitter(form, submitter);
     const fieldNames = new Set();
     for (const [name, value] of fields) {
-      if (typeof value !== "string") throw new TypeError("GET forms cannot contain files.");
+      if (typeof value !== "string") throw new TypeError(t("form.getWithFile"));
       if (fieldNames.has(name)) {
-        throw new TypeError(`The field “${name}” must occur exactly once.`);
+        throw new TypeError(t("form.fieldOnce", { name }));
       }
       fieldNames.add(name);
       url.searchParams.append(name, value);
@@ -969,7 +1139,7 @@ export function formRequest(form, submitter) {
   }
 
   if (form.dataset.synapseApiForm !== "json") {
-    throw new TypeError("The API form enhancement is not recognized.");
+    throw new TypeError(t("form.unknownEnhancement"));
   }
 
   const payload = form.dataset.archiveRestore === "true" ? archiveRestoreJson(form, submitter) : formJson(form, submitter);
@@ -1032,24 +1202,43 @@ function lockCompletedArchiveRestore(form) {
   }
 }
 
+// Stable problem codes with a localized summary. Other codes use a generic
+// summary. The server's own problem text is appended unchanged as detail.
+const LOCALIZED_ERROR_CODES = new Set(
+  MESSAGE_ENTRIES.map(([key]) => key).filter((key) => key.startsWith("error.code.")).map((key) => key.slice(11)),
+);
+
+function problemMessage(code, detail, status) {
+  const summary = LOCALIZED_ERROR_CODES.has(code)
+    ? t(`error.code.${code}`)
+    : typeof status === "number" && typeof detail !== "string"
+      ? t("error.http", { status })
+      : t("error.generic");
+  return typeof detail === "string" && detail ? t("error.withDetail", { summary, detail }) : summary;
+}
+
+function operationFailureMessage(problem) {
+  const detail = typeof problem?.detail === "string" ? problem.detail : null;
+  if (!detail && !LOCALIZED_ERROR_CODES.has(problem?.code)) return t("operation.failed");
+  return problemMessage(problem?.code, detail);
+}
+
 function publicErrorMessage(error) {
-  if (error instanceof SynapseApiError) return error.message;
+  if (error instanceof SynapseApiError) {
+    return problemMessage(error.problem ? error.code : null, error.serverDetail, error.status);
+  }
   if (error instanceof TypeError) return error.message;
-  if (error instanceof DOMException && error.name === "AbortError") return "Request cancelled.";
-  return "The local application could not complete the request.";
+  if (error instanceof DOMException && error.name === "AbortError") return t("error.cancelled");
+  return t("error.unexpected");
 }
 
 function showCommittedReceipt(form, data) {
   const receipt = data?.receipt;
   if (!receipt || typeof receipt !== "object" || typeof receipt.decision_head !== "string") {
-    throw new TypeError("The committed creator receipt is invalid.");
+    throw new TypeError(t("decision.receiptInvalid"));
   }
 
-  setStatus(
-    form,
-    `Decision committed at ${receipt.decision_head}. The full report is unavailable; inspect and retain the durable receipt below.`,
-    "success",
-  );
+  setStatus(form, t("decision.committedWithoutReport", { head: receipt.decision_head }), "success");
   let output = form.querySelector("[data-synapse-committed-receipt]");
   if (!(output instanceof HTMLElement)) {
     output = document.createElement("pre");
@@ -1087,26 +1276,27 @@ export async function submitEnhancedForm(event) {
 
   if (event.submitter?.name === "disposition") {
     const disposition = event.submitter.value;
-    const session = form.dataset.confirmSession || "this session";
+    const session = form.dataset.confirmSession || t("decision.thisSession");
     const project = form.dataset.confirmProject;
     const summary = event.submitter.dataset.decisionSummary;
+    const target = project
+      ? t("decision.targetWithProject", { project, session })
+      : t("decision.target", { session });
     const confirmed = window.confirm([
-      `${project ? `Project “${project}” / ` : ""}Creator session “${session}” に ${disposition} decisionを公開します。`,
-      ...(summary ? [summary, "記録後にこのセッションの判断を変更・再開する機能はありません。"] : []),
-      "この操作を続けますか？",
+      t("decision.confirmPublish", { target, disposition }),
+      ...(summary ? [summary, t("decision.finality")] : []),
+      t("decision.confirmContinue"),
     ].join("\n"));
     if (!confirmed) {
-      setStatus(form, "Decisionは送信されませんでした。", null);
+      setStatus(form, t("decision.notSent"), null);
       return;
     }
   }
 
   if (form.dataset.confirmMaintenance === "fsck") {
-    const confirmed = window.confirm(
-      "Read-only fsckを開始します。大きなrepositoryでは完了まで時間がかかる場合があります。続行しますか？",
-    );
+    const confirmed = window.confirm(t("fsck.confirm"));
     if (!confirmed) {
-      setStatus(form, "Integrity checkは開始されませんでした。", null);
+      setStatus(form, t("fsck.notStarted"), null);
       return;
     }
   }
@@ -1114,14 +1304,12 @@ export async function submitEnhancedForm(event) {
   if (form.dataset.confirmMaintenance === "archive-export") {
     const archiveName = new FormData(form).get("archive_name");
     if (typeof archiveName !== "string" || !/^[a-z][a-z0-9-]{0,63}$/u.test(archiveName)) {
-      setStatus(form, "Archive exportは開始されませんでした。", null);
+      setStatus(form, t("export.notStarted"), null);
       return;
     }
-    const confirmed = window.confirm(
-      `新しいarchive “${archiveName}” を作成します。既存archiveは上書きされません。続行しますか？`,
-    );
+    const confirmed = window.confirm(t("export.confirm", { name: archiveName }));
     if (!confirmed) {
-      setStatus(form, "Archive exportは開始されませんでした。", null);
+      setStatus(form, t("export.notStarted"), null);
       return;
     }
   }
@@ -1140,34 +1328,34 @@ export async function submitEnhancedForm(event) {
       return;
     }
     const confirmed = window.confirm(
-      `archive “${archiveRestore.archiveName}” をtarget project “${archiveRestore.projectKey}” へ復元します。失敗時もファイルの一部がコピー済みの可能性があり、自動再試行は行いません。続行しますか？`,
+      t("restore.confirm", { archive: archiveRestore.archiveName, project: archiveRestore.projectKey }),
     );
     if (!confirmed) {
-      setStatus(form, "Archive restoreは開始されませんでした。", null);
+      setStatus(form, t("restore.notStarted"), null);
       return;
     }
   }
 
   setBusy(form, true);
-  setStatus(form, form.dataset.busyMessage || "Working…", null);
+  setStatus(form, form.dataset.busyMessage || t("form.working"), null);
 
   try {
     let destination = form.dataset.successLocation
       ? new URL(form.dataset.successLocation, window.location.origin)
       : null;
     if (destination && destination.origin !== window.location.origin) {
-      throw new TypeError("The success destination must use the local application origin.");
+      throw new TypeError(t("form.destinationInvalid"));
     }
 
     let data = await apiJson(prepared.url, prepared.init);
     if (archiveRestore) {
       if (!validOperationAccepted(data)) {
-        throw new TypeError("The archive restore receipt is invalid.");
+        throw new TypeError(t("operation.restoreReceiptInvalid"));
       }
-      setStatus(form, "Archive restoreを開始しました…", null);
+      setStatus(form, t("operation.restoreStarted"), null);
       data = await pollOperation(form, data, archiveRestore);
     } else if (data?.state === "queued") {
-      setStatus(form, "Maintenance operationを開始しました…", null);
+      setStatus(form, t("operation.started"), null);
       data = await pollOperation(form, data);
     }
     const committedWithoutReport = data?.state === "committed";
@@ -1177,7 +1365,7 @@ export async function submitEnhancedForm(event) {
     } else {
       setStatus(
         form,
-        operationSuccessMessage(data, archiveRestore) || form.dataset.successMessage || "Completed.",
+        operationSuccessMessage(data, archiveRestore) || form.dataset.successMessage || t("form.completed"),
         "success",
       );
       if (archiveRestore) {
@@ -1196,7 +1384,7 @@ export async function submitEnhancedForm(event) {
         typeof data?.session !== "string" ||
         !/^[a-z][a-z0-9-]{0,63}$/u.test(data.session)
       ) {
-        throw new TypeError("The creator session destination is invalid.");
+        throw new TypeError(t("form.sessionDestinationInvalid"));
       }
       destination = new URL(encodeURIComponent(data.session), sessionBase);
     }
@@ -1287,7 +1475,7 @@ function enhanceCreatorPins(root = document) {
       if (pins.some(pin => !validBinding(pin) || typeof pin.note !== "string" || !pin.note || UTF8_ENCODER.encode(pin.note).byteLength > 200)) throw new Error();
     } catch {
       list.replaceChildren();
-      status.textContent = "注釈を表示できません。未知の形式または不正な画像対応です。";
+      status.textContent = t("pins.unreadable");
       panel.querySelector("[data-pin-controls]").hidden = false;
       return;
     }
@@ -1302,7 +1490,7 @@ function enhanceCreatorPins(root = document) {
     function annotationPayload(validate = true) {
       if (pins.length === 0) return null;
       if (validate && (pins.length > 10 || pins.some(pin => !validBinding(pin) || !pin.note || UTF8_ENCODER.encode(pin.note).byteLength > 200))) {
-        throw new TypeError("ピンの画像・座標と、各メモが1〜200 UTF-8 bytesであることを確認してください。");
+        throw new TypeError(t("pins.invalid"));
       }
       return { format: PIN_FORMAT, pins: pins.map(({ role, blob_oid, x, y, note }) => ({ role, blob_oid, x, y, note })) };
     }
@@ -1316,17 +1504,17 @@ function enhanceCreatorPins(root = document) {
       const remaining = [];
       for (const button of form.querySelectorAll('button[name="disposition"]')) {
         const bytes = UTF8_ENCODER.encode(JSON.stringify({ ...base, disposition: button.value })).byteLength;
-        remaining.push(`${button.textContent}: 残り ${8192 - bytes} bytes`);
+        remaining.push(t("pins.remaining", { label: button.textContent, bytes: 8192 - bytes }));
         button.disabled = busy || invalidPins || bytes > 8192;
       }
-      counter.textContent = `送信JSON全体（上限8192 bytes、理由とピンを含む） · ${remaining.join(" / ")}${invalidPins ? " · ピンのメモ・座標を修正してください。" : ""}`;
+      counter.textContent = `${t("pins.jsonSummary", { remaining: remaining.join(" / ") })}${invalidPins ? t("pins.fixInvalid") : ""}`;
     }
     function positionMarkers() {
       for (const marker of markers.children) {
         const pin = pins[Number(marker.dataset.pinIndex)];
         marker.style.left = `${pin.x / PIN_MAX * 100}%`;
         marker.style.top = `${pin.y / PIN_MAX * 100}%`;
-        marker.setAttribute("aria-label", `ピン ${Number(marker.dataset.pinIndex) + 1}: ${pin.note || "メモ未入力"}`);
+        marker.setAttribute("aria-label", t("pins.markerLabel", { number: Number(marker.dataset.pinIndex) + 1, note: pin.note || t("pins.noteMissing") }));
       }
       for (const input of list.querySelectorAll("[data-pin-axis]")) input.value = pins[Number(input.dataset.pinIndex)][input.dataset.pinAxis];
     }
@@ -1384,18 +1572,18 @@ function enhanceCreatorPins(root = document) {
         const item = document.createElement("li");
         const show = document.createElement("button");
         show.type = "button"; show.dataset.variant = "secondary";
-        show.textContent = `ピン ${index + 1} · ${pin.role}`;
+        show.textContent = t("pins.show", { number: index + 1, role: pin.role });
         show.addEventListener("click", () => { selector.value = pin.role; refresh(); markers.querySelector(`[data-pin-index="${index}"]`)?.focus(); });
         item.append(show);
         if (editable) {
-          const label = document.createElement("label"); label.textContent = `ピン ${index + 1} のメモ`;
+          const label = document.createElement("label"); label.textContent = t("pins.noteLabel", { number: index + 1 });
           const text = document.createElement("textarea"); text.id = `pin-note-${index}`; text.rows = 2; text.value = pin.note; label.htmlFor = text.id;
           const count = document.createElement("span"); count.className = "field__hint";
           const updateNote = () => { pin.note = text.value; const bytes = UTF8_ENCODER.encode(pin.note).byteLength; count.textContent = `${bytes} / 200 bytes`; text.setAttribute("aria-invalid", String(bytes === 0 || bytes > 200)); positionMarkers(); updateJsonCount(); };
           text.addEventListener("input", updateNote);
           item.append(label, text, count);
           for (const axis of ["x", "y"]) {
-            const axisLabel = document.createElement("label"); axisLabel.textContent = `ピン ${index + 1} ${axis.toUpperCase()}座標`;
+            const axisLabel = document.createElement("label"); axisLabel.textContent = t("pins.axisLabel", { number: index + 1, axis: axis.toUpperCase() });
             const input = document.createElement("input"); input.type = "number"; input.min = "0"; input.max = String(PIN_MAX); input.step = "1"; input.value = pin[axis]; input.id = `pin-${axis}-${index}`; axisLabel.htmlFor = input.id;
             input.dataset.pinAxis = axis; input.dataset.pinIndex = String(index);
             input.addEventListener("input", () => {
@@ -1407,7 +1595,7 @@ function enhanceCreatorPins(root = document) {
             });
             item.append(axisLabel, input);
           }
-          const deletion = document.createElement("button"); deletion.type = "button"; deletion.textContent = `ピン ${index + 1} を削除`; deletion.dataset.variant = "secondary";
+          const deletion = document.createElement("button"); deletion.type = "button"; deletion.textContent = t("pins.delete", { number: index + 1 }); deletion.dataset.variant = "secondary";
           deletion.addEventListener("click", () => remove(index)); item.append(deletion);
           updateNote();
         } else {
@@ -1426,10 +1614,10 @@ function enhanceCreatorPins(root = document) {
         if (preview.getAttribute("src") !== url) preview.src = url;
         canvas.style.width = zoom.value === "fit" ? `${source.naturalWidth}px` : `${source.naturalWidth * Number(zoom.value)}px`;
         canvas.style.maxWidth = zoom.value === "fit" ? "100%" : "none";
-        status.textContent = `${source.dataset.label} · ${source.naturalWidth} × ${source.naturalHeight} px · 画像の向きを反映した表示`;
+        status.textContent = t("pins.status", { label: source.dataset.label, width: source.naturalWidth, height: source.naturalHeight });
       } else {
         preview.removeAttribute("src");
-        status.textContent = "この画像にはピンを作成・表示できません。読み込み中、attachment扱い、または画像のdecode失敗です。元画像の状態を確認してください。";
+        status.textContent = t("pins.unavailable");
       }
       if (addButton) addButton.disabled = busy || !available || pins.length >= 10;
       renderMarkers();
@@ -1500,7 +1688,7 @@ function enhanceImportInbox() {
   const showList = async () => {
     if (!stageId) return;
     const cancelled = stageId;
-    status.textContent = "stagingを破棄しています…";
+    status.textContent = t("inbox.discarding");
     try {
       const response = await apiFetch(`${endpoint}/stages/${encodeURIComponent(cancelled)}`, { method: "DELETE" });
       if (response.status !== 204) throw await responseProblem(response);
@@ -1510,44 +1698,44 @@ function enhanceImportInbox() {
       form.hidden = true;
       list.hidden = false;
       list.querySelectorAll("button").forEach(button => { button.disabled = false; });
-      status.textContent = "stagingを破棄しました。候補を選んでください。";
+      status.textContent = t("inbox.discarded");
     } catch (error) {
-      status.textContent = `stagingを破棄できませんでした。${publicErrorMessage(error)}`;
+      status.textContent = t("inbox.discardFailed", { error: publicErrorMessage(error) });
     }
   };
   const renderImages = () => {
     images.replaceChildren();
     for (const [role, label] of [["original", "Original image"], ["current", "Current image"], ["ai-output", "AI output"]]) {
       const figure = document.createElement("figure"); const heading = document.createElement("figcaption"); heading.textContent = label;
-      const image = document.createElement("img"); image.alt = `${label} のstaging済みプレビュー`; image.dataset.synapseImage = ""; image.dataset.url = `${endpoint}/stages/${encodeURIComponent(stageId)}/images/${role}`; image.dataset.label = label;
-      const download = document.createElement("a"); download.hidden = true; download.dataset.synapseImageDownload = ""; download.textContent = "画像をダウンロード";
+      const image = document.createElement("img"); image.alt = t("inbox.stagedAlt", { label }); image.dataset.synapseImage = ""; image.dataset.url = `${endpoint}/stages/${encodeURIComponent(stageId)}/images/${role}`; image.dataset.label = label;
+      const download = document.createElement("a"); download.hidden = true; download.dataset.synapseImageDownload = ""; download.textContent = t("inbox.download");
       figure.append(heading, image, download); images.append(figure);
     }
     enhanceApiImages(images);
   };
   const stage = async (slug, button) => {
-    button.disabled = true; status.textContent = "候補を検証してstagingしています…";
+    button.disabled = true; status.textContent = t("inbox.staging");
     try {
       const preview = await apiJson(`${endpoint}/${encodeURIComponent(slug)}/stages`, { method: "POST" });
-      if (!preview || typeof preview.stage_id !== "string" || !/^[0-9a-f]{64}$/u.test(preview.stage_id)) throw new TypeError("staging応答が不正です。");
+      if (!preview || typeof preview.stage_id !== "string" || !/^[0-9a-f]{64}$/u.test(preview.stage_id)) throw new TypeError(t("inbox.stageInvalid"));
       stageId = preview.stage_id;
       for (const name of ["session", "subject_label", "creator_name"]) field(name).value = preview[name] || "";
       const generation = preview.generation_note || {}; field("generation_tool").value = generation.tool || ""; field("generation_model").value = generation.model || ""; field("generation_prompt").value = generation.prompt || ""; field("generation_intent").value = generation.intent || "";
-      list.hidden = true; form.hidden = false; status.textContent = "staging済みbytesを確認し、必要ならメタデータを編集してください。"; renderImages(); form.querySelector("h3")?.focus();
+      list.hidden = true; form.hidden = false; status.textContent = t("inbox.staged"); renderImages(); form.querySelector("h3")?.focus();
     } catch (error) { status.textContent = publicErrorMessage(error); button.disabled = false; }
   };
   const load = async () => {
     try {
-      const result = await apiJson(endpoint); if (!Array.isArray(result?.items)) throw new TypeError("inbox一覧応答が不正です。");
+      const result = await apiJson(endpoint); if (!Array.isArray(result?.items)) throw new TypeError(t("inbox.listInvalid"));
       section.hidden = false; list.replaceChildren();
       for (const item of result.items) {
         const row = document.createElement("li"); const title = document.createElement("strong"); title.textContent = item.slug;
-        const detail = document.createElement("p"); detail.className = "field__hint"; detail.textContent = item.ready ? "manifestは有効です。確認時に3ファイルを検証してstagingします。" : item.reason || "候補を検査できません。";
+        const detail = document.createElement("p"); detail.className = "field__hint"; detail.textContent = item.ready ? t("inbox.ready") : item.reason ? t("inbox.notReadyReason", { reason: item.reason }) : t("inbox.notReady");
         row.append(title, detail);
-        if (item.ready) { const button = document.createElement("button"); button.type = "button"; button.textContent = "確認する"; button.addEventListener("click", () => void stage(item.slug, button)); row.append(button); }
+        if (item.ready) { const button = document.createElement("button"); button.type = "button"; button.textContent = t("inbox.review"); button.addEventListener("click", () => void stage(item.slug, button)); row.append(button); }
         list.append(row);
       }
-      status.textContent = result.items.length ? "候補を選んでください。" : "manifestを最後に書いた候補はまだありません。";
+      status.textContent = t(result.items.length ? "inbox.choose" : "inbox.empty");
     } catch (error) {
       if (error instanceof SynapseApiError && error.code === "service_unavailable") return;
       section.hidden = false; status.textContent = publicErrorMessage(error);
@@ -1555,11 +1743,11 @@ function enhanceImportInbox() {
   };
   form.addEventListener("submit", async event => {
     event.preventDefault(); if (!stageId || !form.reportValidity()) return;
-    const bytes = UTF8_ENCODER.encode(JSON.stringify(note())).byteLength; if (bytes > 16384) { status.textContent = "生成メモ全体は16 KiB以内にしてください。"; return; }
+    const bytes = UTF8_ENCODER.encode(JSON.stringify(note())).byteLength; if (bytes > 16384) { status.textContent = t("note.tooLarge"); return; }
     const submit = form.querySelector("[type=submit]"); if (submit) submit.disabled = true;
     try {
       const pending = await apiJson(`${endpoint}/stages/${encodeURIComponent(stageId)}/creator-sessions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session: field("session").value, subject_label: field("subject_label").value, creator_name: field("creator_name").value, generation_note: note() }) });
-      if (!pending?.session) throw new TypeError("proposal応答が不正です。");
+      if (!pending?.session) throw new TypeError(t("inbox.proposalInvalid"));
       window.location.assign(`/projects/${encodeURIComponent(project)}/creator-sessions/${encodeURIComponent(pending.session)}`);
     } catch (error) { status.textContent = publicErrorMessage(error); if (submit) submit.disabled = false; }
   });
@@ -1599,7 +1787,7 @@ function enhancePresentationForm() {
       const bytes = UTF8_ENCODER.encode(control.value).length;
       const limit = Number(control.dataset.publicMaxBytes);
       if (bytes > limit) {
-        const message = `${control.labels[0].textContent}: ${bytes} / ${limit} UTF-8 bytes。上限を超えています。`;
+        const message = t("presentation.tooLong", { label: control.labels[0].textContent, bytes, limit });
         control.setCustomValidity(message); status.textContent = message; control.reportValidity(); return;
       }
       if (control.value !== "") {
@@ -1611,25 +1799,25 @@ function enhancePresentationForm() {
     busy = true;
     const controls = [...form.querySelectorAll("input, select, textarea, button")];
     controls.forEach(control => { control.disabled = true; });
-    status.textContent = "文章を検証しています…";
+    status.textContent = t("presentation.validating");
     try {
       const result = await apiJson(form.dataset.endpoint, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) });
       if (revision !== currentRevision) return;
-      if (typeof result?.toml !== "string" || UTF8_ENCODER.encode(result.toml).length > 65536) throw new Error("説明文ファイルの応答が不正です。");
+      if (typeof result?.toml !== "string" || UTF8_ENCODER.encode(result.toml).length > 65536) throw new TypeError(t("presentation.responseInvalid"));
       validatedToml = result.toml;
       const list = preview.querySelector("[data-presentation-text]");
-      for (const [label, value] of entries.length ? entries : [["説明文", "未入力。既存の省略時動作を使用します。"]]) {
+      for (const [label, value] of entries.length ? entries : [[t("presentation.emptyLabel"), t("presentation.emptyValue")]]) {
         const row = document.createElement("div");
         const term = document.createElement("dt"); term.textContent = label;
         const description = document.createElement("dd"); description.textContent = value; description.style.whiteSpace = "pre-wrap";
         row.append(term, description); list.append(row);
       }
-      preview.querySelector("[data-presentation-size]").textContent = `対象: ${input.session} · presentation.toml: ${UTF8_ENCODER.encode(validatedToml).length} / 65536 bytes`;
+      preview.querySelector("[data-presentation-size]").textContent = t("presentation.size", { session: input.session, bytes: UTF8_ENCODER.encode(validatedToml).length });
       preview.hidden = false;
-      status.textContent = "検証できました。内容を確認して書き出してください。";
+      status.textContent = t("presentation.validated");
       preview.querySelector("h2").focus();
     } catch (error) {
-      status.textContent = error instanceof Error ? error.message : "文章の検証に失敗しました。";
+      status.textContent = publicErrorMessage(error);
     } finally {
       busy = false;
       controls.forEach(control => { control.disabled = false; });
@@ -1641,7 +1829,7 @@ function enhancePresentationForm() {
     const link = document.createElement("a"); link.href = url; link.download = "presentation.toml";
     document.body.append(link); link.click(); link.remove();
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-    preview.querySelector("[data-presentation-download-status]").textContent = "説明文ファイルのダウンロードを開始しました。bundle生成・検証と外部共有はまだ行っていません。";
+    preview.querySelector("[data-presentation-download-status]").textContent = t("presentation.downloadStarted");
   });
   form.hidden = false;
 }

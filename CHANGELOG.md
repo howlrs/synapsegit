@@ -34,6 +34,13 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   schema, and a maintainer rehearsal on synthetic tutorial material that is
   explicitly not a real-user evaluation.
 
+- SynapseGit Local now lets a person select Japanese or English in the page
+  header. The explicit browser preference takes priority over `Accept-Language`
+  and persists across page navigation and reloads; Japanese remains the
+  fallback. Application labels, accessible names, image alternatives, and
+  client messages follow the selected language. User-supplied and stored text,
+  API identifiers, and error codes remain unchanged.
+
 ### Changed
 
 - The Japanese intended-user scenario deck (`docs/presentations/synapsegit_user_scenarios_ja.pptx`)

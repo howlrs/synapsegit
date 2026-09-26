@@ -3,24 +3,24 @@
 {% block content %}
 <header class="page-header">
   <div class="page-header__intro">
-    <p class="eyebrow">このコンピューター上だけで動作中</p>
-    <h1>制作履歴を、手元で確かめる</h1>
-    <p class="muted">画像、AIの提案、人の判断をローカルの不変履歴として確認できます。外部への公開や同期は行いません。</p>
+    <p class="eyebrow">{{ m.index.eyebrow }}</p>
+    <h1>{{ m.index.title }}</h1>
+    <p class="muted">{{ m.index.intro }}</p>
   </div>
 </header>
 
 <section aria-labelledby="projects-heading">
   <div class="section-heading">
     <div>
-      <h2 id="projects-heading">プロジェクト</h2>
-      <p class="muted">起動時に登録された正確なローカルリポジトリのみを表示します。</p>
+      <h2 id="projects-heading">{{ m.common.nav_projects }}</h2>
+      <p class="muted">{{ m.index.projects_help }}</p>
     </div>
-    <span class="badge">{{ projects.len() }} 件</span>
+    <span class="badge">{{ m.count_projects(projects.len()) }}</span>
   </div>
   {% if projects.is_empty() %}
   <div class="empty-state">
-    <h3>登録されたプロジェクトがありません</h3>
-    <p>サーバー起動時に <code>--project key=path</code> を指定してください。</p>
+    <h3>{{ m.index.no_projects_heading }}</h3>
+    <p>{{ m.index.no_projects_before }}<code>--project key=path</code>{{ m.index.no_projects_after }}</p>
   </div>
   {% else %}
   <div class="card-grid">
@@ -35,9 +35,9 @@
       </div>
       <dl class="stat-list">
         <div><dt>Refs</dt><dd>{{ project.ref_count }}</dd></div>
-        <div><dt>完了セッション</dt><dd>{{ project.complete_sessions }}</dd></div>
-        <div><dt>レビュー待ち</dt><dd>{{ project.pending_sessions }}</dd></div>
-        <div><dt>未完了</dt><dd>{{ project.incomplete_sessions }}</dd></div>
+        <div><dt>{{ m.index.completed_sessions }}</dt><dd>{{ project.complete_sessions }}</dd></div>
+        <div><dt>{{ m.common.state_pending }}</dt><dd>{{ project.pending_sessions }}</dd></div>
+        <div><dt>{{ m.common.state_incomplete }}</dt><dd>{{ project.incomplete_sessions }}</dd></div>
       </dl>
     </article>
     {% endfor %}
@@ -49,20 +49,20 @@
   <div class="section-heading">
     <div>
       <h2 id="archives-heading">Archives</h2>
-      <p class="muted">server-owned archive root直下のbounded read-onlyな一覧です。exportと、空のtarget projectへのrestoreは各project画面から行います。</p>
-      <p class="muted">各状態はmanifest checksumと構造のみを確認したmanifest-level evidenceであり、object内容の再検証やrestore成功を保証するものではありません。</p>
+      <p class="muted">{{ m.index.archives_help_listing }}</p>
+      <p class="muted">{{ m.index.archives_help_evidence }}</p>
     </div>
-    <span class="badge">{{ archives.len() }} 件</span>
+    <span class="badge">{{ m.count_archives(archives.len()) }}</span>
   </div>
   {% if let Some(error) = archives_error %}
   <div class="notice" data-tone="danger">
-    <h3>Archive listingを読み込めません</h3>
+    <h3>{{ m.index.archives_error_heading }}</h3>
     <p>{{ error }}</p>
   </div>
   {% else if archives.is_empty() %}
   <div class="empty-state">
-    <h3>表示できるarchiveがありません</h3>
-    <p>サーバー起動時に <code>--archive-root PATH</code> を指定し、そのディレクトリ直下にexport済みarchiveを配置してください。</p>
+    <h3>{{ m.index.no_archives_heading }}</h3>
+    <p>{{ m.index.no_archives_before }}<code>--archive-root PATH</code>{{ m.index.no_archives_after }}</p>
   </div>
   {% else %}
   <div class="card-grid">
