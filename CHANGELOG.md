@@ -6,14 +6,40 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-09-26
+
+### Added
+
+- The localhost script-output Inbox accepts bounded, manifest-last candidates
+  from a configured `--import-root PROJECT=INBOX`. The browser previews the
+  retained image bytes and begins a fresh Proposal only after confirmation;
+  it does not modify the Inbox or decide for the user.
+- Interrupted proposals and completed Defer sessions can provide their three
+  verified images to a new session with fresh Human review and an immutable,
+  private reuse-source binding. The old session and decision remain fixed.
+  Frozen publication v1 refuses these sessions.
+- The project page now leads with creator actions and up to 200 bounded,
+  explicitly unverified session summaries. It includes filters, recorded-time
+  basis, and derived-session links without exposing private rationale or notes.
+- A Git history/identity import and GitHub publication design documents the
+  phased implementation, privacy boundaries, and remaining work; no remote
+  publication or Git importer is included in this release.
+- The localhost image comparison dialog can overlay equally sized decoded
+  images and adjust the upper image opacity from 0% through 100% without
+  altering source transparency, evidence, or decisions.
+- The release and tutorial smoke paths now initialize a repository explicitly
+  before calling `creator-run`.
+
 ### Changed
 
 - Existing-repository CLI commands now reject missing or invalid top-level
   repository paths without creating a layout. `synapse init` creates only in a
   missing or empty directory and rejects nonempty nonrepositories; this is a
   Stage 0 breaking change for commands that previously created an empty
-  repository implicitly. `synapse-local` follows the same policy at startup
-  and while reopening a project at runtime.
+  repository implicitly. The create-intent `creator-run` still creates a new
+  repository, and `synapse-local` still initializes an existing empty
+  directory. `synapse-local` rejects missing and nonempty nonrepository paths
+  at startup and never recreates a missing repository while reopening it.
 - `RepositoryError` adds `RepositoryNotFound`; downstream exhaustive matches
   must handle the new Stage 0 error variant.
 
@@ -22,12 +48,6 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 - `synapse export REPOSITORY out` now succeeds for a bare relative archive
   destination after syncing the current directory, rather than reporting an
   error after publishing a valid archive.
-
-### Added
-
-- The localhost image comparison dialog can overlay equally sized decoded
-  images and adjust the upper image opacity from 0% through 100% without
-  altering source transparency, evidence, or decisions.
 
 ## [0.8.1] - 2026-09-17
 
@@ -420,7 +440,8 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/howlrs/synapsegit/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/howlrs/synapsegit/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/howlrs/synapsegit/compare/v0.7.0...v0.8.0
 [0.7.0]: https://github.com/howlrs/synapsegit/compare/v0.6.0...v0.7.0

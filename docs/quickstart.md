@@ -102,6 +102,7 @@ printf 'original bytes\n' > "$DEMO/original.bin"
 printf 'current bytes\n' > "$DEMO/current.bin"
 printf 'caller supplied proposal bytes\n' > "$DEMO/proposal.bin"
 
+"$SG" init "$CREATOR_REPO"
 "$SG" creator-run "$CREATOR_REPO" wall-1 \
   "$DEMO/original.bin" "$DEMO/current.bin" "$DEMO/proposal.bin" \
   --subject "North wall" --creator "Aki" --decision adopt

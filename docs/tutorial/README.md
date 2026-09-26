@@ -49,6 +49,7 @@ Run this command from the cloned SynapseGit repository so the sample paths
 resolve:
 
 ```bash
+synapse init "$SYNAPSE_TUTORIAL_REPO"
 synapse creator-run "$SYNAPSE_TUTORIAL_REPO" mural-treatment-01 \
   docs/tutorial/assets/mural-original.png \
   docs/tutorial/assets/mural-current.png \

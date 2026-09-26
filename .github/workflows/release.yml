@@ -85,6 +85,7 @@ jobs:
           printf 'original\n' > "$smoke/original.bin"
           printf 'current\n' > "$smoke/current.bin"
           printf 'candidate\n' > "$smoke/candidate.bin"
+          target/release/synapse init "$smoke/repo" >/dev/null
           target/release/synapse creator-run "$smoke/repo" release-smoke \
             "$smoke/original.bin" "$smoke/current.bin" "$smoke/candidate.bin" \
             --subject "Release publication smoke" \
@@ -122,6 +123,7 @@ jobs:
           printf 'original\n' > "$unpacked/original.bin"
           printf 'current\n' > "$unpacked/current.bin"
           printf 'candidate\n' > "$unpacked/candidate.bin"
+          "$unpacked/$bundle/synapse" init "$unpacked/repo" >/dev/null
           "$unpacked/$bundle/synapse" creator-run "$unpacked/repo" packaged-smoke \
             "$unpacked/original.bin" "$unpacked/current.bin" "$unpacked/candidate.bin" \
             --subject "Packaged publication smoke" \

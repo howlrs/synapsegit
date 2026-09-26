@@ -11,7 +11,7 @@ Status: **Core v0.1 / Stage 0 draft**
 - [Documentation index](./README.md)
 - [15分 壁画チュートリアル](./tutorial/README.ja.md)
 - [15-minute mural tutorial (English)](./tutorial/README.md)
-- [v0.8.0 release notes](./releases/v0.8.0.md)
+- [v0.9.0 release notes](./releases/v0.9.0.md)
 - [5分Quickstart](./quickstart.md)
 - [Native localhost application起動手順](../deploy/local/README.md)
 - [想定利用者別シナリオ（PPTX・日本語）](./presentations/synapsegit_user_scenarios_ja.pptx)
@@ -26,9 +26,9 @@ Status: **Core v0.1 / Stage 0 draft**
 single-user applicationである。repository directoryを先に作り、binaryへtrustedなproject mappingを渡す。
 
 ```bash
-cargo build --release --locked -p synapse-local-http --bin synapse-local
+cargo build --release --locked -p synapse-cli -p synapse-local-http
 
-mkdir -p "$HOME/SynapseGit/demo"
+./target/release/synapse init "$HOME/SynapseGit/demo"
 ./target/release/synapse-local \
   --project "demo=$HOME/SynapseGit/demo" \
   --label "demo=Demo project"
@@ -36,7 +36,7 @@ mkdir -p "$HOME/SynapseGit/demo"
 
 terminalに表示された`http://127.0.0.1:8787`をbrowserで開き、終了時はCtrl-Cを押す。hostは
 `127.0.0.1`固定で、network共有用のoverrideはない。複数projectは`--project KEY=PATH`を繰り返して登録する。
-空directoryは空repositoryとして開かれる。v0.8.0はproject画面からsessionを作成でき、
+この例では`init`でrepositoryを明示的に作る。`synapse-local`は既存の空directoryも初期化できるが、存在しないpathと非空の非repositoryを拒否する。v0.8.0はproject画面からsessionを作成でき、
 後述の`creator-run`で同じpathへ作成したsessionも表示できる。
 
 UIで現在読めるのはproject status、Refs／reflog、creator sessionのreport／timeline／evidence／画像である。
@@ -277,6 +277,7 @@ original、current、AI outputの3 fileを用意し、一意なsession名で実�
 起動して生成するものではなく、trusted local integrationが事前に用意した入力である。
 
 ```bash
+cargo run -p synapse-cli -- init .synapse-creator
 cargo run -p synapse-cli -- creator-run .synapse-creator mural-1 \
   path/to/original.png path/to/current.png path/to/ai-output.png \
   --subject "North wall mural" \
@@ -290,7 +291,7 @@ cargo run -p synapse-cli -- restore creator-archive restored.synapse
 cargo run -p synapse-cli -- creator-report restored.synapse mural-1
 ```
 
-`creator-run`はrepositoryを開くか新規作成し、Subject、imported CaptureProfile、original／current Observation、
+`creator-run`は新規repositoryを作成することもでき、Subject、imported CaptureProfile、original／current Observation、
 byte-identity AnalysisResult、import／AI Activity、human／AI／comparison software-tool Actor、Policy、DelegationGrant、
 ContextPack、proposal、DecisionFeedback、Human Decisionを自動構成する。
 proposalとdecisionのpublicationは`Application`のAI／Human routeを通る。commandは完了時に`fsck`を実行し、
