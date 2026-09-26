@@ -2327,7 +2327,7 @@ fn sessions_from_snapshot_with_pending(
         sessions.truncate(MAX_CREATOR_SESSION_SUMMARIES);
         return Ok(sessions);
     };
-    for summary in sessions.iter_mut().take(MAX_CREATOR_SESSION_SUMMARIES) {
+    for summary in &mut sessions {
         if summary.state != CreatorSessionState::Complete {
             continue;
         }
@@ -2341,14 +2341,12 @@ fn sessions_from_snapshot_with_pending(
         summary.creator_name = Some(creator_name);
         summary.subject_label = Some(subject_label);
         summary.disposition = Some(report.disposition.as_cli_str().into());
-        summary.recorded_at = report
+        let recorded = report
             .timeline
-            .last()
-            .map(|entry| entry.ordering_time.clone());
-        summary.recorded_time_basis = report
-            .timeline
-            .last()
-            .map(|entry| entry.time_basis.to_owned());
+            .iter()
+            .max_by(|left, right| left.ordering_time.cmp(&right.ordering_time));
+        summary.recorded_at = recorded.map(|entry| entry.ordering_time.clone());
+        summary.recorded_time_basis = recorded.map(|entry| entry.time_basis.to_owned());
         summary.source_session = report.source.map(|source| source.session);
     }
     sessions.sort_by(|left, right| {
