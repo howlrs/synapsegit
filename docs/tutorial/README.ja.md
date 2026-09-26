@@ -42,7 +42,10 @@ test ! -e "$SYNAPSE_TUTORIAL_REPO"
 
 ## 1. 提案とHuman Decisionを記録する
 
-sample pathを解決できるよう、cloneしたSynapseGit repository rootで実行します。
+sample pathを解決できるよう、cloneしたSynapseGit repository rootか、
+`v0.9.0`より後に公開されたrelease archiveを展開したdirectory(同じ
+`docs/tutorial/assets/`のpathがarchiveにも同梱されます。archive rootの
+`TUTORIAL.md`を参照してください)で実行します。
 
 ```bash
 synapse init "$SYNAPSE_TUTORIAL_REPO"

@@ -134,6 +134,27 @@ jobs:
             --session packaged-smoke --public --github >/dev/null
           "$unpacked/$bundle/synapse-present" preview "$unpacked/view" >/dev/null
 
+      - name: Smoke-test the bundled archive tutorial
+        run: |
+          bundle="synapsegit-$GITHUB_REF_NAME-$TARGET"
+          unpacked="$(mktemp -d)"
+          trap 'rm -rf "$unpacked"' EXIT
+          tar -xzf "dist/$bundle.tar.gz" -C "$unpacked"
+          for file in TUTORIAL.md scripts/run_mural_tutorial.sh \
+            docs/tutorial/assets/mural-original.png \
+            docs/tutorial/assets/mural-current.png \
+            docs/tutorial/assets/mural-ai-proposal.png; do
+            test -s "$unpacked/$bundle/$file"
+          done
+          test -x "$unpacked/$bundle/scripts/run_mural_tutorial.sh"
+          if grep -q '{{RELEASE_TAG}}' "$unpacked/$bundle/TUTORIAL.md"; then
+            echo "release_error: unresolved RELEASE_TAG placeholder in bundled guide" >&2
+            exit 1
+          fi
+          grep -q "/blob/$GITHUB_REF_NAME/" "$unpacked/$bundle/TUTORIAL.md"
+
+          bash scripts/test_tutorial_bundle.sh --bundle "$unpacked/$bundle"
+
       - name: Attest the release archive
         uses: actions/attest@508db95dd578ae2727ebd6217d5ba78e4fbda05d # v4
         with:

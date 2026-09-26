@@ -45,8 +45,10 @@ replaces an existing repository.
 
 ## 1. Record the proposal and Human Decision
 
-Run this command from the cloned SynapseGit repository so the sample paths
-resolve:
+Run this command from the cloned SynapseGit repository, or from an extracted
+release archive published after `v0.9.0` (it bundles the same
+`docs/tutorial/assets/` paths; see `TUTORIAL.md` at the archive root), so the
+sample paths resolve:
 
 ```bash
 synapse init "$SYNAPSE_TUTORIAL_REPO"

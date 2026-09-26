@@ -76,3 +76,44 @@ jobs:
           npm ci --prefix scripts/browser --ignore-scripts
           scripts/browser/node_modules/.bin/playwright install --with-deps chromium
           npm --prefix scripts/browser test
+
+      - name: Verify the archive tutorial bundle
+        run: |
+          cargo build -p synapse-cli -p synapse-local-http -p synapse-publication --locked
+          bash scripts/test_tutorial_bundle.sh \
+            target/debug/synapse \
+            target/debug/synapse-local \
+            target/debug/synapse-present
+
+      - name: Package and verify the release archive
+        run: |
+          cargo build --release -p synapse-cli -p synapse-local-http -p synapse-publication --locked
+          target="$(rustc -vV | awk '$1 == "host:" { print $2 }')"
+          version="$(cargo metadata --no-deps --format-version 1 | node -e 'const packages = JSON.parse(require("fs").readFileSync(0, "utf8")).packages; const pkg = packages.find(({ name }) => name === "synapse-cli"); if (!pkg) throw new Error("synapse-cli is missing from cargo metadata"); process.stdout.write(pkg.version)')"
+          tag="v$version"
+          work="$(mktemp -d)"
+          trap 'rm -rf "$work"' EXIT
+          export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+          bash scripts/package_release.sh "$tag" "$target" "$work/dist"
+          (
+            cd "$work/dist"
+            sha256sum --check SHA256SUMS
+          )
+          (
+            cd "$work"
+            tar -xzf "dist/synapsegit-$tag-$target.tar.gz"
+            bundle="synapsegit-$tag-$target"
+            for file in TUTORIAL.md scripts/run_mural_tutorial.sh \
+              docs/tutorial/assets/mural-original.png \
+              docs/tutorial/assets/mural-current.png \
+              docs/tutorial/assets/mural-ai-proposal.png; do
+              test -s "$bundle/$file"
+            done
+            test -x "$bundle/scripts/run_mural_tutorial.sh"
+            if grep -q '{{RELEASE_TAG}}' "$bundle/TUTORIAL.md"; then
+              echo "release_error: unresolved RELEASE_TAG placeholder in bundled guide" >&2
+              exit 1
+            fi
+            grep -q "/blob/$tag/" "$bundle/TUTORIAL.md"
+            bash "$GITHUB_WORKSPACE/scripts/test_tutorial_bundle.sh" --bundle "./$bundle"
+          )
