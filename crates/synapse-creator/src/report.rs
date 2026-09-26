@@ -101,7 +101,7 @@ pub fn creator_reuse_source_from_snapshot(
         "interrupted decision base",
     )?;
     let base_snapshot = string_field(&base, "snapshot", "interrupted decision base")?;
-    let ids = load_session_ids_from_base(repository, session, &base_snapshot)?;
+    let ids = load_session_ids_from_base(repository, session, base_snapshot)?;
     require_stored_value(
         &base,
         "author_ref",
@@ -214,7 +214,7 @@ fn validate_reuse_source_binding(
         require_stored_value(&base, "object_type", "commit", "interrupted decision base")?;
         require_stored_value(&base, "commit_kind", "checkpoint", "interrupted decision base")?;
         let base_snapshot = string_field(&base, "snapshot", "interrupted decision base")?;
-        let ids = load_session_ids_from_base(repository, &source.session, &base_snapshot)?;
+        let ids = load_session_ids_from_base(repository, &source.session, base_snapshot)?;
         require_stored_value(&base, "author_ref", &ids.creator, "interrupted decision base")?;
         let proposal = read_json(repository, &source.proposal_head)?;
         require_stored_value(&proposal, "object_type", "commit", "interrupted proposal")?;

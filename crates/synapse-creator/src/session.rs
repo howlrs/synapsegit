@@ -428,20 +428,17 @@ fn begin_creator_session_with_bindings_and_limits(
     let original_blob_oid = put_file(&repository, &options.original_image)?;
     let current_blob_oid = put_file(&repository, &options.current_image)?;
     let ai_output_blob_oid = put_file(&repository, &options.ai_output)?;
-    if let Some(source) = source {
-        if original_blob_oid != source.original_blob_oid
-            || current_blob_oid != source.current_blob_oid
-        {
-            return Err(crate::source::invalid_source());
-        }
+    if let Some(source) = source
+        && (original_blob_oid != source.original_blob_oid || current_blob_oid != source.current_blob_oid)
+    {
+        return Err(crate::source::invalid_source());
     }
-    if let Some(source) = reuse_source {
-        if original_blob_oid != source.original_blob_oid
+    if let Some(source) = reuse_source
+        && (original_blob_oid != source.original_blob_oid
             || current_blob_oid != source.current_blob_oid
-            || ai_output_blob_oid != source.ai_output_blob_oid
-        {
-            return Err(crate::source::invalid_source());
-        }
+            || ai_output_blob_oid != source.ai_output_blob_oid)
+    {
+        return Err(crate::source::invalid_source());
     }
     let mut recording_clock = RecordingClock::default();
     let base_recorded_at = recording_clock.tick()?;
