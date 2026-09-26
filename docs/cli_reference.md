@@ -328,7 +328,7 @@ rollbackやincomplete sessionを意味しない。receipt／reportはまだstdou
 fixed Pilot stateである。HTTP／JWT、durable／distributed ACL、OS sandbox／egress、external model execution、
 multi-user／organization／quorum／release、modified／partial adoptionを提供しない。
 
-### `creator-report <repo> <session>`
+### `creator-report <repo> <session> [--format text|json]`
 
 current `proposal/creator-agent/<session>`と`decision/creator/<session>`からcreator sessionを再構築する。
 
@@ -413,6 +413,278 @@ recording timestampになる。time basisはObservationなら`observation_record
 
 派生元の固定headsと再利用roleはCreator report APIとlocalhost画面で確認できる。
 text CLIの新しい派生元表示や派生作成commandは提供していない。
+
+#### `--format json`
+
+`--format json`はstdoutへ**一つの**プライベート・ローカル専用JSON documentだけを出力し、diagnosticsは
+stderrへ出す。`--format`を省略する、または`--format text`を指定すると上記の既存text出力のままである。この
+JSON contractはCLI-owned構造体（`crates/synapse-cli/src/report_json.rs`）であり、`CreatorReport`から
+field単位で明示的に写像している。`synapse_core`／`synapse_creator`のRust型をDeriveでそのまま晒す
+unversioned formatではない。
+
+トップレベルの`"format": "synapsegit-cli-creator-report-v1"`が契約versionを表す。versioning ruleは次の
+通りである。`-v1`が指す各fieldの意味は変わらない。追加は`-v1`のまま許すadditive-onlyな変更として文書化する。
+field削除・rename・意味変更のような非互換な変更は新しいformat識別子（例：`-v2`）を必要とし、`-v1`を無言で
+変えることはない。
+
+`"scope": "private_local"`はこのdocumentが**プライベートなローカルreport**であることを機械可読に示す
+固定markerである。rationaleのtext、user宣言のgeneration note、decision pins、内部identifierを含み得るため、
+共有・公開を意図しない。これは公開bundle（`projection.json`、`synapse-present export ... --public`）とは
+別contractである。共有したい場合は既存の公開出力`synapse-present export ... --public`を使う。
+
+「記録されなかった（absent）」「記録はあるが読み込めない・非対応形状（unavailable）」「記録されている
+（present）」を区別するため、`source`、`reuse_source`、`generation_note`は
+`"availability": "absent" | "present"`、`decision_pins`は`"availability": "absent" | "present" | "unavailable"`
+を持つobjectである。`comparison`は
+`"availability": "absent" | "present"`を持つ（legacy-shaped sessionにcomparison entryが一つも
+ないときが`absent`で、それ以外は`present`になる）が、byte-identity analysisそのものの結果である
+`status`／`comparability`／`outcome`とはfieldを分けている。`rationale`は記録がなければ`null`である。
+
+**固定key設計**: `CreatorReportDocument`の各objectは`availability`に関わらず同じkey集合を常に出力する。
+`availability`が`present`以外のときも、objectの他のscalar fieldは省略されず`null`になり、array fieldは
+`[]`になる。つまりreaderは常に同じshapeをparseでき、fieldの有無で分岐する必要はない。
+
+```bash
+synapse init .synapse-creator
+synapse creator-run .synapse-creator mural-1 \
+  original.bin current.bin proposal.bin \
+  --subject "North wall mural" --creator "Aki" --decision adopt \
+  --rationale "The proposal fits the intended palette."
+synapse creator-report .synapse-creator mural-1 --format json
+```
+
+以下は上のcommandを実際に実行して得た、完全なdocumentである（OID／UUIDの一部だけを`…`で短縮し、
+keyと入れ子構造はすべて保持している）。
+
+```json
+{
+  "format": "synapsegit-cli-creator-report-v1",
+  "scope": "private_local",
+  "ai_output_source": "caller_supplied",
+  "session": "mural-1",
+  "project_id": "urn:uuid:b1a64038-…",
+  "subject_id": "urn:uuid:f5ed12fa-…",
+  "agent_id": "urn:uuid:53510f60-…",
+  "creator_id": "urn:uuid:9b4fccb4-…",
+  "selected_ai_output": true,
+  "disposition": "adopt",
+  "rationale": "The proposal fits the intended palette.",
+  "base_head": "commit:sg-oid-v1:sha256:0b66d24e…",
+  "base_snapshot": "tree:sg-oid-v1:sha256:0480a70e…",
+  "proposal_snapshot": "tree:sg-oid-v1:sha256:b810af3e…",
+  "decision_snapshot": "tree:sg-oid-v1:sha256:b810af3e…",
+  "proposal_ref": {
+    "name": "proposal/creator-agent/mural-1",
+    "head": "commit:sg-oid-v1:sha256:c9b26fbe…"
+  },
+  "decision_ref": {
+    "name": "decision/creator/mural-1",
+    "head": "commit:sg-oid-v1:sha256:b60eef07…"
+  },
+  "blobs": {
+    "original": "blob:sg-oid-v1:sha256:45c0b761…",
+    "current": "blob:sg-oid-v1:sha256:7552a879…",
+    "ai_output": "blob:sg-oid-v1:sha256:673fe4d4…"
+  },
+  "source": {
+    "availability": "absent",
+    "format": null,
+    "session": null,
+    "proposal_head": null,
+    "decision_head": null,
+    "disposition": null,
+    "original_blob_oid": null,
+    "current_blob_oid": null
+  },
+  "reuse_source": {
+    "availability": "absent",
+    "format": null,
+    "kind": null,
+    "session": null,
+    "proposal_head": null,
+    "decision_head": null,
+    "original_blob_oid": null,
+    "current_blob_oid": null,
+    "ai_output_blob_oid": null
+  },
+  "source_depth": 0,
+  "generation_note": {
+    "availability": "absent",
+    "tool": null,
+    "model": null,
+    "prompt": null,
+    "intent": null
+  },
+  "decision_pins": {
+    "availability": "absent",
+    "format": null,
+    "pins": []
+  },
+  "comparison": {
+    "availability": "present",
+    "analysis_oid": "record:sg-oid-v1:sha256:02f2ca6b…",
+    "tool_id": "urn:uuid:0781b03f-…",
+    "tool_actor_oid": "record:sg-oid-v1:sha256:c886f60b…",
+    "adapter_id": "synapsegit.observation.byte-identity",
+    "adapter_version": "1",
+    "implementation_oid": "blob:sg-oid-v1:sha256:93b9b3f6…",
+    "configuration_oid": "blob:sg-oid-v1:sha256:1d06cfee…",
+    "status": "succeeded",
+    "comparability": "partial",
+    "outcome": "different",
+    "reason_codes": ["byte_identity_only", "capture_profile_imported", "capture_time_unknown"],
+    "warnings": ["Different Blob bytes do not establish visual or physical change."],
+    "base_observation_oid": "record:sg-oid-v1:sha256:87e4d5e0…",
+    "target_observation_oid": "record:sg-oid-v1:sha256:da733d6d…",
+    "base_media_oid": "blob:sg-oid-v1:sha256:45c0b761…",
+    "target_media_oid": "blob:sg-oid-v1:sha256:7552a879…",
+    "replay_ready": true,
+    "reachable_from": ["decision/creator/mural-1", "proposal/creator-agent/mural-1"]
+  },
+  "fsck": { "clean": true, "objects": 24 },
+  "timeline": [
+    {
+      "oid": "record:sg-oid-v1:sha256:87e4d5e0…",
+      "stage": "original_observation",
+      "kind": "observation",
+      "entity_id": "urn:uuid:c0553a2c-…",
+      "ordering_time": "2026-09-26T19:29:50.611433900Z",
+      "time_basis": "observation_recorded_at_fallback",
+      "reachable_from": ["decision/creator/mural-1", "proposal/creator-agent/mural-1"]
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:da733d6d…",
+      "stage": "current_observation",
+      "kind": "observation",
+      "entity_id": "urn:uuid:ac07ee6d-…",
+      "ordering_time": "2026-09-26T19:29:50.611437900Z",
+      "time_basis": "observation_recorded_at_fallback",
+      "reachable_from": ["decision/creator/mural-1", "proposal/creator-agent/mural-1"]
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:d3540d60…",
+      "stage": "image_import",
+      "kind": "activity",
+      "entity_id": "urn:uuid:9d582c0d-…",
+      "ordering_time": "2026-09-26T19:29:50.611439000Z",
+      "time_basis": "activity_recorded_at_fallback",
+      "reachable_from": ["decision/creator/mural-1", "proposal/creator-agent/mural-1"]
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:d5c61ffd…",
+      "stage": "ai_proposal",
+      "kind": "activity",
+      "entity_id": "urn:uuid:a548f565-…",
+      "ordering_time": "2026-09-26T19:29:50.774194100Z",
+      "time_basis": "activity_recorded_at_fallback",
+      "reachable_from": ["decision/creator/mural-1", "proposal/creator-agent/mural-1"]
+    }
+  ]
+}
+```
+
+verification失敗時（例：`creator_session_not_found`、`fsck_failed`、`creator_report_invalid`）はerror
+messageをstderrへ出し、成功した出力に見えるような部分的なJSONをstdoutへ書き込まない。session全体を
+verifyしてから一つの完全なdocumentへ組み立て、それを丸ごとserializeしてから出力するためである。
+日本語、引用符、改行、タブを含む値（rationale、generation note、decision pinのnoteなど）は標準的なJSON
+文字列としてround-tripする。
+
+`--format`の不明な値、複数回の`--format`指定、値なしの`--format`は既存の`CliError::Usage`／`usage_error`
+経路・exit codeに従う usage errorであり、新しいerror codeを追加していない。
+
+#### field一覧（`synapsegit-cli-creator-report-v1`）
+
+以下は`-v1`が固定する各fieldの型・null許容・意味である。`?`は`null`になり得ることを、`[]`はarrayで
+空になり得ることを示す。すべてのobjectはkeyを常に出力し、値の有無を`availability`で表す。
+
+| field | type | 意味 |
+| --- | --- | --- |
+| `format` | string | 契約識別子。常に`"synapsegit-cli-creator-report-v1"`。 |
+| `scope` | string | 常に`"private_local"`。公開bundleではないことを示す固定marker。 |
+| `ai_output_source` | string | 常に`"caller_supplied"`。AI outputが第三fileの入力由来であることの明示。 |
+| `session` | string | caller指定のsession名。 |
+| `project_id` | string | Subject extensionから復元したproject EntityId。 |
+| `subject_id` | string | Subject EntityId。 |
+| `agent_id` | string | proposalの記録上のattributed agent EntityId。text出力の`proposal_attributed_to_agent`に対応する。commandやmodelによる生成証明ではない。 |
+| `creator_id` | string | reviewerを表すcreator EntityId。text出力の`reviewed_by_human`に対応する。proposalを選んだという意味ではない。 |
+| `selected_ai_output` | bool | `disposition`が`adopt`のときだけ`true`。 |
+| `disposition` | string | `"adopt"` \| `"reject"` \| `"defer"`。 |
+| `rationale` | string? | 記録されたHuman rationale。未記録なら`null`。 |
+| `base_head` | string | base Commit OID。 |
+| `base_snapshot` | string | base Tree OID。 |
+| `proposal_snapshot` | string | proposal Tree OID。 |
+| `decision_snapshot` | string | decision Tree OID（adoptならproposalと同じ、reject／deferならbaseと同じ）。 |
+| `proposal_ref` | object | `{ "name": string, "head": commit-oid }`。 |
+| `decision_ref` | object | `{ "name": string, "head": commit-oid }`。 |
+| `blobs` | object | `{ "original": blob-oid, "current": blob-oid, "ai_output": blob-oid }`。 |
+| `source` | object | 派生元の固定binding。下記「`source` / `reuse_source`」参照。 |
+| `reuse_source` | object | 3-image再利用元の固定binding。下記参照。 |
+| `source_depth` | integer | 派生／再利用元を入れ子で辿った深さ。派生元がなければ`0`。 |
+| `generation_note` | object | user宣言のgeneration note。下記参照。 |
+| `decision_pins` | object | private decision pins。下記参照。 |
+| `comparison` | object | byte-identity comparisonの結果。下記参照。 |
+| `fsck` | object | `{ "clean": true, "objects": integer }`。`objects`はreport作成時のfsckが検証したrepository全体のobject数で、session固有の数ではない（同じrepositoryへsessionが増えると変わる）。`clean`は常に`true`である。fsckがcleanでない場合、`creator-report`はdocumentを組み立てず`fsck_failed`で失敗するため、失敗したfsckの結果を表すdocumentは存在しない。 |
+| `timeline` | array | rebuild済みTimeline entryの配列。下記参照。 |
+
+`source` / `reuse_source`（availability: `absent` \| `present`）:
+
+| field | type | 意味 |
+| --- | --- | --- |
+| `availability` | string | 記録がなければ`absent`、あれば`present`。 |
+| `format` | string? | binding formatの識別子（例：`synapsegit-creator-source-v1`）。`absent`なら`null`。 |
+| `session` | string? | 派生元／再利用元のsession名。`absent`なら`null`。 |
+| `proposal_head` / `decision_head` | string? | 派生元／再利用元のRef head。`absent`なら`null`。 |
+| `disposition` | string? | `source`のみ。派生元の`"adopt"` \| `"reject"` \| `"defer"`。`reuse_source`にはない。 |
+| `kind` | string? | `reuse_source`のみ。`"deferred_rereview"` \| `"interrupted_pending"`。`source`にはない。 |
+| `original_blob_oid` / `current_blob_oid` | string? | 派生元／再利用元のBlob OID。`absent`なら`null`。 |
+| `ai_output_blob_oid` | string? | `reuse_source`のみ。`source`にはない。 |
+
+`generation_note`（availability: `absent` \| `present`）:
+
+| field | type | 意味 |
+| --- | --- | --- |
+| `availability` | string | user宣言のnoteが記録されていれば`present`。 |
+| `tool` / `model` / `prompt` / `intent` | string? | user宣言のtext。`absent`なら`null`。実行証明ではない。 |
+
+`decision_pins`（availability: `absent` \| `present` \| `unavailable`）:
+
+| field | type | 意味 |
+| --- | --- | --- |
+| `availability` | string | pinsが未記録なら`absent`、有効なpinsがあれば`present`、annotation拡張が不明・不正な形状で読み込めなければ`unavailable`。 |
+| `format` | string? | pin setのformat識別子（例：`synapsegit-creator-decision-pins-v1`）。`present`でなければ`null`。 |
+| `pins` | array | `{ "role": "original"\|"current"\|"ai_output", "blob_oid": string, "x": integer, "y": integer, "note": string }`の配列。`present`でなければ`[]`。 |
+
+`comparison`（availability: `absent` \| `present`）:
+
+| field | type | 意味 |
+| --- | --- | --- |
+| `availability` | string | base Treeにcomparison entryが一つもないlegacy-shaped sessionだけ`absent`。それ以外は`present`。不完全・不正なcomparison entryは`unavailable`として出力せず、report全体を`creator_report_invalid`で拒否する。 |
+| `analysis_oid` / `tool_id` / `tool_actor_oid` / `implementation_oid` / `configuration_oid` | string? | comparison recordを構成するOID群。`absent`なら`null`。 |
+| `adapter_id` / `adapter_version` | string? | comparison adapterの識別子とversion。presentではそれぞれ`"synapsegit.observation.byte-identity"`と`"1"`、`absent`なら`null`。 |
+| `status` | string? | presentでは常に`"succeeded"`。analysis adapter自身の実行結果であり、`comparison.availability`とは別concept。`absent`なら`null`。 |
+| `comparability` | string? | presentでは常に`"partial"`。`absent`なら`null`。 |
+| `outcome` | string? | presentでは`"identical"` \| `"different"`。`absent`なら`null`。 |
+| `reason_codes` | array | presentでは常に`"byte_identity_only"`、`"capture_profile_imported"`、`"capture_time_unknown"`から成る順序付き配列。`absent`なら`[]`。 |
+| `warnings` | array | presentではoutcomeに対応する保守的解釈warningを一件持つ。`absent`なら`[]`。 |
+| `base_observation_oid` / `target_observation_oid` / `base_media_oid` / `target_media_oid` | string? | 比較対象のOID群。`absent`なら`null`。 |
+| `replay_ready` | bool? | presentでは常に`true`。prerequisite objectがProjectionから利用可能と確認できたことを表す。`absent`なら`null`。 |
+| `reachable_from` | array | 到達元Ref名の配列。presentでは`decision/creator/<session>`と`proposal/creator-agent/<session>`の昇順二要素、`absent`なら`[]`。 |
+
+`timeline`の各entry:
+
+| field | type | 意味 |
+| --- | --- | --- |
+| `oid` | string | Record OID。 |
+| `stage` | string | `original_observation`\|`current_observation`\|`image_import`\|`ai_proposal`のいずれか。 |
+| `kind` | string | `observation`\|`activity`。 |
+| `entity_id` | string | 対応するEntityId。 |
+| `ordering_time` | string | Recordに保存されたordering basisの時刻。 |
+| `time_basis` | string | `observation_recorded_at_fallback`\|`activity_recorded_at_fallback`。撮影時刻や外部eventの物理順序を意味しない。 |
+| `reachable_from` | array | このentryに到達するRef名の配列。 |
+
+`timeline`配列そのものは、上記の例が示すように`ordering_time`昇順（同着はOIDをtiebreakerとする）で
+並び、stageは`original_observation`／`current_observation`／`image_import`／`ai_proposal`の順に
+現れる（各sessionでの記録順）。
 
 ### `refs <repo>`
 

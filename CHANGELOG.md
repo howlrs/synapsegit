@@ -16,6 +16,15 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   binaries on `PATH` and no network access at run time. Archives at `v0.9.0`
   and earlier do not include them.
 
+- `synapse creator-report` accepts `--format text|json`. `--format json` prints
+  one private, local-only `"synapsegit-cli-creator-report-v1"` JSON document
+  (distinguishing absent/present/unavailable evidence such as generation
+  notes, decision pins, derived and 3-image-reuse provenance) to stdout with
+  diagnostics on stderr; verification failure never emits partial JSON.
+  Omitting `--format`, or passing `--format text`, keeps the existing
+  line-oriented text output unchanged. This is a separate, CLI-owned contract
+  from the public projection bundle (`synapse-present export ... --public`).
+
 ## [0.9.0] - 2026-09-26
 
 ### Added

@@ -202,7 +202,7 @@ completeな派生を含む全件exportも対象です。同じprojectの通常�
 | 能力 | 現在のrepository状態 |
 |---|---|
 | `adopt`、`reject`、`defer`を含む3-file creator Pilot | boundedなlocal CLI flowとして実装済み |
-| 人／AI帰属provenanceと比較情報を含むreport | 実装済み。AI outputはcaller-supplied |
+| 人／AI帰属provenanceと比較情報を含むreport | 実装済み。AI outputはcaller-supplied。**未リリースのmainのみ:** `creator-report --format json`はlocal tooling向けにversion付きprivate-local JSON documentを一つ出力する。v0.9.0 archiveは従来のline-oriented text reportを維持する |
 | original／current比較 | primary Blobのbyte identityのみ。comparabilityは常にpartial。v0.8.0のlocalhost UIには2画像の目視確認用の全体表示／100%／200%拡大を追加。位置合わせ・差分解析は行わない |
 | local browser UI | read表示、boundedな三file import／same-process `adopt`・`reject`・`defer`、read-only incomplete-session diagnostics、確認付きbackground `fsck`を実装済み。任意の`--archive-root`起動flag指定時のみ、boundedなread-only archive listing表示（`GET /archives`）に加え、tagged v0.8.0は認証付きの確認付きbounded archive export API（`POST /archive-exports`）とempty-target restore API（`POST /archive-restores`）を含む。v0.8.0はproject画面にarchive controlを追加。restore先は表示中の空の登録済みprojectに固定され、一覧のslug、target key完全入力、checkbox、browser確認、job polling、report一致確認表示を必要とする |
 | script出力のInboxと再レビュー | 任意の`--import-root`でmanifest-last候補を確認し、明示的に新規Proposalを作成。検証済みの中断／Deferから3画像を別sessionへ引き継いで判断し直せるが、元のDecisionは固定。凍結済み公開v1はこれらの再利用sessionを拒否 |
