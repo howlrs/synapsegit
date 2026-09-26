@@ -1213,8 +1213,12 @@ pub(crate) async fn project_page(
             subject_label: session
                 .subject_label
                 .unwrap_or_else(|| "取得できません".into()),
-            disposition: session.disposition.unwrap_or_else(|| "取得できません".into()),
-            recorded_at: session.recorded_at.unwrap_or_else(|| "取得できません".into()),
+            disposition: session
+                .disposition
+                .unwrap_or_else(|| "取得できません".into()),
+            recorded_at: session
+                .recorded_at
+                .unwrap_or_else(|| "取得できません".into()),
             recorded_time_basis: session.recorded_time_basis.unwrap_or_else(|| "—".into()),
             source_session: session.source_session.unwrap_or_else(|| "—".into()),
         })
