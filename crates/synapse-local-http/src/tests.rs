@@ -2325,8 +2325,8 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
     // would fail loudly instead of this test quietly checking nothing.
     assert_eq!(
         checked.len(),
-        24,
-        "expected 24 implemented operations, checked: {checked:?}"
+        26,
+        "expected 26 implemented operations, checked: {checked:?}"
     );
     assert_eq!(
         skipped_unimplemented_archive.len(),
