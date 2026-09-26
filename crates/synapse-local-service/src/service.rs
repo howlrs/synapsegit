@@ -2451,8 +2451,7 @@ fn sort_ref_shaped_summaries(snapshot: &RefSnapshot, sessions: &mut Vec<CreatorS
 fn session_display_priority(summary: &CreatorSessionSummary) -> u8 {
     match summary.state {
         CreatorSessionState::PendingReview => 2,
-        CreatorSessionState::Complete => 1,
-        CreatorSessionState::Incomplete => 0,
+        CreatorSessionState::Complete | CreatorSessionState::Incomplete => 0,
     }
 }
 
@@ -3343,12 +3342,23 @@ mod tests {
         assert_eq!(derived.len(), 202);
         assert!(derived.iter().any(|session| session == "zz-old"));
 
-        let mut pending = summaries;
+        let mut pending = summaries.clone();
         let mut live = summary("live-review".into(), None, None);
         live.state = CreatorSessionState::PendingReview;
         pending.push(live);
         sort_ref_shaped_summaries(&RefSnapshot::default(), &mut pending);
         assert_eq!(display_session_summaries(pending)[0].session, "live-review");
+
+        let mut incomplete = summaries;
+        let mut restarted = summary("zz-restarted".into(), None, None);
+        restarted.state = CreatorSessionState::Incomplete;
+        incomplete.push(restarted);
+        sort_ref_shaped_summaries(&RefSnapshot::default(), &mut incomplete);
+        assert!(
+            display_session_summaries(incomplete)
+                .iter()
+                .any(|row| row.session == "zz-restarted")
+        );
     }
 
     #[test]
