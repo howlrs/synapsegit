@@ -35,7 +35,7 @@ test("archive cards support keyboard access, pass axe, and restore an exported p
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
 
   const fsckKey = page.locator('form[data-confirm-maintenance="fsck"] [name="confirm_project_key"]');
-  const fsckButton = page.getByRole("button", { name: "Read-only fsckを実行", exact: true });
+  const fsckButton = page.getByRole("button", { name: "読み取り専用で fsck を実行", exact: true });
   const exportName = exportForm(page).locator('[name="archive_name"]');
   const exportKey = exportForm(page).locator('[name="confirm_project_key"]');
   const exportButton = page.getByRole("button", { name: "Archiveを作成", exact: true });

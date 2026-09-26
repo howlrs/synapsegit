@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 
 {% block content %}
-<p class="project-presentation-action"><a class="button button--secondary" href="/projects/{{ project_key }}/presentation">公開用の制作ノートを作る</a></p>
 <nav class="breadcrumbs" aria-label="パンくずリスト">
   <ol><li><a href="/">プロジェクト</a></li><li aria-current="page">{{ project_label }}</li></ol>
 </nav>
@@ -11,7 +10,10 @@
     <h1>{{ project_label }}</h1>
     <p class="muted">Ref snapshot <code>{{ watermark }}</code></p>
   </div>
-  <span class="status-badge" data-tone="success">ローカル・利用可能</span>
+  <div class="actions">
+    <span class="status-badge" data-tone="success">ローカル・利用可能</span>
+    <a class="button button--secondary" href="/projects/{{ project_key }}/presentation">公開用の制作ノートを作る</a>
+  </div>
 </header>
 
 <section class="metric-grid" aria-label="プロジェクト概要">
@@ -70,7 +72,7 @@
       <div class="field">
         <label for="creator-session">Session</label>
         <input id="creator-session" name="session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" aria-describedby="creator-session-hint" autocomplete="off" placeholder="first-review">
-        <span id="creator-session-hint" class="field__hint">小文字英数字とハイフン、1–64文字。create-onlyです。</span>
+        <span id="creator-session-hint" class="field__hint">小文字英数字とハイフン、1–64文字。新しい名前で作成します。</span>
       </div>
       <div class="field">
         <label for="creator-name">Creator name</label>
@@ -148,13 +150,15 @@
   {% endif %}
 </section>
 
+<section aria-labelledby="maintenance-heading">
+  <div class="section-heading"><h2 id="maintenance-heading">メンテナンス</h2></div>
 {% if fsck_supported %}
 <section class="card project-maintenance" aria-labelledby="fsck-heading">
   <div class="card__header">
     <div>
       <p class="eyebrow">メンテナンス</p>
-      <h2 id="fsck-heading">リポジトリ整合性の確認</h2>
-      <p class="muted">server固定の上限内で、現在のRefsとCAS inventoryを読み取り専用で確認します。</p>
+      <h3 id="fsck-heading">リポジトリ整合性の確認</h3>
+      <p class="muted">現在の履歴と保存データの整合性を、上限を設けて読み取り専用で確認します。</p>
     </div>
   </div>
   {% if has_last_fsck %}
@@ -170,17 +174,17 @@
     data-synapse-api-form="json"
     data-confirm-maintenance="fsck"
     data-success-reload="true"
-    data-busy-message="Integrity checkをqueueしています…"
+    data-busy-message="整合性の確認を開始しています…"
   >
     <label class="field">
       <span>確認のため project key <code>{{ project_key }}</code> を入力</span>
       <input name="confirm_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
     </label>
-    <div class="actions"><button type="submit" data-synapse-submit>Read-only fsckを実行</button></div>
-    <p class="field__hint">処理はbounded background jobとして実行されます。履歴やobjectを変更しません。</p>
+    <div class="actions"><button type="submit" data-synapse-submit>読み取り専用で fsck を実行</button></div>
+    <p class="field__hint">処理はバックグラウンドで実行します。履歴や保存データを変更しません。</p>
     <p data-synapse-status hidden></p>
   </form>
-  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、maintenance操作は開始できません。</p></div></noscript>
+  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、メンテナンス操作は開始できません。</p></div></noscript>
 </section>
 {% endif %}
 
@@ -189,13 +193,13 @@
   <div class="card__header">
     <div>
       <p class="eyebrow">メンテナンス</p>
-      <h2 id="archive-export-heading">アーカイブを書き出す</h2>
-      <p class="muted">現在のプロジェクトをserver固定の上限内で、設定済みの保存先へチェックサム付きで保存します。</p>
+      <h3 id="archive-export-heading">アーカイブを書き出す</h3>
+      <p class="muted">現在のプロジェクトを、設定済みの保存先へチェックサム付きで保存します。</p>
     </div>
   </div>
   <div class="notice" data-tone="warning">
-    <h3>既存archiveは上書きしません</h3>
-    <p>archive nameは新しいlogical slugを指定してください。保存先のfilesystem pathはserver設定が所有し、この画面には公開されません。</p>
+    <h3>既存のアーカイブは上書きしません</h3>
+    <p>新しいアーカイブ名を指定してください。保存先は起動時の設定で固定され、この画面から変更できません。</p>
   </div>
   <form
     hidden
@@ -204,25 +208,25 @@
     data-synapse-api-form="json"
     data-confirm-maintenance="archive-export"
     data-success-location="/#archives-heading"
-    data-busy-message="Archive exportをqueueしています…"
+    data-busy-message="アーカイブの書き出しを開始しています…"
   >
     <div class="form-grid">
       <label class="field">
         <span>Archive name</span>
         <input name="archive_name" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="nightly-2026-08-26">
-        <span class="field__hint">小文字英数字とハイフン、1–64文字。create-onlyです。</span>
+        <span class="field__hint">小文字英数字とハイフン、1–64文字。新しい名前で作成します。</span>
       </label>
       <label class="field">
         <span>確認のため project key <code>{{ project_key }}</code> を入力</span>
         <input name="confirm_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
-        <span class="field__hint">対象projectのexact confirmationとして送信されます。</span>
+        <span class="field__hint">操作対象を確認するため、表示された値をそのまま入力してください。</span>
       </label>
     </div>
     <div class="actions"><button type="submit" data-synapse-submit>Archiveを作成</button></div>
-    <p class="field__hint">処理はbounded background jobとして実行され、成功後にarchive一覧へ移動します。</p>
+    <p class="field__hint">処理はバックグラウンドで実行し、成功後にアーカイブ一覧へ移動します。</p>
     <p data-synapse-status hidden></p>
   </form>
-  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、archive exportは開始できません。</p></div></noscript>
+  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、アーカイブの書き出しは開始できません。</p></div></noscript>
 </section>
 {% endif %}
 
@@ -231,7 +235,7 @@
   <div class="card__header">
     <div>
       <p class="eyebrow">メンテナンス</p>
-      <h2 id="archive-restore-heading">アーカイブを復元する</h2>
+      <h3 id="archive-restore-heading">アーカイブを復元する</h3>
       <p class="muted">保存したアーカイブを、このプロジェクトへ復元します。</p>
     </div>
   </div>
@@ -275,9 +279,11 @@
     <p>既存の履歴があります。復元用には別の空のプロジェクトを初期化・登録してから開いてください。</p>
   </div>
   {% endif %}
-  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、archive restoreは開始できません。</p></div></noscript>
+  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、アーカイブの復元は開始できません。</p></div></noscript>
 </section>
 {% endif %}
+
+</section>
 
 <div class="split-grid project-detail">
   <section aria-labelledby="refs-heading">
