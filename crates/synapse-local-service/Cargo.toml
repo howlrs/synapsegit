@@ -13,7 +13,6 @@ workspace = true
 
 [dependencies]
 getrandom.workspace = true
-libc = "0.2.186"
 rustix = { workspace = true, features = ["fs"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json.workspace = true
