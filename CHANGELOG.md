@@ -34,6 +34,16 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   schema, and a maintainer rehearsal on synthetic tutorial material that is
   explicitly not a real-user evaluation.
 
+### Changed
+
+- The Japanese intended-user scenario deck (`docs/presentations/synapsegit_user_scenarios_ja.pptx`)
+  now matches v0.9.0: it distinguishes the loopback-only localhost creator UI and byte-identity
+  Analysis, which are usable today, from capture tooling, pixel-level comparison, a
+  general-purpose creator application, and production HTTP/JWT auth, which remain unimplemented.
+  A new "MECHANISM" slide walks through the concrete Original/Current/AI-attributed-proposal flow
+  from the mural tutorial. The deck now links to a fixed `v0.9.0` release tag instead of `main`
+  and states its target version and confirmation date.
+
 ## [0.9.0] - 2026-09-26
 
 ### Added
