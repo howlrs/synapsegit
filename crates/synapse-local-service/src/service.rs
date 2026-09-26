@@ -2399,11 +2399,23 @@ fn sessions_from_snapshot_with_pending(
 
 fn sort_session_summaries(sessions: &mut [CreatorSessionSummary]) {
     sessions.sort_by(|left, right| {
-        right
-            .recorded_at
-            .cmp(&left.recorded_at)
-            .then_with(|| right.session.cmp(&left.session))
+        session_display_priority(right)
+            .cmp(&session_display_priority(left))
+            .then_with(|| {
+                right
+                    .recorded_at
+                    .cmp(&left.recorded_at)
+                    .then_with(|| right.session.cmp(&left.session))
+            })
     });
+}
+
+fn session_display_priority(summary: &CreatorSessionSummary) -> u8 {
+    match summary.state {
+        CreatorSessionState::PendingReview => 2,
+        CreatorSessionState::Complete => 1,
+        CreatorSessionState::Incomplete => 0,
+    }
 }
 
 fn display_session_summaries(
@@ -3257,9 +3269,16 @@ mod tests {
         assert_eq!(displayed.len(), MAX_CREATOR_SESSION_SUMMARIES);
         assert_eq!(displayed[0].session, "session-200");
         assert!(!displayed.iter().any(|row| row.session == "zz-old"));
-        let derived = derived_session_names(summaries, "source");
+        let derived = derived_session_names(summaries.clone(), "source");
         assert_eq!(derived.len(), 202);
         assert!(derived.iter().any(|session| session == "zz-old"));
+
+        let mut pending = summaries;
+        let mut live = summary("live-review".into(), None, None);
+        live.state = CreatorSessionState::PendingReview;
+        pending.push(live);
+        sort_session_summaries(&mut pending);
+        assert_eq!(display_session_summaries(pending)[0].session, "live-review");
     }
 
     #[test]
