@@ -1344,15 +1344,8 @@ pub(crate) async fn session_page(
             let project = service.project_status(&project_key_for_read)?.project;
             let (detail, diagnostic) = service
                 .get_creator_session_with_diagnostic(&project.project_key, &session_for_read)?;
-            let derived_sessions: Vec<String> = service
-                .list_creator_sessions(&project.project_key)?
-                .sessions
-                .into_iter()
-                .filter_map(|candidate| {
-                    (candidate.source_session.as_deref() == Some(&session_for_read))
-                        .then_some(candidate.session)
-                })
-                .collect();
+            let derived_sessions =
+                service.creator_session_derivations(&project.project_key, &session_for_read)?;
             Ok((project.display_label, detail, diagnostic, derived_sessions))
         })
         .await

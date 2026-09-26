@@ -1439,7 +1439,8 @@ impl LocalService {
     ) -> Result<CreatorSessionList, ServiceError> {
         let repository = self.open_repository(project_key)?;
         let snapshot = capture_snapshot(&repository)?;
-        let sessions = self.sessions_with_pending(&repository, &snapshot, project_key)?;
+        let mut sessions = self.sessions_with_pending(&repository, &snapshot, project_key)?;
+        sessions.truncate(MAX_CREATOR_SESSION_SUMMARIES);
         Ok(CreatorSessionList {
             snapshot: snapshot_context(&snapshot, None),
             sessions,
@@ -1457,6 +1458,25 @@ impl LocalService {
         let repository = self.open_repository(project_key)?;
         let snapshot = capture_snapshot(&repository)?;
         self.creator_session_from_snapshot(&repository, &snapshot, project_key, session)
+    }
+
+    pub fn creator_session_derivations(
+        &self,
+        project_key: &str,
+        source_session: &str,
+    ) -> Result<Vec<String>, ServiceError> {
+        let repository = self.open_repository(project_key)?;
+        let snapshot = capture_snapshot(&repository)?;
+        let mut derived = self
+            .sessions_with_pending(&repository, &snapshot, project_key)?
+            .into_iter()
+            .filter_map(|summary| {
+                (summary.source_session.as_deref() == Some(source_session))
+                    .then_some(summary.session)
+            })
+            .collect::<Vec<_>>();
+        derived.sort();
+        Ok(derived)
     }
 
     /// Build the session detail and, when incomplete, its structured
@@ -2352,7 +2372,6 @@ fn sessions_from_snapshot_with_pending(
     let Ok(reader) = PreparedCreatorReportReader::prepare(repository, snapshot) else {
         // Keep the Ref-shaped list available when shared verification fails;
         // absent metadata is deliberately not inferred from damaged content.
-        sessions.truncate(MAX_CREATOR_SESSION_SUMMARIES);
         return Ok(sessions);
     };
     for summary in &mut sessions {
@@ -2383,7 +2402,6 @@ fn sessions_from_snapshot_with_pending(
             .cmp(&left.recorded_at)
             .then_with(|| right.session.cmp(&left.session))
     });
-    sessions.truncate(MAX_CREATOR_SESSION_SUMMARIES);
     Ok(sessions)
 }
 

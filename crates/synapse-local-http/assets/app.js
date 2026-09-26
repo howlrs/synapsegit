@@ -621,6 +621,28 @@ export function enhanceImageComparison(root = document) {
   refresh();
 }
 
+function enhanceCreatorSessionFilter(root = document) {
+  const list = root.querySelector("[data-creator-session-list]");
+  const filter = list?.querySelector("[data-creator-session-filter]");
+  const count = list?.querySelector("[data-creator-session-count]");
+  if (!filter || !count) return;
+  const rows = [...list.querySelectorAll("[data-creator-session-row]")];
+  filter.addEventListener("change", () => {
+    const selected = filter.value;
+    let visible = 0;
+    for (const row of rows) {
+      const matches = selected === "all"
+        || (selected === "pending" && row.dataset.state === "レビュー待ち")
+        || (selected === "complete" && row.dataset.state === "完了")
+        || (selected === "incomplete" && row.dataset.state === "未完了")
+        || row.dataset.disposition.toLowerCase() === selected;
+      row.hidden = !matches;
+      visible += Number(matches);
+    }
+    count.textContent = `${visible} 件`;
+  });
+}
+
 // The local chooser hint matches the server's raster signature allowlist.
 // It grants no authority: the server still verifies/classifies the submitted bytes.
 function localPreviewMediaType(bytes) {
@@ -1440,6 +1462,7 @@ function start() {
   enhanceCreatorPins();
   enhanceApiForms();
   enhanceCreatorUploads();
+  enhanceCreatorSessionFilter();
   enhanceImageComparison();
   enhanceApiImages();
   enhanceImportInbox();
