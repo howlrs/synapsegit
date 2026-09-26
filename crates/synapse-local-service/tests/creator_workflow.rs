@@ -1095,6 +1095,58 @@ fn reuse_stale_duplicate_and_capacity_failures_leave_refs_and_reflog_unchanged()
     let preview = service
         .prepare_creator_reuse_source("project", "fresh-source", "instance")
         .unwrap();
+    // A target name already occupied by the source itself is rejected before
+    // any Ref/reflog mutation. The failed attempt must also leave both the
+    // confirmation and its pending reservation available for a new name.
+    let storage = Repository::open(&repository).unwrap();
+    let before_duplicate = storage.refs().snapshot().unwrap();
+    let reflog_before_duplicate = storage.refs().reflog().unwrap();
+    drop(storage);
+    assert_eq!(
+        service
+            .begin_reuse_creator_session(
+                "project",
+                "fresh-source",
+                "instance",
+                BeginReuseCreatorSessionRequest {
+                    confirmation_id: preview.confirmation_id.clone(),
+                    session: "fresh-source".into(),
+                    creator_name: preview.creator_name.clone(),
+                    subject_label: preview.subject_label.clone(),
+                },
+            )
+            .unwrap_err()
+            .code(),
+        "creator_session_exists"
+    );
+    let storage = Repository::open(&repository).unwrap();
+    assert_eq!(storage.refs().snapshot().unwrap(), before_duplicate);
+    assert_eq!(storage.refs().reflog().unwrap(), reflog_before_duplicate);
+    drop(storage);
+    let retry = service
+        .begin_reuse_creator_session(
+            "project",
+            "fresh-source",
+            "instance",
+            BeginReuseCreatorSessionRequest {
+                confirmation_id: preview.confirmation_id,
+                session: "retry-after-duplicate".into(),
+                creator_name: preview.creator_name,
+                subject_label: preview.subject_label,
+            },
+        )
+        .expect("duplicate target must retain confirmation and release its pending reservation");
+    service
+        .decide_creator_session(
+            "project",
+            "retry-after-duplicate",
+            "instance",
+            decision(retry.review_id, CreatorDecision::Reject),
+        )
+        .unwrap();
+    let preview = service
+        .prepare_creator_reuse_source("project", "fresh-source", "instance")
+        .unwrap();
     for number in 0..MAX_PENDING_CREATOR_SESSIONS_PER_PROJECT {
         service
             .begin_creator_session(
