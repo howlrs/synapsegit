@@ -181,3 +181,10 @@ sessionはcreate-onlyです。同じrepository内で`mural-treatment-01`を再�
 
 詳細は[CLI reference](../cli_reference.md)、[Usage guide](../usage_guide.md)、
 [Security model](../security_model.md)へ進んでください。
+
+## 次のステップ
+
+SynapseGitが自分の制作に合うかを確かめたい場合は、
+[Creator pilot 評価キット](../evaluation/creator-pilot/v1/)を試してください。
+このtutorialと同じ素材を使い、最初の制作記録に対する理解度確認と観察記録の手順を
+たどれます。

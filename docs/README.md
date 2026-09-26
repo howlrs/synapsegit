@@ -80,6 +80,7 @@ creator PilotのidentityとAI outputはtrusted local integrationが供給し、�
 | generic artifactのlocal public projectionを作る | [Generic publication profile](../spec/application/generic-artifact-publication/v1/README.md) | [Integration roadmap](./generic_artifact_publication_roadmap.md) |
 | 作者外へread-only履歴bundleを渡す | [Quickstart](./quickstart.md#4-作者外へ説明するlocal-bundleを生成する) | [CLI reference](./cli_reference.md#synapse-present-companion-cli) |
 | publicationを作者外の人／AIで評価する | [Publication comprehension corpus](./evaluation/publication-comprehension/v1/) | [Project status](./project_status.md#次の優先順位) |
+| 最初の制作記録を試し、理解度と使いにくさを確かめる | [Creator pilot 評価キット](./evaluation/creator-pilot/v1/) | [Creator操作ガイド](./creator_workflow.md) |
 | command と error を調べる | [CLI reference](./cli_reference.md) | [Security model](./security_model.md) |
 | 何を解決するか知る | [使用ガイド](./usage_guide.md) | [Core 構想](./core_concept.md) |
 | object と record の関係を知る | [Core データモデル](./core_model.md) | [Core Protocol](../spec/core/v0.1/README.md) |
