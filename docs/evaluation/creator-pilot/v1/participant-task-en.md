@@ -132,15 +132,14 @@ section. If the facilitator asks, compare that display with
 
 ## 3b. Ground where public-facing text comes from, without publishing anything
 
-If you are curious whether the rationale you entered is automatically
-included in something shown to other people, this task lets you check.
+This task shows where text meant for other people is prepared.
 **Nothing is published or sent anywhere in this task — you only look at a
 local screen or local files.**
 
 - **Browser path**: open "公開用の制作ノートを作る" (create a public-facing
   creative note) from the project page. Confirm that you can select the
-  session you completed in Task 1, and that every other field starts empty.
-  Your rationale should not appear pre-filled anywhere on this page.
+  session you completed in Task 1, then note what each field contains when
+  the page opens. Do not submit the form.
 - **CLI path (optional)**: using a destination path the facilitator gives
   you that does not exist yet, called `OUT` below, run:
 
@@ -149,13 +148,10 @@ local screen or local files.**
   ```
 
   Open the generated files under `OUT` (such as `index.html`, `story.md`,
-  and `projection.json`) and confirm that the rationale text you entered
-  does not appear anywhere in them.
+  and `projection.json`), look for the rationale text you entered, and
+  note what you find.
 
-Use what you observed here for comprehension question 4. The
-[publication-note guide](../../../presentation_sidecar.md) and the
-[CLI reference](../../../cli_reference.md) also describe the difference
-between private rationale and public-facing text.
+Use what you observed here for comprehension question 4.
 
 ## 4. (Optional) Try the next candidate in a separate session
 

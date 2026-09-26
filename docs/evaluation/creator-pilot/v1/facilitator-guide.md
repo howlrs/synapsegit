@@ -77,6 +77,8 @@ yes/no形式）は使っていません。回答は自由記述で受け取り�
 「公開用の文章（presentation sidecar／`presentation.toml`）は別に、自分で空欄から
 入力・確認して作る必要がある」という趣旨を理解していること。「入力した理由がそのまま
 外部公開される」という誤解が残っていれば要フォロー。
+回答を受け取った後の説明には[公開用の制作ノート](../../../presentation_sidecar.md)と
+[CLI reference](../../../cli_reference.md)を使えます。回答前に参加者へ示さないでください。
 
 ## 4. 観察項目（facilitator observation items）
 
