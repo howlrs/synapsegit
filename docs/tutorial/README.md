@@ -197,6 +197,10 @@ For command details, continue with the [CLI reference](../cli_reference.md),
 ## Next step
 
 If you want to check whether SynapseGit fits your own creative work, try the
-[Creator pilot evaluation kit](../evaluation/creator-pilot/v1/). It reuses
-this same tutorial to walk through comprehension questions and observation
-notes for your own first recorded decision.
+[Creator pilot evaluation kit](../evaluation/creator-pilot/v1/) (Japanese,
+with an English summary). It reuses this same tutorial to walk through
+comprehension questions and observation notes for your own first recorded
+decision. Two of its files are already in English:
+[participant task sheet](../evaluation/creator-pilot/v1/participant-task-en.md)
+and
+[comprehension questions](../evaluation/creator-pilot/v1/comprehension-questions-en.md).

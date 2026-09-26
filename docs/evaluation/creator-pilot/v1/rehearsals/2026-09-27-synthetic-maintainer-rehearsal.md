@@ -54,6 +54,35 @@ tutorial画像（3枚とも1448×1086 px）だけで一連の操作を実際に�
    「記録された理由: (入力したrationaleの原文)」が表示されることを確認した。
    CLI経路のcreator-reportで確認した項目と、意味的に一致する内容がUIでも読み返せた。
 
+### Task 3b（公開用文章の下見）— CLI経路
+
+1. 別sessionとして`mural-treatment-03`をCLIで作成し、rationaleに
+   `PRIVATE-RATIONALE-CANARY-should-not-appear-in-public-bundle`という、後で検索しやすい
+   canary文字列を入れた。
+2. `synapse-present export <repo> <out> --session mural-treatment-03 --public`を実行し
+   （`--presentation`は省略。`presentation.toml`を作らない最小構成でも`--public`は指定できる
+   ことを確認した）、`exported=... visibility=public sessions=1`を得た。
+3. 生成された`<out>`配下の全file（`index.html` `story.md` `manifest.json` `checksums.json`
+   `projection.json` `target/public-projection.json`）に対して`grep -ril`でcanary文字列を検索し、
+   **一致0件**を確認した。
+4. `synapse-present preview <out>`が検証成功することも確認した。
+
+### Task 3b（公開用文章の下見）— ブラウザUI経路
+
+1. 別の一時repositoryで新しいsession（`mural-treatment-ui-02`）を作成し、rationaleに
+   `PRIVATE-RATIONALE-CANARY-should-not-appear-on-presentation-page`というcanaryを入れて
+   Adoptで確定した。完了後のセッション画面には、このcanaryが期待どおり表示されることを
+   まず確認した（read-back自体は正しく機能している）。
+2. プロジェクト画面の「公開用の制作ノートを作る」（`href="/projects/{project_key}/presentation"`、
+   `crates/synapse-local-http/templates/project.html`のlinkと`presentation.html`の実装どおり）を
+   開いた。このsessionを選択できる状態で、他のすべての入力欄（作品タイトル、概要、
+   Creator表示名、Proposal agent表示名、セッションのタイトル、3画像のcaption、公開用の判断メモ）
+   が空欄から始まっており、ページ本文（innerText）にもHTML全体にも、canary文字列は
+   **一切含まれていない**ことを確認した。
+3. この画面は`docs/presentation_sidecar.md`が説明するとおり、author-suppliedな公開用文章を
+   ゼロから入力するためのformであり、private rationaleを自動転記しないことを実装レベルで
+   確認できた。
+
 ## 見つけた差分・修正
 
 - **修正**: 参加者向け課題シート（JA/EN）のTask 1-Bで、画像比較が「画像を拡大して比較」
@@ -62,6 +91,16 @@ tutorial画像（3枚とも1448×1086 px）だけで一連の操作を実際に�
 - **修正**: Adopt／Reject／Defer確定時にブラウザ標準の確認ポップアップが出ることを、
   参加者向け課題シートとfacilitator-guideの両方に追記した（元の文面は「確認画面」と
   だけ書いており、native `confirm()`であることが分からなかった）。
+- **修正（親レビュー指摘への対応）**: 理解度確認の質問1・2・4が、期待される回答をほのめかす
+  yes/no形式の誘導質問になっていた（例:「SynapseGit自身がその画像を作ったと思いますか」）。
+  JA/EN両方の該当質問を中立的なopen-ended表現へ書き換え、`facilitator-guide.md`の対応する
+  check-pointの見出し・文言も揃えた。
+- **追加（親レビュー指摘への対応）**: 質問4（private rationaleと公開用文章の違い）は、
+  それを確認する操作課題がなく推測でしか答えられない状態だった。参加者向け課題シート
+  （JA/EN）へ「Task 3b」を新設し、ブラウザ経路では「公開用の制作ノートを作る」画面を、
+  CLI経路では任意で`synapse-present export --public`の生成物を、公開せずに下見できるように
+  した。下記のとおりこのTask 3bを実際にrehearsalし、rationaleが自動転記されないことを
+  実装で確認した。
 - **確認のみ（修正不要）**: `--decision defer`後に同じsession名を再利用できないこと、
   `byte_identity`の意味、adopt/defer時の`selected`値は、既存のkit文面と実際の出力が
   一致していた。
@@ -69,14 +108,16 @@ tutorial画像（3枚とも1448×1086 px）だけで一連の操作を実際に�
 ## 範囲外・未実施
 
 - 実利用者・実参加者によるセッションは実施していない。
-- `synapse-present export` / `preview`によるpresentation bundle生成・検証は、このrehearsalの
-  対象操作（import→比較→判断→読み返し）には含めていない（`docs/presentation_sidecar.md`と
-  `docs/creator_workflow.md`が別操作として案内している範囲であり、このキットの操作課題外）。
 - axe／keyboard／screen readerによるaccessibility評価は行っていない
   （`publication-comprehension/v1`のcorpusとは別scope）。
+- `presentation.toml`を実際に作成・入力してからの`synapse-present export --presentation`
+  （author-supplied公開用文章を伴う完全なexport）は、このrehearsalでは行っていない
+  （Task 3bは「rationaleが自動転記されないこと」の確認が目的で、`--presentation`なしの
+  最小exportと、presentation画面の空欄状態の確認にとどめた）。
 
 ## 後片付け
 
-- rehearsalで作成した一時repository（CLI経路・UI経路とも）はscratchpad配下から削除した。
-- 起動した`synapse-local` processは`kill`で停止済み。
+- rehearsalで作成した一時repository・export先bundle（CLI経路・UI経路・Task 3b追加分とも）は
+  scratchpad配下から削除した。
+- 起動した`synapse-local` process（初回・Task 3b追加分とも）は`kill`で停止済み。
 - Playwrightスクリプトと実行logはscratchpad配下に残しており、このrepositoryにはcommitしない。

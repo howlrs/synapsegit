@@ -5,21 +5,21 @@ following questions in your own words. This is not a pass/fail test. "I don't
 know" is a fine answer. This document does not contain sample answers or the
 correct answers.
 
-1. Who or what do you think prepared the "AI output (AI-attributed
-   proposal)" image used in this exercise? Do you think SynapseGit itself
-   created (generated) that image? Please explain your reasoning.
+1. Where do you think the third image, the "AI output (AI-attributed
+   proposal)" used in this exercise, came from? What do you think SynapseGit
+   did (and did not do) with it?
 
-2. What do you think `byte_identity` (shown as `identical`/`different` in
-   `creator-report` and on screen) actually checked? Do you think it judges
-   whether the images look visually similar?
+2. In your own words, what does the `byte_identity` result (shown as
+   `identical`/`different` in `creator-report` and on screen) tell you? What
+   would you want to know about the images that this result does not tell
+   you?
 
 3. If your decision had been Adopt versus if it had been Defer, what do you
    think gets recorded in each case? What differences do you expect between
    what is recorded for the two decisions?
 
-4. What do you think is the difference between the text you entered as
-   `--rationale` (or the browser rationale field) and the text that ends up
-   in a bundle produced by `synapse-present`? Do you think the rationale you
-   entered is automatically included in something shared externally?
+4. Based on what you saw in Task 3b (the publication-note page /
+   `synapse-present export`), where can you read your rationale (the reason
+   you entered) again later? Who do you think can, or cannot, see it?
 
 Please return your answers to the facilitator when finished.

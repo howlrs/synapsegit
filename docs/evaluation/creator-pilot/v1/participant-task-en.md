@@ -130,6 +130,33 @@ rationale) on the completed session page, under the recorded-decision
 section. If the facilitator asks, compare that display with
 `creator-report`'s output.
 
+## 3b. Ground where public-facing text comes from, without publishing anything
+
+If you are curious whether the rationale you entered is automatically
+included in something shown to other people, this task lets you check.
+**Nothing is published or sent anywhere in this task — you only look at a
+local screen or local files.**
+
+- **Browser path**: open "公開用の制作ノートを作る" (create a public-facing
+  creative note) from the project page. Confirm that you can select the
+  session you completed in Task 1, and that every other field starts empty.
+  Your rationale should not appear pre-filled anywhere on this page.
+- **CLI path (optional)**: using a destination path the facilitator gives
+  you that does not exist yet, called `OUT` below, run:
+
+  ```bash
+  synapse-present export REPO OUT --session SESSION --public
+  ```
+
+  Open the generated files under `OUT` (such as `index.html`, `story.md`,
+  and `projection.json`) and confirm that the rationale text you entered
+  does not appear anywhere in them.
+
+Use what you observed here for comprehension question 4. The
+[publication-note guide](../../../presentation_sidecar.md) and the
+[CLI reference](../../../cli_reference.md) also describe the difference
+between private rationale and public-facing text.
+
 ## 4. (Optional) Try the next candidate in a separate session
 
 If there is time, follow the facilitator's instructions to repeat Tasks 1–3
