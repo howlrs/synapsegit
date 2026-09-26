@@ -938,6 +938,10 @@ impl LocalService {
         }
         self.fill_ready(&review_id, pending, receipt)?;
 
+        // Creator publication uses its own repository handle. Reopen through
+        // the catalog before deriving the response so a project removed after
+        // publication cannot be represented using the stale preflight handle.
+        let repository = self.open_repository(project_key)?;
         let snapshot = capture_snapshot(&repository)?;
         self.ready_pending(project_key, &snapshot)?
             .into_iter()
@@ -2515,6 +2519,106 @@ mod tests {
         registry
             .reserve("review-two".into(), "project", "session-two", "server")
             .unwrap();
+    }
+
+    #[test]
+    fn committed_fallback_keeps_the_receipt_when_the_project_is_removed() {
+        let repository = std::env::temp_dir().join(format!(
+            "synapse-local-service-committed-fallback-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&repository);
+        fs::create_dir(&repository).unwrap();
+        let service =
+            LocalService::new([ProjectRegistration::new("project", "Project", &repository)])
+                .unwrap();
+        lock_registry(&service.pending)
+            .reserve("review".into(), "project", "session", "server")
+            .unwrap();
+
+        let pending = CorePendingReceipt {
+            source: None,
+            generation_note: None,
+            session: "session".into(),
+            project_id: "project-id".into(),
+            subject_id: "subject-id".into(),
+            creator_id: "creator-id".into(),
+            agent_id: "agent-id".into(),
+            decision_ref: "decision/creator/session".into(),
+            proposal_ref: "proposal/creator-agent/session".into(),
+            base_head: "base".into(),
+            proposal_head: "proposal".into(),
+            original_blob_oid: "original".into(),
+            current_blob_oid: "current".into(),
+            ai_output_blob_oid: "ai-output".into(),
+            capture_profile_oid: "profile".into(),
+            original_observation_oid: "original-observation".into(),
+            current_observation_oid: "current-observation".into(),
+            comparison: CoreComparisonReport {
+                analysis_oid: "analysis".into(),
+                tool_id: "tool".into(),
+                tool_actor_oid: "tool-actor".into(),
+                adapter_id: "adapter".into(),
+                adapter_version: "v1".into(),
+                implementation_oid: "implementation".into(),
+                configuration_oid: "configuration".into(),
+                status: "not_run".into(),
+                comparability: "incomparable".into(),
+                outcome: "not_compared".into(),
+                reason_codes: Vec::new(),
+                warnings: Vec::new(),
+                base_observation_oid: "original-observation".into(),
+                target_observation_oid: "current-observation".into(),
+                base_media_oid: "original".into(),
+                target_media_oid: "current".into(),
+                replay_ready: false,
+                reachable_from: Vec::new(),
+            },
+            ai_activity_oid: "activity".into(),
+        };
+        let receipt = CoreRunReceipt {
+            session: pending.session.clone(),
+            project_id: pending.project_id.clone(),
+            subject_id: pending.subject_id.clone(),
+            creator_id: pending.creator_id.clone(),
+            agent_id: pending.agent_id.clone(),
+            decision_ref: pending.decision_ref.clone(),
+            proposal_ref: pending.proposal_ref.clone(),
+            base_head: pending.base_head.clone(),
+            proposal_head: pending.proposal_head.clone(),
+            decision_head: "decision".into(),
+            original_blob_oid: pending.original_blob_oid.clone(),
+            current_blob_oid: pending.current_blob_oid.clone(),
+            ai_output_blob_oid: pending.ai_output_blob_oid.clone(),
+            capture_profile_oid: pending.capture_profile_oid.clone(),
+            original_observation_oid: pending.original_observation_oid.clone(),
+            current_observation_oid: pending.current_observation_oid.clone(),
+            comparison_tool_id: "tool".into(),
+            comparison_tool_actor_oid: "tool-actor".into(),
+            comparison_analysis_oid: "analysis".into(),
+            comparison_implementation_oid: "implementation".into(),
+            comparison_configuration_oid: "configuration".into(),
+            byte_identity_outcome: synapse_creator::ByteIdentityOutcome::NotCompared,
+            comparison_status: synapse_creator::AnalysisStatus::NotRun,
+            comparison_comparability: synapse_creator::AnalysisComparability::Incomparable,
+            comparison_reason_codes: Vec::new(),
+            ai_activity_oid: pending.ai_activity_oid.clone(),
+            decision_feedback_oid: "feedback".into(),
+            disposition: CoreCreatorDisposition::Adopt,
+        };
+
+        fs::remove_dir_all(&repository).unwrap();
+        let response = service
+            .finish_committed_decision("project", "session", "review", &receipt, &pending)
+            .unwrap();
+        let CreatorDecisionResponse::Committed(committed) = response else {
+            panic!("removed project must retain the committed receipt");
+        };
+        assert!(!committed.report_available);
+        assert!(committed.inspection_required);
+        assert_eq!(committed.receipt.decision_head, "decision");
+        assert!(lock_registry(&service.pending).entries.is_empty());
+        assert!(!repository.exists());
     }
 
     #[test]
