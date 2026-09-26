@@ -126,7 +126,7 @@
 
 <section class="project-sessions" aria-labelledby="sessions-heading" data-creator-session-list>
   <div class="section-heading"><h2 id="sessions-heading">セッション</h2><span class="badge" data-creator-session-count>{{ sessions.len() }} 件</span></div>
-  <p class="field__hint">最近のRef更新順の概要です。上位200件だけを一度の共有検証で補足し、記録日時は検証できた行だけに表示します。取得できない項目は推測で埋めません。詳細と理由は各セッション画面で確認します。</p>
+  <p class="field__hint">未検証の概要です。最近のRef更新順で上位200件を表示し、各行は最大6個の構造化CAS readだけで補足します。取得できない項目や日時は推測で埋めません。詳細と理由は各セッション画面で検証して確認します。</p>
   <label class="field"><span>状態・判断で絞り込む</span><select data-creator-session-filter><option value="all">すべて</option><option value="pending">レビュー待ち</option><option value="complete">完了</option><option value="adopt">Adopt</option><option value="reject">Reject</option><option value="defer">Defer</option><option value="incomplete">未完了</option></select></label>
   {% if sessions.is_empty() %}
   <div class="empty-state"><h3>セッションはまだありません</h3><p>上のフォームから3ファイルを取り込み、最初のproposalとHuman reviewを開始できます。</p></div>

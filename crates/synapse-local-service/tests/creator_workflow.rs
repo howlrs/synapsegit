@@ -319,6 +319,21 @@ fn rejected_inputs_and_wrong_bindings_leave_the_ready_review_available() {
         .into_complete()
         .expect("unchanged repository returns the rebuilt complete report");
     assert_eq!(complete.report.disposition, "defer");
+    // The dashboard deliberately uses only ref-selected raw objects.  It can
+    // expose bounded, unverified labels without constructing the full report;
+    // private rationale never appears in this summary DTO.
+    let summary = service
+        .list_creator_sessions("project")
+        .unwrap()
+        .sessions
+        .into_iter()
+        .find(|summary| summary.session == "bound-session")
+        .unwrap();
+    assert_eq!(summary.creator_name.as_deref(), Some("Aki"));
+    assert_eq!(summary.subject_label.as_deref(), Some("North wall mural"));
+    assert_eq!(summary.disposition.as_deref(), Some("defer"));
+    assert_eq!(summary.recorded_time_basis.as_deref(), Some("recorded_at"));
+    assert!(summary.recorded_at.is_some());
 }
 
 #[test]
@@ -750,9 +765,19 @@ fn derivation_confirmation_is_scoped_revalidated_and_consumed() {
     // the child is still a same-process pending review as well as after it is
     // committed and no pending overlay remains.
     assert_eq!(
-        service.creator_session_derivations("project", "source").unwrap(),
+        service
+            .creator_session_derivations("project", "source")
+            .unwrap(),
         vec!["child"]
     );
+    let child_overview = service
+        .list_creator_sessions("project")
+        .unwrap()
+        .sessions
+        .into_iter()
+        .find(|summary| summary.session == "child")
+        .unwrap();
+    assert_eq!(child_overview.source_session.as_deref(), Some("source"));
     service
         .decide_creator_session(
             "project",
@@ -762,7 +787,9 @@ fn derivation_confirmation_is_scoped_revalidated_and_consumed() {
         )
         .unwrap();
     assert_eq!(
-        service.creator_session_derivations("project", "source").unwrap(),
+        service
+            .creator_session_derivations("project", "source")
+            .unwrap(),
         vec!["child"]
     );
     let error = service

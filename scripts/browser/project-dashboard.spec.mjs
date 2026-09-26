@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { test, expect } from "./fixtures.mjs";
 
-test("project dashboard keeps creation first and filters readable session summaries", async ({ page, app }) => {
+test("project dashboard keeps creation first and filters readable session summaries", async ({ page, app }, testInfo) => {
   await page.goto(`${app.origin}/projects/complete`);
   await expect(page.getByRole("heading", { name: "セッション" })).toBeVisible();
   const upload = page.getByRole("heading", { name: /Creator session を開始/ });
@@ -22,7 +22,7 @@ test("project dashboard keeps creation first and filters readable session summar
   await expect(page.getByLabel("状態・判断で絞り込む")).toBeVisible();
   const results = await new AxeBuilder({ page }).include("#main").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(results.violations).toEqual([]);
-  await page.screenshot({ path: "docs/assets/synapse-local/project-dashboard.png", fullPage: true });
+  await page.screenshot({ path: testInfo.outputPath("project-dashboard.png"), fullPage: true });
 });
 
 test("project dashboard remains readable without JavaScript", async ({ browser, app }) => {
