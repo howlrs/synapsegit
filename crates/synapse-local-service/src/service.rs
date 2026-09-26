@@ -1,12 +1,17 @@
+use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt::{self, Write as _};
-use std::fs;
+use std::fs::{self, File, OpenOptions};
+use std::io::{Read, Write};
 use std::mem;
+#[cfg(unix)]
+use std::os::unix::fs::OpenOptionsExt;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, MutexGuard};
+use std::time::{Duration, Instant};
 use synapse_core::{
     ArchiveExportLimits, ArchiveInspectionBudget, ArchiveInspectionLimits, ArchiveInspectionState,
     ArchiveRestoreLimits, FsckLimits, Repository, RepositoryError, TombstoneScanLimits,
@@ -41,6 +46,9 @@ pub const MAX_CREATOR_SESSIONS: usize = 50_000;
 pub const IMAGE_RESPONSE_MAX_BYTES: u64 = 64 * 1024 * 1024;
 pub const MAX_PENDING_CREATOR_SESSIONS: usize = 64;
 pub const MAX_PENDING_CREATOR_SESSIONS_PER_PROJECT: usize = 8;
+pub const MAX_IMPORT_INBOX_ITEMS: usize = 256;
+pub const MAX_STAGED_IMPORTS: usize = 8;
+const STAGED_IMPORT_TTL: Duration = Duration::from_secs(15 * 60);
 /// Server-fixed work ceiling for one HTTP-facing maintenance integrity check.
 ///
 /// These values intentionally live at the service boundary rather than using
@@ -381,6 +389,17 @@ pub struct LocalService {
     archive_root: Option<PathBuf>,
     source_confirmations: Mutex<BTreeMap<String, SourceConfirmation>>,
     reuse_confirmations: Mutex<BTreeMap<String, ReuseSourceConfirmation>>,
+    import_roots: BTreeMap<String, PathBuf>,
+    staged_imports: Mutex<BTreeMap<String, StagedImport>>,
+}
+
+struct StagedImport {
+    project_key: String,
+    directory: PathBuf,
+    original: PathBuf,
+    current: PathBuf,
+    output: PathBuf,
+    staged_at: Instant,
 }
 
 impl fmt::Debug for LocalService {
@@ -411,6 +430,8 @@ impl LocalService {
             archive_root: None,
             source_confirmations: Mutex::new(BTreeMap::new()),
             reuse_confirmations: Mutex::new(BTreeMap::new()),
+            import_roots: BTreeMap::new(),
+            staged_imports: Mutex::new(BTreeMap::new()),
         })
     }
 
@@ -425,6 +446,294 @@ impl LocalService {
     pub fn with_archive_root(mut self, archive_root: PathBuf) -> Self {
         self.archive_root = Some(archive_root);
         self
+    }
+
+    /// Add canonical, startup-owned per-project inbox roots. Roots never cross
+    /// the transport boundary and are rejected if they overlap a repository,
+    /// archive root, or each other.
+    pub fn with_import_roots(
+        mut self,
+        mut import_roots: BTreeMap<String, PathBuf>,
+    ) -> Result<Self, CatalogError> {
+        for root in import_roots.values_mut() {
+            let metadata = fs::metadata(&*root)
+                .map_err(|_| CatalogError::new("storage_error", "an import root is unavailable"))?;
+            if !metadata.is_dir() {
+                return Err(CatalogError::new(
+                    "local_request_denied",
+                    "an import root must be a directory",
+                ));
+            }
+            *root = fs::canonicalize(&*root).map_err(|_| {
+                CatalogError::new("storage_error", "an import root could not be canonicalized")
+            })?;
+        }
+        for (key, root) in &import_roots {
+            let entry = self.catalog.get(key).ok_or_else(|| {
+                CatalogError::new(
+                    "local_request_denied",
+                    "--import-root refers to an unregistered project key",
+                )
+            })?;
+            if overlaps(root, entry.repository_path()) {
+                return Err(CatalogError::new(
+                    "local_request_denied",
+                    "an import root must not overlap its repository",
+                ));
+            }
+            if let Some(archive) = &self.archive_root {
+                if overlaps(root, archive) {
+                    return Err(CatalogError::new(
+                        "local_request_denied",
+                        "an import root must not overlap the archive root",
+                    ));
+                }
+            }
+        }
+        let roots: Vec<_> = import_roots.values().collect();
+        for (index, root) in roots.iter().enumerate() {
+            if roots
+                .iter()
+                .skip(index + 1)
+                .any(|other| overlaps(root, other))
+            {
+                return Err(CatalogError::new(
+                    "local_request_denied",
+                    "import roots must not overlap",
+                ));
+            }
+        }
+        self.import_roots = import_roots;
+        Ok(self)
+    }
+
+    pub fn list_import_inbox(&self, project_key: &str) -> Result<ImportInboxList, ServiceError> {
+        self.entry(project_key)?;
+        let Some(root) = self.import_roots.get(project_key) else {
+            return Err(ServiceError::new(
+                "service_unavailable",
+                "Import inbox is not configured for this project.",
+                false,
+            ));
+        };
+        let mut items = Vec::new();
+        let mut inspected_entries = 0_usize;
+        for entry in fs::read_dir(root)
+            .map_err(|e| ServiceError::storage().with_diagnostic(e.to_string()))?
+        {
+            inspected_entries += 1;
+            if inspected_entries > MAX_IMPORT_INBOX_ITEMS {
+                return Err(ServiceError::new(
+                    "resource_limit",
+                    "The import inbox exceeds the 256 item limit.",
+                    false,
+                ));
+            }
+            let entry =
+                entry.map_err(|e| ServiceError::storage().with_diagnostic(e.to_string()))?;
+            let Some(slug) = entry.file_name().to_str().map(str::to_owned) else {
+                continue;
+            };
+            if !is_slug(&slug) {
+                continue;
+            }
+            let Ok(kind) = entry.file_type() else {
+                continue;
+            };
+            if !kind.is_dir() {
+                continue;
+            }
+            let manifest = entry.path().join("manifest.json");
+            if fs::symlink_metadata(&manifest).is_err() {
+                continue;
+            } // manifest-last: no manifest is still writing
+            match inspect_inbox_manifest(&entry.path()) {
+                Ok(_) => items.push(ImportInboxItem {
+                    slug,
+                    ready: true,
+                    reason: None,
+                }),
+                Err(error) => items.push(ImportInboxItem {
+                    slug,
+                    ready: false,
+                    reason: Some(error.detail().to_owned()),
+                }),
+            }
+        }
+        items.sort_by(|a, b| a.slug.cmp(&b.slug));
+        Ok(ImportInboxList { items })
+    }
+
+    pub fn stage_import_inbox(
+        &self,
+        project_key: &str,
+        slug: &str,
+    ) -> Result<StagedImportInboxPreview, ServiceError> {
+        if !is_slug(slug) {
+            return Err(ServiceError::new(
+                "local_request_denied",
+                "The inbox slug must match [a-z][a-z0-9-]{0,63}.",
+                false,
+            ));
+        }
+        let root = self.import_roots.get(project_key).ok_or_else(|| {
+            ServiceError::new(
+                "service_unavailable",
+                "Import inbox is not configured for this project.",
+                false,
+            )
+        })?;
+        let candidate = root.join(slug);
+        let manifest = inspect_inbox_manifest(&candidate)?;
+        let original = read_inbox_file(&candidate, &manifest.original)?;
+        let current = read_inbox_file(&candidate, &manifest.current)?;
+        let output = read_inbox_file(&candidate, &manifest.ai_output)?;
+        let stage_id = random_review_id()?;
+        let preview = StagedImportInboxPreview {
+            stage_id: stage_id.clone(),
+            slug: slug.to_owned(),
+            session: format!("inbox-{slug}"),
+            subject_label: manifest.subject_label,
+            creator_name: manifest.creator_name,
+            generation_note: manifest.generation_note,
+            generation_note_user_declared: true,
+        };
+        let mut stages = lock_stages(&self.staged_imports);
+        purge_expired_stages(&mut stages);
+        if stages.len() >= MAX_STAGED_IMPORTS {
+            return Err(ServiceError::new(
+                "resource_limit",
+                "The process already retains 8 staged inbox imports.",
+                false,
+            ));
+        }
+        let directory = create_staged_import_directory(&stage_id)?;
+        let staged = (|| {
+            let original_path = directory.join("original.bin");
+            let current_path = directory.join("current.bin");
+            let output_path = directory.join("ai-output.bin");
+            fs::File::create(&original_path)
+                .and_then(|mut file| file.write_all(&original))
+                .map_err(|_| inbox_denied("The staged original could not be written."))?;
+            fs::File::create(&current_path)
+                .and_then(|mut file| file.write_all(&current))
+                .map_err(|_| inbox_denied("The staged current image could not be written."))?;
+            fs::File::create(&output_path)
+                .and_then(|mut file| file.write_all(&output))
+                .map_err(|_| inbox_denied("The staged AI output could not be written."))?;
+            Ok::<_, ServiceError>(StagedImport {
+                project_key: project_key.to_owned(),
+                directory: directory.clone(),
+                original: original_path,
+                current: current_path,
+                output: output_path,
+                staged_at: Instant::now(),
+            })
+        })();
+        let staged = match staged {
+            Ok(staged) => staged,
+            Err(error) => {
+                let _ = fs::remove_dir_all(&directory);
+                return Err(error);
+            }
+        };
+        stages.insert(stage_id, staged);
+        Ok(preview)
+    }
+
+    pub fn staged_import_image(
+        &self,
+        project_key: &str,
+        stage_id: &str,
+        role: ImageRole,
+    ) -> Result<CreatorImage, ServiceError> {
+        let mut stages = lock_stages(&self.staged_imports);
+        purge_expired_stages(&mut stages);
+        let staged = stages
+            .get(stage_id)
+            .filter(|s| s.project_key == project_key)
+            .ok_or_else(|| {
+                ServiceError::new(
+                    "local_request_denied",
+                    "The staged inbox import is unavailable.",
+                    false,
+                )
+            })?;
+        let bytes = fs::read(match role {
+            ImageRole::Original => &staged.original,
+            ImageRole::Current => &staged.current,
+            ImageRole::AiOutput => &staged.output,
+        })
+        .map_err(|_| {
+            ServiceError::new(
+                "service_unavailable",
+                "The staged inbox bytes are unavailable.",
+                true,
+            )
+        })?;
+        Ok(CreatorImage {
+            blob_oid: format!("staged:{}", stage_id),
+            media_type: classify_image_media_type(&bytes),
+            disposition: if classify_image_media_type(&bytes).is_attachment() {
+                ImageDisposition::Attachment
+            } else {
+                ImageDisposition::Inline
+            },
+            bytes,
+        })
+    }
+
+    pub fn begin_staged_import_inbox(
+        &self,
+        project_key: &str,
+        server_instance: &str,
+        stage_id: &str,
+        request: BeginStagedImportInboxRequest,
+    ) -> Result<PendingCreatorSession, ServiceError> {
+        if !is_slug(&request.session)
+            || request.subject_label.is_empty()
+            || request.subject_label.len() > 500
+            || request.creator_name.is_empty()
+            || request.creator_name.len() > 300
+            || request
+                .generation_note
+                .as_ref()
+                .is_some_and(|note| note.validate().is_err())
+        {
+            return Err(ServiceError::new(
+                "usage_error",
+                "The staged import metadata is invalid.",
+                false,
+            ));
+        }
+        let mut stages = lock_stages(&self.staged_imports);
+        purge_expired_stages(&mut stages);
+        let belongs_to_project = stages
+            .get(stage_id)
+            .is_some_and(|staged| staged.project_key == project_key);
+        if !belongs_to_project {
+            return Err(ServiceError::new(
+                "local_request_denied",
+                "The staged inbox import is unavailable.",
+                false,
+            ));
+        }
+        let staged = stages
+            .remove(stage_id)
+            .expect("checked staged import exists");
+        let begin = BeginCreatorSessionRequest {
+            session: request.session,
+            original_image: staged.original,
+            current_image: staged.current,
+            ai_output: staged.output,
+            subject_label: request.subject_label,
+            creator_name: request.creator_name,
+            generation_note: request.generation_note,
+        };
+        let _writer = self.acquire_project_writer(project_key)?;
+        let outcome = self.begin_creator_session_locked(project_key, server_instance, begin, None);
+        let _ = fs::remove_dir_all(staged.directory);
+        outcome
     }
 
     pub fn health(&self, server_instance: impl Into<String>) -> HealthResponse {
@@ -1578,6 +1887,220 @@ fn random_review_id() -> Result<String, ServiceError> {
         write!(&mut review_id, "{byte:02x}").expect("writing to String cannot fail");
     }
     Ok(review_id)
+}
+
+/// The on-disk contract is deliberately small: a producer writes the three
+/// files and then atomically publishes this manifest as its final operation.
+/// It is parsed strictly so a newer producer cannot silently change what the
+/// local process will import.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InboxManifest {
+    version: String,
+    original: InboxFile,
+    current: InboxFile,
+    #[serde(rename = "ai_output")]
+    ai_output: InboxFile,
+    metadata: InboxMetadata,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InboxFile {
+    name: String,
+    size: u64,
+    #[serde(default)]
+    sha256: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct InboxMetadata {
+    subject_label: String,
+    creator_name: String,
+    #[serde(default)]
+    generation_note: Option<synapse_creator::CreatorGenerationNote>,
+}
+
+struct CheckedInboxManifest {
+    original: InboxFile,
+    current: InboxFile,
+    ai_output: InboxFile,
+    subject_label: String,
+    creator_name: String,
+    generation_note: Option<synapse_creator::CreatorGenerationNote>,
+}
+
+fn inbox_denied(detail: impl Into<String>) -> ServiceError {
+    ServiceError::new("local_request_denied", detail, false)
+}
+
+fn inspect_inbox_manifest(candidate: &Path) -> Result<CheckedInboxManifest, ServiceError> {
+    let candidate_metadata = fs::symlink_metadata(candidate)
+        .map_err(|_| inbox_denied("The inbox candidate is unavailable."))?;
+    if candidate_metadata.file_type().is_symlink() || !candidate_metadata.is_dir() {
+        return Err(inbox_denied(
+            "The inbox candidate must be a regular directory.",
+        ));
+    }
+    let manifest_path = candidate.join("manifest.json");
+    let manifest_metadata = fs::symlink_metadata(&manifest_path)
+        .map_err(|_| inbox_denied("The inbox candidate has no manifest."))?;
+    if manifest_metadata.file_type().is_symlink()
+        || !manifest_metadata.is_file()
+        || manifest_metadata.len() > 64 * 1024
+    {
+        return Err(inbox_denied(
+            "The inbox manifest must be a regular file no larger than 64 KiB.",
+        ));
+    }
+    let mut manifest_file = open_nofollow(&manifest_path)?;
+    let mut bytes = Vec::with_capacity(manifest_metadata.len() as usize);
+    manifest_file
+        .read_to_end(&mut bytes)
+        .map_err(|_| inbox_denied("The inbox manifest could not be read."))?;
+    if bytes.len() as u64 != manifest_metadata.len() {
+        return Err(inbox_denied(
+            "The inbox manifest changed while it was read.",
+        ));
+    }
+    let manifest: InboxManifest = serde_json::from_slice(&bytes)
+        .map_err(|_| inbox_denied("The inbox manifest is not valid strict JSON."))?;
+    if manifest.version != "synapsegit-import-inbox-v1" {
+        return Err(inbox_denied("The inbox manifest version is unsupported."));
+    }
+    for file in [&manifest.original, &manifest.current, &manifest.ai_output] {
+        validate_inbox_file(file)?;
+    }
+    if manifest.metadata.subject_label.is_empty()
+        || manifest.metadata.subject_label.len() > 500
+        || manifest.metadata.creator_name.is_empty()
+        || manifest.metadata.creator_name.len() > 300
+    {
+        return Err(inbox_denied(
+            "The inbox metadata display names exceed their limits.",
+        ));
+    }
+    if let Some(note) = &manifest.metadata.generation_note {
+        note.validate()
+            .map_err(|_| inbox_denied("The inbox generation note exceeds its limits."))?;
+    }
+    Ok(CheckedInboxManifest {
+        original: manifest.original,
+        current: manifest.current,
+        ai_output: manifest.ai_output,
+        subject_label: manifest.metadata.subject_label,
+        creator_name: manifest.metadata.creator_name,
+        generation_note: manifest.metadata.generation_note,
+    })
+}
+
+fn validate_inbox_file(file: &InboxFile) -> Result<(), ServiceError> {
+    if file.name.is_empty()
+        || file.name.len() > 255
+        || Path::new(&file.name).components().count() != 1
+        || file.name == "."
+        || file.name == ".."
+        || file.size > IMAGE_RESPONSE_MAX_BYTES
+    {
+        return Err(inbox_denied(
+            "Each inbox manifest file name must name one bounded file.",
+        ));
+    }
+    if let Some(hash) = &file.sha256 {
+        if hash.len() != 64 || !hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+            return Err(inbox_denied(
+                "An inbox SHA-256 must be 64 hexadecimal characters.",
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn open_nofollow(path: &Path) -> Result<File, ServiceError> {
+    let mut options = OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    options.custom_flags(libc::O_NOFOLLOW);
+    options
+        .open(path)
+        .map_err(|_| inbox_denied("The inbox path cannot be opened without following links."))
+}
+
+fn read_inbox_file(candidate: &Path, expected: &InboxFile) -> Result<Vec<u8>, ServiceError> {
+    let path = candidate.join(&expected.name);
+    let mut file = open_nofollow(&path)?;
+    let metadata = file
+        .metadata()
+        .map_err(|_| inbox_denied("The inbox file metadata could not be read."))?;
+    if !metadata.is_file()
+        || metadata.len() != expected.size
+        || metadata.len() > IMAGE_RESPONSE_MAX_BYTES
+    {
+        return Err(inbox_denied(
+            "An inbox file is not the manifest's bounded regular file.",
+        ));
+    }
+    let mut bytes = Vec::with_capacity(expected.size as usize);
+    Read::by_ref(&mut file)
+        .take(IMAGE_RESPONSE_MAX_BYTES + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|_| inbox_denied("An inbox file could not be read."))?;
+    if bytes.len() as u64 != expected.size {
+        return Err(inbox_denied("An inbox file changed while it was read."));
+    }
+    if let Some(expected_hash) = &expected.sha256 {
+        let actual = Sha256::digest(&bytes)
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        if !actual.eq_ignore_ascii_case(expected_hash) {
+            return Err(inbox_denied("An inbox file does not match its SHA-256."));
+        }
+    }
+    Ok(bytes)
+}
+
+fn overlaps(left: &Path, right: &Path) -> bool {
+    left.starts_with(right) || right.starts_with(left)
+}
+
+fn lock_stages(
+    stages: &Mutex<BTreeMap<String, StagedImport>>,
+) -> MutexGuard<'_, BTreeMap<String, StagedImport>> {
+    match stages.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
+fn purge_expired_stages(stages: &mut BTreeMap<String, StagedImport>) {
+    let expired = stages
+        .iter()
+        .filter_map(|(id, staged)| {
+            (staged.staged_at.elapsed() >= STAGED_IMPORT_TTL).then_some(id.clone())
+        })
+        .collect::<Vec<_>>();
+    for id in expired {
+        if let Some(staged) = stages.remove(&id) {
+            let _ = fs::remove_dir_all(staged.directory);
+        }
+    }
+}
+
+fn create_staged_import_directory(stage_id: &str) -> Result<PathBuf, ServiceError> {
+    let directory = std::env::temp_dir().join(format!("synapse-local-inbox-{stage_id}"));
+    let mut builder = fs::DirBuilder::new();
+    #[cfg(unix)]
+    std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+    builder.create(&directory).map_err(|_| {
+        ServiceError::new(
+            "service_unavailable",
+            "The inbox staging directory could not be created.",
+            true,
+        )
+    })?;
+    Ok(directory)
 }
 
 fn valid_pending_receipt(receipt: &CorePendingReceipt, session: &str) -> bool {

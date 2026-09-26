@@ -2,8 +2,8 @@
   "openapi": "3.1.1",
   "info": {
     "title": "SynapseGit localhost application API",
-    "version": "0.6.3-draft",
-    "description": "Single-user, loopback-only application contract. Read routes, creator import, same-process Human review, read-only creator-session diagnostics, and confirmed bounded fsck with process-local operation polling are included in the tagged v0.4.0 binary. Bounded read-only archive listing (behind an optional --archive-root startup flag) is included in the tagged v0.6.0 binary. Authenticated, confirmed bounded archive export and empty-target restore operations (behind the same --archive-root flag) are included in the tagged v0.7.0 binary; browser controls for both remain planned. This is not the public Core protocol."
+    "version": "0.6.4-draft",
+    "description": "Single-user, loopback-only application contract. A configured per-project import inbox accepts only manifest-last candidates, stages verified bytes in this process, and creates a later Human-review proposal from those staged bytes. Confirmed reuse creates a new review from an interrupted or deferred proposal without restoring prior authority. This is not the public Core protocol."
   },
   "servers": [
     {
@@ -647,6 +647,48 @@
         }
       }
     },
+    "/projects/{projectKey}/import-inbox": {
+      "get": {
+        "operationId": "listImportInbox",
+        "tags": ["creator-sessions"],
+        "summary": "List bounded manifest-last inbox candidates for one configured project",
+        "x-synapse-implementation-slice": 8,
+        "parameters": [{"$ref": "#/components/parameters/ProjectKey"}],
+        "responses": {"200": {"description": "Candidate readiness without paths or bytes", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/ImportInboxList"}}}}, "default": {"$ref": "#/components/responses/Problem"}}
+      }
+    },
+    "/projects/{projectKey}/import-inbox/{slug}/stages": {
+      "post": {
+        "operationId": "stageImportInbox",
+        "tags": ["creator-sessions"],
+        "summary": "Verify and stage one manifest-last candidate without creating a proposal",
+        "x-synapse-implementation-slice": 8,
+        "parameters": [{"$ref": "#/components/parameters/ProjectKey"}, {"$ref": "#/components/parameters/Slug"}],
+        "requestBody": {"required": false, "content": {"application/json": {"schema": {"type": "object", "additionalProperties": false}}}},
+        "responses": {"201": {"description": "Process-local staged preview", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/StagedImportInboxPreview"}}}}, "default": {"$ref": "#/components/responses/Problem"}}
+      }
+    },
+    "/projects/{projectKey}/import-inbox/stages/{stageId}/images/{role}": {
+      "get": {
+        "operationId": "getStagedImportImage",
+        "tags": ["creator-sessions"],
+        "summary": "Read one staged image; it never rereads the inbox",
+        "x-synapse-implementation-slice": 8,
+        "parameters": [{"$ref": "#/components/parameters/ProjectKey"}, {"name": "stageId", "in": "path", "required": true, "schema": {"type": "string", "minLength": 64, "maxLength": 64}}, {"$ref": "#/components/parameters/ImageRole"}],
+        "responses": {"200": {"description": "Staged image bytes"}, "default": {"$ref": "#/components/responses/Problem"}}
+      }
+    },
+    "/projects/{projectKey}/import-inbox/stages/{stageId}/creator-sessions": {
+      "post": {
+        "operationId": "beginStagedImportInbox",
+        "tags": ["creator-sessions"],
+        "summary": "Create a pending review from process-local staged bytes",
+        "x-synapse-implementation-slice": 8,
+        "parameters": [{"$ref": "#/components/parameters/ProjectKey"}, {"name": "stageId", "in": "path", "required": true, "schema": {"type": "string", "minLength": 64, "maxLength": 64}}],
+        "requestBody": {"required": true, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/BeginStagedImportInboxRequest"}}}},
+        "responses": {"201": {"description": "Pending Human review", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/PendingCreatorSession"}}}}, "default": {"$ref": "#/components/responses/Problem"}}
+      }
+    },
     "/operations/{operationId}": {
       "get": {
         "operationId": "getOperation",
@@ -852,6 +894,12 @@
       }
     },
     "parameters": {
+      "Slug": {
+        "name": "slug",
+        "in": "path",
+        "required": true,
+        "schema": {"$ref": "#/components/schemas/Slug"}
+      },
       "ProjectKey": {
         "name": "projectKey",
         "in": "path",
@@ -1433,6 +1481,58 @@
             "maxLength": 2048,
             "x-synapse-max-utf8-bytes": 2048
           }
+        }
+      },
+      "ImportInboxItem": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["slug", "ready", "reason"],
+        "properties": {
+          "slug": {"$ref": "#/components/schemas/Slug"},
+          "ready": {"type": "boolean"},
+          "reason": {"type": ["string", "null"], "maxLength": 500}
+        }
+      },
+      "ImportInboxList": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["items"],
+        "properties": {"items": {"type": "array", "maxItems": 256, "items": {"$ref": "#/components/schemas/ImportInboxItem"}}}
+      },
+      "GenerationNote": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["tool", "model", "prompt", "intent"],
+        "properties": {
+          "tool": {"type": "string", "maxLength": 300, "x-synapse-max-utf8-bytes": 300},
+          "model": {"type": "string", "maxLength": 300, "x-synapse-max-utf8-bytes": 300},
+          "prompt": {"type": "string", "maxLength": 8192, "x-synapse-max-utf8-bytes": 8192},
+          "intent": {"type": "string", "maxLength": 2048, "x-synapse-max-utf8-bytes": 2048}
+        }
+      },
+      "StagedImportInboxPreview": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["stage_id", "slug", "session", "subject_label", "creator_name", "generation_note", "generation_note_user_declared"],
+        "properties": {
+          "stage_id": {"type": "string", "minLength": 64, "maxLength": 64},
+          "slug": {"$ref": "#/components/schemas/Slug"},
+          "session": {"$ref": "#/components/schemas/Slug"},
+          "subject_label": {"type": "string", "minLength": 1, "maxLength": 500, "x-synapse-max-utf8-bytes": 500},
+          "creator_name": {"type": "string", "minLength": 1, "maxLength": 300, "x-synapse-max-utf8-bytes": 300},
+          "generation_note": {"oneOf": [{"$ref": "#/components/schemas/GenerationNote"}, {"type": "null"}]},
+          "generation_note_user_declared": {"const": true}
+        }
+      },
+      "BeginStagedImportInboxRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["session", "subject_label", "creator_name", "generation_note"],
+        "properties": {
+          "session": {"$ref": "#/components/schemas/Slug"},
+          "subject_label": {"type": "string", "minLength": 1, "maxLength": 500, "x-synapse-max-utf8-bytes": 500},
+          "creator_name": {"type": "string", "minLength": 1, "maxLength": 300, "x-synapse-max-utf8-bytes": 300},
+          "generation_note": {"oneOf": [{"$ref": "#/components/schemas/GenerationNote"}, {"type": "null"}]}
         }
       },
       "CreatorDecisionRequest": {

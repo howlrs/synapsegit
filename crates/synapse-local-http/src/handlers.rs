@@ -9,10 +9,10 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
 use serde::de::DeserializeOwned;
 use synapse_local_service::{
-    ArchiveExportRequest, ArchiveRestoreRequest, ArchiveResultKind,
-    BeginReuseCreatorSessionRequest, CreatorDecisionRequest, CreatorDecisionResponse, CreatorImage,
-    HealthResponse, ImageRole, LocalService, OperationKind, OperationResult, OperationState,
-    Problem as ServiceProblem, ProjectConfirmation, ReflogQuery, ServiceError,
+    ArchiveExportRequest, ArchiveRestoreRequest, ArchiveResultKind, BeginStagedImportInboxRequest,
+    CreatorDecisionRequest, CreatorDecisionResponse, CreatorImage, HealthResponse, ImageRole,
+    LocalService, OperationKind, OperationResult, OperationState, Problem as ServiceProblem,
+    ProjectConfirmation, ReflogQuery, ServiceError, BeginReuseCreatorSessionRequest,
 };
 
 use crate::problem::problem_response;
@@ -840,6 +840,114 @@ pub(crate) async fn api_creator_image(
         Err(BlockingError::Task) => failure_response(HttpFailure::internal(
             &state,
             "The creator image read task failed.",
+        )),
+    }
+}
+
+pub(crate) async fn api_import_inbox(
+    State(state): State<AppState>,
+    Path(project_key): Path<String>,
+) -> Response {
+    let gate_key = project_key.clone();
+    api_blocking(state, gate_key, move |service| {
+        service.list_import_inbox(&project_key)
+    })
+    .await
+}
+
+pub(crate) async fn api_stage_import_inbox(
+    State(state): State<AppState>,
+    Path((project_key, slug)): Path<(String, String)>,
+) -> Response {
+    let gate_key = project_key.clone();
+    match run_blocking(state.clone(), Some(gate_key), move |service| {
+        service.stage_import_inbox(&project_key, &slug)
+    })
+    .await
+    {
+        Ok(preview) => (StatusCode::CREATED, Json(preview)).into_response(),
+        Err(BlockingError::Service(error)) => failure_response(HttpFailure::service(&state, error)),
+        Err(BlockingError::Task) => failure_response(HttpFailure::internal(
+            &state,
+            "The inbox staging task failed.",
+        )),
+    }
+}
+
+pub(crate) async fn api_staged_import_image(
+    State(state): State<AppState>,
+    Path((project_key, stage_id, role)): Path<(String, String, String)>,
+) -> Response {
+    let Some(role) = ImageRole::parse(&role) else {
+        return failure_response(HttpFailure::not_found(
+            &state,
+            "The requested staged image role was not found.",
+        ));
+    };
+    let role_name = match role {
+        ImageRole::Original => "original",
+        ImageRole::Current => "current",
+        ImageRole::AiOutput => "ai-output",
+    };
+    let gate_key = project_key.clone();
+    let stage_id_for_read = stage_id.clone();
+    match run_blocking(state.clone(), Some(gate_key), move |service| {
+        service.staged_import_image(&project_key, &stage_id_for_read, role)
+    })
+    .await
+    {
+        Ok(image) => image_response(image, &stage_id, role_name),
+        Err(BlockingError::Service(error)) => failure_response(HttpFailure::service(&state, error)),
+        Err(BlockingError::Task) => failure_response(HttpFailure::internal(
+            &state,
+            "The staged image read task failed.",
+        )),
+    }
+}
+
+pub(crate) async fn api_begin_staged_import_inbox(
+    State(state): State<AppState>,
+    Path((project_key, stage_id)): Path<(String, String)>,
+    request: AxumRequest,
+) -> Response {
+    if !is_exact_json_content_type(request.headers()) {
+        return failure_response(HttpFailure::request(
+            &state,
+            "local_request_denied",
+            "The request Content-Type must be exactly application/json.",
+        ));
+    }
+    let body = match to_bytes(request.into_body(), MAX_DECISION_JSON_BYTES).await {
+        Ok(body) => body,
+        Err(_) => {
+            return failure_response(HttpFailure::limit(
+                &state,
+                "The staged import request exceeds the 8 KiB wire limit.",
+            ));
+        }
+    };
+    let request = match serde_json::from_slice::<BeginStagedImportInboxRequest>(&body) {
+        Ok(request) => request,
+        Err(_) => {
+            return failure_response(HttpFailure::request(
+                &state,
+                "local_request_denied",
+                "The staged import JSON is invalid or contains an unknown or duplicate field.",
+            ));
+        }
+    };
+    let server_instance = state.security.server_instance().to_owned();
+    let gate_key = project_key.clone();
+    match run_blocking(state.clone(), Some(gate_key), move |service| {
+        service.begin_staged_import_inbox(&project_key, &server_instance, &stage_id, request)
+    })
+    .await
+    {
+        Ok(pending) => (StatusCode::CREATED, Json(pending)).into_response(),
+        Err(BlockingError::Service(error)) => failure_response(HttpFailure::service(&state, error)),
+        Err(BlockingError::Task) => failure_response(HttpFailure::internal(
+            &state,
+            "The staged inbox proposal task failed.",
         )),
     }
 }

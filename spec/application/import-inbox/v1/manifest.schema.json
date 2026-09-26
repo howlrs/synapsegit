@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://synapsegit.dev/spec/application/import-inbox/v1/manifest.schema.json",
+  "title": "SynapseGit import inbox manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "original", "current", "ai_output", "metadata"],
+  "properties": {
+    "version": {"const": "synapsegit-import-inbox-v1"},
+    "original": {"$ref": "#/$defs/file"},
+    "current": {"$ref": "#/$defs/file"},
+    "ai_output": {"$ref": "#/$defs/file"},
+    "metadata": {
+      "type": "object", "additionalProperties": false,
+      "required": ["subject_label", "creator_name"],
+      "properties": {
+        "subject_label": {"type": "string", "minLength": 1, "maxLength": 500},
+        "creator_name": {"type": "string", "minLength": 1, "maxLength": 300},
+        "generation_note": {"type": "object", "additionalProperties": false, "properties": {"tool": {"type":"string", "maxLength":300}, "model": {"type":"string", "maxLength":300}, "prompt": {"type":"string", "maxLength":8192}, "intent": {"type":"string", "maxLength":2048}}}
+      }
+    }
+  },
+  "$defs": {
+    "file": {"type":"object", "additionalProperties":false, "required":["name", "size"], "properties":{"name":{"type":"string", "minLength":1, "maxLength":255, "pattern":"^[^/\\\\]+$"}, "size":{"type":"integer", "minimum":0, "maximum":67108864}, "sha256":{"type":"string", "pattern":"^[A-Fa-f0-9]{64}$"}}}
+  }
+}

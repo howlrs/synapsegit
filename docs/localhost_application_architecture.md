@@ -200,18 +200,17 @@ path family; they do not identify each extension within that family. Keep the
 `-draft` suffix while the application contract remains a Stage 0 draft. Neither
 a revision bump nor the `v1` path promises stable protocol compatibility.
 
-The current contract is `0.6.3-draft`: it adds confirmed three-Blob reuse for
-interrupted and deferred Creator sessions without restoring old authority. The
-previous independent revision was `0.6.2-draft`. The historical `0.5.0-draft`
-was the next independent revision after the reused `0.4.0-draft`, not a claim that it shipped with release
-v0.5.0. Earlier releases must still be identified by their Git tag because
+The current contract is `0.6.4-draft`: it combines configured import-inbox
+staging routes with confirmed three-Blob reuse for interrupted and deferred
+Creator sessions without restoring old authority. The previous independent
+revision was `0.6.3-draft`. Earlier releases must still be identified by their Git tag because
 `0.4.0-draft` was used for multiple different documents. Releasing unchanged
 contract content does not bump this identifier; the crate/tag check in
 `scripts/verify_release_version.sh` remains separate.
 
 For any contract edit, including paths, operations, schemas, headers, required
 fields, or descriptive text, increment the patch component (for example,
-`0.5.1-draft`) and append an entry to
+`0.6.1-draft`) and append an entry to
 [`api/local/v1/revisions.json`](../api/local/v1/revisions.json). Published entries
 are immutable: never replace an existing version's digest or remove its entry.
 The verifier requires increasing versions and the latest entry to match both

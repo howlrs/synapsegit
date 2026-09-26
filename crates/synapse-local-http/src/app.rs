@@ -9,14 +9,17 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use synapse_local_service::LocalService;
 use tokio::sync::Semaphore;
 
+use crate::handlers::MAX_DECISION_JSON_BYTES;
 use crate::handlers::{
-    api_archives, api_begin_creator_session, api_begin_derived_creator_session, api_creator_image,
-    api_creator_reuse, api_creator_reuse_source, api_creator_session,
+    api_archives, api_begin_creator_session, api_begin_derived_creator_session,
+    api_begin_staged_import_inbox, api_creator_image, api_creator_reuse,
+    api_creator_reuse_source, api_creator_session,
     api_creator_session_diagnostics, api_creator_sessions, api_creator_source,
-    api_decide_creator_session, api_health, api_operation, api_presentation_sidecar,
-    api_project_reflog, api_project_refs, api_project_status, api_projects,
-    api_start_archive_export, api_start_archive_restore, api_start_fsck, derive_page, index_page,
-    method_not_allowed, not_found, presentation_page, project_page, reuse_page, session_page,
+    api_decide_creator_session, api_health, api_import_inbox, api_operation,
+    api_presentation_sidecar, api_project_reflog, api_project_refs, api_project_status,
+    api_projects, api_stage_import_inbox, api_staged_import_image, api_start_archive_export,
+    api_start_archive_restore, api_start_fsck, derive_page, index_page, method_not_allowed,
+    not_found, presentation_page, project_page, reuse_page, session_page,
 };
 use crate::security::{SecurityPolicy, enforce_local_request};
 use crate::staging::MAX_CREATOR_FILE_AGGREGATE_BYTES;
@@ -145,6 +148,23 @@ pub(crate) fn build_with_identity(
             get(api_project_status),
         )
         .route("/api/v1/projects/{project_key}/refs", get(api_project_refs))
+        .route(
+            "/api/v1/projects/{project_key}/import-inbox",
+            get(api_import_inbox),
+        )
+        .route(
+            "/api/v1/projects/{project_key}/import-inbox/{slug}/stages",
+            axum::routing::post(api_stage_import_inbox),
+        )
+        .route(
+            "/api/v1/projects/{project_key}/import-inbox/stages/{stage_id}/images/{role}",
+            get(api_staged_import_image),
+        )
+        .route(
+            "/api/v1/projects/{project_key}/import-inbox/stages/{stage_id}/creator-sessions",
+            axum::routing::post(api_begin_staged_import_inbox)
+                .layer(DefaultBodyLimit::max(MAX_DECISION_JSON_BYTES)),
+        )
         .route(
             "/api/v1/projects/{project_key}/reflog",
             get(api_project_reflog),

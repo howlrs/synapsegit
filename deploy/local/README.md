@@ -258,6 +258,28 @@ dialog is included in the v0.8.1 tagged binary.
 
 After a restart, an incomplete session whose recorded proposal can be verified shows its three images read-only and offers **この提案を新しいセッションでレビューする**. A complete `Defer` instead offers **保留した提案を改めて判断する**. Both routes open a confirmation page with the fixed source heads and make a fresh session from the recorded images; neither resumes or changes the source decision. A changed source is rejected at creation time. The private relationship survives archive export and restore, but public profile v1 export and the sidecar form refuse these sessions.
 
+### Enable a project import inbox
+
+`--import-root KEY=PATH` may be repeated for registered project keys. The
+server canonicalizes each existing directory at startup and rejects overlap
+with any repository, archive root, or other inbox root. A producer writes
+`PATH/<slug>/original`, `current`, and `ai-output`, then writes strict
+`manifest.json` last using the versioned schema at
+[`spec/application/import-inbox/v1`](../../spec/application/import-inbox/v1/manifest.schema.json).
+The browser supplies only the logical slug. It can preview and edit metadata
+after the service has copied verified no-follow regular files into private
+process staging; proposal creation reads those staged bytes and never rereads
+the inbox. Inbox contents and metadata are caller-supplied, not execution
+evidence, and no decision is made until the browser records an explicit Human
+Decision.
+
+```bash
+mkdir -p "$HOME/SynapseGit/inbox"
+./target/release/synapse-local \
+  --project "demo=$HOME/SynapseGit/demo" \
+  --import-root "demo=$HOME/SynapseGit/inbox"
+```
+
 ### Enable archive maintenance
 
 `--archive-root PATH` is optional and may be given at most once. It enables
