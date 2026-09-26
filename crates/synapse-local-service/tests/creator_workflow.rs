@@ -542,10 +542,14 @@ fn process_restart_exposes_a_published_proposal_as_incomplete_without_reconstruc
             .map(|source| source.kind.as_str()),
         Some("interrupted_pending")
     );
-    assert_eq!(
-        restarted.list_creator_sessions("project").unwrap().sessions[0].state,
-        CreatorSessionState::Incomplete
-    );
+    let summary = restarted
+        .list_creator_sessions("project")
+        .unwrap()
+        .sessions
+        .remove(0);
+    assert_eq!(summary.state, CreatorSessionState::Incomplete);
+    assert_eq!(summary.subject_label.as_deref(), Some("North wall mural"));
+    assert_eq!(summary.creator_name.as_deref(), Some("Aki"));
 
     let error = restarted
         .decide_creator_session(

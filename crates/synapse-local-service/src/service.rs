@@ -1465,7 +1465,7 @@ impl LocalService {
             &snapshot,
             project_key,
         )?);
-        enrich_display_session_summaries(&repository, &snapshot, &mut sessions);
+        enrich_display_session_summaries(&repository, &mut sessions);
         Ok(CreatorSessionList {
             snapshot: snapshot_context(&snapshot, None),
             sessions,
@@ -2404,15 +2404,20 @@ fn sessions_from_snapshot_with_pending(
 
 /// Populate the fixed dashboard page budget from ref-selected objects.
 ///
-/// These reads are unverified display hints only; opening a session still
-/// constructs the normal verified report before presenting detail.
+/// This intentionally does not construct a report reader or run fsck: project
+/// listing must remain useful when a repository has many independent creator
+/// sessions. Each persisted row reads at most its Commit, Tree, actor, subject,
+/// import Activity, and (for a decision) feedback record. These are unverified
+/// display hints only; opening the session still builds the normal verified
+/// report before presenting detail.
 fn enrich_display_session_summaries(
     repository: &Repository,
-    _snapshot: &RefSnapshot,
     sessions: &mut [CreatorSessionSummary],
 ) {
     for summary in sessions {
-        if summary.state != CreatorSessionState::Complete {
+        // Process-local pending receipts already carry the only safe overview
+        // fields available before a persisted decision exists.
+        if summary.state == CreatorSessionState::PendingReview {
             continue;
         }
         let Some(head) = summary
