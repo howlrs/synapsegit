@@ -13,13 +13,139 @@
   </div>
   <span class="status-badge" data-tone="success">ローカル・利用可能</span>
 </header>
-<noscript><p><a class="button button--secondary" href="/projects/{{ project_key }}/presentation">公開用の制作ノートを作る</a></p></noscript>
 
 <section class="metric-grid" aria-label="プロジェクト概要">
   <article class="metric"><span class="metric__label">Refs</span><strong>{{ refs.len() }}</strong></article>
   <article class="metric"><span class="metric__label">完了</span><strong>{{ complete_sessions }}</strong></article>
   <article class="metric"><span class="metric__label">レビュー待ち</span><strong>{{ pending_sessions }}</strong></article>
   <article class="metric"><span class="metric__label">未完了</span><strong>{{ incomplete_sessions }}</strong></article>
+</section>
+
+{% if import_inbox_supported %}
+<section class="card" hidden data-import-inbox data-project-key="{{ project_key }}" aria-labelledby="import-inbox-heading">
+  <div class="card__header"><div><p class="eyebrow">Manifest-last inbox</p><h2 id="import-inbox-heading">取り込み待ち</h2><p class="muted">確認時に検証・stagingしたbytesだけをproposalへ取り込みます。</p></div></div>
+  <p data-import-inbox-status role="status"></p>
+  <ul data-import-inbox-list class="stack"></ul>
+  <form hidden data-import-inbox-preview>
+    <h3 tabindex="-1">取り込み内容を確認</h3>
+    <p class="notice" data-tone="warning">AI outputと生成メモはcaller-suppliedです。明示的な判断を行うまでDecisionは記録されません。</p>
+    <div class="upload-grid" data-import-inbox-images></div>
+    <div class="form-grid">
+      <label class="field"><span>Inbox session</span><input name="inbox_session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}"></label>
+      <label class="field"><span>Inbox creator name</span><input name="inbox_creator_name" required maxlength="300"></label>
+      <label class="field form-grid__wide"><span>Inbox subject label</span><input name="inbox_subject_label" required maxlength="500"></label>
+      <label class="field"><span>Inbox generation tool</span><input name="inbox_generation_tool" maxlength="300"></label>
+      <label class="field"><span>Inbox generation model</span><input name="inbox_generation_model" maxlength="300"></label>
+      <label class="field form-grid__wide"><span>Inbox generation prompt</span><textarea name="inbox_generation_prompt" maxlength="8192" rows="3"></textarea></label>
+      <label class="field form-grid__wide"><span>Inbox generation intent</span><textarea name="inbox_generation_intent" maxlength="2048" rows="2"></textarea></label>
+    </div>
+    <div class="actions"><button type="submit" data-synapse-submit>Proposalを作成</button><button type="button" data-variant="secondary" data-import-inbox-cancel>一覧へ戻る</button></div>
+  </form>
+</section>
+{% endif %}
+<section class="card project-creator-upload" aria-labelledby="creator-upload-heading">
+  <div class="card__header">
+    <div>
+      <p class="eyebrow">Proposal-only import</p>
+      <h2 id="creator-upload-heading">Creator session を開始</h2>
+      <p class="muted">3ファイルをローカルでstagingし、AI proposalを公開してHuman reviewへ進めます。</p>
+    </div>
+  </div>
+  <div class="notice" data-tone="warning">
+    <h3>AI output は caller-supplied です</h3>
+    <p>この画面やlocalhost processがAI出力を生成したという意味ではありません。判断前に必ず3つの内容とbyte identity evidenceを確認してください。</p>
+  </div>
+  <form
+    hidden
+    method="post"
+    action="/api/v1/projects/{{ project_key }}/creator-sessions"
+    enctype="multipart/form-data"
+    data-synapse-api-form="multipart"
+    data-synapse-creator-upload
+    data-success-session-base="/projects/{{ project_key }}/creator-sessions/"
+    data-busy-message="ファイルを取り込み、proposalを公開しています…"
+    data-success-message="Proposalを公開しました。レビュー画面へ移動します。"
+  >
+    <div class="form-grid">
+      <div class="field">
+        <label for="creator-session">Session</label>
+        <input id="creator-session" name="session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" aria-describedby="creator-session-hint" autocomplete="off" placeholder="first-review">
+        <span id="creator-session-hint" class="field__hint">小文字英数字とハイフン、1–64文字。create-onlyです。</span>
+      </div>
+      <div class="field">
+        <label for="creator-name">Creator name</label>
+        <input id="creator-name" name="creator_name" required maxlength="300" aria-describedby="creator-name-hint creator-name-count" autocomplete="name">
+        <span id="creator-name-hint" class="field__hint">UTF-8で300 bytes以内。</span>
+        <span id="creator-name-count" class="field__hint" data-creator-text-count="creator_name" aria-live="polite" hidden></span>
+      </div>
+      <div class="field form-grid__wide">
+        <label for="creator-subject">Subject label</label>
+        <input id="creator-subject" name="subject_label" required maxlength="500" aria-describedby="creator-subject-hint creator-subject-count" autocomplete="off">
+        <span id="creator-subject-hint" class="field__hint">UTF-8で500 bytes以内。</span>
+        <span id="creator-subject-count" class="field__hint" data-creator-text-count="subject_label" aria-live="polite" hidden></span>
+      </div>
+    </div>
+    <p class="field__hint upload-hint" data-creator-preview-note hidden>ローカルプレビューです。ファイルを選ぶだけでは送信・保存されません。Original／Current／AI outputの取り違えがないか確認してください。</p>
+    <div class="upload-grid">
+      <div class="upload-file" data-creator-file>
+        <label for="creator-original_image">Original image</label>
+        <input id="creator-original_image" type="file" name="original_image" required aria-describedby="creator-original_image-hint creator-original_image-info creator-original_image-status">
+        <p id="creator-original_image-hint" class="field__hint">raw bytes、64 MiB以内。</p>
+        <p id="creator-original_image-info" data-creator-file-info class="field__hint" hidden></p>
+        <img data-creator-preview class="upload-file__preview" alt="Original imageのローカルプレビュー" hidden>
+        <p id="creator-original_image-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
+        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="Original imageの選択を解除" hidden>選択を解除</button>
+      </div>
+      <div class="upload-file" data-creator-file>
+        <label for="creator-current_image">Current image</label>
+        <input id="creator-current_image" type="file" name="current_image" required aria-describedby="creator-current_image-hint creator-current_image-info creator-current_image-status">
+        <p id="creator-current_image-hint" class="field__hint">raw bytes、64 MiB以内。</p>
+        <p id="creator-current_image-info" data-creator-file-info class="field__hint" hidden></p>
+        <img data-creator-preview class="upload-file__preview" alt="Current imageのローカルプレビュー" hidden>
+        <p id="creator-current_image-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
+        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="Current imageの選択を解除" hidden>選択を解除</button>
+      </div>
+      <div class="upload-file" data-creator-file>
+        <label for="creator-ai_output">AI output (caller-supplied)</label>
+        <input id="creator-ai_output" type="file" name="ai_output" required aria-describedby="creator-ai_output-hint creator-ai_output-info creator-ai_output-status">
+        <p id="creator-ai_output-hint" class="field__hint">raw bytes、64 MiB以内。</p>
+        <p id="creator-ai_output-info" data-creator-file-info class="field__hint" hidden></p>
+        <img data-creator-preview class="upload-file__preview" alt="AI output (caller-supplied)のローカルプレビュー" hidden>
+        <p id="creator-ai_output-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
+        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="AI output (caller-supplied)の選択を解除" hidden>選択を解除</button>
+      </div>
+    </div>
+    {% include "generation-note-fields.html" %}
+    <p data-creator-file-summary class="field__hint" role="status" hidden></p>
+    <div class="actions"><button type="submit" data-synapse-submit>Proposalを作成</button></div>
+    <p class="field__hint">安全なwriteには、このページのJavaScriptとprocess-local tokenが必要です。</p>
+    <p data-synapse-status hidden></p>
+  </form>
+  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、この画面はread-onlyです。安全なuploadにはprocess-local tokenを付けるJavaScriptが必要です。</p></div></noscript>
+</section>
+
+<section class="project-sessions" aria-labelledby="sessions-heading" data-creator-session-list>
+  <div class="section-heading"><h2 id="sessions-heading">セッション</h2><span class="badge" data-creator-session-count>{{ sessions.len() }} 件</span></div>
+  <p class="field__hint">現在のRef snapshotを一度だけ検証して作った概要です。検証できない行は「取得できません」と表示し、推測値で埋めません。詳細と理由は各セッション画面で確認します。表示は最大200件です。</p>
+  <label class="field"><span>状態・判断で絞り込む</span><select data-creator-session-filter><option value="all">すべて</option><option value="pending">レビュー待ち</option><option value="complete">完了</option><option value="adopt">Adopt</option><option value="reject">Reject</option><option value="defer">Defer</option><option value="incomplete">未完了</option></select></label>
+  {% if sessions.is_empty() %}
+  <div class="empty-state"><h3>セッションはまだありません</h3><p>上のフォームから3ファイルを取り込み、最初のproposalとHuman reviewを開始できます。</p></div>
+  {% else %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>セッション／内容</th><th>状態・判断</th><th>記録日時</th><th>派生元</th><th>head</th></tr></thead>
+    <tbody>
+      {% for session in sessions %}
+      <tr data-creator-session-row data-state="{{ session.state_label }}" data-disposition="{{ session.disposition }}">
+        <th scope="row"><a href="/projects/{{ project_key }}/creator-sessions/{{ session.session }}">{{ session.session }}</a><br><span class="muted">{{ session.subject_label }}</span></th>
+        <td><span class="status-badge" data-tone="{{ session.tone }}">{{ session.state_label }}</span> {{ session.disposition }}</td>
+        <td>{{ session.recorded_at }}<br><span class="muted">{{ session.recorded_time_basis }}</span></td>
+        <td>{% if session.source_session == "—" %}—{% else %}<a href="/projects/{{ project_key }}/creator-sessions/{{ session.source_session }}">{{ session.source_session }}</a>{% endif %}</td>
+        <td><code>{{ session.proposal_head }}</code><br><code>{{ session.decision_head }}</code></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
 </section>
 
 {% if fsck_supported %}
@@ -152,142 +278,6 @@
   <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、archive restoreは開始できません。</p></div></noscript>
 </section>
 {% endif %}
-
-{% if import_inbox_supported %}
-<section class="card" hidden data-import-inbox data-project-key="{{ project_key }}" aria-labelledby="import-inbox-heading">
-  <div class="card__header"><div><p class="eyebrow">Manifest-last inbox</p><h2 id="import-inbox-heading">取り込み待ち</h2><p class="muted">確認時に検証・stagingしたbytesだけをproposalへ取り込みます。</p></div></div>
-  <p data-import-inbox-status role="status"></p>
-  <ul data-import-inbox-list class="stack"></ul>
-  <form hidden data-import-inbox-preview>
-    <h3 tabindex="-1">取り込み内容を確認</h3>
-    <p class="notice" data-tone="warning">AI outputと生成メモはcaller-suppliedです。明示的な判断を行うまでDecisionは記録されません。</p>
-    <div class="upload-grid" data-import-inbox-images></div>
-    <div class="form-grid">
-      <label class="field"><span>Inbox session</span><input name="inbox_session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}"></label>
-      <label class="field"><span>Inbox creator name</span><input name="inbox_creator_name" required maxlength="300"></label>
-      <label class="field form-grid__wide"><span>Inbox subject label</span><input name="inbox_subject_label" required maxlength="500"></label>
-      <label class="field"><span>Inbox generation tool</span><input name="inbox_generation_tool" maxlength="300"></label>
-      <label class="field"><span>Inbox generation model</span><input name="inbox_generation_model" maxlength="300"></label>
-      <label class="field form-grid__wide"><span>Inbox generation prompt</span><textarea name="inbox_generation_prompt" maxlength="8192" rows="3"></textarea></label>
-      <label class="field form-grid__wide"><span>Inbox generation intent</span><textarea name="inbox_generation_intent" maxlength="2048" rows="2"></textarea></label>
-    </div>
-    <div class="actions"><button type="submit" data-synapse-submit>Proposalを作成</button><button type="button" data-variant="secondary" data-import-inbox-cancel>一覧へ戻る</button></div>
-  </form>
-</section>
-{% endif %}
-
-<section class="card project-creator-upload" aria-labelledby="creator-upload-heading">
-  <div class="card__header">
-    <div>
-      <p class="eyebrow">Proposal-only import</p>
-      <h2 id="creator-upload-heading">Creator session を開始</h2>
-      <p class="muted">3ファイルをローカルでstagingし、AI proposalを公開してHuman reviewへ進めます。</p>
-    </div>
-  </div>
-  <div class="notice" data-tone="warning">
-    <h3>AI output は caller-supplied です</h3>
-    <p>この画面やlocalhost processがAI出力を生成したという意味ではありません。判断前に必ず3つの内容とbyte identity evidenceを確認してください。</p>
-  </div>
-  <form
-    hidden
-    method="post"
-    action="/api/v1/projects/{{ project_key }}/creator-sessions"
-    enctype="multipart/form-data"
-    data-synapse-api-form="multipart"
-    data-synapse-creator-upload
-    data-success-session-base="/projects/{{ project_key }}/creator-sessions/"
-    data-busy-message="ファイルを取り込み、proposalを公開しています…"
-    data-success-message="Proposalを公開しました。レビュー画面へ移動します。"
-  >
-    <div class="form-grid">
-      <div class="field">
-        <label for="creator-session">Session</label>
-        <input id="creator-session" name="session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" aria-describedby="creator-session-hint" autocomplete="off" placeholder="first-review">
-        <span id="creator-session-hint" class="field__hint">小文字英数字とハイフン、1–64文字。create-onlyです。</span>
-      </div>
-      <div class="field">
-        <label for="creator-name">Creator name</label>
-        <input id="creator-name" name="creator_name" required maxlength="300" aria-describedby="creator-name-hint creator-name-count" autocomplete="name">
-        <span id="creator-name-hint" class="field__hint">UTF-8で300 bytes以内。</span>
-        <span id="creator-name-count" class="field__hint" data-creator-text-count="creator_name" aria-live="polite" hidden></span>
-      </div>
-      <div class="field form-grid__wide">
-        <label for="creator-subject">Subject label</label>
-        <input id="creator-subject" name="subject_label" required maxlength="500" aria-describedby="creator-subject-hint creator-subject-count" autocomplete="off">
-        <span id="creator-subject-hint" class="field__hint">UTF-8で500 bytes以内。</span>
-        <span id="creator-subject-count" class="field__hint" data-creator-text-count="subject_label" aria-live="polite" hidden></span>
-      </div>
-    </div>
-    <p class="field__hint upload-hint" data-creator-preview-note hidden>ローカルプレビューです。ファイルを選ぶだけでは送信・保存されません。Original／Current／AI outputの取り違えがないか確認してください。</p>
-    <div class="upload-grid">
-      <div class="upload-file" data-creator-file>
-        <label for="creator-original_image">Original image</label>
-        <input id="creator-original_image" type="file" name="original_image" required aria-describedby="creator-original_image-hint creator-original_image-info creator-original_image-status">
-        <p id="creator-original_image-hint" class="field__hint">raw bytes、64 MiB以内。</p>
-        <p id="creator-original_image-info" data-creator-file-info class="field__hint" hidden></p>
-        <img data-creator-preview class="upload-file__preview" alt="Original imageのローカルプレビュー" hidden>
-        <p id="creator-original_image-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
-        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="Original imageの選択を解除" hidden>選択を解除</button>
-      </div>
-      <div class="upload-file" data-creator-file>
-        <label for="creator-current_image">Current image</label>
-        <input id="creator-current_image" type="file" name="current_image" required aria-describedby="creator-current_image-hint creator-current_image-info creator-current_image-status">
-        <p id="creator-current_image-hint" class="field__hint">raw bytes、64 MiB以内。</p>
-        <p id="creator-current_image-info" data-creator-file-info class="field__hint" hidden></p>
-        <img data-creator-preview class="upload-file__preview" alt="Current imageのローカルプレビュー" hidden>
-        <p id="creator-current_image-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
-        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="Current imageの選択を解除" hidden>選択を解除</button>
-      </div>
-      <div class="upload-file" data-creator-file>
-        <label for="creator-ai_output">AI output (caller-supplied)</label>
-        <input id="creator-ai_output" type="file" name="ai_output" required aria-describedby="creator-ai_output-hint creator-ai_output-info creator-ai_output-status">
-        <p id="creator-ai_output-hint" class="field__hint">raw bytes、64 MiB以内。</p>
-        <p id="creator-ai_output-info" data-creator-file-info class="field__hint" hidden></p>
-        <img data-creator-preview class="upload-file__preview" alt="AI output (caller-supplied)のローカルプレビュー" hidden>
-        <p id="creator-ai_output-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
-        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="AI output (caller-supplied)の選択を解除" hidden>選択を解除</button>
-      </div>
-    </div>
-    {% include "generation-note-fields.html" %}
-    <p data-creator-file-summary class="field__hint" role="status" hidden></p>
-    <div class="actions"><button type="submit" data-synapse-submit>Proposalを作成</button></div>
-    <p class="field__hint">安全なwriteには、このページのJavaScriptとprocess-local tokenが必要です。</p>
-    <p data-synapse-status hidden></p>
-  </form>
-  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、この画面はread-onlyです。安全なuploadにはprocess-local tokenを付けるJavaScriptが必要です。</p></div></noscript>
-</section>
-
-<section class="project-sessions" aria-labelledby="sessions-heading" data-creator-session-list>
-  <div class="section-heading"><h2 id="sessions-heading">セッション</h2><span class="badge" data-creator-session-count>{{ sessions.len() }} 件</span></div>
-  <p class="field__hint">現在のRef snapshotを一度だけ検証して作った概要です。検証できない行は「取得できません」と表示し、推測値で埋めません。詳細と理由は各セッション画面で確認します。表示は最大200件です。</p>
-  <label class="field"><span>状態・判断で絞り込む</span><select data-creator-session-filter><option value="all">すべて</option><option value="pending">レビュー待ち</option><option value="complete">完了</option><option value="adopt">Adopt</option><option value="reject">Reject</option><option value="defer">Defer</option><option value="incomplete">未完了</option></select></label>
-  {% if sessions.is_empty() %}
-  <div class="empty-state"><h3>セッションはまだありません</h3><p>上のフォームから3ファイルを取り込み、最初のproposalとHuman reviewを開始できます。</p></div>
-  {% else %}
-  <div class="table-wrap"><table>
-    <thead><tr><th>セッション／内容</th><th>状態・判断</th><th>記録日時</th><th>派生元</th><th>head</th></tr></thead>
-    <tbody>
-      {% for session in sessions %}
-      <tr data-creator-session-row data-state="{{ session.state_label }}" data-disposition="{{ session.disposition }}">
-        <th scope="row"><a href="/projects/{{ project_key }}/creator-sessions/{{ session.session }}">{{ session.session }}</a><br><span class="muted">{{ session.subject_label }}</span></th>
-        <td><span class="status-badge" data-tone="{{ session.tone }}">{{ session.state_label }}</span> {{ session.disposition }}</td>
-        <td>{{ session.recorded_at }}<br><span class="muted">{{ session.recorded_time_basis }}</span></td>
-        <td>{% if session.source_session == "—" %}—{% else %}<a href="/projects/{{ project_key }}/creator-sessions/{{ session.source_session }}">{{ session.source_session }}</a>{% endif %}</td>
-        <td><code>{{ session.proposal_head }}</code><br><code>{{ session.decision_head }}</code></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table></div>
-  {% endif %}
-</section>
-
-<noscript>
-  <style>.project-maintenance,.project-presentation-action{display:none}</style>
-  <section class="card" aria-labelledby="maintenance-noscript-heading">
-    <h2 id="maintenance-noscript-heading">メンテナンス</h2>
-    <p>整合性の確認、アーカイブの書き出し、復元はJavaScriptを必要とする保守操作です。確認対象のproject key入力と、復元先が空であることの確認は有効時にも変わりません。</p>
-  </section>
-</noscript>
 
 <div class="split-grid project-detail">
   <section aria-labelledby="refs-heading">
