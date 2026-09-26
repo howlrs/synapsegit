@@ -24,7 +24,8 @@ mod session;
 mod source;
 mod time;
 pub use source::{
-    CREATOR_MAX_SOURCE_DEPTH, CREATOR_SOURCE_FORMAT, CREATOR_SOURCE_KEY, CreatorSourceBinding,
+    CREATOR_MAX_SOURCE_DEPTH, CREATOR_REUSE_SOURCE_FORMAT, CREATOR_REUSE_SOURCE_KEY,
+    CREATOR_SOURCE_FORMAT, CREATOR_SOURCE_KEY, CreatorReuseSourceBinding, CreatorSourceBinding,
 };
 mod types;
 
@@ -34,6 +35,7 @@ mod tests;
 pub use error::{CreatorError, Result};
 pub use report::{
     PreparedCreatorReportReader, creator_report, creator_report_from_snapshot,
+    creator_reuse_source_display_from_snapshot, creator_reuse_source_from_snapshot,
     discover_creator_sessions,
 };
 pub use session::{
@@ -41,6 +43,7 @@ pub use session::{
     CREATOR_FSCK_MAX_OBJECTS, CREATOR_FSCK_MAX_REF_ROOTS, CREATOR_RESERVED_PENDING_DECISIONS,
     PendingCreatorSession, begin_creator_session, begin_creator_session_existing,
     begin_creator_session_with_note, begin_creator_session_with_note_existing,
+    begin_creator_session_with_reuse_source, begin_creator_session_with_reuse_source_existing,
     begin_creator_session_with_source, begin_creator_session_with_source_existing,
     decide_creator_session, decide_creator_session_with_annotations, run_creator_session,
 };

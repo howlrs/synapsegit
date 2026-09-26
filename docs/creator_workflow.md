@@ -78,3 +78,12 @@ completeな派生セッションを含む全件exportも失敗し、bundle出力
 - [派生元の保存契約](../spec/application/creator-source/v1/README.md)
 - [CLIとerror code](cli_reference.md)
 - [実装状況と未対応範囲](project_status.md)
+# Recorded proposal reuse
+
+An interrupted review cannot be resumed because its Human authority was
+process-local. When its Proposal closure verifies after restart, the local UI
+can create a new session that reuses the recorded Original, Current, and AI
+output bytes. A completed `defer` can use the same operation for a later
+independent review. The original Ref and Decision remain immutable; fresh
+authority and a fresh rationale are required. Public profile v1 does not
+export these private provenance forms.

@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "SynapseGit localhost application API",
-    "version": "0.5.0-draft",
+    "version": "0.6.0-draft",
     "description": "Single-user, loopback-only application contract. Read routes, creator import, same-process Human review, read-only creator-session diagnostics, and confirmed bounded fsck with process-local operation polling are included in the tagged v0.4.0 binary. Bounded read-only archive listing (behind an optional --archive-root startup flag) is included in the tagged v0.6.0 binary. Authenticated, confirmed bounded archive export and empty-target restore operations (behind the same --archive-root flag) are included in the tagged v0.7.0 binary; browser controls for both remain planned. This is not the public Core protocol."
   },
   "servers": [
@@ -779,6 +779,25 @@
             "$ref": "#/components/responses/Problem"
           }
         }
+      }
+    },
+    "/projects/{projectKey}/creator-sessions/{session}/reuse": {
+      "get": {
+        "operationId": "prepareCreatorReuseSource",
+        "tags": ["creator-sessions"],
+        "summary": "Confirm an interrupted or deferred source for a fresh review",
+        "x-synapse-implementation-slice": 5,
+        "parameters": [{"$ref":"#/components/parameters/ProjectKey"},{"$ref":"#/components/parameters/Session"}],
+        "responses": {"200":{"description":"Process-local confirmation; no authority is restored","content":{"application/json":{"schema":{"$ref":"#/components/schemas/CreatorReuseSourcePreview"}}}},"default":{"$ref":"#/components/responses/Problem"}}
+      },
+      "post": {
+        "operationId": "beginReuseCreatorSession",
+        "tags": ["creator-sessions"],
+        "summary": "Create a fresh Human review from three confirmed Blob bytes",
+        "x-synapse-implementation-slice": 5,
+        "parameters": [{"$ref":"#/components/parameters/ProjectKey"},{"$ref":"#/components/parameters/Session"}],
+        "requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/BeginReuseCreatorSessionRequest"}}}},
+        "responses":{"201":{"description":"Pending fresh Human review","content":{"application/json":{"schema":{"$ref":"#/components/schemas/PendingCreatorSession"}}}},"default":{"$ref":"#/components/responses/Problem"}}
       }
     },
     "/projects/{projectKey}/presentation-sidecars": {
@@ -2568,6 +2587,20 @@
             "$ref": "#/components/schemas/BlobOid"
           }
         }
+      },
+      "CreatorReuseSourceBinding": {
+        "type":"object", "additionalProperties":false,
+        "required":["format","kind","session","proposal_head","decision_head","original_blob_oid","current_blob_oid","ai_output_blob_oid"],
+        "properties":{"format":{"const":"synapsegit-creator-reuse-source-v1"},"kind":{"enum":["interrupted_pending","deferred_rereview"]},"session":{"$ref":"#/components/schemas/Slug"},"proposal_head":{"$ref":"#/components/schemas/CommitOid"},"decision_head":{"$ref":"#/components/schemas/CommitOid"},"original_blob_oid":{"$ref":"#/components/schemas/BlobOid"},"current_blob_oid":{"$ref":"#/components/schemas/BlobOid"},"ai_output_blob_oid":{"$ref":"#/components/schemas/BlobOid"}}
+      },
+      "CreatorReuseSourcePreview": {
+        "type":"object", "additionalProperties":false,
+        "required":["confirmation_id","source","creator_name","subject_label"],
+        "properties":{"confirmation_id":{"type":"string","pattern":"^[0-9a-f]{64}$"},"source":{"$ref":"#/components/schemas/CreatorReuseSourceBinding"},"creator_name":{"type":"string","maxLength":300},"subject_label":{"type":"string","maxLength":500},"deferred_rationale":{"type":"string","maxLength":5000}}
+      },
+      "BeginReuseCreatorSessionRequest": {
+        "type":"object", "additionalProperties":false, "required":["confirmation_id","session","creator_name","subject_label"],
+        "properties":{"confirmation_id":{"type":"string","pattern":"^[0-9a-f]{64}$"},"session":{"$ref":"#/components/schemas/Slug"},"creator_name":{"type":"string","minLength":1,"maxLength":300},"subject_label":{"type":"string","minLength":1,"maxLength":500}}
       },
       "CreatorSourcePreview": {
         "type": "object",

@@ -386,7 +386,9 @@ pub fn build_public_projection(options: &ProjectionOptions) -> Result<PublicProj
                 // Frozen v1 has no verified reuse semantics and labels Current
                 // as an observation. Do not erase the private source binding
                 // by projecting a derived session into that profile.
-                if snapshot_report.report.source.is_some() {
+                if snapshot_report.report.source.is_some()
+                    || snapshot_report.report.reuse_source.is_some()
+                {
                     return Err(PublicationError::InvalidArgument(
                         "publication profile v1 cannot represent reused reference images; select a non-derived session with --session".into(),
                     ));

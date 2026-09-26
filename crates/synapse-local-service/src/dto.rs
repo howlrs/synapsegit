@@ -347,6 +347,8 @@ pub struct CreatorReport {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<synapse_creator::CreatorSourceBinding>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reuse_source: Option<synapse_creator::CreatorReuseSourceBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub annotations: Option<synapse_creator::CreatorAnnotations>,
     #[serde(default)]
     pub annotations_unavailable: bool,
@@ -479,6 +481,8 @@ impl CreatorDecisionResponse {
 pub struct PendingCreatorSession {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source: Option<synapse_creator::CreatorSourceBinding>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reuse_source: Option<synapse_creator::CreatorReuseSourceBinding>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generation_note: Option<synapse_creator::CreatorGenerationNote>,
     pub state: PendingReviewState,
@@ -650,6 +654,26 @@ pub struct Problem {
 pub struct CreatorSourcePreview {
     pub confirmation_id: String,
     pub source: synapse_creator::CreatorSourceBinding,
+    pub creator_name: String,
+    pub subject_label: String,
+}
+
+/// A process-local confirmation for a read-only three-Blob reuse operation.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreatorReuseSourcePreview {
+    pub confirmation_id: String,
+    pub source: synapse_creator::CreatorReuseSourceBinding,
+    pub creator_name: String,
+    pub subject_label: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deferred_rationale: Option<String>,
+}
+
+#[derive(Debug)]
+pub struct BeginReuseCreatorSessionRequest {
+    pub confirmation_id: String,
+    pub session: String,
     pub creator_name: String,
     pub subject_label: String,
 }

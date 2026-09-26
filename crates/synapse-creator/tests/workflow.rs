@@ -1247,6 +1247,52 @@ fn derivation_refuses_stale_source_and_wrong_reference_bytes_before_publication(
 }
 
 #[test]
+fn interrupted_and_deferred_three_blob_sources_are_fresh_and_never_restore_authority() {
+    use synapse_creator::{
+        begin_creator_session_with_reuse_source, creator_reuse_source_from_snapshot,
+    };
+    let temporary = TempDirectory::new();
+    let path = temporary.join("reuse-source");
+    let input = options(&temporary, &path, "interrupted", CreatorDisposition::Defer);
+    let pending = begin_creator_session(&begin_options(&input)).unwrap();
+    let repository = Repository::open(&path).unwrap();
+    let snapshot = repository.refs().snapshot().unwrap();
+    let source = creator_reuse_source_from_snapshot(&repository, &snapshot, "interrupted").unwrap();
+    assert_eq!(source.kind, "interrupted_pending");
+    assert_eq!(
+        source.ai_output_blob_oid,
+        pending.receipt().ai_output_blob_oid
+    );
+    drop(pending);
+    let mut next = options(&temporary, &path, "review-again", CreatorDisposition::Adopt);
+    next.original_image = input.original_image.clone();
+    next.current_image = input.current_image.clone();
+    next.ai_output = input.ai_output.clone();
+    let fresh = begin_creator_session_with_reuse_source(&begin_options(&next), &source).unwrap();
+    assert_eq!(fresh.receipt().reuse_source, Some(source.clone()));
+    drop(fresh);
+    let complete = options(&temporary, &path, "deferred", CreatorDisposition::Defer);
+    run_creator_session(&complete).unwrap();
+    let snapshot = repository.refs().snapshot().unwrap();
+    let deferred = creator_reuse_source_from_snapshot(&repository, &snapshot, "deferred").unwrap();
+    assert_eq!(deferred.kind, "deferred_rereview");
+    let mut invalid = deferred.clone();
+    invalid.kind = "interrupted_pending".into();
+    assert!(
+        begin_creator_session_with_reuse_source(
+            &begin_options(&options(
+                &temporary,
+                &path,
+                "invalid",
+                CreatorDisposition::Adopt
+            )),
+            &invalid
+        )
+        .is_err()
+    );
+}
+
+#[test]
 fn conditional_publication_rechecks_source_head_in_the_writer_transaction() {
     use synapse_sqlite::RefPrecondition;
     let temporary = TempDirectory::new();

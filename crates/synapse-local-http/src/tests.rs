@@ -2190,6 +2190,15 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
                     ))
                     .await
                     .unwrap(),
+                "post" if resolved_path.ends_with("/reuse") => app
+                    .clone()
+                    .oneshot(unsafe_api_request(
+                        &full_path,
+                        "application/json",
+                        Body::from(r#"{"confirmation_id":"0000000000000000000000000000000000000000000000000000000000000000","session":"reuse-check","creator_name":"Creator","subject_label":"Subject"}"#),
+                    ))
+                    .await
+                    .unwrap(),
                 other => panic!(
                     "unhandled implemented-operation method {other} for {path_template}; \
                      add a substitution branch above"
@@ -2222,8 +2231,8 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
     // would fail loudly instead of this test quietly checking nothing.
     assert_eq!(
         checked.len(),
-        19,
-        "expected 19 implemented operations, checked: {checked:?}"
+        21,
+        "expected 21 implemented operations, checked: {checked:?}"
     );
     assert_eq!(
         skipped_unimplemented_archive.len(),

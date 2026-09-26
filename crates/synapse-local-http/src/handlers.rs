@@ -9,17 +9,17 @@ use axum::http::{HeaderMap, HeaderValue, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
 use serde::de::DeserializeOwned;
 use synapse_local_service::{
-    ArchiveExportRequest, ArchiveRestoreRequest, ArchiveResultKind, CreatorDecisionRequest,
-    CreatorDecisionResponse, CreatorImage, HealthResponse, ImageRole, LocalService, OperationKind,
-    OperationResult, OperationState, Problem as ServiceProblem, ProjectConfirmation, ReflogQuery,
-    ServiceError,
+    ArchiveExportRequest, ArchiveRestoreRequest, ArchiveResultKind,
+    BeginReuseCreatorSessionRequest, CreatorDecisionRequest, CreatorDecisionResponse, CreatorImage,
+    HealthResponse, ImageRole, LocalService, OperationKind, OperationResult, OperationState,
+    Problem as ServiceProblem, ProjectConfirmation, ReflogQuery, ServiceError,
 };
 
 use crate::problem::problem_response;
 use crate::staging::{StagedCreatorUpload, StagedDerivedUpload};
 use crate::state::{AppState, BlockingError, OperationRegistryError};
 use crate::templates::{
-    DeriveTemplate, ErrorTemplate, IndexTemplate, ProjectTemplate, SessionTemplate,
+    DeriveTemplate, ErrorTemplate, IndexTemplate, ProjectTemplate, ReuseTemplate, SessionTemplate,
 };
 use crate::views::{
     ArchiveView, HttpFailure, ProjectCardView, RefView, ReflogView, SessionPageView,
@@ -231,6 +231,72 @@ pub(crate) async fn api_begin_derived_creator_session(
         Err(BlockingError::Task) => failure_response(HttpFailure::internal(
             &state,
             "The creator proposal task failed.",
+        )),
+    }
+}
+
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReuseRequest {
+    confirmation_id: String,
+    session: String,
+    creator_name: String,
+    subject_label: String,
+}
+
+pub(crate) async fn api_creator_reuse(
+    State(state): State<AppState>,
+    Path((project_key, session)): Path<(String, String)>,
+    request: AxumRequest,
+) -> Response {
+    if !is_exact_json_content_type(request.headers()) {
+        return failure_response(HttpFailure::request(
+            &state,
+            "local_request_denied",
+            "The request Content-Type must be exactly application/json.",
+        ));
+    }
+    let body = match to_bytes(request.into_body(), MAX_DECISION_JSON_BYTES).await {
+        Ok(value) => value,
+        Err(_) => {
+            return failure_response(HttpFailure::limit(
+                &state,
+                "The reuse request exceeds the 8 KiB wire limit.",
+            ));
+        }
+    };
+    let request = match serde_json::from_slice::<ReuseRequest>(&body) {
+        Ok(value) => value,
+        Err(_) => {
+            return failure_response(HttpFailure::request(
+                &state,
+                "local_request_denied",
+                "The reuse request is invalid or contains unknown fields.",
+            ));
+        }
+    };
+    let instance = state.security.server_instance().to_owned();
+    let gate_key = project_key.clone();
+    match run_blocking(state.clone(), Some(gate_key), move |service| {
+        service.begin_reuse_creator_session(
+            &project_key,
+            &session,
+            &instance,
+            BeginReuseCreatorSessionRequest {
+                confirmation_id: request.confirmation_id,
+                session: request.session,
+                creator_name: request.creator_name,
+                subject_label: request.subject_label,
+            },
+        )
+    })
+    .await
+    {
+        Ok(pending) => (StatusCode::CREATED, Json(pending)).into_response(),
+        Err(BlockingError::Service(error)) => failure_response(HttpFailure::service(&state, error)),
+        Err(BlockingError::Task) => failure_response(HttpFailure::internal(
+            &state,
+            "The creator reuse task failed.",
         )),
     }
 }
@@ -747,13 +813,23 @@ pub(crate) async fn api_creator_image(
         state.clone(),
         Some(gate_key),
         move |service| match confirmation {
-            Some(id) => service.get_creator_source_image(
-                &project_key,
-                &session_for_read,
-                &server_instance,
-                &id,
-                role,
-            ),
+            Some(id) => service
+                .get_creator_source_image(
+                    &project_key,
+                    &session_for_read,
+                    &server_instance,
+                    &id,
+                    role,
+                )
+                .or_else(|_| {
+                    service.get_creator_reuse_source_image(
+                        &project_key,
+                        &session_for_read,
+                        &server_instance,
+                        &id,
+                        role,
+                    )
+                }),
             None => service.get_creator_session_image(&project_key, &session_for_read, role),
         },
     )
@@ -1296,6 +1372,18 @@ pub(crate) async fn api_creator_source(
     .await
 }
 
+pub(crate) async fn api_creator_reuse_source(
+    State(state): State<AppState>,
+    Path((project_key, session)): Path<(String, String)>,
+) -> Response {
+    let instance = state.security.server_instance().to_owned();
+    let gate_key = project_key.clone();
+    api_blocking(state.clone(), gate_key, move |service| {
+        service.prepare_creator_reuse_source(&project_key, &session, &instance)
+    })
+    .await
+}
+
 pub(crate) async fn derive_page(
     State(state): State<AppState>,
     Path((project_key, session)): Path<(String, String)>,
@@ -1325,6 +1413,44 @@ pub(crate) async fn derive_page(
         &state,
         DeriveTemplate {
             page_title: "次の案を試す",
+            token: state.security.token(),
+            project_key: &project_key,
+            project_label: &label,
+            preview: &preview,
+        },
+    )
+}
+
+pub(crate) async fn reuse_page(
+    State(state): State<AppState>,
+    Path((project_key, session)): Path<(String, String)>,
+) -> Response {
+    let key = project_key.clone();
+    let source = session.clone();
+    let instance = state.security.server_instance().to_owned();
+    let (label, preview) = match run_blocking(state.clone(), Some(key.clone()), move |service| {
+        Ok((
+            service.project_status(&key)?.project.display_label,
+            service.prepare_creator_reuse_source(&key, &source, &instance)?,
+        ))
+    })
+    .await
+    {
+        Ok(value) => value,
+        Err(BlockingError::Service(error)) => {
+            return page_failure(&state, HttpFailure::service(&state, error));
+        }
+        Err(BlockingError::Task) => {
+            return page_failure(
+                &state,
+                HttpFailure::internal(&state, "The reuse preview could not be built."),
+            );
+        }
+    };
+    render_template(
+        &state,
+        ReuseTemplate {
+            page_title: "記録済み候補を再レビュー",
             token: state.security.token(),
             project_key: &project_key,
             project_label: &label,

@@ -116,6 +116,16 @@ pub(crate) struct DeriveTemplate<'a> {
 }
 
 #[derive(Template)]
+#[template(path = "reuse.html")]
+pub(crate) struct ReuseTemplate<'a> {
+    pub(crate) page_title: &'a str,
+    pub(crate) token: &'a str,
+    pub(crate) project_key: &'a str,
+    pub(crate) project_label: &'a str,
+    pub(crate) preview: &'a synapse_local_service::CreatorReuseSourcePreview,
+}
+
+#[derive(Template)]
 #[template(path = "presentation.html")]
 pub(crate) struct PresentationTemplate<'a> {
     pub(crate) page_title: &'a str,

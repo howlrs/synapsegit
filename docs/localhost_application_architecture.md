@@ -200,7 +200,9 @@ path family; they do not identify each extension within that family. Keep the
 `-draft` suffix while the application contract remains a Stage 0 draft. Neither
 a revision bump nor the `v1` path promises stable protocol compatibility.
 
-The current contract is `0.5.0-draft`: the next independent revision after the
+The current contract is `0.6.0-draft`: it adds confirmed three-Blob reuse for
+interrupted and deferred Creator sessions without restoring old authority. The
+previous independent revision was `0.5.0-draft`, the next independent revision after the
 historically reused `0.4.0-draft`, not a claim that it shipped with release
 v0.5.0. Earlier releases must still be identified by their Git tag because
 `0.4.0-draft` was used for multiple different documents. Releasing unchanged

@@ -6,8 +6,9 @@ use crate::session::{
     PROPOSAL_PREFIX, SessionIds, decision_ref, proposal_ref, related_entity_id, validate_session,
 };
 use crate::{
-    CreatorComparisonReport, CreatorDisposition, CreatorError, CreatorReport, CreatorSessionState,
-    CreatorSessionSummary, CreatorSnapshotReport, CreatorTimelineEntry, Result,
+    CreatorComparisonReport, CreatorDisposition, CreatorError, CreatorReport,
+    CreatorReuseSourceBinding, CreatorSessionState, CreatorSessionSummary, CreatorSnapshotReport,
+    CreatorTimelineEntry, Result,
 };
 use serde_json::{Map as JsonMap, Value as JsonValue};
 use std::collections::BTreeMap;
@@ -48,6 +49,197 @@ pub fn creator_report_from_snapshot(
     session: &str,
 ) -> Result<CreatorSnapshotReport> {
     creator_report_from_snapshot_with_limits(repository, snapshot, session, CREATOR_FSCK_LIMITS)
+}
+
+/// Verify and describe a source whose three recorded blobs can be reviewed
+/// again.  This is deliberately a read-only recovery aid: callers receive no
+/// prior Human authority.
+pub fn creator_reuse_source_from_snapshot(
+    repository: &Repository,
+    snapshot: &RefSnapshot,
+    session: &str,
+) -> Result<crate::CreatorReuseSourceBinding> {
+    validate_session(session)?;
+    let verification = verify_creator_report_snapshot(repository, snapshot, CREATOR_FSCK_LIMITS)?;
+    let decision_ref = decision_ref(session);
+    let proposal_ref = proposal_ref(session);
+    let decision_head = snapshot
+        .refs
+        .iter()
+        .find(|r| r.name == decision_ref)
+        .map(|r| r.head.clone())
+        .ok_or_else(|| CreatorError::SessionNotFound(session.into()))?;
+    let proposal_head = snapshot
+        .refs
+        .iter()
+        .find(|r| r.name == proposal_ref)
+        .map(|r| r.head.clone())
+        .ok_or_else(|| CreatorError::SessionIncomplete(session.into()))?;
+
+    // A completed Defer is verified by the normal report path.  Every other
+    // complete disposition is excluded by the caller-facing contract.
+    if let Ok(report) = creator_report_from_snapshot(repository, snapshot, session) {
+        if report.report.disposition != CreatorDisposition::Defer {
+            return Err(CreatorError::SessionIncomplete(session.into()));
+        }
+        return crate::CreatorReuseSourceBinding::new(&report.report, "deferred_rereview");
+    }
+
+    // The interrupted shape is exactly the base checkpoint in the Decision
+    // Ref and a proposal checkpoint parented by it.  Validate a bounded full
+    // inventory first, then the proposal/base records that bind all blobs.
+    let base = read_json(repository, &decision_head)?;
+    require_stored_value(&base, "object_type", "commit", "interrupted decision base")?;
+    require_stored_value(
+        &base,
+        "commit_kind",
+        "checkpoint",
+        "interrupted decision base",
+    )?;
+    let base_snapshot = string_field(&base, "snapshot", "interrupted decision base")?;
+    let ids = load_session_ids_from_base(repository, session, &base_snapshot)?;
+    require_stored_value(
+        &base,
+        "author_ref",
+        &ids.creator,
+        "interrupted decision base",
+    )?;
+    let proposal = read_json(repository, &proposal_head)?;
+    require_stored_value(&proposal, "object_type", "commit", "interrupted proposal")?;
+    require_stored_value(
+        &proposal,
+        "commit_kind",
+        "checkpoint",
+        "interrupted proposal",
+    )?;
+    require_stored_value(&proposal, "author_ref", &ids.agent, "interrupted proposal")?;
+    if single_string_array(&proposal, "parents", "interrupted proposal parents")? != decision_head {
+        return Err(CreatorError::SessionIncomplete(session.into()));
+    }
+    let ai_oid = single_string_array(
+        &proposal,
+        "transition_refs",
+        "interrupted proposal transition",
+    )?;
+    let ai = read_json(repository, ai_oid)?;
+    require_stored_value(&ai, "record_type", "activity", "interrupted AI activity")?;
+    require_stored_value(
+        &ai,
+        "entity_id",
+        &ids.ai_activity,
+        "interrupted AI activity",
+    )?;
+    let ai_blob = role_oid(
+        object_field(&ai, "payload", "interrupted AI payload")?,
+        "output_refs",
+        "proposal",
+    )?;
+    let base_pointers = load_base_snapshot_pointers(repository, base_snapshot)?;
+    let import = read_json(repository, &base_pointers.import_activity_oid)?;
+    require_stored_value(
+        &import,
+        "record_type",
+        "activity",
+        "interrupted import activity",
+    )?;
+    require_stored_value(
+        &import,
+        "entity_id",
+        &ids.import_activity,
+        "interrupted import activity",
+    )?;
+    let import_payload = object_field(&import, "payload", "interrupted import payload")?;
+    let original = role_oid(import_payload, "output_refs", "original")?;
+    let current = role_oid(import_payload, "output_refs", "current")?;
+    let _ = verification;
+    crate::CreatorReuseSourceBinding::new(
+        &CreatorReport {
+            source: None,
+            reuse_source: None,
+            source_depth: 0,
+            annotations: None,
+            annotations_unavailable: false,
+            generation_note: None,
+            session: session.into(),
+            project_id: ids.project,
+            subject_id: ids.subject,
+            creator_id: ids.creator,
+            agent_id: ids.agent,
+            decision_ref,
+            proposal_ref,
+            decision_head,
+            proposal_head,
+            base_head: String::new(),
+            base_snapshot: base_snapshot.into(),
+            proposal_snapshot: String::new(),
+            decision_snapshot: String::new(),
+            disposition: CreatorDisposition::Defer,
+            selected_ai_output: false,
+            rationale: None,
+            original_blob_oid: original,
+            current_blob_oid: current,
+            ai_output_blob_oid: ai_blob,
+            comparison: None,
+            timeline: vec![],
+            fsck_objects: 0,
+        },
+        "interrupted_pending",
+    )
+}
+
+/// Read the recorded labels only after `creator_reuse_source_from_snapshot`
+/// has validated the source closure. These labels are display defaults, not an
+/// identity claim or copied authority.
+pub fn creator_reuse_source_display_from_snapshot(
+    repository: &Repository,
+    snapshot: &RefSnapshot,
+    session: &str,
+) -> Result<(CreatorReuseSourceBinding, String, String, Option<String>)> {
+    let source = creator_reuse_source_from_snapshot(repository, snapshot, session)?;
+    if let Ok(report) = creator_report_from_snapshot(repository, snapshot, session) {
+        let tree = read_json(repository, &report.report.base_snapshot)?;
+        let rationale = report.report.rationale;
+        return source_display_from_base_tree(repository, &tree)
+            .map(|(creator, subject)| (source, creator, subject, rationale));
+    }
+    let base = read_json(repository, &source.decision_head)?;
+    let tree = read_json(
+        repository,
+        string_field(&base, "snapshot", "reuse source base")?,
+    )?;
+    source_display_from_base_tree(repository, &tree)
+        .map(|(creator, subject)| (source, creator, subject, None))
+}
+
+fn source_display_from_base_tree(
+    repository: &Repository,
+    tree: &JsonValue,
+) -> Result<(String, String)> {
+    let entries = tree
+        .get("entries")
+        .and_then(JsonValue::as_object)
+        .ok_or_else(|| CreatorError::ReportInvalid("creator base Tree has no entries".into()))?;
+    let display = |name: &str, field: &str| -> Result<String> {
+        let oid = entries
+            .get(name)
+            .and_then(JsonValue::as_object)
+            .and_then(|entry| entry.get("oid"))
+            .and_then(JsonValue::as_str)
+            .ok_or_else(|| {
+                CreatorError::ReportInvalid("creator base Tree display entry is absent".into())
+            })?;
+        let record = read_json(repository, oid)?;
+        string_field(
+            object_field(&record, "payload", "creator source display")?,
+            field,
+            "creator source display",
+        )
+        .map(str::to_owned)
+    };
+    Ok((
+        display("creator.actor.json", "display_name")?,
+        display("subject.json", "label")?,
+    ))
 }
 
 pub(crate) fn creator_report_from_snapshot_with_limits(
@@ -373,7 +565,12 @@ impl<'source> PreparedCreatorReportReader<'source> {
             })
             .transpose()?;
 
-        let source = crate::source::read_source(&read_json(repository, &import_activity_oid)?)?;
+        let import_activity = read_json(repository, &import_activity_oid)?;
+        let source = crate::source::read_source(&import_activity)?;
+        let reuse_source = crate::source::read_reuse_source(&import_activity)?;
+        if source.is_some() && reuse_source.is_some() {
+            return Err(crate::source::invalid_source());
+        }
         let mut source_depth = 0;
         if let Some(source) = &source {
             if original_blob_oid != source.original_blob_oid
@@ -408,6 +605,48 @@ impl<'source> PreparedCreatorReportReader<'source> {
             }
             source_depth = source_report.source_depth + 1;
         }
+        if let Some(source) = &reuse_source {
+            if original_blob_oid != source.original_blob_oid
+                || current_blob_oid != source.current_blob_oid
+                || ai_output_blob_oid != source.ai_output_blob_oid
+            {
+                return Err(crate::source::invalid_source());
+            }
+            if source.is_interrupted() {
+                // The source Decision is intentionally a base checkpoint, not
+                // a recovered Decision. Its exact heads are retained as input
+                // refs and were rechecked at the new publication boundary.
+                source_depth = 1;
+            } else {
+                let source_ids =
+                    load_session_ids(repository, &source.session, &source.decision_head)?;
+                let source_lineage = validate_report_lineage(
+                    repository,
+                    &source_ids,
+                    &source.decision_head,
+                    &source.proposal_head,
+                )?;
+                let source_report = self
+                    .render_report_in_scope(
+                        &source.session,
+                        PreparedCreatorReportSession {
+                            decision_ref: crate::session::decision_ref(&source.session),
+                            proposal_ref: crate::session::proposal_ref(&source.session),
+                            decision_head: source.decision_head.clone(),
+                            proposal_head: source.proposal_head.clone(),
+                            ids: source_ids,
+                            lineage: source_lineage,
+                        },
+                        report_scope,
+                        depth + 1,
+                    )?
+                    .report;
+                if !source.matches_report(&source_report) {
+                    return Err(crate::source::invalid_source());
+                }
+                source_depth = source_report.source_depth + 1;
+            }
+        }
 
         let timeline = timeline
             .into_iter()
@@ -428,6 +667,7 @@ impl<'source> PreparedCreatorReportReader<'source> {
         Ok(CreatorSnapshotReport {
             report: CreatorReport {
                 source,
+                reuse_source,
                 source_depth,
                 annotations,
                 annotations_unavailable,
@@ -605,6 +845,81 @@ fn load_session_ids(
         .and_then(JsonValue::as_object)
         .and_then(|extensions| extensions.get("org.synapsegit.creator-session"))
         .filter(|value| value.is_object())
+        .ok_or_else(|| {
+            CreatorError::ReportInvalid("creator Subject has no session manifest".into())
+        })?;
+    require_stored_value(
+        manifest,
+        "format",
+        "synapsegit-creator-session-v1",
+        "creator session manifest format",
+    )?;
+    require_stored_value(
+        manifest,
+        "session",
+        session,
+        "creator session manifest name",
+    )?;
+    let ids = SessionIds {
+        creator: manifest_id(manifest, "creator_id")?,
+        agent: manifest_id(manifest, "agent_id")?,
+        project: manifest_id(manifest, "project_id")?,
+        subject: manifest_id(manifest, "subject_id")?,
+        series: manifest_id(manifest, "series_id")?,
+        original_observation: manifest_id(manifest, "original_observation_id")?,
+        current_observation: manifest_id(manifest, "current_observation_id")?,
+        import_activity: manifest_id(manifest, "import_activity_id")?,
+        policy: manifest_id(manifest, "policy_id")?,
+        grant: manifest_id(manifest, "grant_id")?,
+        context: manifest_id(manifest, "context_id")?,
+        ai_activity: manifest_id(manifest, "ai_activity_id")?,
+        feedback: manifest_id(manifest, "feedback_id")?,
+    };
+    require_stored_value(
+        &subject,
+        "entity_id",
+        &ids.subject,
+        "creator Subject entity_id",
+    )?;
+    Ok(ids)
+}
+
+fn load_session_ids_from_base(
+    repository: &Repository,
+    session: &str,
+    base_snapshot: &str,
+) -> Result<SessionIds> {
+    let base = serde_json::json!({"snapshot": base_snapshot});
+    // Keep this parser in lockstep with `load_session_ids`; interrupted
+    // sessions have the base checkpoint directly in their Decision Ref.
+    let base_tree_oid = string_field(&base, "snapshot", "creator base snapshot")?;
+    let base_tree = read_json(repository, base_tree_oid)?;
+    let entries = base_tree
+        .get("entries")
+        .and_then(JsonValue::as_object)
+        .ok_or_else(|| CreatorError::ReportInvalid("creator base Tree has no entries".into()))?;
+    let subject_oid = entries
+        .get("subject.json")
+        .and_then(JsonValue::as_object)
+        .and_then(|entry| entry.get("oid"))
+        .and_then(JsonValue::as_str)
+        .ok_or_else(|| {
+            CreatorError::ReportInvalid(
+                "creator base Tree has no subject session-manifest entry".into(),
+            )
+        })?;
+    let subject = read_json(repository, subject_oid)?;
+    require_stored_value(
+        &subject,
+        "record_type",
+        "subject",
+        "creator Subject record_type",
+    )?;
+    let manifest = subject
+        .get("extensions")
+        .and_then(JsonValue::as_object)
+        .and_then(|e| e.get("org.synapsegit.creator-session"))
+        .filter(|v| v.is_object())
         .ok_or_else(|| {
             CreatorError::ReportInvalid("creator Subject has no session manifest".into())
         })?;
