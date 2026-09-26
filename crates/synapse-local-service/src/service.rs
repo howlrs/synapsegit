@@ -1284,7 +1284,9 @@ impl LocalService {
             server_instance,
             &request.subject_label,
             &request.creator_name,
-            source.map(|binding| binding.session.as_str()),
+            source
+                .map(|binding| binding.session.as_str())
+                .or_else(|| reuse_source.map(|binding| binding.session.as_str())),
         )?;
 
         let repository = match Repository::open_existing(&repository_path).map_err(repository_error)
@@ -2486,6 +2488,55 @@ fn enrich_display_session_summaries(
     }
 }
 
+fn shallow_tree_record(
+    repository: &Repository,
+    entries: &serde_json::Map<String, serde_json::Value>,
+    name: &str,
+) -> Option<serde_json::Value> {
+    let oid = entries.get(name)?.get("oid")?.as_str()?;
+    read_pending_json(repository, oid).ok()
+}
+
+fn shallow_transition_record(
+    repository: &Repository,
+    commit: &serde_json::Value,
+) -> Option<serde_json::Value> {
+    let oid = commit
+        .get("transition_refs")?
+        .as_array()?
+        .first()?
+        .as_str()?;
+    read_pending_json(repository, oid).ok().filter(|record| {
+        record
+            .get("record_type")
+            .and_then(serde_json::Value::as_str)
+            == Some("decision_feedback")
+    })
+}
+
+fn overview_payload_text(
+    record: &serde_json::Value,
+    field: &str,
+    max_bytes: usize,
+) -> Option<String> {
+    record
+        .get("payload")?
+        .get(field)?
+        .as_str()
+        .and_then(|value| (!value.is_empty() && value.len() <= max_bytes).then(|| value.to_owned()))
+}
+
+fn overview_top_level_text(
+    record: &serde_json::Value,
+    field: &str,
+    max_bytes: usize,
+) -> Option<String> {
+    record
+        .get(field)?
+        .as_str()
+        .and_then(|value| (!value.is_empty() && value.len() <= max_bytes).then(|| value.to_owned()))
+}
+
 fn sort_ref_shaped_summaries(snapshot: &RefSnapshot, sessions: &mut Vec<CreatorSessionSummary>) {
     let updates = snapshot
         .refs
@@ -2576,6 +2627,10 @@ fn shallow_source_session(
         .get("oid")?
         .as_str()?;
     let activity = read_pending_json(repository, activity_oid).ok()?;
+    shallow_source_from_activity(&activity)
+}
+
+fn shallow_source_from_activity(activity: &serde_json::Value) -> Option<String> {
     let extensions = activity.get("extensions")?;
     CREATOR_SOURCE_KEYS.into_iter().find_map(|key| {
         let session = extensions.get(key)?.get("session")?.as_str()?;

@@ -200,10 +200,11 @@ path family; they do not identify each extension within that family. Keep the
 `-draft` suffix while the application contract remains a Stage 0 draft. Neither
 a revision bump nor the `v1` path promises stable protocol compatibility.
 
-The current contract is `0.6.4-draft`: it combines configured import-inbox
-staging and cancellation routes with confirmed three-Blob reuse for interrupted and deferred
-Creator sessions without restoring old authority. The previous independent
-revision was `0.6.3-draft`. Earlier releases must still be identified by their Git tag because
+The current contract is `0.6.5-draft`: it adds the bounded, unverified Creator
+dashboard summary fields to the configured import-inbox staging and cancellation
+routes and confirmed three-Blob reuse for interrupted and deferred Creator sessions
+without restoring old authority. The previous independent revision was `0.6.4-draft`.
+Earlier releases must still be identified by their Git tag because
 `0.4.0-draft` was used for multiple different documents. Releasing unchanged
 contract content does not bump this identifier; the crate/tag check in
 `scripts/verify_release_version.sh` remains separate.

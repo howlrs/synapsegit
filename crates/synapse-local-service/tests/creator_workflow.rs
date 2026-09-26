@@ -1025,6 +1025,26 @@ fn deferred_proposal_reuse_keeps_reason_as_reference_and_requires_a_fresh_decisi
         )
         .unwrap();
     assert_eq!(next.ai_output_blob_oid, source.report.ai_output_blob_oid);
+    let pending_summary = service
+        .list_creator_sessions("project")
+        .unwrap()
+        .sessions
+        .into_iter()
+        .find(|summary| summary.session == "rereviewed")
+        .unwrap();
+    assert_eq!(pending_summary.state, CreatorSessionState::PendingReview);
+    assert_eq!(
+        pending_summary.subject_label.as_deref(),
+        Some("North wall mural")
+    );
+    assert_eq!(pending_summary.creator_name.as_deref(), Some("Aki"));
+    assert_eq!(pending_summary.source_session.as_deref(), Some("deferred"));
+    assert_eq!(
+        service
+            .creator_session_derivations("project", "deferred")
+            .unwrap(),
+        vec!["rereviewed"]
+    );
     let complete = service
         .decide_creator_session(
             "project",
@@ -1042,6 +1062,12 @@ fn deferred_proposal_reuse_keeps_reason_as_reference_and_requires_a_fresh_decisi
     assert_ne!(
         complete.report.rationale.as_deref(),
         Some("相談してから決める")
+    );
+    assert_eq!(
+        service
+            .creator_session_derivations("project", "deferred")
+            .unwrap(),
+        vec!["rereviewed"]
     );
     assert!(
         service
