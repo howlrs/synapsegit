@@ -193,3 +193,10 @@ repository.
 
 For command details, continue with the [CLI reference](../cli_reference.md),
 [usage guide](../usage_guide.md), and [security model](../security_model.md).
+
+## Next step
+
+If you want to check whether SynapseGit fits your own creative work, try the
+[Creator pilot evaluation kit](../evaluation/creator-pilot/v1/). It reuses
+this same tutorial to walk through comprehension questions and observation
+notes for your own first recorded decision.

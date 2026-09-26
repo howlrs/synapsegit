@@ -167,6 +167,9 @@ production／distribution／brand制限も変更しない。
    zero-context AI、実Human、axe／keyboard／screen reader理解・accessibility評価を実施する。
 2. 実装済みlocalhost import／review／diagnostics／bounded `fsck`／archive browser controlsの
    実利用者による一連の操作の評価と、browser end-to-end回帰coverageを拡充する。
+   手順とテンプレートは[Creator pilot 評価キット](./evaluation/creator-pilot/v1/)として整備済み
+   （メンテナによるsynthetic素材でのrehearsalは完了）。**実利用者によるcreator benefit評価は
+   参加者の募集・実施を含めて未完了のまま**であり、このキットの整備だけでは完了しない。
 3. 派生セッション公開の必要性を評価し、対応する場合は再利用意味を保持する新しい公開profileを設計する。
 4. fixed-point Observation datasetとpixel-level adapterを別contractとして検証する。
 5. durable admission transactionを含むproduction control planeを実装する。

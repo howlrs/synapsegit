@@ -25,6 +25,15 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   line-oriented text output unchanged. This is a separate, CLI-owned contract
   from the public projection bundle (`synapse-present export ... --public`).
 
+- A creator pilot evaluation kit (`docs/evaluation/creator-pilot/v1/`) gives a
+  creator considering SynapseGit a bilingual task sheet and comprehension
+  questions for their own first recorded decision (import, compare,
+  Adopt/Reject/Defer with a rationale, read back), a facilitator guide with
+  separate check-points and observation items, and an empty per-session
+  result template. It ships as documentation only, with no new scorer or
+  schema, and a maintainer rehearsal on synthetic tutorial material that is
+  explicitly not a real-user evaluation.
+
 ## [0.9.0] - 2026-09-26
 
 ### Added
