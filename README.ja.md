@@ -57,6 +57,11 @@ troubleshooting、local publication bundle生成までを収録しています�
 scripts/run_mural_tutorial.sh "$HOME/SynapseGit/mural-tutorial" adopt
 ```
 
+source checkoutからだけでなく、`v0.9.0`以降のreleaseでは展開したrelease archive
+内からも実行できます(runnerとsample画像もarchiveに同梱されます。archive内の
+`scripts/ARCHIVE_TUTORIAL.md`を参照してください)。`v0.9.0`のarchiveにはrunnerと
+sample画像は含まれません。
+
 sample画像は生成したnon-sensitive fixtureで、実在作品や処置のevidenceではありません。
 tutorialでは実際にSynapseGitへ投入しています。掲載screenはmockupではなく、実装済み
 applicationのcaptureです。

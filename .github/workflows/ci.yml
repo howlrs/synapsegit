@@ -76,3 +76,11 @@ jobs:
           npm ci --prefix scripts/browser --ignore-scripts
           scripts/browser/node_modules/.bin/playwright install --with-deps chromium
           npm --prefix scripts/browser test
+
+      - name: Verify the archive tutorial bundle
+        run: |
+          cargo build -p synapse-cli -p synapse-local-http -p synapse-publication --locked
+          bash scripts/test_tutorial_bundle.sh \
+            target/debug/synapse \
+            target/debug/synapse-local \
+            target/debug/synapse-present

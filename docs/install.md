@@ -77,6 +77,14 @@ used by that terminal:
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
+Archives published after `v0.9.0` also bundle the mural tutorial runner
+(`scripts/run_mural_tutorial.sh`), its three sample images
+(`docs/tutorial/assets/`), and a self-contained guide
+(`scripts/ARCHIVE_TUTORIAL.md`), so you can try the tutorial from the
+extracted archive alone, without cloning the repository. The `v0.9.0` archive
+does not include them; use a checkout of the `v0.9.0` tag for the tutorial
+instead.
+
 ## Build from a tagged source release
 
 Install Rust 1.88 or newer, a C toolchain, and SQLite build prerequisites for
