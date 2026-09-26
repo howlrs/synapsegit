@@ -1439,8 +1439,11 @@ impl LocalService {
     ) -> Result<CreatorSessionList, ServiceError> {
         let repository = self.open_repository(project_key)?;
         let snapshot = capture_snapshot(&repository)?;
-        let mut sessions = self.sessions_with_pending(&repository, &snapshot, project_key)?;
-        sessions.truncate(MAX_CREATOR_SESSION_SUMMARIES);
+        let sessions = display_session_summaries(self.sessions_with_pending(
+            &repository,
+            &snapshot,
+            project_key,
+        )?);
         Ok(CreatorSessionList {
             snapshot: snapshot_context(&snapshot, None),
             sessions,
@@ -1467,16 +1470,10 @@ impl LocalService {
     ) -> Result<Vec<String>, ServiceError> {
         let repository = self.open_repository(project_key)?;
         let snapshot = capture_snapshot(&repository)?;
-        let mut derived = self
-            .sessions_with_pending(&repository, &snapshot, project_key)?
-            .into_iter()
-            .filter_map(|summary| {
-                (summary.source_session.as_deref() == Some(source_session))
-                    .then_some(summary.session)
-            })
-            .collect::<Vec<_>>();
-        derived.sort();
-        Ok(derived)
+        Ok(derived_session_names(
+            self.sessions_with_pending(&repository, &snapshot, project_key)?,
+            source_session,
+        ))
     }
 
     /// Build the session detail and, when incomplete, its structured
@@ -2396,13 +2393,38 @@ fn sessions_from_snapshot_with_pending(
         summary.recorded_time_basis = recorded.map(|entry| entry.time_basis.to_owned());
         summary.source_session = report.source.map(|source| source.session);
     }
+    sort_session_summaries(&mut sessions);
+    Ok(sessions)
+}
+
+fn sort_session_summaries(sessions: &mut [CreatorSessionSummary]) {
     sessions.sort_by(|left, right| {
         right
             .recorded_at
             .cmp(&left.recorded_at)
             .then_with(|| right.session.cmp(&left.session))
     });
-    Ok(sessions)
+}
+
+fn display_session_summaries(
+    mut sessions: Vec<CreatorSessionSummary>,
+) -> Vec<CreatorSessionSummary> {
+    sessions.truncate(MAX_CREATOR_SESSION_SUMMARIES);
+    sessions
+}
+
+fn derived_session_names(
+    sessions: Vec<CreatorSessionSummary>,
+    source_session: &str,
+) -> Vec<String> {
+    let mut derived = sessions
+        .into_iter()
+        .filter_map(|summary| {
+            (summary.source_session.as_deref() == Some(source_session)).then_some(summary.session)
+        })
+        .collect::<Vec<_>>();
+    derived.sort();
+    derived
 }
 
 fn diagnostic_from_fixed_summary(
@@ -3190,6 +3212,55 @@ fn problem_title(code: &str) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn summary(
+        session: String,
+        recorded_at: Option<String>,
+        source: Option<&str>,
+    ) -> CreatorSessionSummary {
+        CreatorSessionSummary {
+            session,
+            state: CreatorSessionState::Complete,
+            proposal_ref: None,
+            proposal_head: None,
+            decision_ref: None,
+            decision_head: None,
+            subject_label: Some("subject".into()),
+            creator_name: Some("creator".into()),
+            disposition: Some("defer".into()),
+            recorded_at,
+            recorded_time_basis: Some("recorded ordering time".into()),
+            source_session: source.map(str::to_owned),
+        }
+    }
+
+    #[test]
+    fn dashboard_cap_keeps_the_newest_two_hundred_and_reverse_links_are_not_capped() {
+        let mut summaries = (0..=200)
+            .map(|index| {
+                summary(
+                    format!("session-{index:03}"),
+                    Some(format!("2026-01-01T00:00:{index:03}Z")),
+                    Some("source"),
+                )
+            })
+            .collect::<Vec<_>>();
+        // A late lexicographic slug is intentionally old: recorded ordering
+        // time, not the session name, controls the visible order.
+        summaries.push(summary(
+            "zz-old".into(),
+            Some("2020-01-01T00:00:00Z".into()),
+            Some("source"),
+        ));
+        sort_session_summaries(&mut summaries);
+        let displayed = display_session_summaries(summaries.clone());
+        assert_eq!(displayed.len(), MAX_CREATOR_SESSION_SUMMARIES);
+        assert_eq!(displayed[0].session, "session-200");
+        assert!(!displayed.iter().any(|row| row.session == "zz-old"));
+        let derived = derived_session_names(summaries, "source");
+        assert_eq!(derived.len(), 202);
+        assert!(derived.iter().any(|session| session == "zz-old"));
+    }
 
     #[test]
     fn diagnostic_uses_the_fixed_session_overlay() {
