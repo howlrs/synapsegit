@@ -826,7 +826,25 @@ impl LocalService {
         let entry = self.entry(project_key)?;
         let repository = open_repository(entry)?;
         let snapshot = capture_snapshot(&repository)?;
-        let sessions = self.sessions_with_pending(&repository, &snapshot, project_key)?;
+        let mut sessions =
+            self.dashboard_sessions_with_pending(&repository, &snapshot, project_key)?;
+        // Status is an unverified aggregate just like the dashboard. Keep its
+        // existing one-head-read-per-session cost, but isolate unreadable
+        // commits instead of preventing every other row from being rendered.
+        for session in &mut sessions {
+            if session.state == CreatorSessionState::Complete
+                && !session.decision_head.as_deref().is_some_and(|head| {
+                    read_pending_json(&repository, head).is_ok_and(|commit| {
+                        commit
+                            .get("commit_kind")
+                            .and_then(serde_json::Value::as_str)
+                            == Some("decision")
+                    })
+                })
+            {
+                session.state = CreatorSessionState::Incomplete;
+            }
+        }
         let mut counts = CreatorSessionCounts {
             complete: 0,
             pending_review: 0,
@@ -1596,16 +1614,6 @@ impl LocalService {
             ImageRole::AiOutput => snapshot_report.report.ai_output_blob_oid,
         };
         load_creator_image(&repository, blob_oid)
-    }
-
-    fn sessions_with_pending(
-        &self,
-        repository: &Repository,
-        snapshot: &RefSnapshot,
-        project_key: &str,
-    ) -> Result<Vec<CreatorSessionSummary>, ServiceError> {
-        let ready_pending = self.ready_pending(project_key, snapshot)?;
-        sessions_from_snapshot_with_pending(repository, snapshot, &ready_pending)
     }
 
     fn dashboard_sessions_with_pending(
@@ -2433,6 +2441,7 @@ fn enrich_display_session_summaries(
             continue;
         };
         let Some(entries) = tree.get("entries").and_then(serde_json::Value::as_object) else {
+            summary.state = CreatorSessionState::Incomplete;
             continue;
         };
 

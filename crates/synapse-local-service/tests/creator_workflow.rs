@@ -449,6 +449,9 @@ fn dashboard_isolates_invalid_heads_from_other_sessions() {
         }
 
         let summaries = service.list_creator_sessions("project").unwrap().sessions;
+        let status = service.project_status("project").unwrap();
+        assert_eq!(status.creator_session_counts.complete, 1);
+        assert_eq!(status.creator_session_counts.incomplete, 1);
         assert_eq!(summaries.len(), 2);
         let valid = summaries
             .iter()
