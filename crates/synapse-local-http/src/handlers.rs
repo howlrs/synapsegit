@@ -11,9 +11,9 @@ use serde::de::DeserializeOwned;
 use synapse_local_service::{
     ArchiveExportRequest, ArchiveRestoreRequest, ArchiveResultKind,
     BeginReuseCreatorSessionRequest, BeginStagedImportInboxRequest, CreatorDecisionRequest,
-    CreatorDecisionResponse, CreatorImage, HealthResponse, ImageRole, LocalService, OperationKind,
-    OperationResult, OperationState, Problem as ServiceProblem, ProjectConfirmation, ReflogQuery,
-    ServiceError,
+    CreatorDecisionResponse, CreatorImage, CreatorSessionState, HealthResponse, ImageRole,
+    LocalService, OperationKind, OperationResult, OperationState, Problem as ServiceProblem,
+    ProjectConfirmation, ReflogQuery, ServiceError,
 };
 
 use crate::problem::problem_response;
