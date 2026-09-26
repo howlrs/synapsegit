@@ -1033,4 +1033,60 @@ fn creator_report_format_json_represents_generation_note_pins_derived_and_reuse_
         reuse_document["source"]["availability"],
         serde_json::json!("absent")
     );
+
+    // Archive export/restore (through the CLI process commands, not the
+    // library) must reproduce the identical JSON document -- decision,
+    // image refs, provenance and comparison -- for every session in this
+    // repository: a plain generation-note-and-pins session, a derived
+    // session, and a 3-image reuse session. Re-fetch each "before" document
+    // here (rather than reusing the ones captured mid-test) because
+    // `fsck.objects` reports the whole repository's object count, which
+    // keeps growing as later sessions are added to the same repository.
+    let archive_path = temporary.join("archive");
+    let restored_path = temporary.join("restored");
+    let sessions = ["note-and-pins", "derived-session", "reuse-session"];
+    let before_export: Vec<_> = sessions
+        .iter()
+        .map(|session| {
+            json_stdout(&run(&[
+                "creator-report",
+                repository.to_str().unwrap(),
+                session,
+                "--format",
+                "json",
+            ]))
+        })
+        .collect();
+
+    assert_success(&run(&[
+        "export",
+        repository.to_str().unwrap(),
+        archive_path.to_str().unwrap(),
+    ]));
+    assert_success(&run(&[
+        "restore",
+        archive_path.to_str().unwrap(),
+        restored_path.to_str().unwrap(),
+    ]));
+
+    for (session, before) in sessions.iter().zip(before_export.iter()) {
+        let after = json_stdout(&run(&[
+            "creator-report",
+            restored_path.to_str().unwrap(),
+            session,
+            "--format",
+            "json",
+        ]));
+        assert_eq!(
+            before, &after,
+            "session {session} changed across export/restore"
+        );
+        assert_eq!(before["disposition"], after["disposition"]);
+        assert_eq!(before["blobs"], after["blobs"]);
+        assert_eq!(before["comparison"], after["comparison"]);
+        assert_eq!(before["source"], after["source"]);
+        assert_eq!(before["reuse_source"], after["reuse_source"]);
+        assert_eq!(before["generation_note"], after["generation_note"]);
+        assert_eq!(before["decision_pins"], after["decision_pins"]);
+    }
 }
