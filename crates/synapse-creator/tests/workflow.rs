@@ -1283,6 +1283,46 @@ fn interrupted_and_deferred_three_blob_sources_are_fresh_and_never_restore_autho
     let snapshot = repository.refs().snapshot().unwrap();
     let deferred = creator_reuse_source_from_snapshot(&repository, &snapshot, "deferred").unwrap();
     assert_eq!(deferred.kind, "deferred_rereview");
+    let legacy_root = options(&temporary, &path, "legacy-root", CreatorDisposition::Adopt);
+    run_creator_session(&legacy_root).unwrap();
+    let legacy_source = synapse_creator::CreatorSourceBinding::from_report(
+        &creator_report(&path, "legacy-root").unwrap(),
+    );
+    let mut mixed = options(&temporary, &path, "mixed-derived", CreatorDisposition::Defer);
+    mixed.original_image = legacy_root.original_image.clone();
+    mixed.current_image = legacy_root.current_image.clone();
+    let mut mixed_pending = synapse_creator::begin_creator_session_with_source(
+        &begin_options(&mixed),
+        None,
+        &legacy_source,
+    )
+    .unwrap();
+    decide_creator_session(
+        &mut mixed_pending,
+        &CreatorDecisionOptions { disposition: CreatorDisposition::Defer, rationale: None },
+    )
+    .unwrap();
+    let mixed_source = creator_reuse_source_from_snapshot(
+        &repository,
+        &repository.refs().snapshot().unwrap(),
+        "mixed-derived",
+    )
+    .unwrap();
+    let mut mixed_reuse = options(&temporary, &path, "mixed-rereview", CreatorDisposition::Adopt);
+    mixed_reuse.original_image = mixed.original_image.clone();
+    mixed_reuse.current_image = mixed.current_image.clone();
+    mixed_reuse.ai_output = mixed.ai_output.clone();
+    let mut mixed_pending = begin_creator_session_with_reuse_source(
+        &begin_options(&mixed_reuse),
+        &mixed_source,
+    )
+    .unwrap();
+    decide_creator_session(
+        &mut mixed_pending,
+        &CreatorDecisionOptions { disposition: CreatorDisposition::Adopt, rationale: None },
+    )
+    .unwrap();
+    assert_eq!(creator_report(&path, "mixed-rereview").unwrap().source_depth, 2);
     let mut invalid = deferred.clone();
     invalid.kind = "interrupted_pending".into();
     assert!(

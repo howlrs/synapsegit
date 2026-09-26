@@ -81,7 +81,9 @@ pub fn creator_reuse_source_from_snapshot(
     match creator_report_from_snapshot(repository, snapshot, session) {
         Ok(report) => {
             if report.report.disposition != CreatorDisposition::Defer {
-                return Err(CreatorError::SessionIncomplete(session.into()));
+                return Err(CreatorError::ReportInvalid(
+                    "only a deferred creator session can be reviewed again".into(),
+                ));
             }
             return crate::CreatorReuseSourceBinding::new(&report.report, "deferred_rereview");
         }
@@ -242,12 +244,44 @@ pub(crate) fn validate_reuse_source_binding(
     if original != source.original_blob_oid || current != source.current_blob_oid || proposal != source.ai_output_blob_oid {
         return Err(crate::source::invalid_source());
     }
-    let nested = crate::source::read_reuse_source(&import)?;
-    Ok(1 + nested
-        .as_ref()
-        .map(|nested| validate_reuse_source_binding(repository, nested, depth + 1))
-        .transpose()?
-        .unwrap_or(0))
+    Ok(1 + nested_source_depth(repository, &import, depth + 1)?)
+}
+
+fn validate_source_binding(
+    repository: &Repository,
+    source: &crate::CreatorSourceBinding,
+    depth: usize,
+) -> Result<usize> {
+    source.validate_shape()?;
+    if depth >= crate::CREATOR_MAX_SOURCE_DEPTH {
+        return Err(crate::source::invalid_source());
+    }
+    let ids = load_session_ids(repository, &source.session, &source.decision_head)?;
+    let lineage = validate_report_lineage(repository, &ids, &source.decision_head, &source.proposal_head)?;
+    if lineage.disposition.as_cli_str() != source.disposition {
+        return Err(crate::source::invalid_source());
+    }
+    let import = read_json(repository, &lineage.import_activity_oid)?;
+    require_stored_value(&import, "record_type", "activity", "source import")?;
+    require_stored_value(&import, "entity_id", &ids.import_activity, "source import")?;
+    let payload = object_field(&import, "payload", "source import payload")?;
+    if role_oid(payload, "output_refs", "original")? != source.original_blob_oid
+        || role_oid(payload, "output_refs", "current")? != source.current_blob_oid
+    {
+        return Err(crate::source::invalid_source());
+    }
+    Ok(1 + nested_source_depth(repository, &import, depth + 1)?)
+}
+
+fn nested_source_depth(repository: &Repository, import: &JsonValue, depth: usize) -> Result<usize> {
+    let source = crate::source::read_source(import)?;
+    let reuse = crate::source::read_reuse_source(import)?;
+    match (source, reuse) {
+        (Some(_), Some(_)) => Err(crate::source::invalid_source()),
+        (Some(source), None) => validate_source_binding(repository, &source, depth),
+        (None, Some(source)) => validate_reuse_source_binding(repository, &source, depth),
+        (None, None) => Ok(0),
+    }
 }
 
 /// Read the recorded labels only after `creator_reuse_source_from_snapshot`

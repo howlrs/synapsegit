@@ -338,6 +338,9 @@ fn begin_creator_session_with_bindings_and_limits(
     fsck_limits: FsckLimits,
     require_existing_repository: bool,
 ) -> Result<PendingCreatorSession> {
+    if source.is_some() && reuse_source.is_some() {
+        return Err(crate::source::invalid_source());
+    }
     if let Some(note) = note {
         note.validate()?;
     }
