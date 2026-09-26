@@ -177,6 +177,7 @@ pub(crate) struct SessionPageView {
     pub(crate) source: Option<synapse_local_service::CreatorSourceBinding>,
     pub(crate) reuse_source: Option<synapse_local_service::CreatorReuseSourceBinding>,
     pub(crate) reuse_available: bool,
+    pub(crate) reuse_reference: Option<synapse_local_service::CreatorReuseReferenceContext>,
     pub(crate) annotations: Vec<synapse_local_service::CreatorPin>,
     pub(crate) annotations_json: String,
     pub(crate) annotations_unavailable: bool,
@@ -242,6 +243,7 @@ impl SessionPageView {
                     source: detail.source,
                     reuse_source: detail.reuse_source,
                     reuse_available: false,
+                    reuse_reference: detail.reuse_reference,
                     selected: "—".into(),
                     fsck_objects: 0,
                     images,
@@ -312,8 +314,11 @@ impl SessionPageView {
                     show_evidence: reuse_available,
                     state_label: "未完了".into(),
                     state_tone: "warning".into(),
-                    state_description: "現在のRefsは完了したCreator sessionを構成していません。"
-                        .into(),
+                    state_description: if reuse_available {
+                        "判断前に中断されたセッションです。記録済みの画像を新しいセッションで確認できます。".into()
+                    } else {
+                        "現在の記録を確認できません。fsckを実行して状態を確認してください。".into()
+                    },
                     ai_output_source: String::new(),
                     review_id: String::new(),
                     decision_url: String::new(),
@@ -327,6 +332,7 @@ impl SessionPageView {
                     source: None,
                     reuse_source: None,
                     reuse_available,
+                    reuse_reference: None,
                     selected: "—".into(),
                     fsck_objects: 0,
                     images,
@@ -425,6 +431,7 @@ impl SessionPageView {
             source: report.source,
             reuse_source: report.reuse_source,
             reuse_available: report.disposition == "defer",
+            reuse_reference: None,
             annotations: report.annotations.map(|a| a.pins).unwrap_or_default(),
             annotations_json,
             annotations_unavailable: report.annotations_unavailable,

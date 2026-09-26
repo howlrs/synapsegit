@@ -484,6 +484,8 @@ pub struct PendingCreatorSession {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reuse_source: Option<synapse_creator::CreatorReuseSourceBinding>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reuse_reference: Option<CreatorReuseReferenceContext>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generation_note: Option<synapse_creator::CreatorGenerationNote>,
     pub state: PendingReviewState,
     pub snapshot: SnapshotContext,
@@ -499,6 +501,21 @@ pub struct PendingCreatorSession {
     pub ai_output_blob_oid: String,
     pub ai_output_source: String,
     pub comparison: ComparisonEvidence,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CreatorReuseReferenceContext {
+    pub kind: String,
+    /// The pinned source cannot currently be read.  This is reference-only
+    /// display data; the pending session itself remains available.
+    pub unavailable: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub deferred_rationale: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generation_note: Option<synapse_creator::CreatorGenerationNote>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub annotations: Option<synapse_creator::CreatorAnnotations>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -670,6 +687,10 @@ pub struct CreatorReuseSourcePreview {
     pub subject_label: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub deferred_rationale: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_generation_note: Option<synapse_creator::CreatorGenerationNote>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_annotations: Option<synapse_creator::CreatorAnnotations>,
 }
 
 #[derive(Debug)]

@@ -75,6 +75,7 @@ pub(crate) struct SessionTemplate<'a> {
     pub(crate) source: Option<&'a synapse_local_service::CreatorSourceBinding>,
     pub(crate) reuse_source: Option<&'a synapse_local_service::CreatorReuseSourceBinding>,
     pub(crate) reuse_available: bool,
+    pub(crate) reuse_reference: Option<&'a synapse_local_service::CreatorReuseReferenceContext>,
     pub(crate) annotations: &'a [synapse_local_service::CreatorPin],
     pub(crate) annotations_json: &'a str,
     pub(crate) annotations_unavailable: bool,

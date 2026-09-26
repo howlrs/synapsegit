@@ -4,36 +4,35 @@ use std::error::Error;
 use std::fmt::{self, Write as _};
 use std::fs;
 use std::mem;
-use std::panic::{AssertUnwindSafe, catch_unwind};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use synapse_core::{
-    ArchiveExportLimits, ArchiveInspectionBudget, ArchiveInspectionLimits, ArchiveInspectionState,
-    ArchiveRestoreLimits, FsckLimits, Repository, RepositoryError, TombstoneScanLimits,
-    inspect_archive_with_budget,
+    inspect_archive_with_budget, ArchiveExportLimits, ArchiveInspectionBudget,
+    ArchiveInspectionLimits, ArchiveInspectionState, ArchiveRestoreLimits, FsckLimits, Repository,
+    RepositoryError, TombstoneScanLimits,
 };
 use synapse_creator::{
-    CREATOR_RESERVED_PENDING_DECISIONS, CreatorBeginOptions,
+    begin_creator_session_with_note_existing as core_begin,
+    begin_creator_session_with_reuse_source_existing, creator_report_from_snapshot,
+    creator_reuse_source_context_from_binding, creator_reuse_source_display_from_snapshot,
+    creator_reuse_source_from_snapshot, decide_creator_session_with_annotations as core_decide,
+    discover_creator_sessions, CreatorBeginOptions,
     CreatorComparisonReport as CoreComparisonReport, CreatorDecisionOptions,
     CreatorDisposition as CoreCreatorDisposition, CreatorError, CreatorPendingDecisionState,
     CreatorPendingReceipt as CorePendingReceipt, CreatorReport as CoreCreatorReport,
     CreatorRunReceipt as CoreRunReceipt, CreatorSessionState as CoreCreatorSessionState,
     CreatorSnapshotReport, CreatorTimelineEntry as CoreTimelineEntry,
-    PendingCreatorSession as CorePendingCreatorSession,
-    begin_creator_session_with_note_existing as core_begin,
-    begin_creator_session_with_reuse_source_existing,
-    creator_report_from_snapshot, creator_reuse_source_display_from_snapshot,
-    creator_reuse_source_from_snapshot, decide_creator_session_with_annotations as core_decide,
-    discover_creator_sessions,
+    PendingCreatorSession as CorePendingCreatorSession, CREATOR_RESERVED_PENDING_DECISIONS,
 };
 use synapse_sqlite::{
-    MAX_REF_SNAPSHOT_ENTRIES, MAX_REFLOG_PAGE_ENTRIES, RefArchiveExportLimits, RefSnapshot,
-    RefStoreError, ReflogEntry as CoreReflogEntry,
+    RefArchiveExportLimits, RefSnapshot, RefStoreError, ReflogEntry as CoreReflogEntry,
+    MAX_REFLOG_PAGE_ENTRIES, MAX_REF_SNAPSHOT_ENTRIES,
 };
 
-use crate::CatalogError;
-use crate::catalog::{CatalogEntry, ProjectCatalog, ProjectRegistration, is_slug};
+use crate::catalog::{is_slug, CatalogEntry, ProjectCatalog, ProjectRegistration};
 use crate::dto::*;
+use crate::CatalogError;
 
 pub const MAX_PROJECTS: usize = 1_000;
 pub const MAX_REFS: usize = MAX_REF_SNAPSHOT_ENTRIES;
@@ -912,7 +911,9 @@ impl LocalService {
                 request.generation_note.as_ref(),
                 source,
             ),
-            (None, Some(source)) => begin_creator_session_with_reuse_source_existing(&options, source),
+            (None, Some(source)) => {
+                begin_creator_session_with_reuse_source_existing(&options, source)
+            }
             (None, None) => core_begin(&options, request.generation_note.as_ref()),
             (Some(_), Some(_)) => unreachable!("only one source form is allowed"),
         }));
@@ -946,7 +947,8 @@ impl LocalService {
         self.ready_pending(project_key, &snapshot)?
             .into_iter()
             .find(|pending| pending.review_id == review_id)
-            .map(|pending| pending_session(&snapshot, pending))
+            .map(|pending| pending_session(&repository, &snapshot, pending))
+            .transpose()?
             .ok_or_else(ServiceError::outcome_unknown)
     }
 
@@ -1625,7 +1627,7 @@ fn creator_session_from_snapshot_with_pending(
         .cloned()
     {
         return Ok(CreatorSessionDetail::PendingReview(Box::new(
-            pending_session(snapshot, pending),
+            pending_session(repository, snapshot, pending)?,
         )));
     }
     match creator_report_from_snapshot(repository, snapshot, session) {
@@ -1713,9 +1715,35 @@ fn overlay_pending_sessions(
     sessions
 }
 
-fn pending_session(snapshot: &RefSnapshot, pending: ReadyPending) -> PendingCreatorSession {
+fn pending_session(
+    repository: &Repository,
+    snapshot: &RefSnapshot,
+    pending: ReadyPending,
+) -> Result<PendingCreatorSession, ServiceError> {
     let receipt = pending.receipt;
-    PendingCreatorSession {
+    let reuse_reference = receipt.reuse_source.as_ref().map(|binding| {
+        match creator_reuse_source_context_from_binding(repository, binding) {
+            Ok((deferred_rationale, generation_note, annotations)) => {
+                CreatorReuseReferenceContext {
+                    kind: binding.kind.clone(),
+                    unavailable: false,
+                    deferred_rationale,
+                    generation_note,
+                    annotations,
+                }
+            }
+            // Reference text is deliberately non-authoritative.  Surface an
+            // unavailable state instead of substituting current source Refs.
+            Err(_) => CreatorReuseReferenceContext {
+                kind: binding.kind.clone(),
+                unavailable: true,
+                deferred_rationale: None,
+                generation_note: None,
+                annotations: None,
+            },
+        }
+    });
+    Ok(PendingCreatorSession {
         state: PendingReviewState::PendingReview,
         snapshot: snapshot_context(snapshot, None),
         server_instance: pending.server_instance,
@@ -1732,8 +1760,9 @@ fn pending_session(snapshot: &RefSnapshot, pending: ReadyPending) -> PendingCrea
         generation_note: receipt.generation_note,
         source: receipt.source,
         reuse_source: receipt.reuse_source,
+        reuse_reference,
         comparison: comparison_evidence(receipt.comparison),
-    }
+    })
 }
 
 fn core_disposition(decision: CreatorDecision) -> CoreCreatorDisposition {
@@ -2711,9 +2740,15 @@ impl LocalService {
         {
             return Err(ServiceError::review_state_lost());
         }
-        let (source, creator_name, subject_label, deferred_rationale) =
-            creator_reuse_source_display_from_snapshot(&repository, &snapshot, session)
-                .map_err(creator_error)?;
+        let (
+            source,
+            creator_name,
+            subject_label,
+            deferred_rationale,
+            source_generation_note,
+            source_annotations,
+        ) = creator_reuse_source_display_from_snapshot(&repository, &snapshot, session)
+            .map_err(creator_error)?;
         let mut confirmations = self
             .reuse_confirmations
             .lock()
@@ -2748,6 +2783,8 @@ impl LocalService {
             creator_name,
             subject_label,
             deferred_rationale,
+            source_generation_note,
+            source_annotations,
         })
     }
 

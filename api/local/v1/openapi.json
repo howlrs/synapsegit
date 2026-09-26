@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "SynapseGit localhost application API",
-    "version": "0.6.0-draft",
+    "version": "0.6.2-draft",
     "description": "Single-user, loopback-only application contract. Read routes, creator import, same-process Human review, read-only creator-session diagnostics, and confirmed bounded fsck with process-local operation polling are included in the tagged v0.4.0 binary. Bounded read-only archive listing (behind an optional --archive-root startup flag) is included in the tagged v0.6.0 binary. Authenticated, confirmed bounded archive export and empty-target restore operations (behind the same --archive-root flag) are included in the tagged v0.7.0 binary; browser controls for both remain planned. This is not the public Core protocol."
   },
   "servers": [
@@ -362,7 +362,7 @@
               "type": "string",
               "pattern": "^[0-9a-f]{64}$"
             },
-            "description": "For source confirmation previews only; revalidates Original/Current against the captured source. AI output is refused."
+            "description": "For source confirmation previews only; revalidates the captured Original, Current, and AI output roles."
           }
         ],
         "responses": {
@@ -1689,6 +1689,12 @@
           },
           "source": {
             "$ref": "#/components/schemas/CreatorSourceBinding"
+          },
+          "reuse_source": {
+            "$ref": "#/components/schemas/CreatorReuseSourceBinding"
+          },
+          "reuse_reference": {
+            "$ref": "#/components/schemas/CreatorReuseReferenceContext"
           }
         }
       },
@@ -1839,6 +1845,9 @@
           },
           "source": {
             "$ref": "#/components/schemas/CreatorSourceBinding"
+          },
+          "reuse_source": {
+            "$ref": "#/components/schemas/CreatorReuseSourceBinding"
           }
         }
       },
@@ -2059,8 +2068,7 @@
             "$ref": "#/components/schemas/Slug"
           },
           "recovery_supported": {
-            "type": "boolean",
-            "const": false
+            "type": "boolean"
           },
           "diagnostic": {
             "type": "string",
@@ -2596,7 +2604,11 @@
       "CreatorReuseSourcePreview": {
         "type":"object", "additionalProperties":false,
         "required":["confirmation_id","source","creator_name","subject_label"],
-        "properties":{"confirmation_id":{"type":"string","pattern":"^[0-9a-f]{64}$"},"source":{"$ref":"#/components/schemas/CreatorReuseSourceBinding"},"creator_name":{"type":"string","maxLength":300},"subject_label":{"type":"string","maxLength":500},"deferred_rationale":{"type":"string","maxLength":5000}}
+        "properties":{"confirmation_id":{"type":"string","pattern":"^[0-9a-f]{64}$"},"source":{"$ref":"#/components/schemas/CreatorReuseSourceBinding"},"creator_name":{"type":"string","maxLength":300},"subject_label":{"type":"string","maxLength":500},"deferred_rationale":{"type":"string","maxLength":5000},"source_generation_note":{"$ref":"#/components/schemas/CreatorGenerationNote"},"source_annotations":{"$ref":"#/components/schemas/CreatorAnnotations"}}
+      },
+      "CreatorReuseReferenceContext": {
+        "type":"object", "additionalProperties":false, "required":["kind","unavailable"],
+        "properties":{"kind":{"enum":["interrupted_pending","deferred_rereview"]},"unavailable":{"type":"boolean"},"deferred_rationale":{"type":"string","maxLength":5000},"generation_note":{"$ref":"#/components/schemas/CreatorGenerationNote"},"annotations":{"$ref":"#/components/schemas/CreatorAnnotations"}}
       },
       "BeginReuseCreatorSessionRequest": {
         "type":"object", "additionalProperties":false, "required":["confirmation_id","session","creator_name","subject_label"],

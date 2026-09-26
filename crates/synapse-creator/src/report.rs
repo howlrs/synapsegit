@@ -1,9 +1,10 @@
 use crate::io::{object_field, read_json, string_field};
 use crate::records::SCHEMA_VERSION;
 use crate::session::{
+    decision_ref, proposal_ref, related_entity_id, validate_session, SessionIds,
     COMPARISON_ANALYSIS_ENTRY, COMPARISON_CONFIGURATION_ENTRY, COMPARISON_IMPLEMENTATION_ENTRY,
     COMPARISON_TOOL_ENTRY, CREATOR_FSCK_LIMITS, CREATOR_FSCK_MAX_REF_ROOTS, DECISION_PREFIX,
-    PROPOSAL_PREFIX, SessionIds, decision_ref, proposal_ref, related_entity_id, validate_session,
+    PROPOSAL_PREFIX,
 };
 use crate::{
     CreatorComparisonReport, CreatorDisposition, CreatorError, CreatorReport,
@@ -16,8 +17,8 @@ use std::path::Path;
 use synapse_canonical::ObjectKind;
 use synapse_core::{FsckLimits, Repository};
 use synapse_observation::{
-    BYTE_IDENTITY_ADAPTER_ID, BYTE_IDENTITY_ADAPTER_VERSION, byte_identity_configuration_oid,
-    byte_identity_implementation_oid,
+    byte_identity_configuration_oid, byte_identity_implementation_oid, BYTE_IDENTITY_ADAPTER_ID,
+    BYTE_IDENTITY_ADAPTER_VERSION,
 };
 use synapse_projection::{
     AdapterDeterminism, AnalysisReplayReadiness, ObjectAvailability, ProjectionLimits, RefScope,
@@ -206,7 +207,12 @@ pub(crate) fn validate_reuse_source_binding(
     }
     let (ids, import_oid, ai_oid) = if source.kind == "deferred_rereview" {
         let ids = load_session_ids(repository, &source.session, &source.decision_head)?;
-        let lineage = validate_report_lineage(repository, &ids, &source.decision_head, &source.proposal_head)?;
+        let lineage = validate_report_lineage(
+            repository,
+            &ids,
+            &source.decision_head,
+            &source.proposal_head,
+        )?;
         if lineage.disposition != CreatorDisposition::Defer {
             return Err(crate::source::invalid_source());
         }
@@ -214,18 +220,40 @@ pub(crate) fn validate_reuse_source_binding(
     } else if source.kind == "interrupted_pending" {
         let base = read_json(repository, &source.decision_head)?;
         require_stored_value(&base, "object_type", "commit", "interrupted decision base")?;
-        require_stored_value(&base, "commit_kind", "checkpoint", "interrupted decision base")?;
+        require_stored_value(
+            &base,
+            "commit_kind",
+            "checkpoint",
+            "interrupted decision base",
+        )?;
         let base_snapshot = string_field(&base, "snapshot", "interrupted decision base")?;
         let ids = load_session_ids_from_base(repository, &source.session, base_snapshot)?;
-        require_stored_value(&base, "author_ref", &ids.creator, "interrupted decision base")?;
+        require_stored_value(
+            &base,
+            "author_ref",
+            &ids.creator,
+            "interrupted decision base",
+        )?;
         let proposal = read_json(repository, &source.proposal_head)?;
         require_stored_value(&proposal, "object_type", "commit", "interrupted proposal")?;
-        require_stored_value(&proposal, "commit_kind", "checkpoint", "interrupted proposal")?;
+        require_stored_value(
+            &proposal,
+            "commit_kind",
+            "checkpoint",
+            "interrupted proposal",
+        )?;
         require_stored_value(&proposal, "author_ref", &ids.agent, "interrupted proposal")?;
-        if single_string_array(&proposal, "parents", "interrupted proposal parents")? != source.decision_head {
+        if single_string_array(&proposal, "parents", "interrupted proposal parents")?
+            != source.decision_head
+        {
             return Err(crate::source::invalid_source());
         }
-        let ai_oid = single_string_array(&proposal, "transition_refs", "interrupted proposal transition")?.to_owned();
+        let ai_oid = single_string_array(
+            &proposal,
+            "transition_refs",
+            "interrupted proposal transition",
+        )?
+        .to_owned();
         let pointers = load_base_snapshot_pointers(repository, base_snapshot)?;
         (ids, pointers.import_activity_oid, ai_oid)
     } else {
@@ -233,18 +261,75 @@ pub(crate) fn validate_reuse_source_binding(
     };
     let import = read_json(repository, &import_oid)?;
     require_stored_value(&import, "record_type", "activity", "reuse source import")?;
-    require_stored_value(&import, "entity_id", &ids.import_activity, "reuse source import")?;
+    require_stored_value(
+        &import,
+        "entity_id",
+        &ids.import_activity,
+        "reuse source import",
+    )?;
     let payload = object_field(&import, "payload", "reuse source import payload")?;
     let original = role_oid(payload, "output_refs", "original")?;
     let current = role_oid(payload, "output_refs", "current")?;
     let ai = read_json(repository, &ai_oid)?;
     require_stored_value(&ai, "record_type", "activity", "reuse source AI activity")?;
-    require_stored_value(&ai, "entity_id", &ids.ai_activity, "reuse source AI activity")?;
-    let proposal = role_oid(object_field(&ai, "payload", "reuse source AI payload")?, "output_refs", "proposal")?;
-    if original != source.original_blob_oid || current != source.current_blob_oid || proposal != source.ai_output_blob_oid {
+    require_stored_value(
+        &ai,
+        "entity_id",
+        &ids.ai_activity,
+        "reuse source AI activity",
+    )?;
+    let proposal = role_oid(
+        object_field(&ai, "payload", "reuse source AI payload")?,
+        "output_refs",
+        "proposal",
+    )?;
+    if original != source.original_blob_oid
+        || current != source.current_blob_oid
+        || proposal != source.ai_output_blob_oid
+    {
         return Err(crate::source::invalid_source());
     }
     Ok(1 + nested_source_depth(repository, &import, depth + 1)?)
+}
+
+/// Read reference-only source context from the binding's pinned heads.
+/// Current source Refs are deliberately not consulted.
+pub fn creator_reuse_source_context_from_binding(
+    repository: &Repository,
+    source: &CreatorReuseSourceBinding,
+) -> Result<(
+    Option<String>,
+    Option<crate::CreatorGenerationNote>,
+    Option<crate::CreatorAnnotations>,
+)> {
+    validate_reuse_source_binding(repository, source, 0)?;
+    if source.kind == "interrupted_pending" {
+        let proposal = read_json(repository, &source.proposal_head)?;
+        let ai_oid = single_string_array(&proposal, "transition_refs", "reuse source proposal")?;
+        let ai = read_json(repository, ai_oid)?;
+        return Ok((
+            None,
+            crate::notes::read_generation_note(&ai, &source.ai_output_blob_oid)?,
+            None,
+        ));
+    }
+    let ids = load_session_ids(repository, &source.session, &source.decision_head)?;
+    let lineage = validate_report_lineage(
+        repository,
+        &ids,
+        &source.decision_head,
+        &source.proposal_head,
+    )?;
+    let ai = read_json(repository, &lineage.ai_activity_oid)?;
+    let note = crate::notes::read_generation_note(&ai, &source.ai_output_blob_oid)?;
+    let feedback = read_json(repository, &lineage.feedback_oid)?;
+    let (annotations, _) = crate::annotations::read_annotations(
+        &feedback,
+        &source.original_blob_oid,
+        &source.current_blob_oid,
+        &source.ai_output_blob_oid,
+    );
+    Ok((lineage.rationale, note, annotations))
 }
 
 fn validate_source_binding(
@@ -257,7 +342,12 @@ fn validate_source_binding(
         return Err(crate::source::invalid_source());
     }
     let ids = load_session_ids(repository, &source.session, &source.decision_head)?;
-    let lineage = validate_report_lineage(repository, &ids, &source.decision_head, &source.proposal_head)?;
+    let lineage = validate_report_lineage(
+        repository,
+        &ids,
+        &source.decision_head,
+        &source.proposal_head,
+    )?;
     if lineage.disposition.as_cli_str() != source.disposition {
         return Err(crate::source::invalid_source());
     }
@@ -287,25 +377,53 @@ fn nested_source_depth(repository: &Repository, import: &JsonValue, depth: usize
 /// Read the recorded labels only after `creator_reuse_source_from_snapshot`
 /// has validated the source closure. These labels are display defaults, not an
 /// identity claim or copied authority.
+pub type CreatorReuseSourceDisplay = (
+    CreatorReuseSourceBinding,
+    String,
+    String,
+    Option<String>,
+    Option<crate::CreatorGenerationNote>,
+    Option<crate::CreatorAnnotations>,
+);
+
 pub fn creator_reuse_source_display_from_snapshot(
     repository: &Repository,
     snapshot: &RefSnapshot,
     session: &str,
-) -> Result<(CreatorReuseSourceBinding, String, String, Option<String>)> {
+) -> Result<CreatorReuseSourceDisplay> {
     let source = creator_reuse_source_from_snapshot(repository, snapshot, session)?;
+    // Use the binding's immutable heads for reference-only fields.  A later
+    // source Ref movement must not change what this confirmation shows.
+    let (rationale, generation_note, annotations) =
+        creator_reuse_source_context_from_binding(repository, &source)?;
     if let Ok(report) = creator_report_from_snapshot(repository, snapshot, session) {
         let tree = read_json(repository, &report.report.base_snapshot)?;
-        let rationale = report.report.rationale;
-        return source_display_from_base_tree(repository, &tree)
-            .map(|(creator, subject)| (source, creator, subject, rationale));
+        return source_display_from_base_tree(repository, &tree).map(|(creator, subject)| {
+            (
+                source,
+                creator,
+                subject,
+                rationale,
+                generation_note,
+                annotations,
+            )
+        });
     }
     let base = read_json(repository, &source.decision_head)?;
     let tree = read_json(
         repository,
         string_field(&base, "snapshot", "reuse source base")?,
     )?;
-    source_display_from_base_tree(repository, &tree)
-        .map(|(creator, subject)| (source, creator, subject, None))
+    source_display_from_base_tree(repository, &tree).map(|(creator, subject)| {
+        (
+            source,
+            creator,
+            subject,
+            rationale,
+            generation_note,
+            annotations,
+        )
+    })
 }
 
 fn source_display_from_base_tree(
@@ -1264,12 +1382,8 @@ pub(crate) fn load_base_snapshot_pointers(
     let comparison = if comparison_parts.iter().all(Option::is_none) {
         None
     } else if comparison_parts.iter().all(Option::is_some) {
-        let [
-            analysis_oid,
-            tool_actor_oid,
-            implementation_oid,
-            configuration_oid,
-        ] = comparison_parts.map(Option::unwrap);
+        let [analysis_oid, tool_actor_oid, implementation_oid, configuration_oid] =
+            comparison_parts.map(Option::unwrap);
         Some(ComparisonPointers {
             analysis_oid,
             tool_actor_oid,

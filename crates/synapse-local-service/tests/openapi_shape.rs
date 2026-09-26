@@ -710,6 +710,7 @@ fn creator_session_detail_pending_variant_matches_the_openapi_schema() {
     let document = openapi_document();
     let pending = PendingCreatorSession {
         reuse_source: None,
+        reuse_reference: None,
         source: None,
         generation_note: None,
         state: PendingReviewState::PendingReview,

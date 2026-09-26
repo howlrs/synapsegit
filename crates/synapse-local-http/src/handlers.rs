@@ -1237,6 +1237,7 @@ pub(crate) async fn session_page(
             source: view.source.as_ref(),
             reuse_source: view.reuse_source.as_ref(),
             reuse_available: view.reuse_available,
+            reuse_reference: view.reuse_reference.as_ref(),
             annotations: &view.annotations,
             annotations_json: &view.annotations_json,
             annotations_unavailable: view.annotations_unavailable,

@@ -62,6 +62,17 @@
 </section>
 {% endif %}
 
+{% if let Some(reference) = reuse_reference %}
+<section class="card" aria-labelledby="reuse-reference-heading" data-creator-reuse-reference>
+  <h2 id="reuse-reference-heading">元の記録（参照のみ）</h2>
+  <p>元の{% if reference.kind == "deferred_rereview" %}保留した{% else %}中断した{% endif %}提案の情報です。新しいセッションのメモ、ピン、理由にはコピーされません。</p>
+  {% if reference.unavailable %}<p role="status">元の参照情報を取得できませんでした。</p>{% endif %}
+  {% if let Some(note) = reference.generation_note %}<h3>元の生成メモ</h3><p class="decision-rationale">{{ note.prompt }}</p>{% endif %}
+  {% if let Some(rationale) = reference.deferred_rationale %}<h3>元のDefer理由</h3><p class="decision-rationale">{{ rationale }}</p>{% endif %}
+  {% if let Some(annotations) = reference.annotations %}<h3>元の画像上の判断メモ</h3><ol>{% for pin in annotations.pins %}<li>{{ pin.note }}</li>{% endfor %}</ol>{% endif %}
+</section>
+{% endif %}
+
 {% if show_evidence %}
 <section class="card" aria-labelledby="generation-note-heading">
   <h2 id="generation-note-heading">提案の生成メモ</h2>

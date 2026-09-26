@@ -34,8 +34,9 @@ mod tests;
 
 pub use error::{CreatorError, Result};
 pub use report::{
-    PreparedCreatorReportReader, creator_report, creator_report_from_snapshot,
+    CreatorReuseSourceDisplay, PreparedCreatorReportReader, creator_report, creator_report_from_snapshot,
     creator_reuse_source_display_from_snapshot, creator_reuse_source_from_snapshot,
+    creator_reuse_source_context_from_binding,
     discover_creator_sessions,
 };
 pub use session::{
