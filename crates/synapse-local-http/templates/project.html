@@ -22,12 +22,12 @@
 </section>
 
 {% if fsck_supported %}
-<section class="card" aria-labelledby="fsck-heading">
+<section class="card project-maintenance" aria-labelledby="fsck-heading">
   <div class="card__header">
     <div>
-      <p class="eyebrow">Maintenance</p>
-      <h2 id="fsck-heading">Repository integrity check</h2>
-      <p class="muted">server固定のresource limit内で、現在のRefsと完全なCAS inventoryをread-only検査します。</p>
+      <p class="eyebrow">メンテナンス</p>
+      <h2 id="fsck-heading">リポジトリ整合性の確認</h2>
+      <p class="muted">server固定の上限内で、現在のRefsとCAS inventoryを読み取り専用で確認します。</p>
     </div>
   </div>
   {% if has_last_fsck %}
@@ -58,12 +58,12 @@
 {% endif %}
 
 {% if archive_export_supported %}
-<section class="card" aria-labelledby="archive-export-heading">
+<section class="card project-maintenance" aria-labelledby="archive-export-heading">
   <div class="card__header">
     <div>
-      <p class="eyebrow">Maintenance</p>
-      <h2 id="archive-export-heading">Archive export</h2>
-      <p class="muted">現在のprojectをserver固定のresource limit内で、設定済みarchive rootへchecksum付きdirectory archiveとして保存します。</p>
+      <p class="eyebrow">メンテナンス</p>
+      <h2 id="archive-export-heading">アーカイブを書き出す</h2>
+      <p class="muted">現在のプロジェクトをserver固定の上限内で、設定済みの保存先へチェックサム付きで保存します。</p>
     </div>
   </div>
   <div class="notice" data-tone="warning">
@@ -100,11 +100,11 @@
 {% endif %}
 
 {% if archive_restore_supported %}
-<section class="card" aria-labelledby="archive-restore-heading">
+<section class="card project-maintenance" aria-labelledby="archive-restore-heading">
   <div class="card__header">
     <div>
-      <p class="eyebrow">Maintenance</p>
-      <h2 id="archive-restore-heading">Archive restore</h2>
+      <p class="eyebrow">メンテナンス</p>
+      <h2 id="archive-restore-heading">アーカイブを復元する</h2>
       <p class="muted">保存したアーカイブを、このプロジェクトへ復元します。</p>
     </div>
   </div>
@@ -175,7 +175,7 @@
 </section>
 {% endif %}
 
-<section class="card" aria-labelledby="creator-upload-heading">
+<section class="card project-creator-upload" aria-labelledby="creator-upload-heading">
   <div class="card__header">
     <div>
       <p class="eyebrow">Proposal-only import</p>
@@ -256,20 +256,23 @@
   <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、この画面はread-onlyです。安全なuploadにはprocess-local tokenを付けるJavaScriptが必要です。</p></div></noscript>
 </section>
 
-<section aria-labelledby="sessions-heading">
-  <div class="section-heading"><h2 id="sessions-heading">Creator sessions</h2><span class="badge">{{ sessions.len() }} 件</span></div>
+<section class="project-sessions" aria-labelledby="sessions-heading" data-creator-session-list>
+  <div class="section-heading"><h2 id="sessions-heading">セッション</h2><span class="badge" data-creator-session-count>{{ sessions.len() }} 件</span></div>
+  <p class="field__hint">現在のRef snapshotを一度だけ検証して作った概要です。検証できない行は「取得できません」と表示し、推測値で埋めません。詳細と理由は各セッション画面で確認します。表示は最大200件です。</p>
+  <label class="field"><span>状態・判断で絞り込む</span><select data-creator-session-filter><option value="all">すべて</option><option value="pending">レビュー待ち</option><option value="complete">完了</option><option value="adopt">Adopt</option><option value="reject">Reject</option><option value="defer">Defer</option><option value="incomplete">未完了</option></select></label>
   {% if sessions.is_empty() %}
   <div class="empty-state"><h3>セッションはまだありません</h3><p>上のフォームから3ファイルを取り込み、最初のproposalとHuman reviewを開始できます。</p></div>
   {% else %}
   <div class="table-wrap"><table>
-    <thead><tr><th>セッション</th><th>状態</th><th>Proposal head</th><th>Decision head</th></tr></thead>
+    <thead><tr><th>セッション／内容</th><th>状態・判断</th><th>記録日時</th><th>派生元</th><th>head</th></tr></thead>
     <tbody>
       {% for session in sessions %}
-      <tr>
-        <th scope="row"><a href="/projects/{{ project_key }}/creator-sessions/{{ session.session }}">{{ session.session }}</a></th>
-        <td><span class="status-badge" data-tone="{{ session.tone }}">{{ session.state_label }}</span></td>
-        <td><code>{{ session.proposal_head }}</code></td>
-        <td><code>{{ session.decision_head }}</code></td>
+      <tr data-creator-session-row data-state="{{ session.state_label }}" data-disposition="{{ session.disposition }}">
+        <th scope="row"><a href="/projects/{{ project_key }}/creator-sessions/{{ session.session }}">{{ session.session }}</a><br><span class="muted">{{ session.subject_label }}</span></th>
+        <td><span class="status-badge" data-tone="{{ session.tone }}">{{ session.state_label }}</span> {{ session.disposition }}</td>
+        <td>{{ session.recorded_at }}<br><span class="muted">{{ session.recorded_time_basis }}</span></td>
+        <td>{% if session.source_session == "—" %}—{% else %}<a href="/projects/{{ project_key }}/creator-sessions/{{ session.source_session }}">{{ session.source_session }}</a>{% endif %}</td>
+        <td><code>{{ session.proposal_head }}</code><br><code>{{ session.decision_head }}</code></td>
       </tr>
       {% endfor %}
     </tbody>
@@ -277,7 +280,7 @@
   {% endif %}
 </section>
 
-<div class="split-grid">
+<div class="split-grid project-detail">
   <section aria-labelledby="refs-heading">
     <div class="section-heading"><h2 id="refs-heading">Refs</h2><span class="badge">{{ refs.len() }}</span></div>
     <div class="stack">

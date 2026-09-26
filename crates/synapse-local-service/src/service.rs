@@ -41,6 +41,9 @@ use crate::dto::*;
 pub const MAX_PROJECTS: usize = 1_000;
 pub const MAX_REFS: usize = MAX_REF_SNAPSHOT_ENTRIES;
 pub const MAX_CREATOR_SESSIONS: usize = 50_000;
+/// Dashboard report enrichment shares one verified reader and is capped apart
+/// from Ref discovery so one rendered page has a fixed upper work bound.
+pub const MAX_CREATOR_SESSION_SUMMARIES: usize = 200;
 pub const IMAGE_RESPONSE_MAX_BYTES: u64 = 64 * 1024 * 1024;
 pub const MAX_PENDING_CREATOR_SESSIONS: usize = 64;
 pub const MAX_PENDING_CREATOR_SESSIONS_PER_PROJECT: usize = 8;
@@ -2311,10 +2314,51 @@ fn sessions_from_snapshot_with_pending(
     snapshot: &RefSnapshot,
     ready_pending: &[ReadyPending],
 ) -> Result<Vec<CreatorSessionSummary>, ServiceError> {
-    Ok(overlay_pending_sessions(
+    let mut sessions = overlay_pending_sessions(
         discover_sessions(repository, snapshot)?,
         ready_pending.to_vec(),
-    ))
+    );
+    // One prepared reader performs the bounded verification once for this
+    // snapshot; row values below are therefore verified summaries, not a
+    // separate repository-wide check per row.
+    let Ok(reader) = PreparedCreatorReportReader::prepare(repository, snapshot) else {
+        // Keep the Ref-shaped list available when shared verification fails;
+        // absent metadata is deliberately not inferred from damaged content.
+        sessions.truncate(MAX_CREATOR_SESSION_SUMMARIES);
+        return Ok(sessions);
+    };
+    for summary in sessions.iter_mut().take(MAX_CREATOR_SESSION_SUMMARIES) {
+        if summary.state != CreatorSessionState::Complete {
+            continue;
+        }
+        let Ok(snapshot_report) = reader.report(&summary.session) else {
+            continue;
+        };
+        let report = snapshot_report.report;
+        let Ok((creator_name, subject_label)) = source_display_names(repository, &report) else {
+            continue;
+        };
+        summary.creator_name = Some(creator_name);
+        summary.subject_label = Some(subject_label);
+        summary.disposition = Some(report.disposition.as_cli_str().into());
+        summary.recorded_at = report
+            .timeline
+            .last()
+            .map(|entry| entry.ordering_time.clone());
+        summary.recorded_time_basis = report
+            .timeline
+            .last()
+            .map(|entry| entry.time_basis.to_owned());
+        summary.source_session = report.source.map(|source| source.session);
+    }
+    sessions.sort_by(|left, right| {
+        right
+            .recorded_at
+            .cmp(&left.recorded_at)
+            .then_with(|| right.session.cmp(&left.session))
+    });
+    sessions.truncate(MAX_CREATOR_SESSION_SUMMARIES);
+    Ok(sessions)
 }
 
 fn diagnostic_from_fixed_summary(
@@ -2348,6 +2392,12 @@ fn overlay_pending_sessions(
             proposal_head: Some(pending.receipt.proposal_head.clone()),
             decision_ref: Some(pending.receipt.decision_ref.clone()),
             decision_head: Some(pending.receipt.base_head.clone()),
+            subject_label: None,
+            creator_name: None,
+            disposition: None,
+            recorded_at: None,
+            recorded_time_basis: None,
+            source_session: None,
         };
         if let Some(existing) = sessions
             .iter_mut()
@@ -2788,6 +2838,12 @@ fn discover_sessions(
                 proposal_head: session.proposal_head,
                 decision_ref: session.decision_ref,
                 decision_head: session.decision_head,
+                subject_label: None,
+                creator_name: None,
+                disposition: None,
+                recorded_at: None,
+                recorded_time_basis: None,
+                source_session: None,
             })
         })
         .collect()
@@ -3100,6 +3156,12 @@ mod tests {
             proposal_head: Some("proposal-head".into()),
             decision_ref: Some("decision/creator/session".into()),
             decision_head: Some("decision-head".into()),
+            subject_label: None,
+            creator_name: None,
+            disposition: None,
+            recorded_at: None,
+            recorded_time_basis: None,
+            source_session: None,
         };
         // A later process-local registry view may describe the same Ref
         // snapshot differently, but an aggregate read must keep using the

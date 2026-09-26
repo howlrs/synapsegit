@@ -1391,6 +1391,25 @@
                 "type": "null"
               }
             ]
+          },
+          "subject_label": {
+            "type": "string"
+          },
+          "creator_name": {
+            "type": "string"
+          },
+          "disposition": {
+            "type": "string",
+            "enum": ["adopt", "reject", "defer"]
+          },
+          "recorded_at": {
+            "type": "string"
+          },
+          "recorded_time_basis": {
+            "type": "string"
+          },
+          "source_session": {
+            "$ref": "#/components/schemas/Slug"
           }
         }
       },

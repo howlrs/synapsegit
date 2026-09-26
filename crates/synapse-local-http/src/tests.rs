@@ -1035,11 +1035,11 @@ async fn bounded_fsck_is_confirmed_queued_polled_and_reflected_in_project_status
         .unwrap();
     let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
     let page = std::str::from_utf8(&page).unwrap();
-    assert!(page.contains("Repository integrity check"));
+    assert!(page.contains("リポジトリ整合性の確認"));
     assert!(page.contains("name=\"confirm_project_key\""));
     assert!(page.contains("直近のprocess-local結果: clean"));
-    assert!(!page.contains("Archive export"));
-    assert!(!page.contains("Archive restore"));
+    assert!(!page.contains("アーカイブを書き出す"));
+    assert!(!page.contains("アーカイブを復元する"));
 
     for body in [
         r#"{"confirm_project_key":"other"}"#,
@@ -1193,7 +1193,7 @@ async fn archive_restore_card_requires_an_empty_consistent_dashboard_target() {
     assert_eq!(page.status(), StatusCode::OK);
     let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
     let page = std::str::from_utf8(&page).unwrap();
-    assert!(page.contains("Archive restore"));
+    assert!(page.contains("アーカイブを復元する"));
     assert!(page.contains("action=\"/api/v1/projects/demo/archive-restores\""));
     assert!(page.contains("data-archive-restore=\"true\""));
     assert!(page.contains("name=\"archive_name\""));
@@ -1789,7 +1789,7 @@ async fn index_project_and_session_pages_render_with_untrusted_labels_escaped() 
 
     for (path, expected_text) in [
         ("/", "制作履歴を、手元で確かめる"),
-        ("/projects/demo", "Creator sessions"),
+        ("/projects/demo", "セッション"),
         (
             "/projects/demo/creator-sessions/render-session",
             "Byte identity evidence",

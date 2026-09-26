@@ -552,6 +552,11 @@ pub(crate) struct SessionSummaryView {
     pub(crate) tone: &'static str,
     pub(crate) proposal_head: String,
     pub(crate) decision_head: String,
+    pub(crate) subject_label: String,
+    pub(crate) disposition: String,
+    pub(crate) recorded_at: String,
+    pub(crate) recorded_time_basis: String,
+    pub(crate) source_session: String,
 }
 
 pub(crate) struct ImageView {
