@@ -152,6 +152,27 @@
 </section>
 {% endif %}
 
+<section class="card" hidden data-import-inbox data-project-key="{{ project_key }}" aria-labelledby="import-inbox-heading">
+  <div class="card__header"><div><p class="eyebrow">Manifest-last inbox</p><h2 id="import-inbox-heading">取り込み待ち</h2><p class="muted">確認時に検証・stagingしたbytesだけをproposalへ取り込みます。</p></div></div>
+  <p data-import-inbox-status role="status"></p>
+  <ul data-import-inbox-list class="stack"></ul>
+  <form hidden data-import-inbox-preview>
+    <h3 tabindex="-1">取り込み内容を確認</h3>
+    <p class="notice" data-tone="warning">AI outputと生成メモはcaller-suppliedです。明示的な判断を行うまでDecisionは記録されません。</p>
+    <div class="upload-grid" data-import-inbox-images></div>
+    <div class="form-grid">
+      <label class="field"><span>Session</span><input name="session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}"></label>
+      <label class="field"><span>Creator name</span><input name="creator_name" required maxlength="300"></label>
+      <label class="field form-grid__wide"><span>Subject label</span><input name="subject_label" required maxlength="500"></label>
+      <label class="field"><span>Generation tool</span><input name="generation_tool" maxlength="300"></label>
+      <label class="field"><span>Generation model</span><input name="generation_model" maxlength="300"></label>
+      <label class="field form-grid__wide"><span>Generation prompt</span><textarea name="generation_prompt" maxlength="8192" rows="3"></textarea></label>
+      <label class="field form-grid__wide"><span>Generation intent</span><textarea name="generation_intent" maxlength="2048" rows="2"></textarea></label>
+    </div>
+    <div class="actions"><button type="submit" data-synapse-submit>Proposalを作成</button><button type="button" data-variant="secondary" data-import-inbox-cancel>一覧へ戻る</button></div>
+  </form>
+</section>
+
 <section class="card" aria-labelledby="creator-upload-heading">
   <div class="card__header">
     <div>

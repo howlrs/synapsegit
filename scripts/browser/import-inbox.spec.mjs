@@ -1,0 +1,35 @@
+import AxeBuilder from "@axe-core/playwright";
+import { inboxTest as test, expect, original, current, output } from "./fixtures.mjs";
+import { copyFile, mkdir, stat, writeFile } from "node:fs/promises";
+import path from "node:path";
+
+test("manifest-last inbox stages preview bytes before explicit Human Decision", async ({ page, app }) => {
+  const candidate = path.join(app.inboxRoot, "script-candidate");
+  await mkdir(candidate);
+  await copyFile(original, path.join(candidate, "original"));
+  await copyFile(current, path.join(candidate, "current"));
+  await copyFile(output, path.join(candidate, "ai-output"));
+  const sizes = await Promise.all([original, current, output].map(async file => (await stat(file)).size));
+  await writeFile(path.join(candidate, "manifest.json"), JSON.stringify({ version: "synapsegit-import-inbox-v1", original: { name: "original", size: sizes[0] }, current: { name: "current", size: sizes[1] }, ai_output: { name: "ai-output", size: sizes[2] }, metadata: { subject_label: "Script subject", creator_name: "Script creator", generation_note: { tool: "script", model: "test", prompt: "private", intent: "review" } } }));
+  await page.goto(`${app.origin}/projects/pending`);
+  const section = page.locator("[data-import-inbox]");
+  await expect(section).toBeVisible();
+  await page.getByRole("button", { name: "確認する" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("form[data-import-inbox-preview]")).toBeVisible();
+  await expect(page.locator("[data-import-inbox-images] img")).toHaveCount(3);
+  await writeFile(path.join(candidate, "original"), "changed after staging");
+  const preview = page.locator("form[data-import-inbox-preview]");
+  await preview.getByLabel("Session", { exact: true }).fill("inbox-review");
+  await preview.getByLabel("Creator name", { exact: true }).fill("Edited creator");
+  await preview.getByRole("button", { name: "Proposalを作成" }).click();
+  await page.waitForURL("**/creator-sessions/inbox-review");
+  await page.getByLabel("Rationale（任意）", { exact: true }).fill("Inbox bytes reviewed.");
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "Defer", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "記録した判断", exact: true })).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.locator("main").evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);
+  const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
+  expect(axe.violations).toEqual([]);
+});
