@@ -220,7 +220,7 @@ Replacing or clearing a file, resetting the form, or leaving the page releases
 its preview URL. This preflight UI requires JavaScript and is included in the
 tagged v0.8.1 binary.
 
-### Inspect image details before deciding (v0.8.0)
+### Inspect image details before deciding (v0.8.1)
 
 ![Current and AI output in the actual localhost image comparison dialog](../../docs/assets/synapse-local/image-comparison.png)
 
@@ -237,6 +237,13 @@ scale. At 100%, one browser-decoded image pixel occupies one CSS pixel. At
 mouse, touch, or arrow keys after focusing its image region. **閉じる** or
 Escape returns focus to the comparison button. Closing and reopening resets
 to fit view. No decision is submitted by these controls.
+
+When the selected decoded images have the same width and height, select
+**重ねて表示** to put A below B in one shared scroll area. **画像 B の不透明度**
+accepts every integer from 0% through 100% and starts at 50%; it multiplies B's
+existing alpha, so transparent pixels remain transparent. The view uses the
+common top-left origin only. A dimension mismatch leaves side-by-side viewing
+available and explains why overlay is unavailable.
 
 This is manual visual inspection, not registration, difference analysis, or
 proof of physical change. The viewer reuses the same authenticated, revocable

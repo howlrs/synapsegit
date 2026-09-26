@@ -441,6 +441,19 @@ export function enhanceImageComparison(root = document) {
   const opener = section.querySelector("[data-synapse-compare-open]");
   const status = section.querySelector("[data-synapse-compare-status]");
   const zoom = dialog.querySelector("[data-synapse-compare-zoom]");
+  const modes = [...dialog.querySelectorAll("[data-synapse-compare-mode]")];
+  const opacity = dialog.querySelector("[data-synapse-compare-opacity]");
+  const opacityControl = dialog.querySelector("[data-synapse-compare-opacity-control]");
+  const opacityValue = dialog.querySelector("[data-synapse-compare-opacity-value]");
+  const overlayUnavailable = dialog.querySelector("[data-synapse-compare-overlay-unavailable]");
+  const overlay = dialog.querySelector("[data-synapse-compare-overlay]");
+  const overlayViewport = dialog.querySelector("[data-synapse-compare-overlay-viewport]");
+  const overlayCanvas = dialog.querySelector("[data-synapse-compare-overlay-canvas]");
+  const overlayImages = {
+    a: dialog.querySelector("[data-synapse-compare-overlay-image-a]"),
+    b: dialog.querySelector("[data-synapse-compare-overlay-image-b]"),
+  };
+  const overlayCaption = dialog.querySelector("[data-synapse-compare-overlay-caption]");
   const sources = [...section.querySelectorAll("img[data-synapse-image]")];
   const panes = [...dialog.querySelectorAll("[data-synapse-compare-pane]")].map((pane) => ({
     select: pane.querySelector("[data-synapse-compare-source]"),
@@ -449,6 +462,12 @@ export function enhanceImageComparison(root = document) {
     viewport: pane.querySelector("[data-synapse-compare-viewport]"),
   }));
   const ready = (source) => source && INLINE_IMAGES.has(source) && IMAGE_URLS.has(source);
+  const overlaySupported = () => {
+    const a = sources[Number(panes[0].select.value)];
+    const b = sources[Number(panes[1].select.value)];
+    return ready(a) && ready(b) && a.naturalWidth === b.naturalWidth && a.naturalHeight === b.naturalHeight;
+  };
+  const selectedMode = () => modes.find((mode) => mode.checked)?.value || "side-by-side";
   const clear = () => {
     for (const pane of panes) {
       pane.image.removeAttribute("src");
@@ -456,6 +475,39 @@ export function enhanceImageComparison(root = document) {
       pane.image.alt = "";
       pane.caption.textContent = "";
     }
+    for (const image of Object.values(overlayImages)) image.removeAttribute("href");
+    overlayCaption.textContent = "";
+  };
+  const renderOverlay = () => {
+    const supported = overlaySupported();
+    const isOverlay = selectedMode() === "overlay";
+    overlay.hidden = !isOverlay || !supported;
+    opacityControl.hidden = !isOverlay || !supported;
+    dialog.dataset.comparisonMode = isOverlay && supported ? "overlay" : "side-by-side";
+    if (!isOverlay) return;
+    if (!supported) {
+      overlayCaption.textContent = "重ねて表示するには、A と B のデコード後の幅と高さが一致している必要があります。並べて表示で確認できます。";
+      return;
+    }
+    const a = sources[Number(panes[0].select.value)];
+    const b = sources[Number(panes[1].select.value)];
+    const scale = zoom.value === "2" ? 2 : 1;
+    const width = a.naturalWidth * scale;
+    const height = a.naturalHeight * scale;
+    overlayCanvas.setAttribute("width", String(width));
+    overlayCanvas.setAttribute("height", String(height));
+    overlayCanvas.setAttribute("viewBox", `0 0 ${width} ${height}`);
+    for (const image of Object.values(overlayImages)) {
+      image.setAttribute("width", String(width));
+      image.setAttribute("height", String(height));
+    }
+    overlayImages.a.setAttribute("href", IMAGE_URLS.get(a));
+    overlayImages.b.setAttribute("href", IMAGE_URLS.get(b));
+    // SVG presentation attributes work under the no-inline-style CSP. They
+    // multiply the image's own alpha rather than replacing transparent pixels.
+    overlayImages.b.setAttribute("opacity", String(Number(opacity.value) / 100));
+    overlayViewport.dataset.zoom = zoom.value === "fit" ? "fit" : "actual";
+    overlayCaption.textContent = `${a.dataset.label} を下、${b.dataset.label} を上に重ねています。共通の左上原点で表示する目視補助であり、位置合わせ・差分解析は行いません。${opacity.value}%`;
   };
   const render = () => {
     if (!dialog.open) return;
@@ -478,6 +530,7 @@ export function enhanceImageComparison(root = document) {
       pane.image.width = source.naturalWidth * scale;
       pane.image.height = source.naturalHeight * scale;
     }
+    renderOverlay();
   };
   const refresh = () => {
     const count = sources.filter(ready).length;
@@ -488,6 +541,11 @@ export function enhanceImageComparison(root = document) {
     for (const pane of panes) {
       for (const option of pane.select.options) option.disabled = !ready(sources[Number(option.value)]);
     }
+    const supported = overlaySupported();
+    const overlayMode = modes.find((mode) => mode.value === "overlay");
+    overlayMode.disabled = !supported;
+    overlayUnavailable.hidden = supported;
+    if (!supported && overlayMode.checked) modes.find((mode) => mode.value === "side-by-side").checked = true;
     render();
   };
   opener.addEventListener("click", () => {
@@ -501,8 +559,12 @@ export function enhanceImageComparison(root = document) {
     panes[1].select.value = String(output >= 0 && output !== Number(panes[0].select.value)
       ? output : available.find((index) => index !== Number(panes[0].select.value)));
     zoom.value = "fit";
+    modes.find((mode) => mode.value === "side-by-side").checked = true;
+    opacity.value = "50";
+    opacityValue.value = "50%";
+    opacityValue.textContent = "50%";
     dialog.showModal();
-    render();
+    refresh();
     for (const pane of panes) pane.viewport.scrollTo(0, 0);
   });
   dialog.querySelector("[data-synapse-compare-close]").addEventListener("click", () => dialog.close());
@@ -512,13 +574,25 @@ export function enhanceImageComparison(root = document) {
   });
   for (const pane of panes) {
     pane.select.addEventListener("change", () => {
-      render();
+      refresh();
       pane.viewport.scrollTo(0, 0);
+      overlayViewport.scrollTo(0, 0);
     });
   }
   zoom.addEventListener("change", () => {
     render();
     for (const pane of panes) pane.viewport.scrollTo(0, 0);
+    overlayViewport.scrollTo(0, 0);
+  });
+  for (const mode of modes) mode.addEventListener("change", () => {
+    render();
+    overlayViewport.scrollTo(0, 0);
+  });
+  opacity.addEventListener("input", () => {
+    opacity.setAttribute("aria-valuenow", opacity.value);
+    opacityValue.value = `${opacity.value}%`;
+    opacityValue.textContent = `${opacity.value}%`;
+    renderOverlay();
   });
   imageComparison = {
     refresh,

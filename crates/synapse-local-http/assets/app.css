@@ -1361,11 +1361,37 @@ details[open] > summary {
   width: auto;
 }
 
+.image-comparison__mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.image-comparison__mode legend {
+  padding: 0;
+}
+
+.image-comparison__opacity {
+  margin-block: var(--space-3);
+}
+
+.image-comparison__opacity input {
+  max-width: 30rem;
+}
+
 .image-comparison__panes {
   min-height: 0;
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
+}
+
+.image-comparison[data-comparison-mode="overlay"] .image-comparison__panes {
+  display: none;
 }
 
 .image-comparison__pane {
@@ -1396,6 +1422,23 @@ details[open] > summary {
   width: 100%;
   height: 100%;
   object-fit: contain;
+}
+
+.image-comparison__overlay {
+  display: grid;
+  min-height: 0;
+  margin: 0;
+  gap: var(--space-2);
+}
+
+.image-comparison__overlay svg {
+  display: block;
+  max-width: none;
+}
+
+.image-comparison__viewport[data-zoom="fit"] svg {
+  width: 100%;
+  height: 100%;
 }
 
 @media (max-width: 40rem) {

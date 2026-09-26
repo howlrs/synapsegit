@@ -29,7 +29,7 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 - primary Blob OIDだけを比較する保守的なbyte-identity Analysis
 - timeline、decision、evidence、replay prerequisiteを検査するcreator report
 - project、session、evidence、画像を読むloopback-only localhost UI
-- v0.8.0のpending／complete sessionで、表示可能な2画像の選択、全体表示／100%／200%拡大、keyboard操作、狭い画面の縦配置を提供するread-only比較ビュー（位置合わせ・差分解析は行わない）
+- pending／complete sessionで、表示可能な2画像の選択、全体表示／100%／200%拡大、同寸法画像の重ね表示と0〜100%の不透明度、keyboard操作、狭い画面の縦配置を提供するread-only比較ビュー（位置合わせ・差分解析は行わない）
 - boundedな三file importとsame-process Human reviewを行うlocalhost creator UI
 - v0.8.0の取り込み前ローカル画像プレビュー、サイズ・選択数表示、ファイル解除、UTF-8バイト上限の即時feedback、送信中の入力固定
 - v0.8.0のadopt／reject／deferの結果説明・確認、理由のUTF-8バイト数feedback、送信中の入力固定と、完了画面での記録された理由の表示（判断の変更・再開は不可）

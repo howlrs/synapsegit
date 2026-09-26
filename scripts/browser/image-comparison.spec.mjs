@@ -67,6 +67,36 @@ test("complete session: keyboard open, role selection, aspect-correct zoom, clos
   expect(await page.evaluate(() => window.cspViolations)).toEqual([]);
 });
 
+test("matching decoded images overlay at a shared origin with integer opacity", async ({ page, app }) => {
+  await visit(page, app, "transparent");
+  await openComparison(page);
+  const overlayMode = dialog(page).getByRole("radio", { name: "重ねて表示" });
+  await overlayMode.focus();
+  await page.keyboard.press("Space");
+  await expect(page.locator("[data-synapse-compare-overlay]")).toBeVisible();
+  await expect(page.locator("[data-synapse-compare-pane]").first()).not.toBeVisible();
+  const slider = dialog(page).getByLabel(/画像 B の不透明度/);
+  for (const [value, opacity] of [["0", "0"], ["37", "0.37"], ["50", "0.5"], ["100", "1"]]) {
+    await slider.fill(value);
+    await expect(slider).toHaveAttribute("aria-valuenow", value);
+    await expect(page.locator("[data-synapse-compare-opacity-value]")).toHaveText(`${value}%`);
+    await expect(page.locator("[data-synapse-compare-overlay-image-b]")).toHaveAttribute("opacity", opacity);
+  }
+  await expect(page.locator("[data-synapse-compare-overlay-caption]")).toContainText("位置合わせ・差分解析は行いません");
+  await dialog(page).getByLabel("表示倍率", { exact: true }).selectOption("2");
+  await expect(page.locator("[data-synapse-compare-overlay-canvas]")).toHaveAttribute("width", "2");
+  await page.keyboard.press("Escape");
+  await expect(opener(page)).toBeFocused();
+});
+
+test("different decoded dimensions keep the side-by-side comparison available", async ({ page, app }) => {
+  await visit(page, app, "mismatch");
+  await openComparison(page);
+  await expect(dialog(page).getByRole("radio", { name: "重ねて表示" })).toBeDisabled();
+  await expect(page.locator("[data-synapse-compare-overlay-unavailable]")).toBeVisible();
+  await expect(page.locator("[data-synapse-compare-pane]").first()).toBeVisible();
+});
+
 test("mobile, dark and reduced motion: visible controls, modal focus and automated accessibility", async ({ page, app }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });

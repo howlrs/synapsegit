@@ -169,8 +169,11 @@ confirmation, then keeps the report-equivalence warning and history reload
 link visible after the queued job succeeds.
 It also provides a read-only image comparison dialog to pending and
 completed sessions. Choose two displayable images, inspect them side by side
-(stacked on narrow screens), and switch between fit, 100%, and 200% views.
-This is manual visual inspection, without registration or difference analysis.
+(stacked on narrow screens), or overlay matching decoded dimensions in one
+shared scroll area. The upper image opacity accepts each integer from 0% to
+100% and preserves its source transparency. Switch between fit, 100%, and
+200% views. This is manual visual inspection, without registration or
+difference analysis.
 The import form also previews selected raster files locally, shows
 file sizes and UTF-8 byte counts, and lets you clear a mistaken file selection
 before creating the Proposal. Selecting files alone sends no upload.
