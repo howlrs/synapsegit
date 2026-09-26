@@ -746,6 +746,13 @@ fn derivation_confirmation_is_scoped_revalidated_and_consumed() {
     assert_eq!(child.original_blob_oid, source.report.original_blob_oid);
     assert_eq!(child.current_blob_oid, source.report.current_blob_oid);
     assert_ne!(child.current_blob_oid, source.report.ai_output_blob_oid);
+    // Reverse navigation is a shallow, unverified lookup and must work while
+    // the child is still a same-process pending review as well as after it is
+    // committed and no pending overlay remains.
+    assert_eq!(
+        service.creator_session_derivations("project", "source").unwrap(),
+        vec!["child"]
+    );
     service
         .decide_creator_session(
             "project",
@@ -754,6 +761,10 @@ fn derivation_confirmation_is_scoped_revalidated_and_consumed() {
             decision(&child.review_id, CreatorDecision::Adopt),
         )
         .unwrap();
+    assert_eq!(
+        service.creator_session_derivations("project", "source").unwrap(),
+        vec!["child"]
+    );
     let error = service
         .prepare_presentation_sidecar(
             "project",
