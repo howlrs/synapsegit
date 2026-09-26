@@ -110,6 +110,8 @@ page headerの**日本語**または**English**で表示言語を選択できま
 browserに保存され、page移動・reload後も維持されます。選択しない場合はbrowserの対応言語
 設定を使い、それもない場合は日本語です。変わるのはapplicationのlabelとmessageだけで、
 Subject、メモ、rationale、保存済み履歴、API identifier、error codeは記録どおりです。
+この表示言語選択は未リリースmainの機能です。試すには現在のsourceをbuildしてください。
+installしたtagged v0.9.0 binaryのUIは日本語のみです。
 
 ![このtutorial repositoryから生成した実際のSynapseGit Local overview](./assets/tutorial-overview.png)
 

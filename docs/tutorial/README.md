@@ -118,6 +118,8 @@ effect when you move between pages or reload. Without one, the application
 uses a supported browser language preference and otherwise starts in Japanese.
 Only application labels and messages change: your subject, notes, rationale,
 stored history, API identifiers, and error codes remain exactly as recorded.
+This language selector is an unreleased main feature: build the current source
+to use it. The installed tagged v0.9.0 binary has the Japanese UI only.
 
 ![Actual SynapseGit Local overview generated from this tutorial repository](./assets/tutorial-overview.png)
 
