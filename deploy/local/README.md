@@ -254,6 +254,10 @@ an error on its card. Comparison is unavailable without JavaScript and does
 not add evidence access or recovery to incomplete sessions. The comparison
 dialog is included in the v0.8.1 tagged binary.
 
+### Review an interrupted or deferred proposal again
+
+After a restart, an incomplete session whose recorded proposal can be verified shows its three images read-only and offers **この提案を新しいセッションでレビューする**. A complete `Defer` instead offers **保留した提案を改めて判断する**. Both routes open a confirmation page with the fixed source heads and make a fresh session from the recorded images; neither resumes or changes the source decision. A changed source is rejected at creation time. The private relationship survives archive export and restore, but public profile v1 export and the sidecar form refuse these sessions.
+
 ### Enable archive maintenance
 
 `--archive-root PATH` is optional and may be given at most once. It enables

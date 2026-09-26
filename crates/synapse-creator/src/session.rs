@@ -774,6 +774,13 @@ fn begin_creator_session_with_bindings_and_limits(
                 .expect("reuse source Ref"),
             expected_head: Some(&source.proposal_head),
         });
+        // Both Ref publications are create-only.  Check the target Proposal
+        // before initializing its Decision Ref so a duplicate session cannot
+        // leave a partial target behind.
+        source_preconditions.push(synapse_sqlite::RefPrecondition {
+            ref_name: &proposal_ref,
+            expected_head: None,
+        });
     }
     repository.update_ref_with_preconditions(
         RefUpdate {

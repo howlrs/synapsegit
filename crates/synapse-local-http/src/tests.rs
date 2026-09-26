@@ -849,9 +849,10 @@ async fn incomplete_session_diagnostics_are_read_only_structured_and_rendered() 
     assert_eq!(page.status(), StatusCode::OK);
     let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
     let page = std::str::from_utf8(&page).unwrap();
-    assert!(page.contains("Creator session diagnostics"));
-    assert!(!page.contains("data-synapse-comparison"));
-    assert!(!page.contains("data-synapse-compare-open"));
+    assert!(page.contains("セッションは未完了です"), "{page}");
+    assert!(page.contains("新しいセッションでレビューできます"));
+    assert!(page.contains("data-synapse-comparison"));
+    assert!(page.contains("data-synapse-compare-open"));
     assert!(page.contains(&fixture.proposal_ref));
     assert!(page.contains(&fixture.proposal_head));
     assert!(page.contains(&fixture.decision_ref));

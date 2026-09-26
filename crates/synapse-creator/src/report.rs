@@ -78,11 +78,15 @@ pub fn creator_reuse_source_from_snapshot(
 
     // A completed Defer is verified by the normal report path.  Every other
     // complete disposition is excluded by the caller-facing contract.
-    if let Ok(report) = creator_report_from_snapshot(repository, snapshot, session) {
-        if report.report.disposition != CreatorDisposition::Defer {
-            return Err(CreatorError::SessionIncomplete(session.into()));
+    match creator_report_from_snapshot(repository, snapshot, session) {
+        Ok(report) => {
+            if report.report.disposition != CreatorDisposition::Defer {
+                return Err(CreatorError::SessionIncomplete(session.into()));
+            }
+            return crate::CreatorReuseSourceBinding::new(&report.report, "deferred_rereview");
         }
-        return crate::CreatorReuseSourceBinding::new(&report.report, "deferred_rereview");
+        Err(CreatorError::SessionIncomplete(_)) => {}
+        Err(error) => return Err(error),
     }
 
     // The interrupted shape is exactly the base checkpoint in the Decision
@@ -185,6 +189,65 @@ pub fn creator_reuse_source_from_snapshot(
         },
         "interrupted_pending",
     )
+}
+
+/// Validate a reuse binding from its immutable pinned heads, without using the
+/// source session's current Refs (which may have moved after publication).
+fn validate_reuse_source_binding(
+    repository: &Repository,
+    source: &CreatorReuseSourceBinding,
+    depth: usize,
+) -> Result<usize> {
+    source.validate_shape()?;
+    if depth >= crate::CREATOR_MAX_SOURCE_DEPTH {
+        return Err(crate::source::invalid_source());
+    }
+    let (ids, import_oid, ai_oid) = if source.kind == "deferred_rereview" {
+        let ids = load_session_ids(repository, &source.session, &source.decision_head)?;
+        let lineage = validate_report_lineage(repository, &ids, &source.decision_head, &source.proposal_head)?;
+        if lineage.disposition != CreatorDisposition::Defer {
+            return Err(crate::source::invalid_source());
+        }
+        (ids, lineage.import_activity_oid, lineage.ai_activity_oid)
+    } else if source.kind == "interrupted_pending" {
+        let base = read_json(repository, &source.decision_head)?;
+        require_stored_value(&base, "object_type", "commit", "interrupted decision base")?;
+        require_stored_value(&base, "commit_kind", "checkpoint", "interrupted decision base")?;
+        let base_snapshot = string_field(&base, "snapshot", "interrupted decision base")?;
+        let ids = load_session_ids_from_base(repository, &source.session, &base_snapshot)?;
+        require_stored_value(&base, "author_ref", &ids.creator, "interrupted decision base")?;
+        let proposal = read_json(repository, &source.proposal_head)?;
+        require_stored_value(&proposal, "object_type", "commit", "interrupted proposal")?;
+        require_stored_value(&proposal, "commit_kind", "checkpoint", "interrupted proposal")?;
+        require_stored_value(&proposal, "author_ref", &ids.agent, "interrupted proposal")?;
+        if single_string_array(&proposal, "parents", "interrupted proposal parents")? != source.decision_head {
+            return Err(crate::source::invalid_source());
+        }
+        let ai_oid = single_string_array(&proposal, "transition_refs", "interrupted proposal transition")?.to_owned();
+        let pointers = load_base_snapshot_pointers(repository, base_snapshot)?;
+        (ids, pointers.import_activity_oid, ai_oid)
+    } else {
+        return Err(crate::source::invalid_source());
+    };
+    let import = read_json(repository, &import_oid)?;
+    require_stored_value(&import, "record_type", "activity", "reuse source import")?;
+    require_stored_value(&import, "entity_id", &ids.import_activity, "reuse source import")?;
+    let payload = object_field(&import, "payload", "reuse source import payload")?;
+    let original = role_oid(payload, "output_refs", "original")?;
+    let current = role_oid(payload, "output_refs", "current")?;
+    let ai = read_json(repository, &ai_oid)?;
+    require_stored_value(&ai, "record_type", "activity", "reuse source AI activity")?;
+    require_stored_value(&ai, "entity_id", &ids.ai_activity, "reuse source AI activity")?;
+    let proposal = role_oid(object_field(&ai, "payload", "reuse source AI payload")?, "output_refs", "proposal")?;
+    if original != source.original_blob_oid || current != source.current_blob_oid || proposal != source.ai_output_blob_oid {
+        return Err(crate::source::invalid_source());
+    }
+    let nested = crate::source::read_reuse_source(&import)?;
+    Ok(1 + nested
+        .as_ref()
+        .map(|nested| validate_reuse_source_binding(repository, nested, depth + 1))
+        .transpose()?
+        .unwrap_or(0))
 }
 
 /// Read the recorded labels only after `creator_reuse_source_from_snapshot`
@@ -612,40 +675,7 @@ impl<'source> PreparedCreatorReportReader<'source> {
             {
                 return Err(crate::source::invalid_source());
             }
-            if source.is_interrupted() {
-                // The source Decision is intentionally a base checkpoint, not
-                // a recovered Decision. Its exact heads are retained as input
-                // refs and were rechecked at the new publication boundary.
-                source_depth = 1;
-            } else {
-                let source_ids =
-                    load_session_ids(repository, &source.session, &source.decision_head)?;
-                let source_lineage = validate_report_lineage(
-                    repository,
-                    &source_ids,
-                    &source.decision_head,
-                    &source.proposal_head,
-                )?;
-                let source_report = self
-                    .render_report_in_scope(
-                        &source.session,
-                        PreparedCreatorReportSession {
-                            decision_ref: crate::session::decision_ref(&source.session),
-                            proposal_ref: crate::session::proposal_ref(&source.session),
-                            decision_head: source.decision_head.clone(),
-                            proposal_head: source.proposal_head.clone(),
-                            ids: source_ids,
-                            lineage: source_lineage,
-                        },
-                        report_scope,
-                        depth + 1,
-                    )?
-                    .report;
-                if !source.matches_report(&source_report) {
-                    return Err(crate::source::invalid_source());
-                }
-                source_depth = source_report.source_depth + 1;
-            }
+            source_depth = validate_reuse_source_binding(repository, source, depth)?;
         }
 
         let timeline = timeline

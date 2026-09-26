@@ -76,14 +76,14 @@ completeな派生セッションを含む全件exportも失敗し、bundle出力
 - [生成メモの保存契約](../spec/application/creator-generation-note/v1/README.md)
 - [判断ピンの保存契約](../spec/application/creator-decision-pins/v1/README.md)
 - [派生元の保存契約](../spec/application/creator-source/v1/README.md)
+- [3画像を引き継ぐ再レビューの保存契約](../spec/application/creator-reuse-source/v1/README.md)
 - [CLIとerror code](cli_reference.md)
 - [実装状況と未対応範囲](project_status.md)
-# Recorded proposal reuse
 
-An interrupted review cannot be resumed because its Human authority was
-process-local. When its Proposal closure verifies after restart, the local UI
-can create a new session that reuses the recorded Original, Current, and AI
-output bytes. A completed `defer` can use the same operation for a later
-independent review. The original Ref and Decision remain immutable; fresh
-authority and a fresh rationale are required. Public profile v1 does not
-export these private provenance forms.
+## 中断した提案・保留した提案を改めて判断する
+
+再起動後の未完了セッションは元の判断を再開できません。ただしProposalと3画像を検証できる場合は、画面で画像を確認・ダウンロードし、「この提案を新しいセッションでレビューする」を選べます。確認画面で新しいセッション名を入力すると、Original／Current／AI outputを引き継いだ新しいレビューが始まります。
+
+`Defer`で完了したセッションでは「保留した提案を改めて判断する」を選べます。元の理由は確認画面で参照できますが、新しい判断にはコピーされません。どちらの場合も元のRefと判断は変更せず、確認後に元のheadが変われば作成を拒否します。
+
+通常のarchive export／restoreはこの関係を保持します。公開形式v1と公開用文章フォームはこのprivateな来歴を表せないため、再レビューしたセッション、またはそれを含む全件exportを拒否します。v0.8.x以前のbinaryはこの関係を認識・表示できないため、新しいbinaryで確認してください。

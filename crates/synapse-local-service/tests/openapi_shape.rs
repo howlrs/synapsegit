@@ -738,6 +738,7 @@ fn creator_session_detail_pending_variant_matches_the_openapi_schema() {
 fn creator_session_detail_incomplete_variant_matches_the_openapi_schema() {
     let document = openapi_document();
     let incomplete = IncompleteCreatorSession {
+        reuse_source: None,
         state: IncompleteState::Incomplete,
         snapshot: sample_snapshot(),
         session: "incomplete-session".into(),

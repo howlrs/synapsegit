@@ -13,7 +13,9 @@ the new Ref publication; a stale source fails without changing either source
 Ref. A pending review retained by the running process is never eligible.
 
 The existing `synapsegit-creator-source-v1` remains unchanged for the
-two-Blob/new-candidate derivation workflow. Readers reject unknown extensions;
-therefore v0.8.x and earlier binaries cannot read a repository that contains
-this form. Archive export/restore retains it, while frozen public profile v1
-and its sidecar form reject every session with either source binding.
+two-Blob/new-candidate derivation workflow. Binaries released before this
+format do not recognize this binding and can therefore omit its meaning when
+they render a session. Core archive restore keeps the objects and Refs, but a
+newer binary is required to validate and display this relationship. Frozen
+public profile v1 and its sidecar form reject every session with either source
+binding.

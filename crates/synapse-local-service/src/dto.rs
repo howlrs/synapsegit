@@ -508,6 +508,8 @@ pub struct IncompleteCreatorSession {
     pub snapshot: SnapshotContext,
     pub session: String,
     pub recovery_supported: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reuse_source: Option<synapse_creator::CreatorReuseSourceBinding>,
     pub diagnostic: String,
 }
 

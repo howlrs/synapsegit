@@ -94,7 +94,7 @@ Chromium 34件が成功し、独立レビューで検出した公開v1の誤表�
 researcher・tool builder、Rust developerである。一般の画家、建築家、施工・修復担当、
 デザイナーへそのまま提供できるcapture／継続編集UXにはまだ達していない。v0.3.0で導入され
 v0.4.0にも収録されるlocalhost UIは三file importと単一proposalのreviewを行えるが、AI outputはcaller-suppliedで、
-pending reviewはprocess restartを越えて復元できない。restart後等のincomplete sessionを
+pending reviewはprocess restartを越えて復元できない。ただしProposal closureを検証できるrestart後の中断と、完了したDeferは、記録済みの3画像を新しいsessionへ引き継いで改めて判断できる。元の判断は復元・変更しない。restart後等のincomplete sessionを
 read-onlyで診断し、明示確認したbounded `fsck`をbackground jobとしてpollできる。表示したRef／headから
 authorityを再構築せず、自動resume／cleanupも行わない。job stateと`last_fsck`はprocess-localである。
 `synapse-present`は作者外の評価者がOriginal／Current／AI-attributed proposal／Human Decisionと

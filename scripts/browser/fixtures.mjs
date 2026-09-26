@@ -16,6 +16,7 @@ const mismatchedOutput = path.join(root, "docs/assets/synapse-local/image-compar
 async function appFixture({ archives = false }, use) {
     const directory = await mkdtemp(path.join(tmpdir(), "synapse-browser-"));
     let server;
+    let origin;
     try {
       const opaque = path.join(directory, "opaque.txt");
       const broken = path.join(directory, "broken.png");
@@ -40,7 +41,7 @@ async function appFixture({ archives = false }, use) {
           "--subject", "Comparison browser fixture", "--creator", "Browser tester",
           "--decision", "defer", "--rationale", "Review fixture");
       }
-      for (const key of ["pending", "reviews", ...(archives ? ["restore"] : [])]) cli("init", path.join(directory, key));
+      for (const key of ["pending", "reviews", "interrupted", ...(archives ? ["restore"] : [])]) cli("init", path.join(directory, key));
       const projectPath = (key) => path.join(directory, key);
       const refs = (key) => cli("refs", projectPath(key));
       const addHistory = (key, session = "existing-history") => cli(
@@ -48,11 +49,12 @@ async function appFixture({ archives = false }, use) {
         "--subject", "Archive refusal fixture", "--creator", "Browser tester",
         "--decision", "defer", "--rationale", "Synthetic fixture history",
       );
-      server = spawn(path.join(binaries, "synapse-local"), ["--port", "0",
+      const serverArgs = ["--port", "0",
         ...(archives ? ["--archive-root", archiveRoot] : []),
-        ...["complete", "mixed", "broken", "transparent", "mismatch", "pending", "reviews", ...(archives ? ["restore"] : [])].flatMap((key) => ["--project", `${key}=${projectPath(key)}`]),
-      ], { stdio: ["ignore", "ignore", "pipe"] });
-      const origin = await new Promise((resolve, reject) => {
+        ...["complete", "mixed", "broken", "transparent", "mismatch", "pending", "reviews", "interrupted", ...(archives ? ["restore"] : [])].flatMap((key) => ["--project", `${key}=${projectPath(key)}`]),
+      ];
+      const start = async () => new Promise((resolve, reject) => {
+        server = spawn(path.join(binaries, "synapse-local"), serverArgs, { stdio: ["ignore", "ignore", "pipe"] });
         let log = "";
         const timeout = setTimeout(() => reject(new Error("localhost test server did not start")), 15_000);
         server.once("error", (error) => { clearTimeout(timeout); reject(error); });
@@ -60,10 +62,19 @@ async function appFixture({ archives = false }, use) {
         server.stderr.on("data", (chunk) => {
           log += chunk.toString();
           const match = log.match(/http:\/\/127\.0\.0\.1:\d+/u);
-          if (match) { clearTimeout(timeout); resolve(match[0]); }
+          if (match) { clearTimeout(timeout); origin = match[0]; resolve(origin); }
         });
       });
-      await use({ origin, refs, addHistory });
+      const restart = async () => {
+        if (server && server.exitCode === null) {
+          const stopped = new Promise((resolve) => server.once("exit", resolve));
+          server.kill("SIGTERM");
+          await stopped;
+        }
+        await start();
+      };
+      await start();
+      await use({ get origin() { return origin; }, refs, addHistory, restart });
     } finally {
       if (server && server.exitCode === null) {
         const stopped = new Promise((resolve) => server.once("exit", resolve));

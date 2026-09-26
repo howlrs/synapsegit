@@ -177,14 +177,6 @@ impl ServiceError {
         )
     }
 
-    fn session_incomplete() -> Self {
-        Self::new(
-            "creator_session_incomplete",
-            "The creator session is incomplete and cannot serve this resource.",
-            false,
-        )
-    }
-
     fn storage() -> Self {
         Self::new(
             "storage_error",
@@ -1166,7 +1158,14 @@ impl LocalService {
         let snapshot_report = match creator_report_from_snapshot(&repository, &snapshot, session) {
             Ok(report) => report,
             Err(CreatorError::SessionIncomplete(_)) => {
-                return Err(ServiceError::session_incomplete());
+                let source = creator_reuse_source_from_snapshot(&repository, &snapshot, session)
+                    .map_err(creator_error)?;
+                let blob_oid = match role {
+                    ImageRole::Original => source.original_blob_oid,
+                    ImageRole::Current => source.current_blob_oid,
+                    ImageRole::AiOutput => source.ai_output_blob_oid,
+                };
+                return load_creator_image(&repository, blob_oid);
             }
             Err(CreatorError::SessionNotFound(_)) => {
                 return Err(ServiceError::session_not_found());
@@ -1634,9 +1633,12 @@ fn creator_session_from_snapshot_with_pending(
             snapshot,
             snapshot_report,
         )))),
-        Err(CreatorError::SessionIncomplete(_)) => Ok(CreatorSessionDetail::Incomplete(Box::new(
-            incomplete_session(snapshot, session),
-        ))),
+        Err(CreatorError::SessionIncomplete(_)) => {
+            let source = creator_reuse_source_from_snapshot(repository, snapshot, session).ok();
+            Ok(CreatorSessionDetail::Incomplete(Box::new(
+                incomplete_session(snapshot, session, source),
+            )))
+        }
         Err(CreatorError::SessionNotFound(_)) => Err(ServiceError::session_not_found()),
         Err(error) => Err(creator_error(error)),
     }
@@ -2170,12 +2172,17 @@ fn committed_session(receipt: &CoreRunReceipt) -> CommittedCreatorSession {
     }
 }
 
-fn incomplete_session(snapshot: &RefSnapshot, session: &str) -> IncompleteCreatorSession {
+fn incomplete_session(
+    snapshot: &RefSnapshot,
+    session: &str,
+    reuse_source: Option<synapse_creator::CreatorReuseSourceBinding>,
+) -> IncompleteCreatorSession {
     IncompleteCreatorSession {
         state: IncompleteState::Incomplete,
         snapshot: snapshot_context(snapshot, None),
         session: session.to_owned(),
-        recovery_supported: false,
+        recovery_supported: reuse_source.is_some(),
+        reuse_source,
         diagnostic: "The current creator Refs do not form a complete validated session. Automatic resume, cleanup, and history mutation are not supported.".into(),
     }
 }

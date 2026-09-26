@@ -175,6 +175,8 @@ pub(crate) struct SessionPageView {
     pub(crate) rationale: String,
     pub(crate) generation_note: String,
     pub(crate) source: Option<synapse_local_service::CreatorSourceBinding>,
+    pub(crate) reuse_source: Option<synapse_local_service::CreatorReuseSourceBinding>,
+    pub(crate) reuse_available: bool,
     pub(crate) annotations: Vec<synapse_local_service::CreatorPin>,
     pub(crate) annotations_json: String,
     pub(crate) annotations_unavailable: bool,
@@ -238,6 +240,8 @@ impl SessionPageView {
                     annotations_unavailable: false,
                     generation_note: format_generation_note(detail.generation_note.as_ref()),
                     source: detail.source,
+                    reuse_source: detail.reuse_source,
+                    reuse_available: false,
                     selected: "—".into(),
                     fsck_objects: 0,
                     images,
@@ -265,6 +269,17 @@ impl SessionPageView {
                 }
             }
             CreatorSessionDetail::Incomplete(incomplete) => {
+                let reuse_source = incomplete.reuse_source.clone();
+                let reuse_available = incomplete.recovery_supported;
+                let images = reuse_source.as_ref().map_or_else(Vec::new, |source| {
+                    Self::images(
+                        project_key,
+                        session,
+                        &source.original_blob_oid,
+                        &source.current_blob_oid,
+                        &source.ai_output_blob_oid,
+                    )
+                });
                 let (
                     diagnostic,
                     diagnostic_proposal_ref,
@@ -294,7 +309,7 @@ impl SessionPageView {
                 Self {
                     complete: false,
                     pending: false,
-                    show_evidence: false,
+                    show_evidence: reuse_available,
                     state_label: "未完了".into(),
                     state_tone: "warning".into(),
                     state_description: "現在のRefsは完了したCreator sessionを構成していません。"
@@ -310,9 +325,11 @@ impl SessionPageView {
                     annotations_unavailable: false,
                     generation_note: String::new(),
                     source: None,
+                    reuse_source: None,
+                    reuse_available,
                     selected: "—".into(),
                     fsck_objects: 0,
-                    images: Vec::new(),
+                    images,
                     has_comparison: false,
                     comparison_outcome: String::new(),
                     comparison_warning: String::new(),
@@ -406,6 +423,8 @@ impl SessionPageView {
             rationale: report.rationale.unwrap_or_default(),
             generation_note: format_generation_note(report.generation_note.as_ref()),
             source: report.source,
+            reuse_source: report.reuse_source,
+            reuse_available: report.disposition == "defer",
             annotations: report.annotations.map(|a| a.pins).unwrap_or_default(),
             annotations_json,
             annotations_unavailable: report.annotations_unavailable,

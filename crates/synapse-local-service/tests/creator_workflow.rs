@@ -4,7 +4,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_core::Repository;
 use synapse_local_service::{
-    BeginCreatorSessionRequest, CompleteState, CreatorDecision, CreatorDecisionRequest,
+    BeginCreatorSessionRequest, BeginReuseCreatorSessionRequest, CompleteState, CreatorDecision, CreatorDecisionRequest,
     CreatorSessionDetail, CreatorSessionState, ImageMediaType, ImageRole, LocalService,
     MAX_PENDING_CREATOR_SESSIONS_PER_PROJECT, PendingReviewState, ProjectRegistration,
 };
@@ -360,7 +360,7 @@ fn changed_live_heads_make_pending_authority_unavailable_without_retry() {
     let image_error = service
         .get_creator_session_image("project", "stale-session", ImageRole::Original)
         .unwrap_err();
-    assert_eq!(image_error.code(), "creator_session_incomplete");
+    assert_eq!(image_error.code(), "creator_report_invalid");
     let decision_error = service
         .decide_creator_session(
             "project",
@@ -434,7 +434,11 @@ fn process_restart_exposes_a_published_proposal_as_incomplete_without_reconstruc
         panic!("a restarted service reconstructed process-local review authority");
     };
     assert_eq!(incomplete.session, "restart-session");
-    assert!(!incomplete.recovery_supported);
+    assert!(incomplete.recovery_supported);
+    assert_eq!(
+        incomplete.reuse_source.as_ref().map(|source| source.kind.as_str()),
+        Some("interrupted_pending")
+    );
     assert_eq!(
         restarted.list_creator_sessions("project").unwrap().sessions[0].state,
         CreatorSessionState::Incomplete
@@ -762,6 +766,126 @@ fn derivation_confirmation_is_scoped_revalidated_and_consumed() {
             .begin_derived_creator_session("project", "source", "instance", request())
             .is_err()
     );
+}
+
+#[test]
+fn interrupted_proposal_can_be_reused_after_restart_without_changing_source_refs() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("interrupted-reuse");
+    let initial_service = service(&repository);
+    let pending = initial_service
+        .begin_creator_session("project", "instance", begin_request(&temporary, "interrupted"))
+        .unwrap();
+    let source_proposal = pending.proposal_head.clone();
+    let source_decision = Repository::open(&repository)
+        .unwrap()
+        .refs()
+        .get("decision/creator/interrupted")
+        .unwrap()
+        .unwrap()
+        .head;
+    drop(initial_service);
+
+    let restarted = service(&repository);
+    let preview = restarted
+        .prepare_creator_reuse_source("project", "interrupted", "instance")
+        .unwrap();
+    assert_eq!(preview.source.kind, "interrupted_pending");
+    assert_eq!(preview.source.proposal_head, source_proposal);
+    assert_eq!(preview.source.decision_head, source_decision);
+    for role in [ImageRole::Original, ImageRole::Current, ImageRole::AiOutput] {
+        assert!(restarted
+            .get_creator_reuse_source_image(
+                "project", "interrupted", "instance", &preview.confirmation_id, role,
+            )
+            .is_ok());
+    }
+    let next = restarted
+        .begin_reuse_creator_session(
+            "project",
+            "interrupted",
+            "instance",
+            BeginReuseCreatorSessionRequest {
+                confirmation_id: preview.confirmation_id,
+                session: "recovered".into(),
+                creator_name: preview.creator_name,
+                subject_label: preview.subject_label,
+            },
+        )
+        .unwrap();
+    assert_eq!(next.original_blob_oid, pending.original_blob_oid);
+    assert_eq!(next.current_blob_oid, pending.current_blob_oid);
+    assert_eq!(next.ai_output_blob_oid, pending.ai_output_blob_oid);
+    assert_eq!(
+        Repository::open(&repository).unwrap().refs().get("proposal/creator-agent/interrupted").unwrap().unwrap().head,
+        source_proposal
+    );
+    assert_eq!(
+        Repository::open(&repository).unwrap().refs().get("decision/creator/interrupted").unwrap().unwrap().head,
+        source_decision
+    );
+    let completed = restarted
+        .decide_creator_session(
+            "project", "recovered", "instance", decision(next.review_id, CreatorDecision::Adopt),
+        )
+        .unwrap()
+        .into_complete()
+        .unwrap();
+    assert_eq!(
+        completed.report.reuse_source.as_ref().unwrap().kind,
+        "interrupted_pending"
+    );
+}
+
+#[test]
+fn deferred_proposal_reuse_keeps_reason_as_reference_and_requires_a_fresh_decision() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("deferred-reuse");
+    let service = service(&repository);
+    let pending = service
+        .begin_creator_session("project", "instance", begin_request(&temporary, "deferred"))
+        .unwrap();
+    let mut deferred_decision = decision(pending.review_id, CreatorDecision::Defer);
+    deferred_decision.rationale = Some("相談してから決める".into());
+    let source = service
+        .decide_creator_session("project", "deferred", "instance", deferred_decision)
+        .unwrap()
+        .into_complete()
+        .unwrap();
+    let preview = service
+        .prepare_creator_reuse_source("project", "deferred", "instance")
+        .unwrap();
+    assert_eq!(preview.source.kind, "deferred_rereview");
+    assert_eq!(preview.deferred_rationale.as_deref(), Some("相談してから決める"));
+    let next = service
+        .begin_reuse_creator_session(
+            "project",
+            "deferred",
+            "instance",
+            BeginReuseCreatorSessionRequest {
+                confirmation_id: preview.confirmation_id,
+                session: "rereviewed".into(),
+                creator_name: preview.creator_name,
+                subject_label: preview.subject_label,
+            },
+        )
+        .unwrap();
+    assert_eq!(next.ai_output_blob_oid, source.report.ai_output_blob_oid);
+    let complete = service
+        .decide_creator_session(
+            "project", "rereviewed", "instance", decision(next.review_id, CreatorDecision::Adopt),
+        )
+        .unwrap()
+        .into_complete()
+        .unwrap();
+    assert_eq!(complete.report.reuse_source.as_ref().unwrap().kind, "deferred_rereview");
+    assert_ne!(complete.report.rationale.as_deref(), Some("相談してから決める"));
+    assert!(service
+        .prepare_presentation_sidecar(
+            "project",
+            synapse_local_service::PresentationSidecarRequest { session: "rereviewed".into(), ..Default::default() },
+        )
+        .is_err());
 }
 
 #[test]

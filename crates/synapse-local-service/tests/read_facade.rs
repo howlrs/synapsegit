@@ -432,7 +432,7 @@ fn both_refs_with_a_non_decision_head_remain_incomplete() {
     let image_error = service
         .get_creator_session_image("project", "incomplete-session", ImageRole::Original)
         .unwrap_err();
-    assert_eq!(image_error.code(), "creator_session_incomplete");
+    assert_eq!(image_error.code(), "creator_report_invalid");
 }
 
 #[test]
