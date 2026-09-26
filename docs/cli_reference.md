@@ -433,8 +433,9 @@ field削除・rename・意味変更のような非互換な変更は新しいfor
 別contractである。共有したい場合は既存の公開出力`synapse-present export ... --public`を使う。
 
 「記録されなかった（absent）」「記録はあるが読み込めない・非対応形状（unavailable）」「記録されている
-（present）」を区別するため、`source`、`reuse_source`、`generation_note`、`decision_pins`はそれぞれ
-`"availability": "absent" | "present" | "unavailable"`を持つobjectである。`comparison`は
+（present）」を区別するため、`source`、`reuse_source`、`generation_note`は
+`"availability": "absent" | "present"`、`decision_pins`は`"availability": "absent" | "present" | "unavailable"`
+を持つobjectである。`comparison`は
 `"availability": "present" | "unavailable"`を持つ（legacy-shaped sessionにcomparison entryが一つも
 ないときが`unavailable`で、それ以外は常に`present`になる）が、byte-identity analysisそのものの結果である
 `status`／`comparability`／`outcome`とはfieldを分けている。`rationale`は記録がなければ`null`である。
@@ -618,11 +619,11 @@ verifyしてから一つの完全なdocumentへ組み立て、それを丸ごと
 | `blobs` | object | `{ "original": blob-oid, "current": blob-oid, "ai_output": blob-oid }`。 |
 | `source` | object | 派生元の固定binding。下記「`source` / `reuse_source`」参照。 |
 | `reuse_source` | object | 3-image再利用元の固定binding。下記参照。 |
-| `source_depth` | integer | 派生／再利用元をneste して辿った深さ。派生元がなければ`0`。 |
+| `source_depth` | integer | 派生／再利用元を入れ子で辿った深さ。派生元がなければ`0`。 |
 | `generation_note` | object | user宣言のgeneration note。下記参照。 |
 | `decision_pins` | object | private decision pins。下記参照。 |
 | `comparison` | object | byte-identity comparisonの結果。下記参照。 |
-| `fsck` | object | `{ "clean": true, "objects": integer }`。`clean`は常に`true`である。fsckがcleanでない場合、`creator-report`はdocumentを組み立てず`fsck_failed`で失敗するため、失敗したfsckの結果を表すdocumentは存在しない。 |
+| `fsck` | object | `{ "clean": true, "objects": integer }`。`objects`はreport作成時のfsckが検証したrepository全体のobject数で、session固有の数ではない（同じrepositoryへsessionが増えると変わる）。`clean`は常に`true`である。fsckがcleanでない場合、`creator-report`はdocumentを組み立てず`fsck_failed`で失敗するため、失敗したfsckの結果を表すdocumentは存在しない。 |
 | `timeline` | array | rebuild済みTimeline entryの配列。下記参照。 |
 
 `source` / `reuse_source`（availability: `absent` \| `present`）:
