@@ -135,26 +135,31 @@ test("English public text form checks author supplied text on a narrow screen", 
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
 });
 
-test("English derive and re-review carry records into new sessions", async ({ page, app }) => {
-  await beginEnglishReview(page, app, "english-source");
+async function deferEnglishSource(page, app, source) {
+  await beginEnglishReview(page, app, source);
   await page.getByLabel("Rationale (optional)", { exact: true }).fill("Source decision remains a reference.");
   await acceptDecision(page, page.getByRole("button", { name: "Defer", exact: true }));
+}
 
+test("English derive carries reference images into a separate session", async ({ page, app }) => {
+  await deferEnglishSource(page, app, "english-derive-source");
   await page.getByRole("link", { name: "Try a next candidate from this record", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Source and reused reference images", exact: true })).toBeVisible();
   await page.locator('[name="session"]').fill("english-derived");
   await page.locator('[name="ai_output"]').setInputFiles(output);
   await page.getByRole("button", { name: "Create a proposal with the reference images", exact: true }).click();
   await page.waitForURL("**/creator-sessions/english-derived");
-  await expect(page.locator("[data-creator-source]")).toContainText("english-source");
+  await expect(page.locator("[data-creator-source]")).toContainText("english-derive-source");
+});
 
-  await page.goto(`${app.origin}/projects/reviews/creator-sessions/english-source?lang=en`);
+test("English re-review creates a separate session from a deferred record", async ({ page, app }) => {
+  await deferEnglishSource(page, app, "english-reuse-source");
   await page.getByRole("link", { name: "Re-review the deferred proposal in a new session", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Review a recorded proposal in a new session", exact: true })).toBeVisible();
   await page.locator('[name="session"]').fill("english-reused");
   await page.getByRole("button", { name: "Review this proposal in a new session", exact: true }).click();
   await page.waitForURL("**/creator-sessions/english-reused");
-  await expect(page.locator("[data-creator-reuse-source]")).toContainText("english-source");
+  await expect(page.locator("[data-creator-reuse-source]")).toContainText("english-reuse-source");
 });
 
 archiveTest("English maintenance requires exact keys and an explicit empty-target acknowledgement", async ({ page, app }) => {
