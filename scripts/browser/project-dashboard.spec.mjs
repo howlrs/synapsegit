@@ -17,7 +17,13 @@ test("project dashboard keeps creation first and filters readable session summar
       && Boolean(sessionsNode.compareDocumentPosition(maintenanceNode) & Node.DOCUMENT_POSITION_FOLLOWING),
     [await upload.elementHandle(), await sessions.elementHandle(), await maintenance.elementHandle()]
   )).toBe(true);
-  await page.getByLabel("状態・判断で絞り込む").selectOption("defer");
+  const filter = page.getByLabel("状態・判断で絞り込む");
+  await filter.selectOption("reject");
+  await expect(page.locator("[data-creator-session-row]:visible")).toHaveCount(0);
+  await expect(page.locator("[data-creator-session-count]")).toHaveText("0 件");
+  await filter.selectOption("complete");
+  await expect(page.locator("[data-creator-session-row]:visible")).toHaveCount(1);
+  await filter.selectOption("defer");
   await expect(page.locator("[data-creator-session-row]:visible")).toHaveCount(1);
   await expect(page.locator("[data-creator-session-count]")).toHaveText("1 件");
   await expect(page.locator("[data-creator-session-row]")).toContainText("Browser tester");

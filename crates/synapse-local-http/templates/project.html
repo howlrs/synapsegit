@@ -137,7 +137,7 @@
     <thead><tr><th>セッション／内容</th><th>状態・判断</th><th>記録日時</th><th>派生元</th><th>head</th></tr></thead>
     <tbody>
       {% for session in sessions %}
-      <tr data-creator-session-row data-state="{{ session.state_label }}" data-disposition="{{ session.disposition }}">
+      <tr data-creator-session-row data-state="{{ session.state_code }}" data-disposition="{{ session.disposition }}">
         <th scope="row"><a href="/projects/{{ project_key }}/creator-sessions/{{ session.session }}">{{ session.session }}</a><br><span class="muted">{{ session.subject_label }}</span><br><span class="muted">{{ session.creator_name }}</span></th>
         <td><span class="status-badge" data-tone="{{ session.tone }}">{{ session.state_label }}</span> {{ session.disposition }}</td>
         <td>{{ session.recorded_at }}<br><span class="muted">{{ session.recorded_time_basis }}</span></td>

@@ -548,6 +548,7 @@ pub(crate) struct ReflogView {
 
 pub(crate) struct SessionSummaryView {
     pub(crate) session: String,
+    pub(crate) state_code: &'static str,
     pub(crate) state_label: &'static str,
     pub(crate) tone: &'static str,
     pub(crate) proposal_head: String,

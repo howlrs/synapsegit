@@ -1201,6 +1201,11 @@ pub(crate) async fn project_page(
                 .creator_name
                 .unwrap_or_else(|| "取得できません".into()),
             session: session.session,
+            state_code: match session.state {
+                CreatorSessionState::PendingReview => "pending",
+                CreatorSessionState::Complete => "complete",
+                CreatorSessionState::Incomplete => "incomplete",
+            },
             state_label: session_state_label(session.state),
             tone: session_state_tone(session.state),
             proposal_head: short_oid(session.proposal_head.as_deref()),
