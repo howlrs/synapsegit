@@ -14,8 +14,9 @@ Ref. A pending review retained by the running process is never eligible.
 
 The existing `synapsegit-creator-source-v1` remains unchanged for the
 two-Blob/new-candidate derivation workflow. Binaries released before this
-format do not recognize this binding and can therefore omit its meaning when
-they render a session. Core archive restore keeps the objects and Refs, but a
-newer binary is required to validate and display this relationship. Frozen
+format can restore and fsck the archive, and their `creator-report` can still
+render the session, but that report omits this binding. Core archive restore
+keeps the objects and Refs; the current localhost application validates and
+displays this relationship. Frozen
 public profile v1 and its sidecar form reject every session with either source
 binding.
