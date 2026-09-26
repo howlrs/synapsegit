@@ -56,8 +56,35 @@ async fn run() -> Result<(), RunError> {
                 archive_root.display()
             ))
         })?;
-        service = service.with_archive_root(canonical);
+        service = service
+            .with_archive_root(canonical)
+            .map_err(|error| RunError::failure(error.to_string()))?;
     }
+    let mut import_roots = BTreeMap::new();
+    for (key, root) in cli.import_roots {
+        let metadata = std::fs::metadata(&root).map_err(|error| {
+            RunError::failure(format!(
+                "--import-root {key}={} is not accessible: {error}",
+                root.display()
+            ))
+        })?;
+        if !metadata.is_dir() {
+            return Err(RunError::failure(format!(
+                "--import-root {key}={} is not a directory",
+                root.display()
+            )));
+        }
+        let canonical = std::fs::canonicalize(&root).map_err(|error| {
+            RunError::failure(format!(
+                "--import-root {key}={} could not be canonicalized: {error}",
+                root.display()
+            ))
+        })?;
+        import_roots.insert(key, canonical);
+    }
+    service = service
+        .with_import_roots(import_roots)
+        .map_err(|error| RunError::failure(error.to_string()))?;
     let service = Arc::new(service);
 
     // The host is deliberately not configurable. Port zero is accepted only
@@ -95,6 +122,7 @@ struct Cli {
     projects: Vec<(String, PathBuf)>,
     labels: BTreeMap<String, String>,
     archive_root: Option<PathBuf>,
+    import_roots: BTreeMap<String, PathBuf>,
 }
 
 fn parse_args(arguments: impl IntoIterator<Item = String>) -> Result<Cli, RunError> {
@@ -103,6 +131,7 @@ fn parse_args(arguments: impl IntoIterator<Item = String>) -> Result<Cli, RunErr
     let mut projects = Vec::new();
     let mut labels = BTreeMap::new();
     let mut archive_root = None;
+    let mut import_roots = BTreeMap::new();
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
             "-h" | "--help" => return Err(RunError::Help),
@@ -146,6 +175,18 @@ fn parse_args(arguments: impl IntoIterator<Item = String>) -> Result<Cli, RunErr
                 }
                 archive_root = Some(PathBuf::from(value));
             }
+            "--import-root" => {
+                let value = arguments
+                    .next()
+                    .ok_or_else(|| RunError::failure("--import-root requires key=path"))?;
+                let (key, path) = split_assignment(&value, "--import-root requires key=path")?;
+                if import_roots
+                    .insert(key.to_owned(), PathBuf::from(path))
+                    .is_some()
+                {
+                    return Err(RunError::failure("duplicate --import-root project key"));
+                }
+            }
             _ => return Err(RunError::failure("unknown command-line option")),
         }
     }
@@ -161,11 +202,19 @@ fn parse_args(arguments: impl IntoIterator<Item = String>) -> Result<Cli, RunErr
             ));
         }
     }
+    for key in import_roots.keys() {
+        if !projects.iter().any(|(project, _)| project == key) {
+            return Err(RunError::failure(
+                "--import-root refers to an unregistered project key",
+            ));
+        }
+    }
     Ok(Cli {
         port,
         projects,
         labels,
         archive_root,
+        import_roots,
     })
 }
 
@@ -194,7 +243,7 @@ impl RunError {
 
 fn print_help() {
     println!(
-        "SynapseGit Local\n\nUsage:\n  synapse-local --project KEY=PATH [--label KEY=LABEL] [--archive-root PATH] [--port PORT]\n\nThe server always binds to 127.0.0.1. --project may be repeated.\n--archive-root PATH enables read-only GET /api/v1/archives listing of the\ndirectories directly under PATH; the path must already exist and be a\ndirectory. Without it, archive listing always returns an empty list."
+        "SynapseGit Local\n\nUsage:\n  synapse-local --project KEY=PATH [--label KEY=LABEL] [--archive-root PATH] [--import-root KEY=PATH] [--port PORT]\n\nThe server always binds to 127.0.0.1. --project and --import-root may be repeated.\n--import-root enables manifest-last inbox candidates for exactly that project; paths must already exist, be directories, and not overlap repositories, archive root, or another import root."
     );
 }
 

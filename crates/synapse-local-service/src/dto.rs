@@ -287,6 +287,43 @@ pub struct BeginCreatorSessionRequest {
     pub ai_output: PathBuf,
 }
 
+/// A manifest-last candidate discovered below a server-owned import root.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ImportInboxItem {
+    pub slug: String,
+    pub ready: bool,
+    pub reason: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ImportInboxList {
+    pub items: Vec<ImportInboxItem>,
+}
+
+/// Metadata shown with bytes copied into the process-local inbox staging area.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StagedImportInboxPreview {
+    pub stage_id: String,
+    pub slug: String,
+    pub session: String,
+    pub subject_label: String,
+    pub creator_name: String,
+    pub generation_note: Option<synapse_creator::CreatorGenerationNote>,
+    pub generation_note_user_declared: bool,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct BeginStagedImportInboxRequest {
+    pub session: String,
+    pub subject_label: String,
+    pub creator_name: String,
+    pub generation_note: Option<synapse_creator::CreatorGenerationNote>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CreatorDecision {

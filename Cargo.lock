@@ -1462,6 +1462,7 @@ name = "synapse-local-service"
 version = "0.8.1"
 dependencies = [
  "getrandom 0.4.3",
+ "rustix",
  "serde",
  "serde_json",
  "sha2",

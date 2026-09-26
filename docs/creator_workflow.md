@@ -5,6 +5,8 @@ v0.8.1 release binaryを[install guide](install.md)から導入するか、
 [source build](quickstart.md#1-build-する)で作成した`synapse-local`を
 [localhost runbook](../deploy/local/README.md)に従って起動してください。
 
+`synapse-local --import-root KEY=PATH` を使う場合、producerは`PATH/<slug>`へ3つの画像を書き、strict manifestを最後に書く。ブラウザはpathではなくslugだけを送る。確認を閉じるとprocess-private stagingは直ちに破棄され、Proposal作成は確認した同じstaged bytesだけを使う。
+
 ## 1. 画像と生成メモを取り込む
 
 プロジェクト画面で、新しいセッション名、表示名、Original／Current／AI outputの3画像を指定します。

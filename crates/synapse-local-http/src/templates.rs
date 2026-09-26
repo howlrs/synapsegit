@@ -41,6 +41,7 @@ pub(crate) struct ProjectTemplate<'a> {
     pub(crate) fsck_supported: bool,
     pub(crate) archive_export_supported: bool,
     pub(crate) archive_restore_supported: bool,
+    pub(crate) import_inbox_supported: bool,
     pub(crate) archive_restore_target_ready: bool,
     pub(crate) has_last_fsck: bool,
     pub(crate) last_fsck_clean: bool,

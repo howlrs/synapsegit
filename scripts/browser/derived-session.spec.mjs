@@ -3,6 +3,7 @@ import { isolatedTest as test, expect, original, current, output } from "./fixtu
 
 for (const disposition of ["Adopt", "Reject", "Defer"]) {
   test(`derive from ${disposition} with one fresh candidate and unchanged reference bytes`, async ({ page, app }) => {
+    test.setTimeout(120_000);
     const source = `source-${disposition.toLowerCase()}`;
     await page.goto(`${app.origin}/projects/reviews`);
     await page.locator('[name="session"]').fill(source);

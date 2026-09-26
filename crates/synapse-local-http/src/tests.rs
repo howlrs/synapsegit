@@ -3,6 +3,7 @@ use axum::body::{Body, to_bytes};
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE, HOST, ORIGIN};
 use axum::http::{Request, StatusCode, header};
 use axum::response::Response;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -73,6 +74,79 @@ fn test_app() -> (TestDirectory, Router) {
     let application =
         build_with_identity(service, 43123, "a".repeat(64), "local-test-instance".into());
     (directory, application.into_router())
+}
+
+fn test_app_with_import_root() -> (TestDirectory, Router) {
+    let directory = TestDirectory::new();
+    let repository = directory.0.join("repository");
+    let import_root = directory.0.join("inbox");
+    fs::create_dir(&repository).unwrap();
+    fs::create_dir(&import_root).unwrap();
+    let service = Arc::new(
+        LocalService::new([synapse_local_service::ProjectRegistration::new(
+            "demo",
+            "Demo project",
+            repository,
+        )])
+        .unwrap()
+        .with_import_roots(BTreeMap::from([("demo".to_owned(), import_root)]))
+        .unwrap(),
+    );
+    let application =
+        build_with_identity(service, 43123, "a".repeat(64), "local-test-instance".into());
+    (directory, application.into_router())
+}
+
+#[tokio::test]
+async fn import_inbox_page_is_rendered_only_for_configured_projects() {
+    let (_directory, app) = test_app();
+    let page = app
+        .clone()
+        .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(page.status(), StatusCode::OK);
+    let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
+    let page = std::str::from_utf8(&page).unwrap();
+    assert!(!page.contains("data-import-inbox"));
+
+    let unavailable = app
+        .oneshot(
+            request("/api/v1/projects/demo/import-inbox")
+                .header("x-synapse-local-token", "a".repeat(64))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_problem(
+        unavailable,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "service_unavailable",
+    )
+    .await;
+
+    let (_directory, app) = test_app_with_import_root();
+    let page = app
+        .clone()
+        .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(page.status(), StatusCode::OK);
+    let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
+    let page = std::str::from_utf8(&page).unwrap();
+    assert!(page.contains("data-import-inbox"));
+
+    let configured = app
+        .oneshot(
+            request("/api/v1/projects/demo/import-inbox")
+                .header("x-synapse-local-token", "a".repeat(64))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(configured.status(), StatusCode::OK);
 }
 
 /// The exact bytes of one minimal, hand-written archive manifest with no
@@ -170,7 +244,8 @@ fn test_app_with_archive_root() -> (TestDirectory, Router, PathBuf) {
             repository,
         )])
         .unwrap()
-        .with_archive_root(archive_root.clone()),
+        .with_archive_root(archive_root.clone())
+        .unwrap(),
     );
     let application =
         build_with_identity(service, 43123, "a".repeat(64), "local-test-instance".into());
@@ -196,7 +271,8 @@ fn test_app_with_bad_oid_archive() -> (TestDirectory, Router) {
             repository,
         )])
         .unwrap()
-        .with_archive_root(archive_root),
+        .with_archive_root(archive_root)
+        .unwrap(),
     );
     let application =
         build_with_identity(service, 43123, "a".repeat(64), "local-test-instance".into());
@@ -2023,6 +2099,8 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
                 .replace("{projectKey}", "demo")
                 .replace("{session}", session_value)
                 .replace("{role}", "original")
+                .replace("{slug}", "inbox-candidate")
+                .replace("{stageId}", &"a".repeat(64))
                 .replace("{operationId}", &fsck_operation_id);
             let full_path = format!("/api/v1{resolved_path}");
 
@@ -2141,6 +2219,20 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
                 }
                 "post" if resolved_path.ends_with("/derivations") => app.clone().oneshot(unsafe_api_request(&full_path, "multipart/form-data; boundary=empty", Body::from("--empty--\r\n"))).await.unwrap(),
                 "post" if resolved_path.ends_with("/presentation-sidecars") => app.clone().oneshot(unsafe_api_request(&full_path, "application/json", Body::from(r#"{"session":"render-session"}"#))).await.unwrap(),
+                "post" if resolved_path.ends_with("/stages") => app.clone().oneshot(unsafe_api_request(&full_path, "application/json", Body::from("{}"))).await.unwrap(),
+                "delete" if resolved_path.contains("/import-inbox/stages/") => app
+                    .clone()
+                    .oneshot(
+                        request(&full_path)
+                            .method("DELETE")
+                            .header("x-synapse-local-token", "a".repeat(64))
+                            .header(ORIGIN, "http://127.0.0.1:43123")
+                            .header("sec-fetch-site", "same-origin")
+                            .body(Body::empty())
+                            .unwrap(),
+                    )
+                    .await
+                    .unwrap(),
                 "post" if resolved_path.ends_with("/decisions") => {
                     let decision_body = serde_json::to_vec(&serde_json::json!({
                         "review_id": review_id,
@@ -2233,8 +2325,8 @@ async fn every_documented_openapi_route_matches_its_implementation_status() {
     // would fail loudly instead of this test quietly checking nothing.
     assert_eq!(
         checked.len(),
-        21,
-        "expected 21 implemented operations, checked: {checked:?}"
+        26,
+        "expected 26 implemented operations, checked: {checked:?}"
     );
     assert_eq!(
         skipped_unimplemented_archive.len(),

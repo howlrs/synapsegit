@@ -165,6 +165,11 @@ const expectedOperations = new Map([
   ["GET /projects/{projectKey}/refs", ["listProjectRefs", 2]],
   ["GET /projects/{projectKey}/reflog", ["listProjectReflog", 2]],
   ["GET /projects/{projectKey}/creator-sessions", ["listCreatorSessions", 2]],
+  ["GET /projects/{projectKey}/import-inbox", ["listImportInbox", 8]],
+  ["POST /projects/{projectKey}/import-inbox/{slug}/stages", ["stageImportInbox", 8]],
+  ["GET /projects/{projectKey}/import-inbox/stages/{stageId}/images/{role}", ["getStagedImportImage", 8]],
+  ["DELETE /projects/{projectKey}/import-inbox/stages/{stageId}", ["cancelStagedImportInbox", 8]],
+  ["POST /projects/{projectKey}/import-inbox/stages/{stageId}/creator-sessions", ["beginStagedImportInbox", 8]],
   ["POST /projects/{projectKey}/creator-sessions", ["beginCreatorSession", 4]],
   ["GET /projects/{projectKey}/creator-sessions/{session}/derivations", ["prepareCreatorSource", 4]],
   ["POST /projects/{projectKey}/creator-sessions/{session}/derivations", ["beginDerivedCreatorSession", 4]],
@@ -256,10 +261,12 @@ for (const [route, pathItem] of Object.entries(contract.paths ?? {})) {
     }
 
     if (method !== "get" && method !== "head" && method !== "options") {
-      if (method !== "post") {
-        fail("the first contract permits state-changing POST only: " + method.toUpperCase() + " " + route);
+      const isStagedImportCancellation = method === "delete" && route === "/projects/{projectKey}/import-inbox/stages/{stageId}";
+      if (method !== "post" && !isStagedImportCancellation) {
+        fail("unexpected state-changing method: " + method.toUpperCase() + " " + route);
       }
-      if (!operation.requestBody) {
+      const isBodylessStaging = method === "post" && route === "/projects/{projectKey}/import-inbox/{slug}/stages";
+      if (!isStagedImportCancellation && !isBodylessStaging && !operation.requestBody) {
         fail(method.toUpperCase() + " " + route + " must have a request body");
       }
     }
@@ -289,6 +296,11 @@ const expectedParameters = new Map([
   ["listProjectRefs", ["path:projectKey"]],
   ["listProjectReflog", ["path:projectKey", "query:after_event_id", "query:limit", "query:ref_name"]],
   ["listCreatorSessions", ["path:projectKey"]],
+  ["listImportInbox", ["path:projectKey"]],
+  ["stageImportInbox", ["path:projectKey", "path:slug"]],
+  ["getStagedImportImage", ["path:projectKey", "path:role", "path:stageId"]],
+  ["cancelStagedImportInbox", ["path:projectKey", "path:stageId"]],
+  ["beginStagedImportInbox", ["path:projectKey", "path:stageId"]],
   ["beginCreatorSession", ["path:projectKey"]],
   ["getCreatorSession", ["path:projectKey", "path:session"]],
   ["prepareCreatorSource", ["path:projectKey", "path:session"]],
@@ -381,6 +393,7 @@ function collectSchemaProperties(schema, properties, visitedReferences = new Set
 }
 
 const expectedWrites = new Map([
+  ["beginStagedImportInbox", {mediaType: "application/json", properties: ["creator_name", "generation_note", "session", "subject_label"], required: ["creator_name", "generation_note", "session", "subject_label"]}],
   ["preparePresentationSidecar", {mediaType: "application/json", properties: ["creator_display_name", "current_caption", "original_caption", "proposal_agent_display_name", "proposal_caption", "public_decision_note", "session", "session_title", "summary", "title"], required: ["session"]}],
   ["beginDerivedCreatorSession", {mediaType: "multipart/form-data", properties: ["ai_output", "confirmation_id", "creator_name", "generation_intent", "generation_model", "generation_prompt", "generation_tool", "session", "subject_label"], required: ["ai_output", "confirmation_id", "creator_name", "session", "subject_label"]}],
   ["beginReuseCreatorSession", {mediaType: "application/json", properties: ["confirmation_id", "creator_name", "session", "subject_label"], required: ["confirmation_id", "creator_name", "session", "subject_label"]}],
@@ -426,7 +439,7 @@ const expectedWrites = new Map([
   ],
 ]);
 
-for (const { route, method, operation } of operations.filter(({ method }) => method === "post")) {
+for (const { route, method, operation } of operations.filter(({ method, operation }) => method === "post" && operation.operationId !== "stageImportInbox")) {
   const expectedWrite = expectedWrites.get(operation.operationId);
   const mediaTypes = Object.keys(operation.requestBody?.content ?? {});
   if (

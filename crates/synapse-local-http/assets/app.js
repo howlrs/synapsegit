@@ -432,6 +432,17 @@ function releaseImageResources() {
   imageComparison?.refresh();
 }
 
+function releaseImagesWithin(root) {
+  for (const image of root.querySelectorAll("img[data-synapse-image]")) {
+    if (!(image instanceof HTMLImageElement)) continue;
+    IMAGE_REQUESTS.get(image)?.abort();
+    IMAGE_REQUESTS.delete(image);
+    revokeImageUrl(image);
+    ENHANCED_IMAGES.delete(image);
+    IMAGE_ELEMENTS.delete(image);
+  }
+}
+
 /** Compare decoded inline rasters; attachment Blob URLs never enter this view. */
 export function enhanceImageComparison(root = document) {
   const section = root.querySelector("[data-synapse-comparison]");
@@ -1431,6 +1442,7 @@ function start() {
   enhanceCreatorUploads();
   enhanceImageComparison();
   enhanceApiImages();
+  enhanceImportInbox();
 }
 
 if (document.readyState === "loading") {
@@ -1447,6 +1459,89 @@ window.addEventListener("pageshow", (event) => {
     for (const upload of CREATOR_UPLOADS.values()) upload.refresh();
   }
 });
+
+function enhanceImportInbox() {
+  const section = document.querySelector("[data-import-inbox]");
+  if (!(section instanceof HTMLElement)) return;
+  const project = section.dataset.projectKey;
+  const status = section.querySelector("[data-import-inbox-status]");
+  const list = section.querySelector("[data-import-inbox-list]");
+  const form = section.querySelector("form[data-import-inbox-preview]");
+  const images = section.querySelector("[data-import-inbox-images]");
+  if (!project || !(status instanceof HTMLElement) || !(list instanceof HTMLElement) || !(form instanceof HTMLFormElement) || !(images instanceof HTMLElement)) return;
+  let stageId = null;
+  const endpoint = `/api/v1/projects/${encodeURIComponent(project)}/import-inbox`;
+  const field = name => form.elements.namedItem(`inbox_${name}`);
+  const note = () => { const value = { tool: field("generation_tool").value, model: field("generation_model").value, prompt: field("generation_prompt").value, intent: field("generation_intent").value }; return Object.values(value).every(value => value === "") ? null : value; };
+  const showList = async () => {
+    if (!stageId) return;
+    const cancelled = stageId;
+    status.textContent = "stagingを破棄しています…";
+    try {
+      const response = await apiFetch(`${endpoint}/stages/${encodeURIComponent(cancelled)}`, { method: "DELETE" });
+      if (response.status !== 204) throw await responseProblem(response);
+      releaseImagesWithin(images);
+      images.replaceChildren();
+      stageId = null;
+      form.hidden = true;
+      list.hidden = false;
+      list.querySelectorAll("button").forEach(button => { button.disabled = false; });
+      status.textContent = "stagingを破棄しました。候補を選んでください。";
+    } catch (error) {
+      status.textContent = `stagingを破棄できませんでした。${publicErrorMessage(error)}`;
+    }
+  };
+  const renderImages = () => {
+    images.replaceChildren();
+    for (const [role, label] of [["original", "Original image"], ["current", "Current image"], ["ai-output", "AI output"]]) {
+      const figure = document.createElement("figure"); const heading = document.createElement("figcaption"); heading.textContent = label;
+      const image = document.createElement("img"); image.alt = `${label} のstaging済みプレビュー`; image.dataset.synapseImage = ""; image.dataset.url = `${endpoint}/stages/${encodeURIComponent(stageId)}/images/${role}`; image.dataset.label = label;
+      const download = document.createElement("a"); download.hidden = true; download.dataset.synapseImageDownload = ""; download.textContent = "画像をダウンロード";
+      figure.append(heading, image, download); images.append(figure);
+    }
+    enhanceApiImages(images);
+  };
+  const stage = async (slug, button) => {
+    button.disabled = true; status.textContent = "候補を検証してstagingしています…";
+    try {
+      const preview = await apiJson(`${endpoint}/${encodeURIComponent(slug)}/stages`, { method: "POST" });
+      if (!preview || typeof preview.stage_id !== "string" || !/^[0-9a-f]{64}$/u.test(preview.stage_id)) throw new TypeError("staging応答が不正です。");
+      stageId = preview.stage_id;
+      for (const name of ["session", "subject_label", "creator_name"]) field(name).value = preview[name] || "";
+      const generation = preview.generation_note || {}; field("generation_tool").value = generation.tool || ""; field("generation_model").value = generation.model || ""; field("generation_prompt").value = generation.prompt || ""; field("generation_intent").value = generation.intent || "";
+      list.hidden = true; form.hidden = false; status.textContent = "staging済みbytesを確認し、必要ならメタデータを編集してください。"; renderImages(); form.querySelector("h3")?.focus();
+    } catch (error) { status.textContent = publicErrorMessage(error); button.disabled = false; }
+  };
+  const load = async () => {
+    try {
+      const result = await apiJson(endpoint); if (!Array.isArray(result?.items)) throw new TypeError("inbox一覧応答が不正です。");
+      section.hidden = false; list.replaceChildren();
+      for (const item of result.items) {
+        const row = document.createElement("li"); const title = document.createElement("strong"); title.textContent = item.slug;
+        const detail = document.createElement("p"); detail.className = "field__hint"; detail.textContent = item.ready ? "manifestは有効です。確認時に3ファイルを検証してstagingします。" : item.reason || "候補を検査できません。";
+        row.append(title, detail);
+        if (item.ready) { const button = document.createElement("button"); button.type = "button"; button.textContent = "確認する"; button.addEventListener("click", () => void stage(item.slug, button)); row.append(button); }
+        list.append(row);
+      }
+      status.textContent = result.items.length ? "候補を選んでください。" : "manifestを最後に書いた候補はまだありません。";
+    } catch (error) {
+      if (error instanceof SynapseApiError && error.code === "service_unavailable") return;
+      section.hidden = false; status.textContent = publicErrorMessage(error);
+    }
+  };
+  form.addEventListener("submit", async event => {
+    event.preventDefault(); if (!stageId || !form.reportValidity()) return;
+    const bytes = UTF8_ENCODER.encode(JSON.stringify(note())).byteLength; if (bytes > 16384) { status.textContent = "生成メモ全体は16 KiB以内にしてください。"; return; }
+    const submit = form.querySelector("[type=submit]"); if (submit) submit.disabled = true;
+    try {
+      const pending = await apiJson(`${endpoint}/stages/${encodeURIComponent(stageId)}/creator-sessions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session: field("session").value, subject_label: field("subject_label").value, creator_name: field("creator_name").value, generation_note: note() }) });
+      if (!pending?.session) throw new TypeError("proposal応答が不正です。");
+      window.location.assign(`/projects/${encodeURIComponent(project)}/creator-sessions/${encodeURIComponent(pending.session)}`);
+    } catch (error) { status.textContent = publicErrorMessage(error); if (submit) submit.disabled = false; }
+  });
+  form.querySelector("[data-import-inbox-cancel]")?.addEventListener("click", () => void showList());
+  void load();
+}
 
 function enhancePresentationForm() {
   const form = document.querySelector("[data-presentation-form]");

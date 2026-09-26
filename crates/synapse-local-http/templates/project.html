@@ -152,6 +152,29 @@
 </section>
 {% endif %}
 
+{% if import_inbox_supported %}
+<section class="card" hidden data-import-inbox data-project-key="{{ project_key }}" aria-labelledby="import-inbox-heading">
+  <div class="card__header"><div><p class="eyebrow">Manifest-last inbox</p><h2 id="import-inbox-heading">取り込み待ち</h2><p class="muted">確認時に検証・stagingしたbytesだけをproposalへ取り込みます。</p></div></div>
+  <p data-import-inbox-status role="status"></p>
+  <ul data-import-inbox-list class="stack"></ul>
+  <form hidden data-import-inbox-preview>
+    <h3 tabindex="-1">取り込み内容を確認</h3>
+    <p class="notice" data-tone="warning">AI outputと生成メモはcaller-suppliedです。明示的な判断を行うまでDecisionは記録されません。</p>
+    <div class="upload-grid" data-import-inbox-images></div>
+    <div class="form-grid">
+      <label class="field"><span>Inbox session</span><input name="inbox_session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}"></label>
+      <label class="field"><span>Inbox creator name</span><input name="inbox_creator_name" required maxlength="300"></label>
+      <label class="field form-grid__wide"><span>Inbox subject label</span><input name="inbox_subject_label" required maxlength="500"></label>
+      <label class="field"><span>Inbox generation tool</span><input name="inbox_generation_tool" maxlength="300"></label>
+      <label class="field"><span>Inbox generation model</span><input name="inbox_generation_model" maxlength="300"></label>
+      <label class="field form-grid__wide"><span>Inbox generation prompt</span><textarea name="inbox_generation_prompt" maxlength="8192" rows="3"></textarea></label>
+      <label class="field form-grid__wide"><span>Inbox generation intent</span><textarea name="inbox_generation_intent" maxlength="2048" rows="2"></textarea></label>
+    </div>
+    <div class="actions"><button type="submit" data-synapse-submit>Proposalを作成</button><button type="button" data-variant="secondary" data-import-inbox-cancel>一覧へ戻る</button></div>
+  </form>
+</section>
+{% endif %}
+
 <section class="card" aria-labelledby="creator-upload-heading">
   <div class="card__header">
     <div>
