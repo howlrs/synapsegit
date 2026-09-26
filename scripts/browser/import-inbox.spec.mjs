@@ -18,10 +18,17 @@ test("manifest-last inbox stages preview bytes before explicit Human Decision", 
   await page.keyboard.press("Enter");
   await expect(page.locator("form[data-import-inbox-preview]")).toBeVisible();
   await expect(page.locator("[data-import-inbox-images] img")).toHaveCount(3);
+  await page.getByRole("button", { name: "一覧へ戻る" }).click();
+  await expect(page.locator("form[data-import-inbox-preview]")).toBeHidden();
+  const restage = page.getByRole("button", { name: "確認する" });
+  await expect(restage).toBeEnabled();
+  await restage.click();
+  await expect(page.locator("form[data-import-inbox-preview]")).toBeVisible();
   await writeFile(path.join(candidate, "original"), "changed after staging");
   const preview = page.locator("form[data-import-inbox-preview]");
   await preview.getByLabel("Session", { exact: true }).fill("inbox-review");
   await preview.getByLabel("Creator name", { exact: true }).fill("Edited creator");
+  await preview.locator('[name="generation_prompt"]').fill("p".repeat(8192));
   await preview.getByRole("button", { name: "Proposalを作成" }).click();
   await page.waitForURL("**/creator-sessions/inbox-review");
   await page.getByLabel("Rationale（任意）", { exact: true }).fill("Inbox bytes reviewed.");

@@ -172,3 +172,95 @@ fn fifo_leaf_is_rejected_without_blocking() {
         .unwrap();
     assert!(service.stage_import_inbox("project", "first").is_err());
 }
+
+#[test]
+fn missing_hash_mismatch_and_declared_oversize_files_are_rejected() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let inbox = temporary.directory("inbox");
+    let candidate = inbox.join("first");
+    fs::create_dir(&candidate).unwrap();
+    fs::write(candidate.join("original"), b"one").unwrap();
+    fs::write(candidate.join("current"), b"two").unwrap();
+    fs::write(candidate.join("ai-output"), b"three").unwrap();
+    let mut roots = BTreeMap::new();
+    roots.insert("project".to_owned(), inbox);
+    let service = LocalService::new([ProjectRegistration::new("project", "Project", repository)])
+        .unwrap()
+        .with_import_roots(roots)
+        .unwrap();
+
+    fs::write(candidate.join("manifest.json"), r#"{"version":"synapsegit-import-inbox-v1","original":{"name":"missing","size":3},"current":{"name":"current","size":3},"ai_output":{"name":"ai-output","size":5},"metadata":{"subject_label":"Subject","creator_name":"Creator"}}"#).unwrap();
+    assert!(service.stage_import_inbox("project", "first").is_err());
+
+    fs::write(candidate.join("manifest.json"), r#"{"version":"synapsegit-import-inbox-v1","original":{"name":"original","size":3,"sha256":"0000000000000000000000000000000000000000000000000000000000000000"},"current":{"name":"current","size":3},"ai_output":{"name":"ai-output","size":5},"metadata":{"subject_label":"Subject","creator_name":"Creator"}}"#).unwrap();
+    assert!(service.stage_import_inbox("project", "first").is_err());
+
+    fs::write(candidate.join("manifest.json"), r#"{"version":"synapsegit-import-inbox-v1","original":{"name":"original","size":67108865},"current":{"name":"current","size":3},"ai_output":{"name":"ai-output","size":5},"metadata":{"subject_label":"Subject","creator_name":"Creator"}}"#).unwrap();
+    assert!(service.stage_import_inbox("project", "first").is_err());
+}
+
+#[test]
+fn dropping_service_removes_private_staging_directory() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let inbox = temporary.directory("inbox");
+    let candidate = inbox.join("first");
+    fs::create_dir(&candidate).unwrap();
+    for (name, bytes) in [
+        ("original", b"one".as_slice()),
+        ("current", b"two".as_slice()),
+        ("ai-output", b"three".as_slice()),
+    ] {
+        fs::write(candidate.join(name), bytes).unwrap();
+    }
+    fs::write(candidate.join("manifest.json"), r#"{"version":"synapsegit-import-inbox-v1","original":{"name":"original","size":3},"current":{"name":"current","size":3},"ai_output":{"name":"ai-output","size":5},"metadata":{"subject_label":"Subject","creator_name":"Creator"}}"#).unwrap();
+    let stage_path;
+    {
+        let mut roots = BTreeMap::new();
+        roots.insert("project".to_owned(), inbox);
+        let service =
+            LocalService::new([ProjectRegistration::new("project", "Project", repository)])
+                .unwrap()
+                .with_import_roots(roots)
+                .unwrap();
+        let stage = service.stage_import_inbox("project", "first").unwrap();
+        stage_path = std::env::temp_dir().join(format!("synapse-local-inbox-{}", stage.stage_id));
+        assert!(stage_path.is_dir());
+    }
+    assert!(!stage_path.exists());
+}
+
+#[test]
+fn staging_ninth_candidate_hits_the_process_limit_before_copying_it() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let inbox = temporary.directory("inbox");
+    for index in 0..9 {
+        let candidate = inbox.join(format!("candidate-{index}"));
+        fs::create_dir(&candidate).unwrap();
+        for (name, bytes) in [
+            ("original", b"one".as_slice()),
+            ("current", b"two".as_slice()),
+            ("ai-output", b"three".as_slice()),
+        ] {
+            fs::write(candidate.join(name), bytes).unwrap();
+        }
+        fs::write(candidate.join("manifest.json"), r#"{"version":"synapsegit-import-inbox-v1","original":{"name":"original","size":3},"current":{"name":"current","size":3},"ai_output":{"name":"ai-output","size":5},"metadata":{"subject_label":"Subject","creator_name":"Creator"}}"#).unwrap();
+    }
+    let mut roots = BTreeMap::new();
+    roots.insert("project".to_owned(), inbox);
+    let service = LocalService::new([ProjectRegistration::new("project", "Project", repository)])
+        .unwrap()
+        .with_import_roots(roots)
+        .unwrap();
+    for index in 0..8 {
+        service
+            .stage_import_inbox("project", &format!("candidate-{index}"))
+            .unwrap();
+    }
+    let error = service
+        .stage_import_inbox("project", "candidate-8")
+        .unwrap_err();
+    assert_eq!(error.code(), "resource_limit");
+}

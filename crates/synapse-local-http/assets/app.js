@@ -1461,7 +1461,7 @@ function enhanceImportInbox() {
   let stageId = null;
   const endpoint = `/api/v1/projects/${encodeURIComponent(project)}/import-inbox`;
   const note = () => { const value = { tool: form.elements.generation_tool.value, model: form.elements.generation_model.value, prompt: form.elements.generation_prompt.value, intent: form.elements.generation_intent.value }; return Object.values(value).every(field => field === "") ? null : value; };
-  const showList = async () => { const cancelled = stageId; form.hidden = true; list.hidden = false; stageId = null; images.replaceChildren(); if (cancelled) await fetch(`${endpoint}/stages/${encodeURIComponent(cancelled)}`, { method: "DELETE" }); };
+  const showList = async () => { const cancelled = stageId; form.hidden = true; list.hidden = false; stageId = null; images.replaceChildren(); list.querySelectorAll("button").forEach(button => { button.disabled = false; }); if (cancelled) await fetch(`${endpoint}/stages/${encodeURIComponent(cancelled)}`, { method: "DELETE" }); };
   const renderImages = () => {
     images.replaceChildren();
     for (const [role, label] of [["original", "Original image"], ["current", "Current image"], ["ai-output", "AI output"]]) {
