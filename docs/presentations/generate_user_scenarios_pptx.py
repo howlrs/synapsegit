@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import math
 import re
+import zipfile
 from pathlib import Path
 from typing import Iterable, Sequence
 
@@ -40,11 +41,33 @@ LINKS = {
 FONT = "Noto Sans JP"
 SLIDE_W = 13.333
 SLIDE_H = 7.5
+ZIP_TIMESTAMP = (1980, 1, 1, 0, 0, 0)
 
 
 def color(value: str) -> RGBColor:
     value = value.lstrip("#")
     return RGBColor(int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16))
+
+
+def normalize_pptx_archive(path: Path) -> None:
+    """Remove wall-clock ZIP timestamps so a regenerated deck is reproducible."""
+    temporary = path.with_suffix(".normalized.pptx")
+    temporary.unlink(missing_ok=True)
+    try:
+        with zipfile.ZipFile(path, "r") as source, zipfile.ZipFile(
+            temporary, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9
+        ) as destination:
+            for member in sorted(source.infolist(), key=lambda item: item.filename):
+                info = zipfile.ZipInfo(member.filename, date_time=ZIP_TIMESTAMP)
+                info.compress_type = member.compress_type
+                info.comment = member.comment
+                info.internal_attr = member.internal_attr
+                info.external_attr = member.external_attr
+                info.create_system = member.create_system
+                destination.writestr(info, source.read(member.filename))
+        temporary.replace(path)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 NAVY = color("0B1324")
@@ -658,8 +681,6 @@ def slide_mechanism(prs: Presentation):
     add_text(slide, 7.20, 3.54, 1.82, 0.30, "人が判断", size=14.5, fill=DECISION, bold=True, align=PP_ALIGN.CENTER)
     add_text(slide, 7.20, 3.90, 1.82, 0.50, "Adopt／Reject／Defer", size=12.5, fill=INK, align=PP_ALIGN.CENTER)
     set_alt_text(gate, "人が判断", "Adopt・Reject・Deferのいずれかを人が選ぶ。SynapseGitはモデルを呼ばず、実行しない")
-    add_shape(slide, MSO_SHAPE.CHEVRON, 9.30, 3.75, 0.34, 0.42, fill=HAIRLINE)
-
     destinations = [
         ("creator-report", "CLI出力", ACTIVITY, ACTIVITY_SOFT),
         ("localhost UI", "pending／完了画面", EVIDENCE, EVIDENCE_SOFT),
@@ -937,11 +958,11 @@ def slide_pilot(prs: Presentation):
         ("01", "対象を選ぶ", "キャンバス／壁面／一区画", PLAN, PLAN_SOFT),
         ("02", "条件を決める", "Imported／Repeatable／Calibrated", EVIDENCE, EVIDENCE_SOFT),
         ("03", "節目で撮る", "作業終了／承認／Hold Point", ACTIVITY, ACTIVITY_SOFT),
-        ("04", "三者比較", "Plan／Previous／Current", ANALYSIS, ANALYSIS_SOFT),
-        ("05", "人が判断", "採用／是正／保留／不明", DECISION, DECISION_SOFT),
+        ("04", "3画像を比較", "Original／Current／外部候補", ANALYSIS, ANALYSIS_SOFT),
+        ("05", "人が判断", "Adopt／Reject／Defer", DECISION, DECISION_SOFT),
         ("06", "渡せる形へ", "report／handoff／archive", SUCCESS, SUCCESS_SOFT),
     ]
-    now_steps = {"01", "05", "06"}
+    now_steps = {"04", "05", "06"}
     for index, (num, title, body, accent, soft) in enumerate(steps):
         row, col = divmod(index, 3)
         x = 0.72 + col * 4.10
@@ -1100,8 +1121,10 @@ def _estimate_text_frame_overflow(shape) -> bool:
                 size_pt = run.font.size.pt
                 break
         if text.strip():
-            width = _estimate_line_width_in(text, size_pt)
-            lines_needed = max(1, math.ceil(width / frame_w))
+            lines_needed = sum(
+                max(1, math.ceil(_estimate_line_width_in(line, size_pt) / frame_w))
+                for line in text.split("\n")
+            )
         else:
             lines_needed = 1
         estimated_h += lines_needed * (size_pt / 72.0) * 1.22
@@ -1208,6 +1231,7 @@ def main() -> int:
     if not args.check:
         output.parent.mkdir(parents=True, exist_ok=True)
         build_presentation().save(output)
+        normalize_pptx_archive(output)
 
     if not output.exists():
         raise SystemExit(f"presentation does not exist: {output}")

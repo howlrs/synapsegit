@@ -121,7 +121,7 @@ unzip -t docs/presentations/synapsegit_user_scenarios_ja.pptx
 - [Core Protocol v0.1](../../spec/core/v0.1/README.md)
 - [15分 壁画tutorial](../tutorial/README.ja.md)
 
-この環境にはLibreOffice／sofficeがないため、配布前の最終レンダリング、PowerPoint Accessibility Checker、reading order、PDF変換後のlink確認はPowerPoint等で行う。
+生成スクリプトは実viewerでの最終レンダリング、PowerPoint Accessibility Checker、reading order、PDF変換後のlink確認を行わない。配布前にPowerPoint、Keynote、LibreOffice Impress等で確認する。
 
 repositoryはpublicである。PPTX内のGitHub linkは常に固定versionのrelease tag（現在`v0.9.0`）を指す。
 対象versionを更新するときは、生成スクリプトの`TARGET_VERSION`と`CHECKED_ON`、この資料冒頭の対象version・確認日、
