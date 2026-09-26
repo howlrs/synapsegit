@@ -1453,6 +1453,92 @@ async fn creator_multipart_and_decision_complete_the_two_step_transport_workflow
 }
 
 #[tokio::test]
+async fn removed_project_creator_operations_are_retryable_and_do_not_leak_paths() {
+    let (directory, app) = test_app();
+    let repository = directory.0.join("repository");
+    fs::remove_dir_all(&repository).unwrap();
+    let boundary = "synapse-removed-begin";
+    let begin = app
+        .clone()
+        .oneshot(unsafe_api_request(
+            "/api/v1/projects/demo/creator-sessions",
+            format!("multipart/form-data; boundary={boundary}"),
+            Body::from(valid_creator_multipart(boundary)),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(begin.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let begin_body = to_bytes(begin.into_body(), 64 * 1024).await.unwrap();
+    let begin_problem: serde_json::Value = serde_json::from_slice(&begin_body).unwrap();
+    assert_eq!(begin_problem["code"], "storage_error");
+    assert_eq!(begin_problem["retryable"], true);
+    assert!(
+        !std::str::from_utf8(&begin_body)
+            .unwrap()
+            .contains(repository.to_str().unwrap())
+    );
+    assert!(!repository.exists());
+
+    fs::create_dir(&repository).unwrap();
+    let service = LocalService::new([synapse_local_service::ProjectRegistration::new(
+        "demo",
+        "Demo project",
+        &repository,
+    )])
+    .unwrap();
+    let application = build_with_identity(
+        Arc::new(service),
+        43123,
+        "a".repeat(64),
+        "local-test-instance".into(),
+    );
+    let app = application.into_router();
+    let boundary = "synapse-removed-decision";
+    let begin = app
+        .clone()
+        .oneshot(unsafe_api_request(
+            "/api/v1/projects/demo/creator-sessions",
+            format!("multipart/form-data; boundary={boundary}"),
+            Body::from(valid_creator_multipart(boundary)),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(begin.status(), StatusCode::CREATED);
+    let begin_body = to_bytes(begin.into_body(), 64 * 1024).await.unwrap();
+    let review_id = serde_json::from_slice::<serde_json::Value>(&begin_body).unwrap()["review_id"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    fs::remove_dir_all(&repository).unwrap();
+    let decision = app
+        .oneshot(unsafe_api_request(
+            "/api/v1/projects/demo/creator-sessions/web-review/decisions",
+            "application/json",
+            Body::from(
+                serde_json::to_vec(&serde_json::json!({
+                    "review_id": review_id,
+                    "disposition": "adopt",
+                    "rationale": "Repository was removed."
+                }))
+                .unwrap(),
+            ),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(decision.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let decision_body = to_bytes(decision.into_body(), 64 * 1024).await.unwrap();
+    let decision_problem: serde_json::Value = serde_json::from_slice(&decision_body).unwrap();
+    assert_eq!(decision_problem["code"], "storage_error");
+    assert_eq!(decision_problem["retryable"], true);
+    assert!(
+        !std::str::from_utf8(&decision_body)
+            .unwrap()
+            .contains(repository.to_str().unwrap())
+    );
+    assert!(!repository.exists());
+}
+
+#[tokio::test]
 async fn multipart_rejects_duplicate_extra_missing_and_wrong_content_type_fields() {
     let (_directory, app) = test_app();
     let boundary = "synapse-invalid-boundary";

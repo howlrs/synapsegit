@@ -27,7 +27,7 @@ use synapse_sqlite::RefSnapshot;
 /// Rebuild a creator report from current Refs and CAS.
 pub fn creator_report(repository_path: impl AsRef<Path>, session: &str) -> Result<CreatorReport> {
     validate_session(session)?;
-    let repository = Repository::open(repository_path)?;
+    let repository = Repository::open_existing(repository_path)?;
     let snapshot = repository
         .refs()
         .snapshot_limited(CREATOR_FSCK_MAX_REF_ROOTS)?;

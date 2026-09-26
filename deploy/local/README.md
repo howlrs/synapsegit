@@ -129,7 +129,9 @@ binary versionは`./target/release/synapse-local --version`で確認できる。
 
 The repository directory must exist before startup. It may be an existing
 SynapseGit repository or an empty directory; opening an empty directory creates
-the local repository layout. The tagged v0.6.0 binary and a current source build can
+the local repository layout. A nonempty directory without a complete SynapseGit
+layout is rejected without writing files, and a missing path or a non-directory
+is reported with its configured path in the startup error. The tagged v0.6.0 binary and a current source build can
 create a session from the project page. The CLI can use the same repository
 path before starting the application or after stopping it; run
 [`creator-run`](../../docs/usage_guide.md#手書きjsonなしのlocal-creator-pilot)

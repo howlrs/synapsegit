@@ -162,6 +162,79 @@ fn export_to_bare_relative_destination_succeeds_and_restores() {
 }
 
 #[test]
+fn existing_repository_commands_reject_missing_paths_without_creating_them() {
+    let temporary = TempDirectory::new();
+    let missing = temporary.join("missing/typo");
+    let input = temporary.join("input.json");
+    fs::write(&input, b"{}").unwrap();
+    let missing_text = missing.to_str().unwrap();
+    let input_text = input.to_str().unwrap();
+
+    let commands = [
+        vec!["refs", missing_text],
+        vec!["fsck", missing_text],
+        vec!["export", missing_text, "archive"],
+        vec!["put-blob", missing_text, input_text],
+        vec!["put-record", missing_text, input_text],
+        vec!["build-tree", missing_text, input_text],
+        vec!["commit", missing_text, input_text],
+        vec!["put-object", missing_text, input_text],
+        vec![
+            "update-ref",
+            missing_text,
+            "proposal/agent/test",
+            "-",
+            PROPOSAL_HEAD,
+        ],
+        vec!["creator-report", missing_text, "session"],
+    ];
+    for command in commands {
+        let output = run(&command);
+        assert!(
+            !output.status.success(),
+            "command unexpectedly succeeded: {command:?}"
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("repository_not_found"),
+            "command={command:?}, stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            !missing.exists(),
+            "command created missing repository path: {command:?}"
+        );
+    }
+}
+
+#[test]
+fn init_refuses_a_nonempty_nonrepository_directory() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.join("repository");
+    fs::create_dir(&repository).unwrap();
+    fs::write(repository.join("keep.txt"), b"keep").unwrap();
+
+    let output = run(&["init", repository.to_str().unwrap()]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("repository_not_empty"));
+    assert_eq!(fs::read(repository.join("keep.txt")).unwrap(), b"keep");
+    assert!(!repository.join("cas").exists());
+    assert!(!repository.join("refs.sqlite3").exists());
+}
+
+#[test]
+fn existing_repository_commands_preserve_deep_cas_layout_failures() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repository");
+    Repository::open(&repository_path).unwrap();
+    fs::remove_dir(repository_path.join("cas/objects/blob")).unwrap();
+
+    let output = run(&["fsck", repository_path.to_str().unwrap()]);
+    assert!(!output.status.success());
+    assert!(String::from_utf8_lossy(&output.stderr).contains("schema_invalid"));
+    assert!(!repository_path.join("cas/objects/blob").exists());
+}
+
+#[test]
 fn concurrent_cli_exports_restore_consistent_ref_update_prefixes() {
     const ROUNDS: usize = 16;
     const REF_NAME: &str = "proposal/agent/export-race";

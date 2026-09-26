@@ -288,6 +288,20 @@ impl FileObjectStore {
     /// Every mutation method on the returned handle fails with
     /// [`StoreError::ReadOnly`] before consuming or validating write input.
     pub fn open_existing_read_only(root: impl AsRef<Path>) -> Result<Self, StoreError> {
+        Self::open_existing_with_mode(root, true)
+    }
+
+    /// Open a complete existing filesystem CAS without creating or syncing any
+    /// path. Unlike [`Self::open_existing_read_only`], this handle permits
+    /// mutation after the layout has been verified.
+    pub fn open_existing(root: impl AsRef<Path>) -> Result<Self, StoreError> {
+        Self::open_existing_with_mode(root, false)
+    }
+
+    fn open_existing_with_mode(
+        root: impl AsRef<Path>,
+        read_only: bool,
+    ) -> Result<Self, StoreError> {
         let limits = StoreLimits::default();
         validate_limits(limits)?;
         let requested_root = root.as_ref();
@@ -310,7 +324,7 @@ impl FileObjectStore {
             root,
             limits,
             next_temp: AtomicU64::new(0),
-            read_only: true,
+            read_only,
         })
     }
 

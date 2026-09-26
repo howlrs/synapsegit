@@ -180,6 +180,8 @@ impl Default for ArchiveRestoreLimits {
 pub enum RepositoryError {
     /// A mutating operation was attempted through a read-only repository.
     ReadOnly,
+    /// The requested path is not a complete existing repository.
+    RepositoryNotFound(PathBuf),
     Core(CoreError),
     Store(StoreError),
     RefStore(RefStoreError),
@@ -199,6 +201,7 @@ impl RepositoryError {
     pub fn code(&self) -> &str {
         match self {
             Self::ReadOnly => "read_only",
+            Self::RepositoryNotFound(_) => "repository_not_found",
             Self::Core(error) => error.code().as_str(),
             Self::Store(error) => error.code().map_or("storage_error", ErrorCode::as_str),
             Self::RefStore(error) => error.code(),
@@ -223,6 +226,12 @@ impl fmt::Display for RepositoryError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::ReadOnly => formatter.write_str("repository is read-only"),
+            Self::RepositoryNotFound(path) => write!(
+                formatter,
+                "repository not found at {}; create one with `synapse init {}`",
+                path.display(),
+                path.display()
+            ),
             Self::Core(error) => error.fmt(formatter),
             Self::Store(error) => error.fmt(formatter),
             Self::RefStore(error) => error.fmt(formatter),
@@ -252,6 +261,7 @@ impl Error for RepositoryError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::ReadOnly => None,
+            Self::RepositoryNotFound(_) => None,
             Self::Core(error) => Some(error),
             Self::Store(error) => Some(error),
             Self::RefStore(error) => Some(error),
@@ -300,6 +310,55 @@ pub struct Repository {
 impl Repository {
     pub fn open(root: impl AsRef<Path>) -> Result<Self> {
         Self::open_with_limits(root, StoreLimits::default(), GraphLimits::default())
+    }
+
+    /// Open a complete existing repository without creating repository paths.
+    ///
+    /// This writable handle is for operations that require an existing
+    /// repository but may subsequently mutate it. Unlike [`Self::open`], a
+    /// missing, partial, or wrongly typed layout returns
+    /// [`RepositoryError::RepositoryNotFound`] and leaves the filesystem
+    /// unchanged.
+    pub fn open_existing(root: impl AsRef<Path>) -> Result<Self> {
+        let requested = root.as_ref();
+        let metadata = match fs::metadata(requested) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => {
+                return Err(RepositoryError::RepositoryNotFound(requested.to_path_buf()));
+            }
+            Err(error) => return Err(RepositoryError::io("inspect repository", requested, error)),
+        };
+        if !metadata.is_dir() {
+            return Err(RepositoryError::RepositoryNotFound(requested.to_path_buf()));
+        }
+        let root = fs::canonicalize(requested).map_err(|error| {
+            RepositoryError::io("canonicalize existing repository", requested, error)
+        })?;
+        let cas = root.join("cas");
+        let refs = root.join("refs.sqlite3");
+        require_repository_directory(&cas, requested)?;
+        require_repository_file(&refs, requested)?;
+        let objects = FileObjectStore::open_existing(&cas)?;
+        let refs = SqliteRefStore::open_existing(&refs)?;
+        Ok(Self {
+            root,
+            objects,
+            refs,
+            graph_limits: GraphLimits::default(),
+            tombstone_scan_limits: TombstoneScanLimits::default(),
+            read_only: false,
+        })
+    }
+
+    /// Open an existing writable repository with a caller-owned Tombstone
+    /// scan limit, without creating any repository path.
+    pub fn open_existing_with_tombstone_scan_limits(
+        root: impl AsRef<Path>,
+        tombstone_scan_limits: TombstoneScanLimits,
+    ) -> Result<Self> {
+        let mut repository = Self::open_existing(root)?;
+        repository.tombstone_scan_limits = tombstone_scan_limits;
+        Ok(repository)
     }
 
     /// Open an existing repository without creating or modifying source paths.
@@ -1084,6 +1143,36 @@ impl Repository {
             ObjectKind::Blob => self.objects.limits().max_blob_bytes,
             _ => self.objects.limits().structured.max_input_bytes as u64,
         })
+    }
+}
+
+fn require_repository_directory(path: &Path, requested: &Path) -> Result<()> {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_dir() => Ok(()),
+        Ok(_) => Err(RepositoryError::RepositoryNotFound(requested.to_path_buf())),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            Err(RepositoryError::RepositoryNotFound(requested.to_path_buf()))
+        }
+        Err(error) => Err(RepositoryError::io(
+            "inspect repository layout",
+            path,
+            error,
+        )),
+    }
+}
+
+fn require_repository_file(path: &Path, requested: &Path) -> Result<()> {
+    match fs::metadata(path) {
+        Ok(metadata) if metadata.is_file() => Ok(()),
+        Ok(_) => Err(RepositoryError::RepositoryNotFound(requested.to_path_buf())),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => {
+            Err(RepositoryError::RepositoryNotFound(requested.to_path_buf()))
+        }
+        Err(error) => Err(RepositoryError::io(
+            "inspect repository layout",
+            path,
+            error,
+        )),
     }
 }
 

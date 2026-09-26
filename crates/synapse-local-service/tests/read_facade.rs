@@ -151,6 +151,43 @@ fn catalog_allows_duplicate_labels_but_rejects_duplicate_or_invalid_configuratio
 }
 
 #[test]
+fn catalog_rejects_missing_file_and_nonempty_nonrepository_paths_without_writing() {
+    let temporary = TempDirectory::new();
+    let missing = temporary.join("missing");
+    let missing_error =
+        LocalService::new([registration("project", "Project", &missing)]).unwrap_err();
+    assert_eq!(missing_error.code(), "storage_error");
+    assert!(
+        missing_error
+            .to_string()
+            .contains(missing.to_str().unwrap())
+    );
+    assert!(!missing.exists());
+
+    let file = temporary.join("file");
+    fs::write(&file, b"not a directory").unwrap();
+    let file_error = LocalService::new([registration("project", "Project", &file)]).unwrap_err();
+    assert_eq!(file_error.code(), "local_request_denied");
+    assert!(file_error.to_string().contains("not a directory"));
+    assert!(file_error.to_string().contains(file.to_str().unwrap()));
+
+    let nonrepository = temporary.directory("nonrepository");
+    fs::write(nonrepository.join("keep.txt"), b"keep").unwrap();
+    let before = fs::read(nonrepository.join("keep.txt")).unwrap();
+    let error =
+        LocalService::new([registration("project", "Project", &nonrepository)]).unwrap_err();
+    assert_eq!(error.code(), "storage_error");
+    assert!(
+        error
+            .to_string()
+            .contains("not an existing SynapseGit repository")
+    );
+    assert_eq!(fs::read(nonrepository.join("keep.txt")).unwrap(), before);
+    assert!(!nonrepository.join("cas").exists());
+    assert!(!nonrepository.join("refs.sqlite3").exists());
+}
+
+#[test]
 fn empty_project_reads_share_a_stable_bounded_snapshot_shape() {
     let temporary = TempDirectory::new();
     let repository = temporary.directory("repository");
@@ -493,4 +530,22 @@ fn service_errors_create_safe_problem_dtos() {
     let storage_problem = storage_error.to_problem(500, "request-2");
     let storage_json = serde_json::to_string(&storage_problem).unwrap();
     assert!(!storage_json.contains(repository.to_str().unwrap()));
+}
+
+#[test]
+fn runtime_repository_reopen_does_not_recreate_a_removed_project() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let service = LocalService::new([registration("project", "Project", &repository)]).unwrap();
+    assert!(repository.join("cas").is_dir());
+
+    fs::remove_dir_all(&repository).unwrap();
+    let error = service.project_status("project").unwrap_err();
+    assert_eq!(error.code(), "storage_error");
+    assert!(
+        error
+            .diagnostic()
+            .is_some_and(|diagnostic| diagnostic.contains("repository not found"))
+    );
+    assert!(!repository.exists());
 }

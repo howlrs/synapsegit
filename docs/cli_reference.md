@@ -142,7 +142,12 @@ synapse-present preview public-view
 
 ## Repository layout
 
-`init` または任意の repository command は、指定 root の下に次を作る。
+`init`、または新規作成を仕様とする `creator-run` は、指定 root の下に次を作る。既存repositoryを
+前提とする command（`put-*`、`build-tree`、`commit`、`update-ref`、`refs`、`fsck`、`export`、
+`creator-report`）はlayoutを作成しない。root、`cas/`、または`refs.sqlite3`がない、またはそれらの
+種類が違う場合は`repository_not_found`で失敗し、`synapse init PATH`を案内する。CASの内部directoryや
+SQLite schema／contentsの破損は既存repositoryのstorage failureとして、それぞれの検証errorで失敗する。
+いずれの場合もcommandはlayoutを補完しない。
 
 ```text
 <repo>/
@@ -160,7 +165,11 @@ disposable derived indexである。
 
 ### `init <repo>`
 
-repository directory、filesystem ObjectStore、SQLite RefStore を作成または開く。
+存在しないpathまたは空のdirectoryにrepository directory、filesystem ObjectStore、SQLite RefStoreを作成する。
+complete existing repositoryはそのまま開く。非空でrepositoryではないdirectory、top-level partial layout、または
+directoryではないpathは変更せず`repository_not_empty`で拒否する。partial layoutやCAS／SQLiteの内部検証failureは
+crashまたは手作業の中断を示し得るため、archiveから別の空directoryへ`restore`するか、内容を確認してからoperatorが
+明示的に処置する。`init`は自動補完しない。
 
 ```text
 initialized <repo>
@@ -497,6 +506,8 @@ directory archive を検証し、object、reflog、Refs を復元する。
 | code | 意味 |
 |---|---|
 | `usage_error` | CLI argument または CLI-side structured size error |
+| `repository_not_found` | existing repositoryを要するcommandのroot、`cas/`、または`refs.sqlite3`がないか種類が違う。`synapse init PATH`で新規repositoryを作成する |
+| `repository_not_empty` | `init` targetが非空でcomplete repositoryではない。内容を確認し、空directoryまたはcomplete layoutを指定する |
 | `storage_error` | filesystem、SQLite、clock、unsupported local storage state |
 | `invalid_utf8` / `bom_forbidden` | structured input encoding rejection |
 | `duplicate_key` / `number_token_forbidden` / `unsafe_integer` / `lone_surrogate` | strict JSON rejection |

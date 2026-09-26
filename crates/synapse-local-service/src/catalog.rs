@@ -71,7 +71,11 @@ impl CatalogError {
 
 impl fmt::Display for CatalogError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(formatter, "{}: {}", self.code, self.detail)
+        write!(formatter, "{}: {}", self.code, self.detail)?;
+        if let Some(diagnostic) = &self.diagnostic {
+            write!(formatter, "; {diagnostic}")?;
+        }
+        Ok(())
     }
 }
 
@@ -90,7 +94,7 @@ impl CatalogEntry {
     }
 
     pub fn open_repository(&self) -> Result<Repository, CatalogError> {
-        Repository::open(&self.repository_path).map_err(|error| {
+        Repository::open_existing(&self.repository_path).map_err(|error| {
             CatalogError::new(
                 "storage_error",
                 format!("project {:?} is unavailable", self.project_key),
@@ -152,17 +156,38 @@ impl ProjectCatalog {
                 ));
             }
 
+            // Empty directories are explicitly supported as new local
+            // projects. Any nonempty directory must already be a complete
+            // repository, so unrelated user directories cannot be modified.
+            let empty = fs::read_dir(&canonical_path)
+                .map_err(|error| {
+                    CatalogError::new(
+                        "storage_error",
+                        format!(
+                            "repository for project {:?} could not be inspected",
+                            registration.project_key
+                        ),
+                    )
+                    .with_diagnostic(error.to_string())
+                })?
+                .next()
+                .is_none();
+            let open = if empty {
+                Repository::open(&canonical_path)
+            } else {
+                Repository::open_existing(&canonical_path)
+            };
             // Open once at startup so an invalid repository layout or an
             // unusable Ref database fails before a listener can be started.
-            Repository::open(&canonical_path).map_err(|error| {
+            open.map_err(|error| {
                 CatalogError::new(
                     "storage_error",
                     format!(
-                        "repository for project {:?} could not be opened",
-                        registration.project_key
+                        "repository for project {:?} is not an existing SynapseGit repository; create an empty directory or run synapse init PATH",
+                        registration.project_key,
                     ),
                 )
-                .with_diagnostic(error.to_string())
+                .with_diagnostic(format!("{}: {error}", canonical_path.display()))
             })?;
 
             entries.insert(
@@ -192,23 +217,31 @@ impl ProjectCatalog {
 
 fn canonical_directory(registration: &ProjectRegistration) -> Result<PathBuf, CatalogError> {
     let metadata = fs::metadata(&registration.repository_path).map_err(|error| {
-        CatalogError::new(
-            "storage_error",
+        let detail = if error.kind() == std::io::ErrorKind::NotFound {
             format!(
-                "repository for project {:?} is unavailable",
+                "repository path for project {:?} does not exist",
                 registration.project_key
-            ),
-        )
-        .with_diagnostic(error.to_string())
+            )
+        } else {
+            format!(
+                "repository path for project {:?} could not be inspected",
+                registration.project_key
+            )
+        };
+        CatalogError::new("storage_error", detail).with_diagnostic(format!(
+            "{}: {error}",
+            registration.repository_path.display()
+        ))
     })?;
     if !metadata.is_dir() {
         return Err(CatalogError::new(
             "local_request_denied",
             format!(
-                "repository for project {:?} is not a directory",
+                "repository path for project {:?} is not a directory",
                 registration.project_key
             ),
-        ));
+        )
+        .with_diagnostic(registration.repository_path.display().to_string()));
     }
     fs::canonicalize(&registration.repository_path).map_err(|error| {
         CatalogError::new(

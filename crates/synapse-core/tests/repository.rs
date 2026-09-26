@@ -265,6 +265,49 @@ fn read_only_open_does_not_create_a_missing_repository() {
 }
 
 #[test]
+fn writable_existing_open_requires_a_complete_layout_without_mutation() {
+    let temporary = TempDirectory::new("missing-writable-existing");
+    let missing = temporary.join("missing/child");
+    let error = Repository::open_existing(&missing).err().unwrap();
+    assert!(matches!(error, RepositoryError::RepositoryNotFound(path) if path == missing));
+    assert!(!temporary.join("missing").exists());
+
+    let partial = temporary.join("partial");
+    fs::create_dir(&partial).unwrap();
+    fs::create_dir(partial.join("cas")).unwrap();
+    let before = filesystem_snapshot(&partial);
+    let error = Repository::open_existing(&partial).err().unwrap();
+    assert!(matches!(error, RepositoryError::RepositoryNotFound(path) if path == partial));
+    assert_filesystem_unchanged(&before, &filesystem_snapshot(&partial));
+
+    let file = temporary.join("not-a-directory");
+    fs::write(&file, b"not a repository").unwrap();
+    let error = Repository::open_existing(&file).err().unwrap();
+    assert!(matches!(error, RepositoryError::RepositoryNotFound(path) if path == file));
+
+    let invalid_refs = temporary.join("invalid-refs");
+    Repository::open(&invalid_refs).unwrap();
+    let refs = invalid_refs.join("refs.sqlite3");
+    fs::remove_file(&refs).unwrap();
+    fs::write(&refs, b"not sqlite").unwrap();
+    let before = filesystem_snapshot(&invalid_refs);
+    let error = Repository::open_existing(&invalid_refs).err().unwrap();
+    assert!(matches!(error, RepositoryError::RefStore(_)));
+    assert_filesystem_unchanged(&before, &filesystem_snapshot(&invalid_refs));
+
+    let deep_cas = temporary.join("deep-cas");
+    Repository::open(&deep_cas).unwrap();
+    fs::remove_dir(deep_cas.join("cas/objects/blob")).unwrap();
+    let before = filesystem_snapshot(&deep_cas);
+    let error = Repository::open_existing(&deep_cas).err().unwrap();
+    assert!(matches!(
+        error,
+        RepositoryError::Store(StoreError::InvalidStoreLayout { .. })
+    ));
+    assert_filesystem_unchanged(&before, &filesystem_snapshot(&deep_cas));
+}
+
+#[test]
 fn empty_ref_restore_does_not_scan_the_tombstone_inventory() {
     let temporary = TempDirectory::new("empty-ref-restore-tombstones");
     let mut source = Repository::open(temporary.join("source")).unwrap();
