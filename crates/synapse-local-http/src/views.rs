@@ -291,7 +291,7 @@ impl SessionPageView {
                 ) = diagnostic.map_or_else(
                     || {
                         (
-                            incomplete.diagnostic,
+                            incomplete_diagnostic_message(reuse_available),
                             "—".into(),
                             "—".into(),
                             "—".into(),
@@ -300,7 +300,7 @@ impl SessionPageView {
                     },
                     |diagnostic| {
                         (
-                            diagnostic.recommended_action,
+                            incomplete_diagnostic_message(reuse_available),
                             diagnostic.proposal_ref.unwrap_or_else(|| "—".into()),
                             diagnostic.proposal_head.unwrap_or_else(|| "—".into()),
                             diagnostic.decision_ref.unwrap_or_else(|| "—".into()),
@@ -491,6 +491,15 @@ impl SessionPageView {
                 download_name: format!("{session}-ai-output.bin"),
             },
         ]
+    }
+}
+
+fn incomplete_diagnostic_message(reuse_available: bool) -> String {
+    if reuse_available {
+        "判断前に中断された記録です。記録済みの3画像を確認し、新しいセッションでレビューできます。"
+            .into()
+    } else {
+        "現在の記録を確認できません。fsckを実行して状態を確認してください。".into()
     }
 }
 

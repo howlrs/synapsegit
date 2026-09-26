@@ -15,6 +15,10 @@
     {
       "version": "0.6.2-draft",
       "sha256": "6db6836504b113f34a867d888b2edb130652312e2ccbbff12ae6e177890d9dcb"
+    },
+    {
+      "version": "0.6.3-draft",
+      "sha256": "a60aaf683175f0ae3b68af32481b23a23513cd28c8c1bbdd9a1bf6819d314ffa"
     }
   ]
 }

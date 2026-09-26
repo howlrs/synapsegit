@@ -67,9 +67,9 @@
   <h2 id="reuse-reference-heading">元の記録（参照のみ）</h2>
   <p>元の{% if reference.kind == "deferred_rereview" %}保留した{% else %}中断した{% endif %}提案の情報です。新しいセッションのメモ、ピン、理由にはコピーされません。</p>
   {% if reference.unavailable %}<p role="status">元の参照情報を取得できませんでした。</p>{% endif %}
-  {% if let Some(note) = reference.generation_note %}<h3>元の生成メモ</h3><p class="decision-rationale">{{ note.prompt }}</p>{% endif %}
+  {% if let Some(note) = reference.generation_note %}<h3>元の生成メモ</h3><dl class="detail-list"><div><dt>使用ツール</dt><dd>{{ note.tool }}</dd></div><div><dt>モデル名</dt><dd>{{ note.model }}</dd></div><div><dt>プロンプト</dt><dd>{{ note.prompt }}</dd></div><div><dt>制作意図</dt><dd>{{ note.intent }}</dd></div></dl>{% endif %}
   {% if let Some(rationale) = reference.deferred_rationale %}<h3>元のDefer理由</h3><p class="decision-rationale">{{ rationale }}</p>{% endif %}
-  {% if let Some(annotations) = reference.annotations %}<h3>元の画像上の判断メモ</h3><ol>{% for pin in annotations.pins %}<li>{{ pin.note }}</li>{% endfor %}</ol>{% endif %}
+  {% if let Some(annotations) = reference.annotations %}<h3>元の画像上の判断メモ</h3><ol>{% for pin in annotations.pins %}<li>{{ pin.role.as_str() }} · ({{ pin.x }}, {{ pin.y }}) · {{ pin.note }}</li>{% endfor %}</ol>{% endif %}
 </section>
 {% endif %}
 
