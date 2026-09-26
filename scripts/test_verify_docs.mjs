@@ -30,16 +30,23 @@ try {
   assert.equal(result.status, 0, result.stderr);
 
   const reference = path.join(fixture, "docs", "cli_reference.md");
+  const original = fs.readFileSync(reference, "utf8");
+  const marker = "blob:sg-oid-v1:sha256:SHA256_HEX_HERE";
+  const markerOffset = original.indexOf(marker);
+  assert.notEqual(markerOffset, -1, "the CLI example must contain the fixture marker");
+  const fenceLine = original.slice(0, markerOffset).split("\n")
+    .findLastIndex(line => /^```bash\s*$/u.test(line)) + 1;
+  assert.ok(fenceLine > 0, "the fixture marker must belong to a bash example");
   fs.writeFileSync(
     reference,
-    fs.readFileSync(reference, "utf8").replace(
-      "blob:sg-oid-v1:sha256:SHA256_HEX_HERE",
+    original.replace(
+      marker,
       "blob:sg-oid-v1:sha256:<64-lowercase-hex>",
     ),
   );
   result = verify();
   assert.notEqual(result.status, 0, "invalid bash syntax must fail");
-  assert.match(result.stderr, /docs\/cli_reference\.md:175 invalid bash block/);
+  assert.ok(result.stderr.includes(`docs/cli_reference.md:${fenceLine} invalid bash block`), result.stderr);
 
   console.log("docs_test_ok");
 } finally {
