@@ -15,6 +15,8 @@ test("manifest-last inbox stages preview bytes before explicit Human Decision", 
   await page.goto(`${app.origin}/projects/pending`);
   const section = page.locator("[data-import-inbox]");
   await expect(section).toBeVisible();
+  await expect(page.locator('[name="session"]')).toHaveCount(1);
+  await expect(page.getByLabel("Session", { exact: true })).toHaveCount(1);
   await page.getByRole("button", { name: "確認する" }).focus();
   await page.keyboard.press("Enter");
   await expect(page.locator("form[data-import-inbox-preview]")).toBeVisible();
@@ -35,9 +37,9 @@ test("manifest-last inbox stages preview bytes before explicit Human Decision", 
   await expect(page.locator("form[data-import-inbox-preview]")).toBeVisible();
   await writeFile(path.join(candidate, "original"), "changed after staging");
   const preview = page.locator("form[data-import-inbox-preview]");
-  await preview.getByLabel("Session", { exact: true }).fill("inbox-review");
-  await preview.getByLabel("Creator name", { exact: true }).fill("Edited creator");
-  await preview.locator('[name="generation_prompt"]').fill("p".repeat(8192));
+  await preview.getByLabel("Inbox session", { exact: true }).fill("inbox-review");
+  await preview.getByLabel("Inbox creator name", { exact: true }).fill("Edited creator");
+  await preview.locator('[name="inbox_generation_prompt"]').fill("p".repeat(8192));
   await preview.getByRole("button", { name: "Proposalを作成" }).click();
   await page.waitForURL("**/creator-sessions/inbox-review");
   await page.getByLabel("Rationale（任意）", { exact: true }).fill("Inbox bytes reviewed.");

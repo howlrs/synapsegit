@@ -1471,7 +1471,8 @@ function enhanceImportInbox() {
   if (!project || !(status instanceof HTMLElement) || !(list instanceof HTMLElement) || !(form instanceof HTMLFormElement) || !(images instanceof HTMLElement)) return;
   let stageId = null;
   const endpoint = `/api/v1/projects/${encodeURIComponent(project)}/import-inbox`;
-  const note = () => { const value = { tool: form.elements.generation_tool.value, model: form.elements.generation_model.value, prompt: form.elements.generation_prompt.value, intent: form.elements.generation_intent.value }; return Object.values(value).every(field => field === "") ? null : value; };
+  const field = name => form.elements.namedItem(`inbox_${name}`);
+  const note = () => { const value = { tool: field("generation_tool").value, model: field("generation_model").value, prompt: field("generation_prompt").value, intent: field("generation_intent").value }; return Object.values(value).every(value => value === "") ? null : value; };
   const showList = async () => {
     if (!stageId) return;
     const cancelled = stageId;
@@ -1506,8 +1507,8 @@ function enhanceImportInbox() {
       const preview = await apiJson(`${endpoint}/${encodeURIComponent(slug)}/stages`, { method: "POST" });
       if (!preview || typeof preview.stage_id !== "string" || !/^[0-9a-f]{64}$/u.test(preview.stage_id)) throw new TypeError("staging応答が不正です。");
       stageId = preview.stage_id;
-      for (const name of ["session", "subject_label", "creator_name"]) form.elements[name].value = preview[name] || "";
-      const generation = preview.generation_note || {}; form.elements.generation_tool.value = generation.tool || ""; form.elements.generation_model.value = generation.model || ""; form.elements.generation_prompt.value = generation.prompt || ""; form.elements.generation_intent.value = generation.intent || "";
+      for (const name of ["session", "subject_label", "creator_name"]) field(name).value = preview[name] || "";
+      const generation = preview.generation_note || {}; field("generation_tool").value = generation.tool || ""; field("generation_model").value = generation.model || ""; field("generation_prompt").value = generation.prompt || ""; field("generation_intent").value = generation.intent || "";
       list.hidden = true; form.hidden = false; status.textContent = "staging済みbytesを確認し、必要ならメタデータを編集してください。"; renderImages(); form.querySelector("h3")?.focus();
     } catch (error) { status.textContent = publicErrorMessage(error); button.disabled = false; }
   };
@@ -1533,7 +1534,7 @@ function enhanceImportInbox() {
     const bytes = UTF8_ENCODER.encode(JSON.stringify(note())).byteLength; if (bytes > 16384) { status.textContent = "生成メモ全体は16 KiB以内にしてください。"; return; }
     const submit = form.querySelector("[type=submit]"); if (submit) submit.disabled = true;
     try {
-      const pending = await apiJson(`${endpoint}/stages/${encodeURIComponent(stageId)}/creator-sessions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session: form.elements.session.value, subject_label: form.elements.subject_label.value, creator_name: form.elements.creator_name.value, generation_note: note() }) });
+      const pending = await apiJson(`${endpoint}/stages/${encodeURIComponent(stageId)}/creator-sessions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session: field("session").value, subject_label: field("subject_label").value, creator_name: field("creator_name").value, generation_note: note() }) });
       if (!pending?.session) throw new TypeError("proposal応答が不正です。");
       window.location.assign(`/projects/${encodeURIComponent(project)}/creator-sessions/${encodeURIComponent(pending.session)}`);
     } catch (error) { status.textContent = publicErrorMessage(error); if (submit) submit.disabled = false; }
