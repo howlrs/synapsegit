@@ -1439,11 +1439,12 @@ impl LocalService {
     ) -> Result<CreatorSessionList, ServiceError> {
         let repository = self.open_repository(project_key)?;
         let snapshot = capture_snapshot(&repository)?;
-        let sessions = display_session_summaries(self.sessions_with_pending(
+        let mut sessions = display_session_summaries(self.sessions_with_pending(
             &repository,
             &snapshot,
             project_key,
         )?);
+        enrich_display_session_summaries(&repository, &snapshot, &mut sessions);
         Ok(CreatorSessionList {
             snapshot: snapshot_context(&snapshot, None),
             sessions,
@@ -2363,15 +2364,21 @@ fn sessions_from_snapshot_with_pending(
         discover_sessions(repository, snapshot)?,
         ready_pending.to_vec(),
     );
-    // One prepared reader performs the bounded verification once for this
-    // snapshot; row values below are therefore verified summaries, not a
-    // separate repository-wide check per row.
+    sort_ref_shaped_summaries(snapshot, &mut sessions);
+    Ok(sessions)
+}
+
+/// Populate only the fixed dashboard page budget. A failed shared reader
+/// leaves explicit unavailable fields rather than inferred metadata.
+fn enrich_display_session_summaries(
+    repository: &Repository,
+    snapshot: &RefSnapshot,
+    sessions: &mut [CreatorSessionSummary],
+) {
     let Ok(reader) = PreparedCreatorReportReader::prepare(repository, snapshot) else {
-        // Keep the Ref-shaped list available when shared verification fails;
-        // absent metadata is deliberately not inferred from damaged content.
-        return Ok(sessions);
+        return;
     };
-    for summary in &mut sessions {
+    for summary in sessions {
         if summary.state != CreatorSessionState::Complete {
             continue;
         }
@@ -2393,21 +2400,36 @@ fn sessions_from_snapshot_with_pending(
         summary.recorded_time_basis = recorded.map(|entry| entry.time_basis.to_owned());
         summary.source_session = report.source.map(|source| source.session);
     }
-    sort_session_summaries(&mut sessions);
-    Ok(sessions)
 }
 
-fn sort_session_summaries(sessions: &mut [CreatorSessionSummary]) {
+fn sort_ref_shaped_summaries(snapshot: &RefSnapshot, sessions: &mut [CreatorSessionSummary]) {
     sessions.sort_by(|left, right| {
         session_display_priority(right)
             .cmp(&session_display_priority(left))
             .then_with(|| {
-                right
-                    .recorded_at
-                    .cmp(&left.recorded_at)
+                ref_update_sequence(snapshot, right)
+                    .cmp(&ref_update_sequence(snapshot, left))
                     .then_with(|| right.session.cmp(&left.session))
             })
     });
+}
+
+fn ref_update_sequence(snapshot: &RefSnapshot, summary: &CreatorSessionSummary) -> i64 {
+    [
+        summary.proposal_ref.as_deref(),
+        summary.decision_ref.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
+    .filter_map(|name| {
+        snapshot
+            .refs
+            .iter()
+            .find(|reference| reference.name == name)
+    })
+    .map(|reference| reference.updated_event_id)
+    .max()
+    .unwrap_or(0)
 }
 
 fn session_display_priority(summary: &CreatorSessionSummary) -> u8 {
@@ -3257,18 +3279,17 @@ mod tests {
                 )
             })
             .collect::<Vec<_>>();
-        // A late lexicographic slug is intentionally old: recorded ordering
-        // time, not the session name, controls the visible order.
+        // Without Ref event values the deterministic tie breaker is session.
         summaries.push(summary(
             "zz-old".into(),
             Some("2020-01-01T00:00:00Z".into()),
             Some("source"),
         ));
-        sort_session_summaries(&mut summaries);
+        sort_ref_shaped_summaries(&RefSnapshot::default(), &mut summaries);
         let displayed = display_session_summaries(summaries.clone());
         assert_eq!(displayed.len(), MAX_CREATOR_SESSION_SUMMARIES);
-        assert_eq!(displayed[0].session, "session-200");
-        assert!(!displayed.iter().any(|row| row.session == "zz-old"));
+        assert_eq!(displayed[0].session, "zz-old");
+        assert!(displayed.iter().any(|row| row.session == "zz-old"));
         let derived = derived_session_names(summaries.clone(), "source");
         assert_eq!(derived.len(), 202);
         assert!(derived.iter().any(|session| session == "zz-old"));
@@ -3277,7 +3298,7 @@ mod tests {
         let mut live = summary("live-review".into(), None, None);
         live.state = CreatorSessionState::PendingReview;
         pending.push(live);
-        sort_session_summaries(&mut pending);
+        sort_ref_shaped_summaries(&RefSnapshot::default(), &mut pending);
         assert_eq!(display_session_summaries(pending)[0].session, "live-review");
     }
 
