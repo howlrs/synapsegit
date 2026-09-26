@@ -21,7 +21,9 @@ from pptx.util import Inches, Pt
 
 DEFAULT_OUTPUT = Path(__file__).with_name("synapsegit_user_scenarios_ja.pptx")
 
-MAIN = "https://github.com/howlrs/synapsegit/blob/main"
+TARGET_VERSION = "v0.9.0"
+CHECKED_ON = "2026-09-27"
+MAIN = f"https://github.com/howlrs/synapsegit/blob/{TARGET_VERSION}"
 LINKS = {
     "readme": f"{MAIN}/README.md",
     "usage": f"{MAIN}/docs/usage_guide.md",
@@ -30,6 +32,8 @@ LINKS = {
     "runtime": f"{MAIN}/docs/runtime_architecture.md",
     "protocol": f"{MAIN}/spec/core/v0.1/README.md",
     "presentation": f"{MAIN}/docs/presentations/README.md",
+    "status": f"{MAIN}/docs/project_status.md",
+    "tutorial": f"{MAIN}/docs/tutorial/README.ja.md",
 }
 
 FONT = "Noto Sans JP"
@@ -449,7 +453,7 @@ def add_footer(slide, number: int, source: str, *, dark=False):
         7.10,
         3.0,
         0.2,
-        "Concept visual · branch: main",
+        f"Concept · {TARGET_VERSION} · 確認日 {CHECKED_ON}",
         size=8.5,
         fill=text,
     )
@@ -581,6 +585,87 @@ def slide_core_loop(prs: Presentation):
     add_footer(slide, 3, "Core concept §§3, 14.4, 20.4", dark=False)
 
 
+def slide_mechanism(prs: Presentation):
+    slide = prs.slides.add_slide(prs.slide_layouts[5])
+    set_background(slide, PAPER)
+    add_title(
+        slide,
+        "MECHANISM · 今すぐ試せる",
+        "仕組みを具体例で見る — 3画像から人の判断まで",
+        f"{TARGET_VERSION}の壁画tutorialに基づく最小構成。図はconcept diagramで実画面ではない",
+    )
+    add_pill(slide, 10.66, 0.52, 2.06, 0.40, "今すぐ試せる操作", SUCCESS, SUCCESS_SOFT, 11)
+
+    images = [
+        ("Original reference", "過去の参照状態", PLAN, PLAN_SOFT),
+        ("Current observation", "現在観測した状態", EVIDENCE, EVIDENCE_SOFT),
+        ("外部で用意した候補", "AI-attributed proposal\n(caller-supplied)", PROPOSAL, PROPOSAL_SOFT),
+    ]
+    for index, (label, sub, accent, soft) in enumerate(images):
+        x = 0.68 + index * 2.62
+        add_node(slide, x, 1.68, 2.40, 1.05, label, sub, accent, soft)
+    for index in range(3):
+        x = 0.68 + index * 2.62 + 1.05
+        add_shape(slide, MSO_SHAPE.CHEVRON, x, 2.82, 0.30, 0.42, fill=HAIRLINE)
+
+    add_node(slide, 0.68, 3.34, 2.40, 1.00, "記録", "Observation Record\nbyte OIDで保存", EVIDENCE, EVIDENCE_SOFT)
+    add_shape(slide, MSO_SHAPE.CHEVRON, 3.20, 3.72, 0.34, 0.46, fill=HAIRLINE)
+    add_node(slide, 3.60, 3.34, 2.86, 1.00, "byte identity比較", "主Blob OID一致／不一致のみ\n(pixel・EXIFは見ない)", ANALYSIS, ANALYSIS_SOFT, dashed=True)
+    add_shape(slide, MSO_SHAPE.CHEVRON, 6.58, 3.72, 0.34, 0.46, fill=HAIRLINE)
+    gate = add_shape(slide, MSO_SHAPE.HEXAGON, 7.06, 3.24, 2.10, 1.20, fill=DECISION_SOFT, line=DECISION, line_width=2.4, name="Human Decision gate")
+    add_text(slide, 7.20, 3.44, 1.82, 0.34, "人が判断", size=14.5, fill=DECISION, bold=True, align=PP_ALIGN.CENTER)
+    add_text(slide, 7.20, 3.80, 1.82, 0.56, "Adopt／Reject／Defer", size=12.5, fill=INK, align=PP_ALIGN.CENTER)
+    set_alt_text(gate, "人が判断", "Adopt・Reject・Deferのいずれかを人が選ぶ。SynapseGitはモデルを呼ばず、実行しない")
+    add_shape(slide, MSO_SHAPE.CHEVRON, 9.30, 3.72, 0.34, 0.46, fill=HAIRLINE)
+
+    destinations = [
+        ("creator-report", "CLI出力", ACTIVITY, ACTIVITY_SOFT),
+        ("localhost UI", "pending／完了画面", EVIDENCE, EVIDENCE_SOFT),
+        ("publication view", "synapse-present\nローカル生成のみ", SUCCESS, SUCCESS_SOFT),
+    ]
+    for index, (title, body, accent, soft) in enumerate(destinations):
+        y = 1.68 + index * 1.20
+        add_card(slide, 9.80, y, 2.86, 1.02, title=title, body=body, accent=accent, soft=soft, title_size=13.5, body_size=11.5)
+    add_line(slide, 9.20, 3.84, 9.80, 2.19, fill=HAIRLINE, width=1.4)
+    add_line(slide, 9.20, 3.84, 9.80, 3.39, fill=HAIRLINE, width=1.4)
+    add_line(slide, 9.20, 3.84, 9.80, 4.59, fill=HAIRLINE, width=1.4)
+
+    add_shape(slide, MSO_SHAPE.ROUNDED_RECTANGLE, 0.68, 4.68, 12.00, 1.32, fill=WHITE, line=HAIRLINE, line_width=0.8)
+    add_rich_text(
+        slide,
+        0.92,
+        4.80,
+        11.50,
+        1.10,
+        [
+            ("候補は誰が用意する？　", DECISION, True),
+            ("利用者が外部ツールで用意する。SynapseGitはmodelを呼ばず、自動実行しない。\n", INK, False),
+            ("誰が決める？　", DECISION, True),
+            ("人だけ。Deferもその1回のDecisionを完了する（改めて判断するには別セッションを作る）。\n", INK, False),
+            ("何を比較する？　", DECISION, True),
+            ("主Blob OIDのbyte一致のみ。位置合わせ・pixel差分・意味解釈は行わない。", INK, False),
+        ],
+        size=13,
+        valign=MSO_ANCHOR.TOP,
+    )
+    add_text(
+        slide,
+        0.72,
+        6.10,
+        11.9,
+        0.34,
+        "しないこと：AIの自動実行・自動採否／画像の意味解析・作者証明／pixel-levelの視覚差分",
+        size=12,
+        fill=GAP,
+        bold=True,
+        align=PP_ALIGN.CENTER,
+    )
+    box = add_text(slide, 0.72, 6.46, 11.9, 0.32, "詳しい手順: 15分 壁画tutorial", size=12, fill=MUTED)
+    run = box.text_frame.paragraphs[0].runs[0]
+    run.hyperlink.address = LINKS["tutorial"]
+    add_footer(slide, 4, "Creator workflow §§1-3 · core_model.md · tutorial/README.ja.md", dark=False)
+
+
 def draw_canvas(slide, x, y, w, h, variant: str):
     add_shape(slide, MSO_SHAPE.RECTANGLE, x, y, w, h, fill=color("EFE9DE"), line=color("B6AA98"), line_width=1.2)
     add_shape(slide, MSO_SHAPE.ARC, x + 0.30, y + 0.42, 1.52, 1.20, fill=PLAN_SOFT, line=PLAN, line_width=1.2)
@@ -620,7 +705,7 @@ def slide_painter(prs: Presentation):
         ("しないこと　", GAP, True),
         ("差分量を創造性・努力の点数にしない／画像から作者を特定しない", INK, False),
     ], size=14, valign=MSO_ANCHOR.TOP)
-    add_footer(slide, 4, "Core concept §§14.2, 20.2, 20.7", dark=False)
+    add_footer(slide, 5, "Core concept §§14.2, 20.2, 20.7", dark=False)
 
 
 def draw_plan_panel(slide, x, y, w, h, mode: str):
@@ -665,7 +750,7 @@ def slide_architect(prs: Presentation):
         add_pill(slide, 0.88 + index * 4.02, 5.55, 3.62, 0.48, label, accent, soft, 13.5)
     add_shape(slide, MSO_SHAPE.ROUNDED_RECTANGLE, 0.88, 6.23, 11.70, 0.50, fill=GAP_SOFT, line=GAP, line_width=0.8)
     add_text(slide, 1.05, 6.31, 11.36, 0.30, "BIM/CADの代替ではない。写真中心の記録は自動的にAs-built認定せず、確認範囲付きのAs-recordedとして扱う。", size=12, fill=GAP, bold=True, align=PP_ALIGN.CENTER)
-    add_footer(slide, 5, "Core concept §§14.1, 14.3, 20.2", dark=False)
+    add_footer(slide, 6, "Core concept §§14.1, 14.3, 20.2", dark=False)
 
 
 def slide_construction(prs: Presentation):
@@ -695,7 +780,7 @@ def slide_construction(prs: Presentation):
     add_text(slide, 1.02, 4.94, 3.80, 0.32, "EvidenceGap — 撮れなかったことも記録", size=14, fill=GAP, bold=True)
     add_text(slide, 1.02, 5.34, 3.80, 0.44, "欠測・遮蔽・緊急対応を\n「変化なし」へ置き換えない", size=13, fill=INK)
     add_text(slide, 1.05, 6.34, 11.25, 0.36, "契約適合や施工品質を自動証明しない。後任が判断できるEvidenceと、誰が何を確認したかを渡す。", size=13, fill=MUTED, align=PP_ALIGN.CENTER)
-    add_footer(slide, 6, "Core concept §§6, 14.1, 14.4, 20.2", dark=False)
+    add_footer(slide, 7, "Core concept §§6, 14.1, 14.4, 20.2", dark=False)
 
 
 def slide_ai(prs: Presentation):
@@ -731,7 +816,7 @@ def slide_ai(prs: Presentation):
         x = 0.98 + index * 3.86
         add_pill(slide, x, 5.25, 3.48, 0.56, text, color("E1D6EE"), color("2A2340"), 11.5)
     add_text(slide, 0.92, 6.45, 11.40, 0.34, "generated_by AI ／ selected・modified・approved_by human を分離する。", size=13, fill=color("C3CDDA"), align=PP_ALIGN.CENTER)
-    add_footer(slide, 7, "Core concept §21 · Stage 0 Workstream D", dark=True)
+    add_footer(slide, 8, "Core concept §21 · Stage 0 Workstream D", dark=True)
 
 
 def slide_handoff(prs: Presentation):
@@ -762,7 +847,7 @@ def slide_handoff(prs: Presentation):
     add_shape(slide, MSO_SHAPE.ROUNDED_RECTANGLE, 7.78, 5.53, 1.62, 0.58, fill=PLAN_SOFT, line=PLAN, line_width=0.8)
     add_text(slide, 7.92, 5.61, 1.34, 0.34, "open archive", size=13, fill=PLAN, bold=True, align=PP_ALIGN.CENTER)
     add_text(slide, 1.28, 6.60, 10.78, 0.34, "hashで照合できるのは記録の同一性。内容の真実性、作者性、永久保存を保証するものではない。", size=12.5, fill=MUTED, align=PP_ALIGN.CENTER)
-    add_footer(slide, 8, "Core concept §§20.2, 20.6 · Pilot target", dark=False)
+    add_footer(slide, 9, "Core concept §§20.2, 20.6 · Pilot target", dark=False)
 
 
 def slide_pilot(prs: Presentation):
@@ -801,7 +886,7 @@ def slide_pilot(prs: Presentation):
         add_text(slide, x, 5.91, 1.06, 0.28, value, size=15, fill=DECISION if index < 3 else SUCCESS, bold=True, align=PP_ALIGN.CENTER)
         add_text(slide, x + 1.05, 5.86, 1.76, 0.40, label, size=11.5, fill=MUTED, align=PP_ALIGN.LEFT, valign=MSO_ANCHOR.MIDDLE)
     add_text(slide, 4.36, 6.58, 4.66, 0.32, "すべてPilot UX／受入目標。実績値ではありません。", size=12, fill=GAP, bold=True, align=PP_ALIGN.CENTER)
-    add_footer(slide, 9, "Core concept §15 · Stage 0 benefit hypotheses", dark=False)
+    add_footer(slide, 10, "Core concept §15 · Stage 0 benefit hypotheses", dark=False)
 
 
 def add_link_button(slide, x, y, w, text, url, accent):
@@ -827,7 +912,8 @@ def add_link_button(slide, x, y, w, text, url, accent):
 def slide_current_state(prs: Presentation):
     slide = prs.slides.add_slide(prs.slide_layouts[5])
     set_background(slide, PAPER)
-    add_title(slide, "CURRENT STATE", "現在地・信頼できる境界・次の実装", "前9枚は利用構想を含みます。製品UIの完成状態を示すものではありません。")
+    add_title(slide, "CURRENT STATE", "現在地・信頼できる境界・次の実装", "前10枚は利用構想を含みます。製品UIの完成状態を示すものではありません。")
+    add_pill(slide, 10.30, 0.52, 2.42, 0.42, f"{TARGET_VERSION} · 確認日 {CHECKED_ON}", DECISION, DECISION_SOFT, 10.5)
     implemented = [
         ("実装済み · Core", "strict JSON／schema\ncanonical OID\nvalidated ingest", SUCCESS, SUCCESS_SOFT),
         ("実装済み · Local", "filesystem／Ref CAS\narchive round trip\nSQLite projection／lineage", EVIDENCE, EVIDENCE_SOFT),
@@ -837,21 +923,43 @@ def slide_current_state(prs: Presentation):
         x = 0.72 + index * 4.10
         add_card(slide, x, 1.62, 3.78, 1.48, title=title, body=body, accent=accent, soft=soft, title_size=15.5, body_size=12.2)
 
-    add_card(slide, 0.72, 3.40, 5.82, 2.05, title="信頼できる見方", body="hashはbyte identityを照合\nAI／Human appはprocess-local\nHuman認証はpublish冒頭1回\nTTLが外部revocation差を限定", accent=EVIDENCE, soft=EVIDENCE_SOFT, title_size=17, body_size=13)
-    add_card(slide, 6.82, 3.40, 5.90, 2.05, title="未実装・次", body="HTTP／JWT／durable ACL・permit\nOS sandbox／release／quorum\nProjection app route\nObservation／Surreal／creator UI", accent=ACTIVITY, soft=ACTIVITY_SOFT, title_size=17, body_size=13)
+    boundary = [
+        (
+            "今すぐ試せる · localhost",
+            "3画像import／review UI\nbyte identityのみのAnalysis\nfsck／archiveブラウザ操作\n(loopback限定・要ローカル起動)",
+            SUCCESS,
+            SUCCESS_SOFT,
+        ),
+        (
+            "境界の注意",
+            "hashはbyte identityのみ照合\npixel／EXIF／外観は見ない\nHuman認証はpublish冒頭1回\nTTLが外部revocation差を限定",
+            EVIDENCE,
+            EVIDENCE_SOFT,
+        ),
+        (
+            "未実装・構想のみ",
+            "capture client・繰り返し撮影\npixel registration／視覚差分\n本番HTTP／JWT・durable ACL\ngeneral-purpose creator app",
+            ACTIVITY,
+            ACTIVITY_SOFT,
+        ),
+    ]
+    for index, (title, body, accent, soft) in enumerate(boundary):
+        x = 0.72 + index * 4.10
+        add_card(slide, x, 3.40, 3.78, 2.05, title=title, body=body, accent=accent, soft=soft, title_size=15, body_size=12.2)
 
-    add_text(slide, 0.84, 5.55, 11.64, 0.34, "しない約束：作者性・現実・契約適合の自動証明／常時監視／個人生産性score／無断AI学習／「永久保存」の過大表示", size=11.5, fill=GAP, bold=True, align=PP_ALIGN.CENTER)
-    add_text(slide, 0.74, 5.91, 2.10, 0.28, "branch: main resources", size=12, fill=MUTED, bold=True)
+    add_text(slide, 0.84, 5.62, 11.64, 0.34, "しない約束：作者性・現実・契約適合の自動証明／常時監視／個人生産性score／無断AI学習／「永久保存」の過大表示", size=11.5, fill=GAP, bold=True, align=PP_ALIGN.CENTER)
+    add_text(slide, 0.74, 5.96, 2.60, 0.28, f"{TARGET_VERSION} tag resources", size=12, fill=MUTED, bold=True)
     buttons = [
         ("Usage guide", LINKS["usage"], EVIDENCE),
         ("Core concept", LINKS["core"], PLAN),
-        ("Stage 0 plan", LINKS["stage0"], ACTIVITY),
+        ("Project status", LINKS["status"], ACTIVITY),
         ("Protocol v0.1", LINKS["protocol"], PROPOSAL),
+        ("Mural tutorial", LINKS["tutorial"], SUCCESS),
     ]
     for index, (label, url, accent) in enumerate(buttons):
-        add_link_button(slide, 0.72 + index * 3.02, 6.20, 2.76, label, url, accent)
-    add_text(slide, 0.76, 6.72, 11.92, 0.24, "リンク先はGitHub mainブランチ。main反映後に有効になります。", size=10.5, fill=MUTED, align=PP_ALIGN.CENTER)
-    add_footer(slide, 10, "README · Security model · Stage 0 execution plan", dark=False)
+        add_link_button(slide, 0.72 + index * 2.40, 6.28, 2.28, label, url, accent)
+    add_text(slide, 0.76, 6.80, 11.92, 0.24, f"リンク先はGitHub {TARGET_VERSION} tag。tag公開後に有効です。", size=10.5, fill=MUTED, align=PP_ALIGN.CENTER)
+    add_footer(slide, 11, "project_status.md · README · Stage 0 execution plan", dark=False)
 
 
 def build_presentation() -> Presentation:
@@ -867,6 +975,7 @@ def build_presentation() -> Presentation:
     slide_cover(prs)
     slide_audiences(prs)
     slide_core_loop(prs)
+    slide_mechanism(prs)
     slide_painter(prs)
     slide_architect(prs)
     slide_construction(prs)
@@ -880,8 +989,8 @@ def build_presentation() -> Presentation:
 def validate_presentation(path: Path) -> list[str]:
     prs = Presentation(path)
     errors: list[str] = []
-    if len(prs.slides) != 10:
-        errors.append(f"expected 10 slides, found {len(prs.slides)}")
+    if len(prs.slides) != 11:
+        errors.append(f"expected 11 slides, found {len(prs.slides)}")
     if prs.slide_width != i(SLIDE_W) or prs.slide_height != i(SLIDE_H):
         errors.append("slide size is not 13.333 × 7.5 inches")
 
@@ -950,10 +1059,10 @@ def validate_presentation(path: Path) -> list[str]:
         if decorative_count == 0:
             errors.append(f"slide {index} has no decorative accessibility markers")
     if hyperlink_count < 8:
-        errors.append(f"expected at least 8 main-branch hyperlinks, found {hyperlink_count}")
-    for required in (LINKS["usage"], LINKS["core"], LINKS["stage0"], LINKS["protocol"]):
+        errors.append(f"expected at least 8 tag-pinned hyperlinks, found {hyperlink_count}")
+    for required in (LINKS["usage"], LINKS["core"], LINKS["status"], LINKS["protocol"], LINKS["tutorial"]):
         if required not in hyperlink_targets:
-            errors.append(f"missing required main-branch hyperlink {required}")
+            errors.append(f"missing required tag-pinned hyperlink {required}")
     return errors
 
 
@@ -981,7 +1090,7 @@ def main() -> int:
         return 1
     print(
         f"ok: {output} "
-        "(10 slides, layout, Japanese fonts, accessibility metadata, and main links validated)"
+        "(11 slides, layout, Japanese fonts, accessibility metadata, and tag-pinned links validated)"
     )
     return 0
 

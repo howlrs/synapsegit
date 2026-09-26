@@ -5,7 +5,11 @@
 - [synapsegit_user_scenarios_ja.pptx](./synapsegit_user_scenarios_ja.pptx)
 - [生成スクリプト](./generate_user_scenarios_pptx.py)
 - [SynapseGit Core 使用ガイド](../usage_guide.md)
+- [15分 壁画tutorial](../tutorial/README.ja.md)
 - [リポジトリREADME](../../README.md)
+
+対象version: **v0.9.0**（[project_status.md](../project_status.md)に対して確認日 **2026-09-27**）。
+capabilityが変わる変更をmergeしたら、この資料と対象versionもあわせて更新する。
 
 ## 資料の用途
 
@@ -17,7 +21,20 @@
 - デザイナーとCreative AIを含む制作チーム
 - 後任、施主、所有者、コレクター、美術館等の二次利用者
 
-画面モックではなく、利用構想、Pilot目標、人とAIの権限境界を示す概念図で構成している。最終slideはprocess-local authenticated one-shot AI route、same-instance admitted proposalに限定したnarrow Human application route、両Core admission、Analysis lineageを含むdisposable SQLite query projectionをlibrary実装済みとする。Human認証はpublish冒頭のpoint-in-time判断でpermit TTLが外部revocationとの差を限定する。一方、HTTP／JWT、durable／distributed ACL・permit、OS sandbox／egress、Projection application route、release／quorum、SurrealDB比較は未実装として区別する。PowerPoint、Keynote、LibreOffice Impress等で開けるが、環境によりフォントと改行を最終確認する。
+画面モックではなく、利用構想、Pilot目標、人とAIの権限境界を示す概念図で構成している。「MECHANISM」slideは
+壁画tutorialに基づく具体例で、Original reference／Current observation／外部で用意した候補（AI-attributed
+proposal）の3画像を記録し、byte identityのみで比較し、人がAdopt／Reject／Deferを判断し、その結果を
+`creator-report`・localhost UI・`synapse-present`のlocal publication viewで読み返せることを示す。この一連は
+v0.9.0で今すぐ試せる。
+
+最終「CURRENT STATE」slideは、**今すぐ試せる（localhost限定）**ものと**未実装・構想のみ**のものを分けて示す。
+
+- 今すぐ試せる: loopback限定のlocalhost creator UI（3画像import／review）、byte identityのみのAnalysis、
+  `fsck`／archiveのブラウザ操作、process-local authenticated one-shot AI／Human application route
+- 未実装・構想のみ: 汎用のcapture client、pixel registration・視覚差分、汎用（general-purpose）の
+  creator application、本番運用向けHTTP／JWT・durable ACL・permit、release／quorum、SurrealDB比較
+
+PowerPoint、Keynote、LibreOffice Impress等で開けるが、環境によりフォントと改行を最終確認する。
 
 ## 再生成
 
@@ -47,13 +64,18 @@ unzip -t docs/presentations/synapsegit_user_scenarios_ja.pptx
 生成スクリプトは次を検証する。
 
 - 16:9、13.333 × 7.5 inch
-- 10 slides
+- 11 slides
 - shapeがslide境界外へ出ていないこと
 - semantic title placeholderと極小text frameがないこと
 - 日本語runに`ja-JP`と`Noto Sans JP`のEast Asian指定があること
 - 図形にdecorative／alt metadataがあること
-- `main`ブランチへのGitHub hyperlink
+- 対象versionのGitHub release tag（`v0.9.0`）へのhyperlink。`main`ブランチへは張らない
 - PPTXを`python-pptx`で再読込できること
+
+`--check`で検証できないもの（人手確認が必要）:
+
+- PowerPoint／Keynote／LibreOffice Impress等の実viewerでの`Noto Sans JP`表示、改行、reading order
+- PowerPoint Accessibility Checker、PDF変換後のlink確認
 
 ## ビジュアル規則
 
@@ -77,16 +99,22 @@ unzip -t docs/presentations/synapsegit_user_scenarios_ja.pptx
 - 写真やAnalysisを物理的事実として表示しない。
 - 作者性、現実、真正性、契約適合、永久保存、改ざん不能を保証しない。
 - AI ProposalとHuman Decisionのレーンを統合しない。
-- 公開リンクは`branch: main`を明示する。
+- 「今すぐ試せる」と「構想／未実装」を混ぜない。localhost限定の機能を汎用製品機能のように書かない。
+- 公開リンクは固定version（現在`v0.9.0`）のrelease tagを明示する。`main`ブランチへは張らない。
 
 ## 根拠資料
 
+- [Project status](../project_status.md)
 - [Core concept](../core_concept.md)
+- [Core data model](../core_model.md)
+- [Creator操作ガイド](../creator_workflow.md)
 - [Stage 0 execution plan](../stage0_execution_plan.md)
 - [Runtime architecture](../runtime_architecture.md)
 - [Core Protocol v0.1](../../spec/core/v0.1/README.md)
+- [15分 壁画tutorial](../tutorial/README.ja.md)
 
 この環境にはLibreOffice／sofficeがないため、配布前の最終レンダリング、PowerPoint Accessibility Checker、reading order、PDF変換後のlink確認はPowerPoint等で行う。
 
-repositoryはpublicである。固定versionの説明資料として配布する場合は、PPTX内の`main` linkを
-release tagまたはcommit permalinkへ更新し、link先の内容が後から変わらないようにする。
+repositoryはpublicである。PPTX内のGitHub linkは常に固定versionのrelease tag（現在`v0.9.0`）を指す。
+対象versionを更新するときは、生成スクリプトの`TARGET_VERSION`と`CHECKED_ON`、この資料冒頭の対象version・確認日、
+CHANGELOGのエントリを同じPRで更新する。
