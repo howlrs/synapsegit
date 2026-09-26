@@ -41,8 +41,8 @@ use crate::dto::*;
 pub const MAX_PROJECTS: usize = 1_000;
 pub const MAX_REFS: usize = MAX_REF_SNAPSHOT_ENTRIES;
 pub const MAX_CREATOR_SESSIONS: usize = 50_000;
-/// Dashboard report enrichment shares one verified reader and is capped apart
-/// from Ref discovery so one rendered page has a fixed upper work bound.
+/// The dashboard reads no more than this many ref-selected rows. Each visible
+/// persisted row receives at most six unverified structured CAS reads.
 pub const MAX_CREATOR_SESSION_SUMMARIES: usize = 200;
 pub const IMAGE_RESPONSE_MAX_BYTES: u64 = 64 * 1024 * 1024;
 pub const MAX_PENDING_CREATOR_SESSIONS: usize = 64;
@@ -1440,7 +1440,7 @@ impl LocalService {
     ) -> Result<CreatorSessionList, ServiceError> {
         let repository = self.open_repository(project_key)?;
         let snapshot = capture_snapshot(&repository)?;
-        let mut sessions = display_session_summaries(self.sessions_with_pending(
+        let mut sessions = display_session_summaries(self.dashboard_sessions_with_pending(
             &repository,
             &snapshot,
             project_key,
@@ -1474,7 +1474,7 @@ impl LocalService {
         let snapshot = capture_snapshot(&repository)?;
         let ready = self.ready_pending(project_key, &snapshot)?;
         let mut derived = Vec::new();
-        for summary in overlay_pending_sessions(discover_sessions(&repository, &snapshot)?, ready) {
+        for summary in overlay_pending_sessions(discover_dashboard_sessions(&snapshot)?, ready) {
             let source = summary
                 .source_session
                 .clone()
@@ -1606,6 +1606,20 @@ impl LocalService {
     ) -> Result<Vec<CreatorSessionSummary>, ServiceError> {
         let ready_pending = self.ready_pending(project_key, snapshot)?;
         sessions_from_snapshot_with_pending(repository, snapshot, &ready_pending)
+    }
+
+    fn dashboard_sessions_with_pending(
+        &self,
+        _repository: &Repository,
+        snapshot: &RefSnapshot,
+        project_key: &str,
+    ) -> Result<Vec<CreatorSessionSummary>, ServiceError> {
+        let mut sessions = overlay_pending_sessions(
+            discover_dashboard_sessions(snapshot)?,
+            self.ready_pending(project_key, snapshot)?,
+        );
+        sort_ref_shaped_summaries(snapshot, &mut sessions);
+        Ok(sessions)
     }
 
     fn reserve_pending(
@@ -2378,37 +2392,88 @@ fn sessions_from_snapshot_with_pending(
     Ok(sessions)
 }
 
-/// Populate only the fixed dashboard page budget. A failed shared reader
-/// leaves explicit unavailable fields rather than inferred metadata.
+/// Populate the fixed dashboard page budget from ref-selected objects.
+///
+/// These reads are unverified display hints only; opening a session still
+/// constructs the normal verified report before presenting detail.
 fn enrich_display_session_summaries(
     repository: &Repository,
-    snapshot: &RefSnapshot,
+    _snapshot: &RefSnapshot,
     sessions: &mut [CreatorSessionSummary],
 ) {
-    let Ok(reader) = PreparedCreatorReportReader::prepare(repository, snapshot) else {
-        return;
-    };
     for summary in sessions {
         if summary.state != CreatorSessionState::Complete {
             continue;
         }
-        let Ok(snapshot_report) = reader.report(&summary.session) else {
+        let Some(head) = summary
+            .decision_head
+            .as_deref()
+            .or(summary.proposal_head.as_deref())
+        else {
             continue;
         };
-        let report = snapshot_report.report;
-        let Ok((creator_name, subject_label)) = source_display_names(repository, &report) else {
+        let Ok(commit) = read_pending_json(repository, head) else {
+            summary.state = CreatorSessionState::Incomplete;
             continue;
         };
-        summary.creator_name = Some(creator_name);
-        summary.subject_label = Some(subject_label);
-        summary.disposition = Some(report.disposition.as_cli_str().into());
-        let recorded = report
-            .timeline
-            .iter()
-            .max_by(|left, right| left.ordering_time.cmp(&right.ordering_time));
-        summary.recorded_at = recorded.map(|entry| entry.ordering_time.clone());
-        summary.recorded_time_basis = recorded.map(|entry| entry.time_basis.to_owned());
-        summary.source_session = report.source.map(|source| source.session);
+        if summary.state == CreatorSessionState::Complete
+            && commit
+                .get("commit_kind")
+                .and_then(serde_json::Value::as_str)
+                != Some("decision")
+        {
+            summary.state = CreatorSessionState::Incomplete;
+        }
+        let Some(tree_oid) = commit.get("snapshot").and_then(serde_json::Value::as_str) else {
+            summary.state = CreatorSessionState::Incomplete;
+            continue;
+        };
+        let Ok(tree) = read_pending_json(repository, tree_oid) else {
+            summary.state = CreatorSessionState::Incomplete;
+            continue;
+        };
+        let Some(entries) = tree.get("entries").and_then(serde_json::Value::as_object) else {
+            continue;
+        };
+
+        // Reads three to five.  A malformed entry merely leaves that display
+        // cell unavailable; it never grants authority to the overview.
+        if let Some(record) = shallow_tree_record(repository, entries, "creator.actor.json") {
+            summary.creator_name = overview_payload_text(&record, "display_name", 300);
+        }
+        if let Some(record) = shallow_tree_record(repository, entries, "subject.json") {
+            summary.subject_label = overview_payload_text(&record, "label", 500);
+        }
+        if let Some(record) = shallow_tree_record(repository, entries, "image-import.activity.json")
+        {
+            summary.source_session = shallow_source_from_activity(&record);
+        }
+
+        // A completed decision has one feedback transition.  This sixth read
+        // is deliberately bounded and does not expose its private rationale.
+        if summary.state == CreatorSessionState::Complete {
+            if let Some(record) = shallow_transition_record(repository, &commit) {
+                summary.disposition =
+                    overview_payload_text(&record, "disposition", 24).and_then(|value| match value
+                        .as_str()
+                    {
+                        "adopted_unchanged" => Some("adopt".into()),
+                        "rejected" => Some("reject".into()),
+                        "deferred" => Some("defer".into()),
+                        _ => None,
+                    });
+                if let Some(recorded_at) = overview_top_level_text(&record, "recorded_at", 64) {
+                    summary.recorded_at = Some(recorded_at);
+                    summary.recorded_time_basis = Some("recorded_at".into());
+                }
+            }
+        }
+        if summary.recorded_at.is_none() {
+            if let Some(authored_at) = overview_top_level_text(&commit, "authored_at", 64) {
+                summary.recorded_at = Some(authored_at);
+                summary.recorded_time_basis = Some("authored_at (unverified fallback)".into());
+            }
+        }
     }
 }
 
@@ -2972,11 +3037,11 @@ fn discover_sessions(
     repository: &Repository,
     snapshot: &RefSnapshot,
 ) -> Result<Vec<CreatorSessionSummary>, ServiceError> {
-    discover_creator_sessions(repository, snapshot, MAX_CREATOR_SESSIONS)
-        .map_err(creator_error)?
-        .into_iter()
-        .map(|session| {
-            Ok(CreatorSessionSummary {
+    Ok(
+        discover_creator_sessions(repository, snapshot, MAX_CREATOR_SESSIONS)
+            .map_err(creator_error)?
+            .into_iter()
+            .map(|session| CreatorSessionSummary {
                 session: session.session,
                 state: match session.state {
                     CoreCreatorSessionState::Complete => CreatorSessionState::Complete,
@@ -2993,8 +3058,78 @@ fn discover_sessions(
                 recorded_time_basis: None,
                 source_session: None,
             })
+            .collect(),
+    )
+}
+
+fn discover_dashboard_sessions(
+    snapshot: &RefSnapshot,
+) -> Result<Vec<CreatorSessionSummary>, ServiceError> {
+    #[derive(Default)]
+    struct Heads {
+        proposal_ref: Option<String>,
+        proposal_head: Option<String>,
+        decision_ref: Option<String>,
+        decision_head: Option<String>,
+    }
+
+    // Listing is deliberately a Ref-shaped operation. A malformed or missing
+    // Commit must leave its own row incomplete/unavailable, rather than making
+    // every unrelated session fail before the bounded overview can render.
+    let mut sessions = BTreeMap::<String, Heads>::new();
+    for reference in &snapshot.refs {
+        let (prefix, proposal) = if reference.name.starts_with("proposal/creator-agent/") {
+            ("proposal/creator-agent/", true)
+        } else if reference.name.starts_with("decision/creator/") {
+            ("decision/creator/", false)
+        } else {
+            continue;
+        };
+        let Some(session) = reference
+            .name
+            .strip_prefix(prefix)
+            .filter(|session| is_slug(session))
+        else {
+            // A ref name outside the session grammar is not a dashboard row.
+            continue;
+        };
+        if !sessions.contains_key(session) && sessions.len() == MAX_CREATOR_SESSIONS {
+            return Err(ServiceError::new(
+                "resource_limit",
+                format!("creator session count exceeds max_sessions {MAX_CREATOR_SESSIONS}"),
+                false,
+            ));
+        }
+        let heads = sessions.entry(session.to_owned()).or_default();
+        if proposal {
+            heads.proposal_ref = Some(reference.name.clone());
+            heads.proposal_head = Some(reference.head.clone());
+        } else {
+            heads.decision_ref = Some(reference.name.clone());
+            heads.decision_head = Some(reference.head.clone());
+        }
+    }
+    Ok(sessions
+        .into_iter()
+        .map(|(session, heads)| CreatorSessionSummary {
+            state: if heads.proposal_head.is_some() && heads.decision_head.is_some() {
+                CreatorSessionState::Complete
+            } else {
+                CreatorSessionState::Incomplete
+            },
+            session,
+            proposal_ref: heads.proposal_ref,
+            proposal_head: heads.proposal_head,
+            decision_ref: heads.decision_ref,
+            decision_head: heads.decision_head,
+            subject_label: None,
+            creator_name: None,
+            disposition: None,
+            recorded_at: None,
+            recorded_time_basis: None,
+            source_session: None,
         })
-        .collect()
+        .collect())
 }
 
 fn complete_session(
@@ -3518,7 +3653,15 @@ mod tests {
             LocalService::new([ProjectRegistration::new("project", "Project", &repository)])
                 .unwrap();
         lock_registry(&service.pending)
-            .reserve("review".into(), "project", "session", "server")
+            .reserve(
+                "review".into(),
+                "project",
+                "session",
+                "server",
+                "subject",
+                "creator",
+                None,
+            )
             .unwrap();
 
         let pending = CorePendingReceipt {
