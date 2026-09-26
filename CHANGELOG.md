@@ -23,6 +23,12 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   destination after syncing the current directory, rather than reporting an
   error after publishing a valid archive.
 
+### Added
+
+- The localhost image comparison dialog can overlay equally sized decoded
+  images and adjust the upper image opacity from 0% through 100% without
+  altering source transparency, evidence, or decisions.
+
 ## [0.8.1] - 2026-09-17
 
 ### Added

@@ -11,6 +11,7 @@ const assets = path.join(root, "docs/tutorial/assets");
 export const original = path.join(assets, "mural-original.png");
 export const current = path.join(assets, "mural-current.png");
 export const output = path.join(assets, "mural-ai-proposal.png");
+const mismatchedOutput = path.join(root, "docs/assets/synapse-local/image-comparison.png");
 
 async function appFixture({ archives = false }, use) {
     const directory = await mkdtemp(path.join(tmpdir(), "synapse-browser-"));
@@ -18,15 +19,22 @@ async function appFixture({ archives = false }, use) {
     try {
       const opaque = path.join(directory, "opaque.txt");
       const broken = path.join(directory, "broken.png");
+      const transparent = path.join(directory, "transparent.png");
+      const red = path.join(directory, "red.png");
       const archiveRoot = path.join(directory, "archives");
       if (archives) await mkdir(archiveRoot);
       await writeFile(opaque, "opaque attachment, not an image");
       await writeFile(broken, Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0]));
+      // 64x32 RGBA: solid red A and blue B whose left half is fully transparent.
+      await writeFile(red, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAWElEQVR4nO3QMREAMBDDsPAn/YWhoR60+7zb7mfTAVoDdIDWAB2gNUAHaA3QAVoDdIDWAB2gNUAHaA3QAVoDdIDWAB2gNUAHaA3QAVoDdIDWAB2gNUAHaA8g8vDiJft7OwAAAABJRU5ErkJggg==", "base64"));
+      await writeFile(transparent, Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAEAAAAAgCAYAAACinX6EAAAAQUlEQVR4nO3QMQ0AAAwDoPo33alY+nBggCTNWLcEzAkQIECAAAECBAgQIECAAAECBAgQIECAAAECBAgQIECAgG8Hmy/0pnlzDEEAAAAASUVORK5CYII=", "base64"));
       const cli = (...args) => execFileSync(path.join(binaries, "synapse"), args, { encoding: "utf8" });
       for (const [key, files] of [
         ["complete", [original, current, output]],
         ["mixed", [original, opaque, output]],
         ["broken", [broken, opaque, broken]],
+        ["transparent", [red, red, transparent]],
+        ["mismatch", [original, current, mismatchedOutput]],
       ]) {
         cli("creator-run", path.join(directory, key), "sample", ...files,
           "--subject", "Comparison browser fixture", "--creator", "Browser tester",
@@ -42,7 +50,7 @@ async function appFixture({ archives = false }, use) {
       );
       server = spawn(path.join(binaries, "synapse-local"), ["--port", "0",
         ...(archives ? ["--archive-root", archiveRoot] : []),
-        ...["complete", "mixed", "broken", "pending", "reviews", ...(archives ? ["restore"] : [])].flatMap((key) => ["--project", `${key}=${projectPath(key)}`]),
+        ...["complete", "mixed", "broken", "transparent", "mismatch", "pending", "reviews", ...(archives ? ["restore"] : [])].flatMap((key) => ["--project", `${key}=${projectPath(key)}`]),
       ], { stdio: ["ignore", "ignore", "pipe"] });
       const origin = await new Promise((resolve, reject) => {
         let log = "";

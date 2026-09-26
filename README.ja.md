@@ -158,8 +158,8 @@ APIと確認付きbounded empty-target archive restore APIも利用でき、v0.8
 controlを提供します。restoreは
 表示中のRefsとreflogが空の登録済みprojectだけに固定され、一覧で確認したslug、target project keyの完全入力、
 empty-target checkbox、browser確認を必要とし、queue/poll完了後もcreator-report一致確認とhistory再読込linkを表示します。
-v0.8.0ではpending／complete sessionにread-only画像比較ビューも追加しています。
-表示可能な2画像を選び、左右（狭い画面では上下）に並べて全体表示・100%・200%で確認できます。
+v0.8.1ではpending／complete sessionにread-only画像比較ビューも追加しています。
+表示可能な2画像を選び、左右（狭い画面では上下）に並べて全体表示・100%・200%で確認できます。同じdecoded寸法の画像は、共通の左上原点で重ね、画像 B の不透明度を0〜100%で調整できます。
 目視確認用であり、位置合わせ・差分解析は行いません。
 v0.8.0の取り込みフォームでは、選択した画像のローカルプレビュー、ファイルサイズ、UTF-8バイト数を確認し、
 取り違えたファイルを解除してからProposalを作成できます。ファイルを選ぶだけでは送信しません。

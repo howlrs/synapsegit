@@ -79,28 +79,40 @@
         <option value="2">200%</option>
       </select>
     </div>
+    <fieldset class="image-comparison__mode">
+      <legend>表示方法</legend>
+      <label><input type="radio" name="comparison-mode" value="side-by-side" data-synapse-compare-mode checked> 並べて表示</label>
+      <label><input type="radio" name="comparison-mode" value="overlay" data-synapse-compare-mode> 重ねて表示</label>
+    </fieldset>
+    <p class="field__hint" data-synapse-compare-overlay-unavailable hidden>重ねて表示するには、A と B のデコード後の幅と高さが一致している必要があります。並べて表示で確認できます。</p>
+    <div class="image-comparison__opacity" data-synapse-compare-opacity-control hidden>
+      <label for="comparison-opacity">画像 B の不透明度 <output for="comparison-opacity" data-synapse-compare-opacity-value>50%</output></label>
+      <input id="comparison-opacity" data-synapse-compare-opacity type="range" min="0" max="100" value="50" step="1" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+      <p class="field__hint">画像 B 本来の透明部分はそのまま保持します。</p>
+    </div>
+    <div class="image-comparison__sources">
+      <div class="field"><label for="comparison-source-a">比較画像 A</label><select id="comparison-source-a" data-synapse-compare-source>{% for image in images %}<option value="{{ loop.index0 }}">{{ image.label }}</option>{% endfor %}</select></div>
+      <div class="field"><label for="comparison-source-b">比較画像 B</label><select id="comparison-source-b" data-synapse-compare-source>{% for image in images %}<option value="{{ loop.index0 }}">{{ image.label }}</option>{% endfor %}</select></div>
+    </div>
     <div class="image-comparison__panes">
       <figure class="image-comparison__pane" data-synapse-compare-pane>
-        <div class="field">
-          <label for="comparison-source-a">比較画像 A</label>
-          <select id="comparison-source-a" data-synapse-compare-source>
-            {% for image in images %}<option value="{{ loop.index0 }}">{{ image.label }}</option>{% endfor %}
-          </select>
-        </div>
         <div class="image-comparison__viewport" data-synapse-compare-viewport tabindex="0" role="region" aria-label="比較画像 Aの表示領域"><img data-synapse-compare-image alt="" hidden></div>
         <figcaption data-synapse-compare-caption class="field__hint" aria-live="polite"></figcaption>
       </figure>
       <figure class="image-comparison__pane" data-synapse-compare-pane>
-        <div class="field">
-          <label for="comparison-source-b">比較画像 B</label>
-          <select id="comparison-source-b" data-synapse-compare-source>
-            {% for image in images %}<option value="{{ loop.index0 }}">{{ image.label }}</option>{% endfor %}
-          </select>
-        </div>
         <div class="image-comparison__viewport" data-synapse-compare-viewport tabindex="0" role="region" aria-label="比較画像 Bの表示領域"><img data-synapse-compare-image alt="" hidden></div>
         <figcaption data-synapse-compare-caption class="field__hint" aria-live="polite"></figcaption>
       </figure>
     </div>
+    <figure class="image-comparison__overlay" data-synapse-compare-overlay hidden>
+      <div class="image-comparison__viewport" data-synapse-compare-overlay-viewport tabindex="0" role="region" aria-label="重ねた比較画像の表示領域">
+        <svg data-synapse-compare-overlay-canvas aria-label="比較画像 A を下、画像 B を上に重ねた表示" role="img" xmlns="http://www.w3.org/2000/svg">
+          <image data-synapse-compare-overlay-image-a preserveAspectRatio="none" />
+          <image data-synapse-compare-overlay-image-b preserveAspectRatio="none" opacity="0.5" />
+        </svg>
+      </div>
+      <figcaption data-synapse-compare-overlay-caption class="field__hint" aria-live="polite"></figcaption>
+    </figure>
   </dialog>
   <div class="media-grid">
     {% for image in images %}
