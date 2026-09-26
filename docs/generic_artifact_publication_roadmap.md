@@ -17,6 +17,25 @@ projection and renderer profiles.
 
 ## Decisions and priority
 
+The design work in [Issue #17](https://github.com/howlrs/synapsegit/issues/17)
+has two different delivery states. The local publication increment is
+implemented; the external adapters below are design only. The
+[Git provenance and identity design](./git_provenance_design.md) defines the
+initial import envelope, identity evidence, failure policy, and implementation
+gates. It does not register a new Core schema or add an importer.
+
+| Issue #17 concern | Current evidence | Remaining delivery |
+| --- | --- | --- |
+| Creator reports and local GitHub layout | `synapse-present`, creator publication v1 | Remote delivery receipt and explicit send flow |
+| Generic file-tree/LP outcomes | [Generic publication v1](../spec/application/generic-artifact-publication/v1/README.md), including complete/pending/incomplete outcomes and privacy canaries | Application transport and remote adapter |
+| Publication destination and visibility | Release first, optional linked Issue later; exact public bundle confirmation below | Adapter implementation and partial-failure tests |
+| Existing Git history and identity | [Local import design](./git_provenance_design.md) | Versioned schema, importer, independent fixture verification |
+| GitHub App and hosted operation | Separate permissions, consent, revocation, tenancy gates below | Independent implementation; no service is enabled by this document |
+
+The broad Issue remains a roadmap tracker: delivery of the local bundle or
+this design must not be presented as completion of remote publication, Git
+import, identity linking, or hosted service implementation.
+
 The staged order is deliberately narrower than the full integration vision:
 
 1. Keep the implemented deterministic local Synapse/GitHub staging layouts as
