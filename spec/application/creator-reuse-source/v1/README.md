@@ -13,10 +13,12 @@ the new Ref publication; a stale source fails without changing either source
 Ref. A pending review retained by the running process is never eligible.
 
 The existing `synapsegit-creator-source-v1` remains unchanged for the
-two-Blob/new-candidate derivation workflow. Binaries released before this
-format can restore and fsck the archive, and their `creator-report` can still
-render the session, but that report omits this binding. Core archive restore
-keeps the objects and Refs; the current localhost application validates and
-displays this relationship. Frozen
+two-Blob/new-candidate derivation workflow. The tested pre-reuse v0.8.1 binary
+can restore and fsck the archive, and its `creator-report` can still render
+the session, but that report omits this binding. Core archive restore keeps
+the objects and Refs; the current `creator-report` and localhost application
+validate and display this relationship. Older binaries also do not guarantee
+the public-profile refusal for reuse history, so use current tools before
+publication. Frozen
 public profile v1 and its sidecar form reject every session with either source
 binding.

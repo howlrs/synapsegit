@@ -86,4 +86,4 @@ completeな派生セッションを含む全件exportも失敗し、bundle出力
 
 `Defer`で完了したセッションでは「保留した提案を改めて判断する」を選べます。確認画面と新しいレビュー画面では、元の生成メモ、Defer理由、画像上のメモを「参照のみ」として確認できます。新しい判断にはコピーされません。どちらの場合も元のRefと判断は変更せず、確認後に元のheadが変われば作成を拒否します。固定した元の記録を読めないときは、画面がその旨を表示します。
 
-通常のarchive export／restoreはこの関係を保持します。公開形式v1と公開用文章フォームはこのprivateな来歴を表せないため、再レビューしたセッション、またはそれを含む全件exportを拒否します。v0.8.x以前のbinaryでもarchive restore、fsck、`creator-report`は成功しますが、`creator-report`の出力にはこの関係を表示しません。固定した来歴の検証と表示は、この版のlocalhost applicationで確認してください。
+通常のarchive export／restoreはこの関係を保持します。公開形式v1と公開用文章フォームはこのprivateな来歴を表せないため、再レビューしたセッション、またはそれを含む全件exportを拒否します。今回確認したpre-reuse v0.8.1 binaryではarchive restore、fsck、`creator-report`は成功しますが、`creator-report`の出力にはこの関係を表示しません。この版の`creator-report`とlocalhost applicationで固定した来歴を検証・表示してください。古いbinaryは再利用した履歴に対する公開形式v1の拒否も保証しないため、公開前には現在のtoolを使います。

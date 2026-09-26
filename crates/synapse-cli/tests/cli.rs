@@ -445,6 +445,89 @@ fn creator_cli_builds_reports_and_restores_one_human_gated_session() {
 }
 
 #[test]
+fn creator_report_prints_escaped_three_blob_reuse_provenance() {
+    use synapse_creator::{
+        CreatorBeginOptions, CreatorDecisionOptions, CreatorDisposition, begin_creator_session,
+        begin_creator_session_with_reuse_source, creator_reuse_source_from_snapshot,
+        decide_creator_session,
+    };
+
+    let temporary = TempDirectory::new();
+    let repository = temporary.join("reuse-report");
+    let original = temporary.join("original.png");
+    let current = temporary.join("current.png");
+    let proposal = temporary.join("proposal.png");
+    fs::write(&original, b"original image").unwrap();
+    fs::write(&current, b"current image").unwrap();
+    fs::write(&proposal, b"proposal image").unwrap();
+    let options = |session: &str| CreatorBeginOptions {
+        repository: repository.clone(),
+        session: session.into(),
+        original_image: original.clone(),
+        current_image: current.clone(),
+        ai_output: proposal.clone(),
+        subject_label: "CLI reuse report".into(),
+        creator_name: "CLI tester".into(),
+    };
+
+    let mut source_pending = begin_creator_session(&options("deferred-source")).unwrap();
+    decide_creator_session(
+        &mut source_pending,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Defer,
+            rationale: Some("A fresh review is needed.".into()),
+        },
+    )
+    .unwrap();
+    let repository_handle = Repository::open(&repository).unwrap();
+    let snapshot = repository_handle.refs().snapshot().unwrap();
+    let source =
+        creator_reuse_source_from_snapshot(&repository_handle, &snapshot, "deferred-source")
+            .unwrap();
+
+    let mut reused_pending =
+        begin_creator_session_with_reuse_source(&options("reused-session"), &source).unwrap();
+    decide_creator_session(
+        &mut reused_pending,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Adopt,
+            rationale: None,
+        },
+    )
+    .unwrap();
+
+    let report = run(&[
+        "creator-report",
+        repository.to_str().unwrap(),
+        "reused-session",
+    ]);
+    assert_success(&report);
+    let report = String::from_utf8(report.stdout).unwrap();
+    assert!(
+        report.contains("reused_three_blob_source_format=\"synapsegit-creator-reuse-source-v1\"")
+    );
+    assert!(report.contains("reused_three_blob_source_kind=\"deferred_rereview\""));
+    assert!(report.contains("reused_three_blob_source_session=\"deferred-source\""));
+    assert!(report.contains(&format!(
+        "reused_three_blob_source_proposal_head={:?}",
+        source.proposal_head
+    )));
+    assert!(report.contains(&format!(
+        "reused_three_blob_source_decision_head={:?}",
+        source.decision_head
+    )));
+    for (label, oid) in [
+        ("original", source.original_blob_oid),
+        ("current", source.current_blob_oid),
+        ("ai_output", source.ai_output_blob_oid),
+    ] {
+        assert!(report.contains(&format!(
+            "reused_three_blob_source_{label}_blob_oid={oid:?}"
+        )));
+    }
+}
+
+#[test]
 fn creator_report_prints_private_user_declared_notes_separately_and_escaped() {
     use synapse_creator::{
         CreatorBeginOptions, CreatorDecisionOptions, CreatorDisposition, CreatorGenerationNote,
