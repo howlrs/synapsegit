@@ -11,9 +11,9 @@ use serde::de::DeserializeOwned;
 use synapse_local_service::{
     ArchiveExportRequest, ArchiveRestoreRequest, ArchiveResultKind,
     BeginReuseCreatorSessionRequest, BeginStagedImportInboxRequest, CreatorDecisionRequest,
-    CreatorDecisionResponse, CreatorImage, HealthResponse, ImageRole, LocalService, OperationKind,
-    OperationResult, OperationState, Problem as ServiceProblem, ProjectConfirmation, ReflogQuery,
-    ServiceError,
+    CreatorDecisionResponse, CreatorImage, CreatorSessionState, HealthResponse, ImageRole,
+    LocalService, OperationKind, OperationResult, OperationState, Problem as ServiceProblem,
+    ProjectConfirmation, ReflogQuery, ServiceError,
 };
 
 use crate::problem::problem_response;
@@ -1197,11 +1197,30 @@ pub(crate) async fn project_page(
         .sessions
         .into_iter()
         .map(|session| SessionSummaryView {
+            creator_name: session
+                .creator_name
+                .unwrap_or_else(|| "取得できません".into()),
             session: session.session,
+            state_code: match session.state {
+                CreatorSessionState::PendingReview => "pending",
+                CreatorSessionState::Complete => "complete",
+                CreatorSessionState::Incomplete => "incomplete",
+            },
             state_label: session_state_label(session.state),
             tone: session_state_tone(session.state),
-            proposal_head: session.proposal_head.unwrap_or_else(|| "—".into()),
-            decision_head: session.decision_head.unwrap_or_else(|| "—".into()),
+            proposal_head: short_oid(session.proposal_head.as_deref()),
+            decision_head: short_oid(session.decision_head.as_deref()),
+            subject_label: session
+                .subject_label
+                .unwrap_or_else(|| "取得できません".into()),
+            disposition: session
+                .disposition
+                .unwrap_or_else(|| "取得できません".into()),
+            recorded_at: session
+                .recorded_at
+                .unwrap_or_else(|| "取得できません".into()),
+            recorded_time_basis: session.recorded_time_basis.unwrap_or_else(|| "—".into()),
+            source_session: session.source_session.unwrap_or_else(|| "—".into()),
         })
         .collect::<Vec<_>>();
     let fsck_supported = dashboard.status.project.capabilities.fsck;
@@ -1265,6 +1284,16 @@ struct Dashboard {
     sessions: synapse_local_service::CreatorSessionList,
 }
 
+fn short_oid(value: Option<&str>) -> String {
+    value.map_or_else(
+        || "—".into(),
+        |oid| match oid.get(..16) {
+            Some(prefix) if prefix.len() < oid.len() => format!("{prefix}…"),
+            _ => oid.to_owned(),
+        },
+    )
+}
+
 async fn run_dashboard(state: AppState, project_key: String) -> Result<Dashboard, DashboardError> {
     let gate_key = project_key.clone();
     run_blocking(state, Some(gate_key), move |service| {
@@ -1322,12 +1351,14 @@ pub(crate) async fn session_page(
     let project_key_for_read = project_key.clone();
     let session_for_read = session.clone();
     let gate_key = project_key.clone();
-    let (project_label, detail, diagnostic) =
+    let (project_label, detail, diagnostic, derived_sessions) =
         match run_blocking(state.clone(), Some(gate_key), move |service| {
             let project = service.project_status(&project_key_for_read)?.project;
             let (detail, diagnostic) = service
                 .get_creator_session_with_diagnostic(&project.project_key, &session_for_read)?;
-            Ok((project.display_label, detail, diagnostic))
+            let derived_sessions =
+                service.creator_session_derivations(&project.project_key, &session_for_read)?;
+            Ok((project.display_label, detail, diagnostic, derived_sessions))
         })
         .await
         {
@@ -1388,6 +1419,7 @@ pub(crate) async fn session_page(
             diagnostic_proposal_head: &view.diagnostic_proposal_head,
             diagnostic_decision_ref: &view.diagnostic_decision_ref,
             diagnostic_decision_head: &view.diagnostic_decision_head,
+            derived_sessions: &derived_sessions,
         },
     )
 }

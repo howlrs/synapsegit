@@ -463,6 +463,12 @@ fn creator_session_summary_and_list_match_the_openapi_schema() {
         proposal_head: Some(format!("commit:sg-oid-v1:sha256:{}", "1".repeat(64))),
         decision_ref: Some("refs/creator/decision/render-session".into()),
         decision_head: Some(format!("commit:sg-oid-v1:sha256:{}", "2".repeat(64))),
+        subject_label: None,
+        creator_name: None,
+        disposition: None,
+        recorded_at: None,
+        recorded_time_basis: None,
+        source_session: None,
     };
     assert_matches_openapi_schema(
         &document,

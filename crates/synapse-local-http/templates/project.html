@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 
 {% block content %}
-<p><a class="button button--secondary" href="/projects/{{ project_key }}/presentation">公開用の制作ノートを作る</a></p>
 <nav class="breadcrumbs" aria-label="パンくずリスト">
   <ol><li><a href="/">プロジェクト</a></li><li aria-current="page">{{ project_label }}</li></ol>
 </nav>
@@ -11,7 +10,10 @@
     <h1>{{ project_label }}</h1>
     <p class="muted">Ref snapshot <code>{{ watermark }}</code></p>
   </div>
-  <span class="status-badge" data-tone="success">ローカル・利用可能</span>
+  <div class="actions">
+    <span class="status-badge" data-tone="success">ローカル・利用可能</span>
+    <a class="button button--secondary" href="/projects/{{ project_key }}/presentation">公開用の制作ノートを作る</a>
+  </div>
 </header>
 
 <section class="metric-grid" aria-label="プロジェクト概要">
@@ -20,137 +22,6 @@
   <article class="metric"><span class="metric__label">レビュー待ち</span><strong>{{ pending_sessions }}</strong></article>
   <article class="metric"><span class="metric__label">未完了</span><strong>{{ incomplete_sessions }}</strong></article>
 </section>
-
-{% if fsck_supported %}
-<section class="card" aria-labelledby="fsck-heading">
-  <div class="card__header">
-    <div>
-      <p class="eyebrow">Maintenance</p>
-      <h2 id="fsck-heading">Repository integrity check</h2>
-      <p class="muted">server固定のresource limit内で、現在のRefsと完全なCAS inventoryをread-only検査します。</p>
-    </div>
-  </div>
-  {% if has_last_fsck %}
-  <div class="notice" data-tone="{% if last_fsck_clean %}success{% else %}danger{% endif %}">
-    <h3>直近のprocess-local結果: {% if last_fsck_clean %}clean{% else %}issues found{% endif %}</h3>
-    <p>Verified objects: {{ last_fsck_objects }} · Issues: {{ last_fsck_issues }}</p>
-  </div>
-  {% endif %}
-  <form
-    hidden
-    method="post"
-    action="/api/v1/projects/{{ project_key }}/operations/fsck"
-    data-synapse-api-form="json"
-    data-confirm-maintenance="fsck"
-    data-success-reload="true"
-    data-busy-message="Integrity checkをqueueしています…"
-  >
-    <label class="field">
-      <span>確認のため project key <code>{{ project_key }}</code> を入力</span>
-      <input name="confirm_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
-    </label>
-    <div class="actions"><button type="submit" data-synapse-submit>Read-only fsckを実行</button></div>
-    <p class="field__hint">処理はbounded background jobとして実行されます。履歴やobjectを変更しません。</p>
-    <p data-synapse-status hidden></p>
-  </form>
-  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、maintenance操作は開始できません。</p></div></noscript>
-</section>
-{% endif %}
-
-{% if archive_export_supported %}
-<section class="card" aria-labelledby="archive-export-heading">
-  <div class="card__header">
-    <div>
-      <p class="eyebrow">Maintenance</p>
-      <h2 id="archive-export-heading">Archive export</h2>
-      <p class="muted">現在のprojectをserver固定のresource limit内で、設定済みarchive rootへchecksum付きdirectory archiveとして保存します。</p>
-    </div>
-  </div>
-  <div class="notice" data-tone="warning">
-    <h3>既存archiveは上書きしません</h3>
-    <p>archive nameは新しいlogical slugを指定してください。保存先のfilesystem pathはserver設定が所有し、この画面には公開されません。</p>
-  </div>
-  <form
-    hidden
-    method="post"
-    action="/api/v1/projects/{{ project_key }}/archive-exports"
-    data-synapse-api-form="json"
-    data-confirm-maintenance="archive-export"
-    data-success-location="/#archives-heading"
-    data-busy-message="Archive exportをqueueしています…"
-  >
-    <div class="form-grid">
-      <label class="field">
-        <span>Archive name</span>
-        <input name="archive_name" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="nightly-2026-08-26">
-        <span class="field__hint">小文字英数字とハイフン、1–64文字。create-onlyです。</span>
-      </label>
-      <label class="field">
-        <span>確認のため project key <code>{{ project_key }}</code> を入力</span>
-        <input name="confirm_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
-        <span class="field__hint">対象projectのexact confirmationとして送信されます。</span>
-      </label>
-    </div>
-    <div class="actions"><button type="submit" data-synapse-submit>Archiveを作成</button></div>
-    <p class="field__hint">処理はbounded background jobとして実行され、成功後にarchive一覧へ移動します。</p>
-    <p data-synapse-status hidden></p>
-  </form>
-  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、archive exportは開始できません。</p></div></noscript>
-</section>
-{% endif %}
-
-{% if archive_restore_supported %}
-<section class="card" aria-labelledby="archive-restore-heading">
-  <div class="card__header">
-    <div>
-      <p class="eyebrow">Maintenance</p>
-      <h2 id="archive-restore-heading">Archive restore</h2>
-      <p class="muted">保存したアーカイブを、このプロジェクトへ復元します。</p>
-    </div>
-  </div>
-  {% if archive_restore_target_ready %}
-  <div class="notice" data-tone="warning">
-    <h3>履歴がないプロジェクトへ復元します</h3>
-    <p>アーカイブの状態は<a href="/#archives-heading">Archives一覧</a>で確認してください。</p>
-  </div>
-  <form
-    hidden
-    method="post"
-    action="/api/v1/projects/{{ project_key }}/archive-restores"
-    data-synapse-api-form="json"
-    data-archive-restore="true"
-    data-restore-project-key="{{ project_key }}"
-    data-busy-message="アーカイブの復元を開始しています…"
-  >
-    <div class="form-grid">
-      <label class="field">
-        <span>Archive name</span>
-        <input name="archive_name" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="nightly-2026-08-26">
-        <span class="field__hint">Archives一覧の名前を小文字のまま入力してください。</span>
-      </label>
-      <label class="field">
-        <span>確認のため復元先の project key <code>{{ project_key }}</code> を入力</span>
-        <input name="confirm_target_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
-      </label>
-      <label class="check-field form-grid__wide">
-        <input type="checkbox" name="confirm_empty_target" value="true" required>
-        <span>このプロジェクトに既存の履歴がないことを確認しました。</span>
-      </label>
-    </div>
-    <div class="actions"><button type="submit" data-synapse-submit>Archiveを復元</button></div>
-    <p class="field__hint">失敗時や結果不明の場合は、ファイルの一部がコピー済みの可能性があります。自動では再試行しません。再試行する場合は同じアーカイブを使ってください。</p>
-    <p data-synapse-status hidden></p>
-    <a hidden data-synapse-restore-success-link href="/projects/{{ project_key }}">復元した履歴を確認</a>
-  </form>
-  {% else %}
-  <div class="notice" data-tone="warning">
-    <h3>このプロジェクトは復元先にできません</h3>
-    <p>既存の履歴があります。復元用には別の空のプロジェクトを初期化・登録してから開いてください。</p>
-  </div>
-  {% endif %}
-  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、archive restoreは開始できません。</p></div></noscript>
-</section>
-{% endif %}
 
 {% if import_inbox_supported %}
 <section class="card" hidden data-import-inbox data-project-key="{{ project_key }}" aria-labelledby="import-inbox-heading">
@@ -174,8 +45,7 @@
   </form>
 </section>
 {% endif %}
-
-<section class="card" aria-labelledby="creator-upload-heading">
+<section class="card project-creator-upload" aria-labelledby="creator-upload-heading">
   <div class="card__header">
     <div>
       <p class="eyebrow">Proposal-only import</p>
@@ -202,7 +72,7 @@
       <div class="field">
         <label for="creator-session">Session</label>
         <input id="creator-session" name="session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" aria-describedby="creator-session-hint" autocomplete="off" placeholder="first-review">
-        <span id="creator-session-hint" class="field__hint">小文字英数字とハイフン、1–64文字。create-onlyです。</span>
+        <span id="creator-session-hint" class="field__hint">小文字英数字とハイフン、1–64文字。新しい名前で作成します。</span>
       </div>
       <div class="field">
         <label for="creator-name">Creator name</label>
@@ -256,20 +126,23 @@
   <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、この画面はread-onlyです。安全なuploadにはprocess-local tokenを付けるJavaScriptが必要です。</p></div></noscript>
 </section>
 
-<section aria-labelledby="sessions-heading">
-  <div class="section-heading"><h2 id="sessions-heading">Creator sessions</h2><span class="badge">{{ sessions.len() }} 件</span></div>
+<section class="project-sessions" aria-labelledby="sessions-heading" data-creator-session-list>
+  <div class="section-heading"><h2 id="sessions-heading">セッション</h2><span class="badge" data-creator-session-count>{{ sessions.len() }} 件</span></div>
+  <p class="field__hint">レビュー待ちを優先し、履歴の更新が新しい順に最大200件を表示します。概要は未検証です。取得できない項目は推測せず、セッションを開いて詳細を検証・確認できます。記録日時は制作時刻を証明するものではありません。</p>
+  <label class="field"><span>状態・判断で絞り込む</span><select data-creator-session-filter><option value="all">すべて</option><option value="pending">レビュー待ち</option><option value="complete">完了</option><option value="adopt">Adopt</option><option value="reject">Reject</option><option value="defer">Defer</option><option value="incomplete">未完了</option></select></label>
   {% if sessions.is_empty() %}
   <div class="empty-state"><h3>セッションはまだありません</h3><p>上のフォームから3ファイルを取り込み、最初のproposalとHuman reviewを開始できます。</p></div>
   {% else %}
   <div class="table-wrap"><table>
-    <thead><tr><th>セッション</th><th>状態</th><th>Proposal head</th><th>Decision head</th></tr></thead>
+    <thead><tr><th>セッション／内容</th><th>状態・判断</th><th>記録日時</th><th>派生元</th><th>head</th></tr></thead>
     <tbody>
       {% for session in sessions %}
-      <tr>
-        <th scope="row"><a href="/projects/{{ project_key }}/creator-sessions/{{ session.session }}">{{ session.session }}</a></th>
-        <td><span class="status-badge" data-tone="{{ session.tone }}">{{ session.state_label }}</span></td>
-        <td><code>{{ session.proposal_head }}</code></td>
-        <td><code>{{ session.decision_head }}</code></td>
+      <tr data-creator-session-row data-state="{{ session.state_code }}" data-disposition="{{ session.disposition }}">
+        <th scope="row"><a href="/projects/{{ project_key }}/creator-sessions/{{ session.session }}">{{ session.session }}</a><br><span class="muted">{{ session.subject_label }}</span><br><span class="muted">{{ session.creator_name }}</span></th>
+        <td><span class="status-badge" data-tone="{{ session.tone }}">{{ session.state_label }}</span> {{ session.disposition }}</td>
+        <td>{{ session.recorded_at }}<br><span class="muted">{{ session.recorded_time_basis }}</span></td>
+        <td>{% if session.source_session == "—" %}—{% else %}<a href="/projects/{{ project_key }}/creator-sessions/{{ session.source_session }}">{{ session.source_session }}</a>{% endif %}</td>
+        <td><code>{{ session.proposal_head }}</code><br><code>{{ session.decision_head }}</code></td>
       </tr>
       {% endfor %}
     </tbody>
@@ -277,7 +150,142 @@
   {% endif %}
 </section>
 
-<div class="split-grid">
+<section aria-labelledby="maintenance-heading">
+  <div class="section-heading"><h2 id="maintenance-heading">メンテナンス</h2></div>
+{% if fsck_supported %}
+<section class="card project-maintenance" aria-labelledby="fsck-heading">
+  <div class="card__header">
+    <div>
+      <p class="eyebrow">メンテナンス</p>
+      <h3 id="fsck-heading">リポジトリ整合性の確認</h3>
+      <p class="muted">現在の履歴と保存データの整合性を、上限を設けて読み取り専用で確認します。</p>
+    </div>
+  </div>
+  {% if has_last_fsck %}
+  <div class="notice" data-tone="{% if last_fsck_clean %}success{% else %}danger{% endif %}">
+    <h3>直近のprocess-local結果: {% if last_fsck_clean %}clean{% else %}issues found{% endif %}</h3>
+    <p>Verified objects: {{ last_fsck_objects }} · Issues: {{ last_fsck_issues }}</p>
+  </div>
+  {% endif %}
+  <form
+    hidden
+    method="post"
+    action="/api/v1/projects/{{ project_key }}/operations/fsck"
+    data-synapse-api-form="json"
+    data-confirm-maintenance="fsck"
+    data-success-reload="true"
+    data-busy-message="整合性の確認を開始しています…"
+  >
+    <label class="field">
+      <span>確認のため project key <code>{{ project_key }}</code> を入力</span>
+      <input name="confirm_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
+    </label>
+    <div class="actions"><button type="submit" data-synapse-submit>読み取り専用で fsck を実行</button></div>
+    <p class="field__hint">処理はバックグラウンドで実行します。履歴や保存データを変更しません。</p>
+    <p data-synapse-status hidden></p>
+  </form>
+  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、メンテナンス操作は開始できません。</p></div></noscript>
+</section>
+{% endif %}
+
+{% if archive_export_supported %}
+<section class="card project-maintenance" aria-labelledby="archive-export-heading">
+  <div class="card__header">
+    <div>
+      <p class="eyebrow">メンテナンス</p>
+      <h3 id="archive-export-heading">アーカイブを書き出す</h3>
+      <p class="muted">現在のプロジェクトを、設定済みの保存先へチェックサム付きで保存します。</p>
+    </div>
+  </div>
+  <div class="notice" data-tone="warning">
+    <h3>既存のアーカイブは上書きしません</h3>
+    <p>新しいアーカイブ名を指定してください。保存先は起動時の設定で固定され、この画面から変更できません。</p>
+  </div>
+  <form
+    hidden
+    method="post"
+    action="/api/v1/projects/{{ project_key }}/archive-exports"
+    data-synapse-api-form="json"
+    data-confirm-maintenance="archive-export"
+    data-success-location="/#archives-heading"
+    data-busy-message="アーカイブの書き出しを開始しています…"
+  >
+    <div class="form-grid">
+      <label class="field">
+        <span>Archive name</span>
+        <input name="archive_name" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="nightly-2026-08-26">
+        <span class="field__hint">小文字英数字とハイフン、1–64文字。新しい名前で作成します。</span>
+      </label>
+      <label class="field">
+        <span>確認のため project key <code>{{ project_key }}</code> を入力</span>
+        <input name="confirm_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
+        <span class="field__hint">操作対象を確認するため、表示された値をそのまま入力してください。</span>
+      </label>
+    </div>
+    <div class="actions"><button type="submit" data-synapse-submit>Archiveを作成</button></div>
+    <p class="field__hint">処理はバックグラウンドで実行し、成功後にアーカイブ一覧へ移動します。</p>
+    <p data-synapse-status hidden></p>
+  </form>
+  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、アーカイブの書き出しは開始できません。</p></div></noscript>
+</section>
+{% endif %}
+
+{% if archive_restore_supported %}
+<section class="card project-maintenance" aria-labelledby="archive-restore-heading">
+  <div class="card__header">
+    <div>
+      <p class="eyebrow">メンテナンス</p>
+      <h3 id="archive-restore-heading">アーカイブを復元する</h3>
+      <p class="muted">保存したアーカイブを、このプロジェクトへ復元します。</p>
+    </div>
+  </div>
+  {% if archive_restore_target_ready %}
+  <div class="notice" data-tone="warning">
+    <h3>履歴がないプロジェクトへ復元します</h3>
+    <p>アーカイブの状態は<a href="/#archives-heading">Archives一覧</a>で確認してください。</p>
+  </div>
+  <form
+    hidden
+    method="post"
+    action="/api/v1/projects/{{ project_key }}/archive-restores"
+    data-synapse-api-form="json"
+    data-archive-restore="true"
+    data-restore-project-key="{{ project_key }}"
+    data-busy-message="アーカイブの復元を開始しています…"
+  >
+    <div class="form-grid">
+      <label class="field">
+        <span>Archive name</span>
+        <input name="archive_name" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="nightly-2026-08-26">
+        <span class="field__hint">Archives一覧の名前を小文字のまま入力してください。</span>
+      </label>
+      <label class="field">
+        <span>確認のため復元先の project key <code>{{ project_key }}</code> を入力</span>
+        <input name="confirm_target_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
+      </label>
+      <label class="check-field form-grid__wide">
+        <input type="checkbox" name="confirm_empty_target" value="true" required>
+        <span>このプロジェクトに既存の履歴がないことを確認しました。</span>
+      </label>
+    </div>
+    <div class="actions"><button type="submit" data-synapse-submit>Archiveを復元</button></div>
+    <p class="field__hint">失敗時や結果不明の場合は、ファイルの一部がコピー済みの可能性があります。自動では再試行しません。再試行する場合は同じアーカイブを使ってください。</p>
+    <p data-synapse-status hidden></p>
+    <a hidden data-synapse-restore-success-link href="/projects/{{ project_key }}">復元した履歴を確認</a>
+  </form>
+  {% else %}
+  <div class="notice" data-tone="warning">
+    <h3>このプロジェクトは復元先にできません</h3>
+    <p>既存の履歴があります。復元用には別の空のプロジェクトを初期化・登録してから開いてください。</p>
+  </div>
+  {% endif %}
+  <noscript><div class="notice" data-tone="warning"><p>JavaScriptが無効なため、アーカイブの復元は開始できません。</p></div></noscript>
+</section>
+{% endif %}
+
+</section>
+
+<div class="split-grid project-detail">
   <section aria-labelledby="refs-heading">
     <div class="section-heading"><h2 id="refs-heading">Refs</h2><span class="badge">{{ refs.len() }}</span></div>
     <div class="stack">

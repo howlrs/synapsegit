@@ -319,6 +319,21 @@ fn rejected_inputs_and_wrong_bindings_leave_the_ready_review_available() {
         .into_complete()
         .expect("unchanged repository returns the rebuilt complete report");
     assert_eq!(complete.report.disposition, "defer");
+    // The dashboard deliberately uses only ref-selected raw objects.  It can
+    // expose bounded, unverified labels without constructing the full report;
+    // private rationale never appears in this summary DTO.
+    let summary = service
+        .list_creator_sessions("project")
+        .unwrap()
+        .sessions
+        .into_iter()
+        .find(|summary| summary.session == "bound-session")
+        .unwrap();
+    assert_eq!(summary.creator_name.as_deref(), Some("Aki"));
+    assert_eq!(summary.subject_label.as_deref(), Some("North wall mural"));
+    assert_eq!(summary.disposition.as_deref(), Some("defer"));
+    assert_eq!(summary.recorded_time_basis.as_deref(), Some("recorded_at"));
+    assert!(summary.recorded_at.is_some());
 }
 
 #[test]
@@ -377,6 +392,90 @@ fn changed_live_heads_make_pending_authority_unavailable_without_retry() {
             .unwrap()
             .contains(repository_path.to_str().unwrap())
     );
+}
+
+#[test]
+fn dashboard_isolates_invalid_heads_from_other_sessions() {
+    for mutation in ["non-decision", "missing", "corrupt"] {
+        let temporary = TempDirectory::new();
+        let repository_path = temporary.directory("repository");
+        let service = service(&repository_path);
+        for session in ["valid", "broken"] {
+            let pending = service
+                .begin_creator_session(
+                    "project",
+                    "server-instance-a",
+                    begin_request(&temporary, session),
+                )
+                .unwrap();
+            service
+                .decide_creator_session(
+                    "project",
+                    session,
+                    "server-instance-a",
+                    decision(&pending.review_id, CreatorDecision::Adopt),
+                )
+                .unwrap();
+        }
+        let before = service.list_creator_sessions("project").unwrap();
+        let broken = before
+            .sessions
+            .iter()
+            .find(|summary| summary.session == "broken")
+            .unwrap();
+        let broken_head = broken.decision_head.as_deref().unwrap().to_owned();
+        if mutation == "non-decision" {
+            let invalid_head = broken.proposal_head.as_deref().unwrap().to_owned();
+            let mut repository = Repository::open(&repository_path).unwrap();
+            repository
+                .update_ref(RefUpdate {
+                    ref_name: "decision/creator/broken",
+                    expected_head: Some(&broken_head),
+                    new_head: &invalid_head,
+                    metadata: ReflogMetadata::at(999),
+                })
+                .unwrap();
+        } else {
+            let digest = broken_head.rsplit(':').next().unwrap();
+            let path = repository_path
+                .join("cas/objects/commit")
+                .join(&digest[..2])
+                .join(&digest[2..]);
+            if mutation == "missing" {
+                fs::remove_file(path).unwrap();
+            } else {
+                fs::write(path, b"invalid structured object").unwrap();
+            }
+        }
+
+        let summaries = service.list_creator_sessions("project").unwrap().sessions;
+        let status = service.project_status("project").unwrap();
+        assert_eq!(status.creator_session_counts.complete, 1);
+        assert_eq!(status.creator_session_counts.incomplete, 1);
+        assert_eq!(summaries.len(), 2);
+        let valid = summaries
+            .iter()
+            .find(|summary| summary.session == "valid")
+            .unwrap();
+        assert_eq!(valid.state, CreatorSessionState::Complete);
+        assert_eq!(valid.subject_label.as_deref(), Some("North wall mural"));
+        let broken = summaries
+            .iter()
+            .find(|summary| summary.session == "broken")
+            .unwrap();
+        assert_eq!(broken.state, CreatorSessionState::Incomplete);
+        assert!(broken.disposition.is_none());
+        if mutation == "non-decision" {
+            assert_eq!(broken.subject_label.as_deref(), Some("North wall mural"));
+            assert!(matches!(
+                service.get_creator_session("project", "broken").unwrap(),
+                CreatorSessionDetail::Incomplete(_)
+            ));
+        } else {
+            assert!(broken.subject_label.is_none());
+            assert!(service.get_creator_session("project", "broken").is_err());
+        }
+    }
 }
 
 #[test]
@@ -443,10 +542,14 @@ fn process_restart_exposes_a_published_proposal_as_incomplete_without_reconstruc
             .map(|source| source.kind.as_str()),
         Some("interrupted_pending")
     );
-    assert_eq!(
-        restarted.list_creator_sessions("project").unwrap().sessions[0].state,
-        CreatorSessionState::Incomplete
-    );
+    let summary = restarted
+        .list_creator_sessions("project")
+        .unwrap()
+        .sessions
+        .remove(0);
+    assert_eq!(summary.state, CreatorSessionState::Incomplete);
+    assert_eq!(summary.subject_label.as_deref(), Some("North wall mural"));
+    assert_eq!(summary.creator_name.as_deref(), Some("Aki"));
 
     let error = restarted
         .decide_creator_session(
@@ -746,6 +849,23 @@ fn derivation_confirmation_is_scoped_revalidated_and_consumed() {
     assert_eq!(child.original_blob_oid, source.report.original_blob_oid);
     assert_eq!(child.current_blob_oid, source.report.current_blob_oid);
     assert_ne!(child.current_blob_oid, source.report.ai_output_blob_oid);
+    // Reverse navigation is a shallow, unverified lookup and must work while
+    // the child is still a same-process pending review as well as after it is
+    // committed and no pending overlay remains.
+    assert_eq!(
+        service
+            .creator_session_derivations("project", "source")
+            .unwrap(),
+        vec!["child"]
+    );
+    let child_overview = service
+        .list_creator_sessions("project")
+        .unwrap()
+        .sessions
+        .into_iter()
+        .find(|summary| summary.session == "child")
+        .unwrap();
+    assert_eq!(child_overview.source_session.as_deref(), Some("source"));
     service
         .decide_creator_session(
             "project",
@@ -754,6 +874,12 @@ fn derivation_confirmation_is_scoped_revalidated_and_consumed() {
             decision(&child.review_id, CreatorDecision::Adopt),
         )
         .unwrap();
+    assert_eq!(
+        service
+            .creator_session_derivations("project", "source")
+            .unwrap(),
+        vec!["child"]
+    );
     let error = service
         .prepare_presentation_sidecar(
             "project",
@@ -903,6 +1029,26 @@ fn deferred_proposal_reuse_keeps_reason_as_reference_and_requires_a_fresh_decisi
         )
         .unwrap();
     assert_eq!(next.ai_output_blob_oid, source.report.ai_output_blob_oid);
+    let pending_summary = service
+        .list_creator_sessions("project")
+        .unwrap()
+        .sessions
+        .into_iter()
+        .find(|summary| summary.session == "rereviewed")
+        .unwrap();
+    assert_eq!(pending_summary.state, CreatorSessionState::PendingReview);
+    assert_eq!(
+        pending_summary.subject_label.as_deref(),
+        Some("North wall mural")
+    );
+    assert_eq!(pending_summary.creator_name.as_deref(), Some("Aki"));
+    assert_eq!(pending_summary.source_session.as_deref(), Some("deferred"));
+    assert_eq!(
+        service
+            .creator_session_derivations("project", "deferred")
+            .unwrap(),
+        vec!["rereviewed"]
+    );
     let complete = service
         .decide_creator_session(
             "project",
@@ -920,6 +1066,12 @@ fn deferred_proposal_reuse_keeps_reason_as_reference_and_requires_a_fresh_decisi
     assert_ne!(
         complete.report.rationale.as_deref(),
         Some("相談してから決める")
+    );
+    assert_eq!(
+        service
+            .creator_session_derivations("project", "deferred")
+            .unwrap(),
+        vec!["rereviewed"]
     );
     assert!(
         service

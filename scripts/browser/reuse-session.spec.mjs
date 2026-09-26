@@ -90,4 +90,10 @@ test("Defer re-review reuses all images, shows the old reason only as reference,
   await expect(page.getByLabel("Rationale（任意）", { exact: true })).toHaveValue("");
   await decide(page, "Adopt");
   await expect(page.getByRole("heading", { name: "記録した判断", exact: true })).toBeVisible();
+  await page.goto(`${app.origin}/projects/reviews/creator-sessions/deferred-source`);
+  const sourceMain = page.locator("main");
+  await expect(sourceMain.getByRole("link", { name: "deferred-rereview", exact: true })).toBeVisible();
+  await sourceMain.getByRole("link", { name: "deferred-rereview", exact: true }).click();
+  await page.waitForURL("**/creator-sessions/deferred-rereview");
+  await expect(page.getByRole("heading", { name: "deferred-rereview", exact: true })).toBeVisible();
 });

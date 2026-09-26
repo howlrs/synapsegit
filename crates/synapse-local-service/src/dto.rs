@@ -262,6 +262,18 @@ pub struct CreatorSessionSummary {
     pub proposal_head: Option<String>,
     pub decision_ref: Option<String>,
     pub decision_head: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject_label: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub creator_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub disposition: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recorded_at: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub recorded_time_basis: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_session: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

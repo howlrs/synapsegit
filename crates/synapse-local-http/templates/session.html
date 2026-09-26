@@ -267,4 +267,11 @@
   </ol>
 </section>
 {% endif %}
+{% if !derived_sessions.is_empty() %}
+<section class="card" aria-labelledby="derived-sessions-heading">
+  <h2 id="derived-sessions-heading">このセッションから派生したセッション</h2>
+  <p class="field__hint">未検証の参照一覧です。派生先を開くと、現在のRefsとCASから詳細を検証します。</p>
+  <ul>{% for derived in derived_sessions %}<li><a href="/projects/{{ project_key }}/creator-sessions/{{ derived }}">{{ derived }}</a></li>{% endfor %}</ul>
+</section>
+{% endif %}
 {% endblock %}

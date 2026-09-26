@@ -102,6 +102,8 @@ diagnostics views remain available without it.
 
 *Project dashboard — one localhost processで、creator session、現在のRefs、最近のreflogを確認する画面です。Public serviceやGCP CLI smokeの画面ではありません。*
 
+セッション一覧は未検証の概要として、Ref更新順で最大200件を表示します。各表示行はCommit、Tree、actor、Subject、import Activity、decision feedbackまで最大6個の構造化CAS readで補足し、full fsckやprojectionは行いません。別途、概要カードの件数集計は探索対象の各セッションで最大1個のheadを読み、派生先リンクは最大3個を読みます。探索上限は既存の50,000セッションで、壊れたheadは他の概要行を妨げません。状態または判断で絞り込め、Subject、判断、time basis、派生元を一覧で確認できます。日時はfeedbackの`recorded_at`を優先し、無い場合だけCommitの`authored_at`をfallbackとして明示します。取得できない概要は推測で補わず「取得できません」と表示します。詳細画面は通常の検証済みreportを再構築します。派生元のセッション画面には、表示上限にかかわらず未検証の全派生先リンクがあります。JavaScriptが無効でも一覧とメンテナンス説明は読めますが、取り込みと保守操作には同一processのtokenを付けるJavaScriptが必要です。
+
 ## Build and start
 
 Linux x86_64では、[`v0.8.1` preview release](../../docs/releases/v0.8.1.md)に

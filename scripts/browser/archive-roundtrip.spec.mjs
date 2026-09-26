@@ -14,7 +14,7 @@ test("archive cards support keyboard access, pass axe, and restore an exported p
   const sourceRefs = app.refs("complete");
 
   await page.goto(`${app.origin}/projects/complete`);
-  for (const heading of ["Repository integrity check", "Archive export"]) {
+  for (const heading of ["リポジトリ整合性の確認", "アーカイブを書き出す"]) {
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   }
 
@@ -29,13 +29,13 @@ test("archive cards support keyboard access, pass axe, and restore an exported p
   await page.goto(`${app.origin}/projects/restore`);
   const restore = restoreForm(page);
   await expect(restore).toBeVisible();
-  for (const heading of ["Repository integrity check", "Archive export", "Archive restore"]) {
+  for (const heading of ["リポジトリ整合性の確認", "アーカイブを書き出す", "アーカイブを復元する"]) {
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   }
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
 
   const fsckKey = page.locator('form[data-confirm-maintenance="fsck"] [name="confirm_project_key"]');
-  const fsckButton = page.getByRole("button", { name: "Read-only fsckを実行", exact: true });
+  const fsckButton = page.getByRole("button", { name: "読み取り専用で fsck を実行", exact: true });
   const exportName = exportForm(page).locator('[name="archive_name"]');
   const exportKey = exportForm(page).locator('[name="confirm_project_key"]');
   const exportButton = page.getByRole("button", { name: "Archiveを作成", exact: true });

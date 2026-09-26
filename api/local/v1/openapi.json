@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "SynapseGit localhost application API",
-    "version": "0.6.4-draft",
+    "version": "0.6.5-draft",
     "description": "Single-user, loopback-only application contract. A configured per-project import inbox accepts only manifest-last candidates, stages verified bytes in this process, and creates a later Human-review proposal from those staged bytes. Confirmed reuse creates a new review from an interrupted or deferred proposal without restoring prior authority. This is not the public Core protocol."
   },
   "servers": [
@@ -1344,6 +1344,7 @@
       },
       "CreatorSessionSummary": {
         "type": "object",
+        "description": "An unverified, ref-selected dashboard overview. It is capped to the 200 most recently updated creator Refs and is not authority for a decision; fetch the session detail to rebuild the verified report.",
         "additionalProperties": false,
         "required": [
           "session",
@@ -1391,6 +1392,31 @@
                 "type": "null"
               }
             ]
+          },
+          "subject_label": {
+            "type": "string",
+            "description": "Unverified Subject payload label, when the bounded overview read is available."
+          },
+          "creator_name": {
+            "type": "string",
+            "description": "Unverified creator actor display name, when the bounded overview read is available."
+          },
+          "disposition": {
+            "type": "string",
+            "description": "Unverified decision-feedback disposition, normalized for display.",
+            "enum": ["adopt", "reject", "defer"]
+          },
+          "recorded_at": {
+            "type": "string",
+            "description": "Unverified feedback recorded_at, or an explicitly labelled commit authored_at fallback."
+          },
+          "recorded_time_basis": {
+            "type": "string",
+            "description": "The origin of recorded_at; never inferred when no persisted timestamp is available."
+          },
+          "source_session": {
+            "$ref": "#/components/schemas/Slug",
+            "description": "Unverified source-session extension hint."
           }
         }
       },
@@ -1407,10 +1433,11 @@
           },
           "sessions": {
             "type": "array",
+            "description": "At most 200 unverified dashboard summaries, ranked by Ref update event with live pending reviews first.",
             "items": {
               "$ref": "#/components/schemas/CreatorSessionSummary"
             },
-            "maxItems": 50000
+            "maxItems": 200
           }
         }
       },
