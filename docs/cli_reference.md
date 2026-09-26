@@ -328,7 +328,7 @@ rollbackやincomplete sessionを意味しない。receipt／reportはまだstdou
 fixed Pilot stateである。HTTP／JWT、durable／distributed ACL、OS sandbox／egress、external model execution、
 multi-user／organization／quorum／release、modified／partial adoptionを提供しない。
 
-### `creator-report <repo> <session>`
+### `creator-report <repo> <session> [--format text|json]`
 
 current `proposal/creator-agent/<session>`と`decision/creator/<session>`からcreator sessionを再構築する。
 
@@ -413,6 +413,80 @@ recording timestampになる。time basisはObservationなら`observation_record
 
 派生元の固定headsと再利用roleはCreator report APIとlocalhost画面で確認できる。
 text CLIの新しい派生元表示や派生作成commandは提供していない。
+
+#### `--format json`
+
+`--format json`はstdoutへ**一つの**プライベート・ローカル専用JSON documentだけを出力し、diagnosticsは
+stderrへ出す。`--format`を省略する、または`--format text`を指定すると上記の既存text出力のままである。この
+JSON contractはCLI-owned構造体（`crates/synapse-cli/src/report_json.rs`）であり、`CreatorReport`から
+field単位で明示的に写像している。`synapse_core`／`synapse_creator`のRust型をDeriveでそのまま晒す
+unversioned formatではない。
+
+トップレベルの`"format": "synapsegit-cli-creator-report-v1"`が契約versionを表す。versioning ruleは次の
+通りである。`-v1`が指す各fieldの意味は変わらない。追加は`-v1`のまま許すadditive-onlyな変更として文書化する。
+field削除・rename・意味変更のような非互換な変更は新しいformat識別子（例：`-v2`）を必要とし、`-v1`を無言で
+変えることはない。
+
+`"scope": "private_local"`はこのdocumentが**プライベートなローカルreport**であることを機械可読に示す
+固定markerである。rationaleのtext、user宣言のgeneration note、decision pins、内部identifierを含み得るため、
+共有・公開を意図しない。これは公開bundle（`projection.json`、`synapse-present export ... --public`）とは
+別contractである。共有したい場合は既存の公開出力`synapse-present export ... --public`を使う。
+
+「記録されなかった（absent）」「記録はあるが読み込めない・非対応形状（unavailable）」「記録されている
+（present）」を区別するため、`source`、`reuse_source`、`generation_note`、`decision_pins`はそれぞれ
+`"availability": "absent" | "present" | "unavailable"`を持つ小さなobjectである。`comparison`も同様に
+`"availability": "available" | "unavailable"`を持つが、byte-identity analysisそのものの結果である
+`status`／`comparability`／`outcome`とはfieldを分けている。`rationale`は記録がなければ`null`である。
+
+```bash
+synapse creator-report .synapse-creator mural-1 --format json
+```
+
+```json
+{
+  "format": "synapsegit-cli-creator-report-v1",
+  "scope": "private_local",
+  "ai_output_source": "caller_supplied",
+  "session": "mural-1",
+  "disposition": "adopt",
+  "selected_ai_output": true,
+  "rationale": "The proposal fits the intended palette.",
+  "source": { "availability": "absent" },
+  "reuse_source": { "availability": "absent" },
+  "generation_note": { "availability": "absent" },
+  "decision_pins": { "availability": "absent" },
+  "comparison": {
+    "availability": "present",
+    "status": "succeeded",
+    "comparability": "partial",
+    "outcome": "different",
+    "reason_codes": ["byte_identity_only", "capture_profile_imported", "capture_time_unknown"],
+    "replay_ready": true
+  },
+  "fsck": { "clean": true, "objects": 12 },
+  "timeline": [
+    {
+      "ordering_time": "2026-01-01T00:00:00.000000000Z",
+      "time_basis": "observation_recorded_at_fallback",
+      "stage": "original_observation",
+      "kind": "observation",
+      "entity_id": "urn:uuid:...",
+      "oid": "record:sg-oid-v1:sha256:...",
+      "reachable_from": ["decision/creator/mural-1"]
+    }
+  ]
+}
+```
+
+（上のfragmentは省略した例であり、実際のdocumentは`CreatorReportDocument`が持つ全fieldを含む。）
+verification失敗時（例：`creator_session_not_found`、`fsck_failed`、`creator_report_invalid`）はerror
+messageをstderrへ出し、成功した出力に見えるような部分的なJSONをstdoutへ書き込まない。session全体を
+verifyしてから一つの完全なdocumentへ組み立て、それを丸ごとserializeしてから出力するためである。
+日本語、引用符、改行、タブを含む値（rationale、generation note、decision pinのnoteなど）は標準的なJSON
+文字列としてround-tripする。
+
+`--format`の不明な値、複数回の`--format`指定、値なしの`--format`は既存の`CliError::Usage`／`usage_error`
+経路・exit codeに従う usage errorであり、新しいerror codeを追加していない。
 
 ### `refs <repo>`
 

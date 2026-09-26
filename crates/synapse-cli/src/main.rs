@@ -16,6 +16,9 @@ use synapse_creator::{
 };
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
 
+mod report_json;
+use report_json::CreatorReportDocument;
+
 const USAGE: &str = "\
 SynapseGit Core Stage 0
 
@@ -32,7 +35,16 @@ Usage:
   synapse export <repo> <archive-dir>
   synapse restore <archive-dir> <repo>
   synapse creator-run <repo> <session> <original> <current> <ai-output> --subject <label> --creator <name> --decision <adopt|reject|defer> [--rationale <text>]
-  synapse creator-report <repo> <session>
+  synapse creator-report <repo> <session> [--format text|json]
+
+creator-report --format json prints one private, LOCAL-only JSON document to
+stdout, tagged \"format\": \"synapsegit-cli-creator-report-v1\" and
+\"scope\": \"private_local\". It may contain rationale text, user-declared
+generation notes, decision pins, and internal identifiers, and it is a
+separate contract from the public projection bundle. It is not for sharing;
+for a shareable bundle use `synapse-present export ... --public`. Omitting
+--format, or passing --format text, keeps the existing line-oriented text
+output unchanged.
 ";
 const VERSION: &str = concat!("synapse ", env!("CARGO_PKG_VERSION"));
 
@@ -196,10 +208,7 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
             println!("restored {}", args[2]);
         }
         "creator-run" => creator_run(&args)?,
-        "creator-report" => {
-            require_len(&args, 3)?;
-            print_creator_report(&creator_report(&args[1], &args[2])?);
-        }
+        "creator-report" => creator_report_command(&args)?,
         "help" | "--help" | "-h" => println!("{USAGE}"),
         "version" | "--version" | "-V" => println!("{VERSION}"),
         other => return Err(CliError::Usage(format!("unknown command {other:?}"))),
@@ -297,6 +306,67 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
     );
     println!("disposition={}", receipt.disposition.as_cli_str());
     print_creator_report(&report);
+    Ok(())
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CreatorReportFormat {
+    Text,
+    Json,
+}
+
+fn creator_report_command(args: &[String]) -> Result<(), CliError> {
+    if args.len() < 3 || (args.len() - 3) % 2 != 0 {
+        return Err(CliError::Usage(
+            "creator-report expects <repo> <session> [--format text|json]".into(),
+        ));
+    }
+    let mut format = None;
+    let mut index = 3;
+    while index < args.len() {
+        let value = args
+            .get(index + 1)
+            .ok_or_else(|| CliError::Usage(format!("{} requires a value", args[index])))?;
+        match args[index].as_str() {
+            "--format" if format.is_none() => {
+                format = Some(match value.as_str() {
+                    "text" => CreatorReportFormat::Text,
+                    "json" => CreatorReportFormat::Json,
+                    other => {
+                        return Err(CliError::Usage(format!(
+                            "invalid creator-report --format value {other:?}; expected text or json"
+                        )));
+                    }
+                });
+            }
+            other => {
+                return Err(CliError::Usage(format!(
+                    "invalid or duplicate creator-report option {other:?}"
+                )));
+            }
+        }
+        index += 2;
+    }
+
+    // The whole report is verified and built before anything is printed, so
+    // a verification failure (returned as `Err` above the match) never
+    // leaves a partial line, and never a partial JSON document, on stdout.
+    let report = creator_report(&args[1], &args[2])?;
+    match format.unwrap_or(CreatorReportFormat::Text) {
+        CreatorReportFormat::Text => print_creator_report(&report),
+        CreatorReportFormat::Json => {
+            let document = CreatorReportDocument::from_report(&report);
+            // The document is built entirely from primitive, always-valid-UTF8
+            // fields copied out of a verified `CreatorReport`, so this cannot
+            // practically fail; `expect` keeps a partial document from ever
+            // reaching stdout instead of inventing a new error code for an
+            // unreachable path.
+            let text = document
+                .to_pretty_string()
+                .expect("creator report JSON document is always serializable");
+            print!("{text}");
+        }
+    }
     Ok(())
 }
 

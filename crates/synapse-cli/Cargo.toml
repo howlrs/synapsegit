@@ -20,3 +20,5 @@ synapse-canonical = { path = "../synapse-canonical" }
 synapse-core = { path = "../synapse-core" }
 synapse-creator = { path = "../synapse-creator" }
 synapse-sqlite = { path = "../synapse-sqlite" }
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true

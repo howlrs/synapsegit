@@ -1403,6 +1403,8 @@ dependencies = [
 name = "synapse-cli"
 version = "0.9.0"
 dependencies = [
+ "serde",
+ "serde_json",
  "synapse-canonical",
  "synapse-core",
  "synapse-creator",

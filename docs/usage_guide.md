@@ -286,10 +286,17 @@ cargo run -p synapse-cli -- creator-run .synapse-creator mural-1 \
   --rationale "The proposal fits the intended palette."
 
 cargo run -p synapse-cli -- creator-report .synapse-creator mural-1
+cargo run -p synapse-cli -- creator-report .synapse-creator mural-1 --format json
 cargo run -p synapse-cli -- export .synapse-creator creator-archive
 cargo run -p synapse-cli -- restore creator-archive restored.synapse
 cargo run -p synapse-cli -- creator-report restored.synapse mural-1
 ```
+
+`creator-report --format json`は同じ検証済みsessionを、CLI-owned・versioned JSON contract
+（`"format": "synapsegit-cli-creator-report-v1"`、`"scope": "private_local"`）として一つのdocumentへ
+出力する。これはrationale、生成note、decision pinsなどを含み得る**プライベートなローカルreport**であり、
+公開bundleとは別contractである。共有したい場合はこのJSONではなく既存の`synapse-present export ... --public`
+を使う。詳細と完全なfield一覧は[CLI reference](cli_reference.md#--format-json)を参照する。
 
 `creator-run`は新規repositoryを作成することもでき、Subject、imported CaptureProfile、original／current Observation、
 byte-identity AnalysisResult、import／AI Activity、human／AI／comparison software-tool Actor、Policy、DelegationGrant、
