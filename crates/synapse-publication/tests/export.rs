@@ -6,17 +6,17 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_canonical::{canonical_bytes, parse_strict};
 use synapse_core::Repository;
 use synapse_creator::{
+    ANNOTATIONS_FORMAT, CreatorAnnotations, CreatorBeginOptions, CreatorDecisionOptions,
+    CreatorDisposition, CreatorGenerationNote, CreatorImageRole, CreatorPin, CreatorSourceBinding,
     begin_creator_session, begin_creator_session_with_note,
     begin_creator_session_with_reuse_source, begin_creator_session_with_source, creator_report,
     creator_reuse_source_from_snapshot, decide_creator_session,
-    decide_creator_session_with_annotations, CreatorAnnotations, CreatorBeginOptions,
-    CreatorDecisionOptions, CreatorDisposition, CreatorGenerationNote, CreatorImageRole,
-    CreatorPin, CreatorSourceBinding, ANNOTATIONS_FORMAT,
+    decide_creator_session_with_annotations,
 };
 use synapse_publication::{
-    build_public_projection, export_bundle, verify_bundle, BundleManifest, ChecksumsDocument,
-    ExportOptions, OutputTarget, PresentationInput, ProjectionOptions, PublicationError,
-    PublicationVisibility, SessionPresentationInput, ValueOrigin, DEFAULT_MAX_SESSIONS,
+    BundleManifest, ChecksumsDocument, DEFAULT_MAX_SESSIONS, ExportOptions, OutputTarget,
+    PresentationInput, ProjectionOptions, PublicationError, PublicationVisibility,
+    SessionPresentationInput, ValueOrigin, build_public_projection, export_bundle, verify_bundle,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -206,9 +206,11 @@ fn frozen_v1_refuses_derived_sessions_without_writing_a_bundle() {
                 matches!(&error, PublicationError::InvalidArgument(_)),
                 "{error}"
             );
-            assert!(error
-                .to_string()
-                .contains("cannot represent reused reference images"));
+            assert!(
+                error
+                    .to_string()
+                    .contains("cannot represent reused reference images")
+            );
             assert!(!destination.exists());
         }
     }
@@ -259,9 +261,11 @@ fn frozen_v1_refuses_derived_sessions_without_writing_a_bundle() {
             matches!(&error, PublicationError::InvalidArgument(_)),
             "{error:?}"
         );
-        assert!(error
-            .to_string()
-            .contains("cannot represent reused reference images"));
+        assert!(
+            error
+                .to_string()
+                .contains("cannot represent reused reference images")
+        );
         assert!(!destination.exists());
     }
     // A normal session in the same repository remains exportable, and the
@@ -406,9 +410,11 @@ fn verification_rejects_a_checksummed_human_view_that_does_not_render_from_proje
     reconcile_bundle_checksums(&bundle);
 
     let error = verify_bundle(bundle).unwrap_err();
-    assert!(error
-        .to_string()
-        .contains("do not render from projection.json"));
+    assert!(
+        error
+            .to_string()
+            .contains("do not render from projection.json")
+    );
 }
 
 #[test]

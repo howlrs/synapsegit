@@ -326,7 +326,12 @@ fn begin_creator_session_with_source_and_limits(
     require_existing_repository: bool,
 ) -> Result<PendingCreatorSession> {
     begin_creator_session_with_bindings_and_limits(
-        options, note, source, None, fsck_limits, require_existing_repository,
+        options,
+        note,
+        source,
+        None,
+        fsck_limits,
+        require_existing_repository,
     )
 }
 
@@ -435,7 +440,8 @@ fn begin_creator_session_with_bindings_and_limits(
     let current_blob_oid = put_file(&repository, &options.current_image)?;
     let ai_output_blob_oid = put_file(&repository, &options.ai_output)?;
     if let Some(source) = source
-        && (original_blob_oid != source.original_blob_oid || current_blob_oid != source.current_blob_oid)
+        && (original_blob_oid != source.original_blob_oid
+            || current_blob_oid != source.current_blob_oid)
     {
         return Err(crate::source::invalid_source());
     }

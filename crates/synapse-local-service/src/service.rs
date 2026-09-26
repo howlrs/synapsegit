@@ -4,35 +4,36 @@ use std::error::Error;
 use std::fmt::{self, Write as _};
 use std::fs;
 use std::mem;
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::path::PathBuf;
 use std::sync::{Mutex, MutexGuard};
 use synapse_core::{
-    inspect_archive_with_budget, ArchiveExportLimits, ArchiveInspectionBudget,
-    ArchiveInspectionLimits, ArchiveInspectionState, ArchiveRestoreLimits, FsckLimits, Repository,
-    RepositoryError, TombstoneScanLimits,
+    ArchiveExportLimits, ArchiveInspectionBudget, ArchiveInspectionLimits, ArchiveInspectionState,
+    ArchiveRestoreLimits, FsckLimits, Repository, RepositoryError, TombstoneScanLimits,
+    inspect_archive_with_budget,
 };
 use synapse_creator::{
-    begin_creator_session_with_note_existing as core_begin,
-    begin_creator_session_with_reuse_source_existing, creator_report_from_snapshot,
-    creator_reuse_source_context_from_binding, creator_reuse_source_display_from_snapshot,
-    creator_reuse_source_from_snapshot, decide_creator_session_with_annotations as core_decide,
-    discover_creator_sessions, CreatorBeginOptions,
+    CREATOR_RESERVED_PENDING_DECISIONS, CreatorBeginOptions,
     CreatorComparisonReport as CoreComparisonReport, CreatorDecisionOptions,
     CreatorDisposition as CoreCreatorDisposition, CreatorError, CreatorPendingDecisionState,
     CreatorPendingReceipt as CorePendingReceipt, CreatorReport as CoreCreatorReport,
     CreatorRunReceipt as CoreRunReceipt, CreatorSessionState as CoreCreatorSessionState,
     CreatorSnapshotReport, CreatorTimelineEntry as CoreTimelineEntry,
-    PendingCreatorSession as CorePendingCreatorSession, CREATOR_RESERVED_PENDING_DECISIONS,
+    PendingCreatorSession as CorePendingCreatorSession,
+    begin_creator_session_with_note_existing as core_begin,
+    begin_creator_session_with_reuse_source_existing, creator_report_from_snapshot,
+    creator_reuse_source_context_from_binding, creator_reuse_source_display_from_snapshot,
+    creator_reuse_source_from_snapshot, decide_creator_session_with_annotations as core_decide,
+    discover_creator_sessions,
 };
 use synapse_sqlite::{
-    RefArchiveExportLimits, RefSnapshot, RefStoreError, ReflogEntry as CoreReflogEntry,
-    MAX_REFLOG_PAGE_ENTRIES, MAX_REF_SNAPSHOT_ENTRIES,
+    MAX_REF_SNAPSHOT_ENTRIES, MAX_REFLOG_PAGE_ENTRIES, RefArchiveExportLimits, RefSnapshot,
+    RefStoreError, ReflogEntry as CoreReflogEntry,
 };
 
-use crate::catalog::{is_slug, CatalogEntry, ProjectCatalog, ProjectRegistration};
-use crate::dto::*;
 use crate::CatalogError;
+use crate::catalog::{CatalogEntry, ProjectCatalog, ProjectRegistration, is_slug};
+use crate::dto::*;
 
 pub const MAX_PROJECTS: usize = 1_000;
 pub const MAX_REFS: usize = MAX_REF_SNAPSHOT_ENTRIES;
@@ -2584,6 +2585,7 @@ mod tests {
 
         let pending = CorePendingReceipt {
             source: None,
+            reuse_source: None,
             generation_note: None,
             session: "session".into(),
             project_id: "project-id".into(),

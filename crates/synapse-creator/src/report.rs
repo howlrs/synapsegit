@@ -1,10 +1,9 @@
 use crate::io::{object_field, read_json, string_field};
 use crate::records::SCHEMA_VERSION;
 use crate::session::{
-    decision_ref, proposal_ref, related_entity_id, validate_session, SessionIds,
     COMPARISON_ANALYSIS_ENTRY, COMPARISON_CONFIGURATION_ENTRY, COMPARISON_IMPLEMENTATION_ENTRY,
     COMPARISON_TOOL_ENTRY, CREATOR_FSCK_LIMITS, CREATOR_FSCK_MAX_REF_ROOTS, DECISION_PREFIX,
-    PROPOSAL_PREFIX,
+    PROPOSAL_PREFIX, SessionIds, decision_ref, proposal_ref, related_entity_id, validate_session,
 };
 use crate::{
     CreatorComparisonReport, CreatorDisposition, CreatorError, CreatorReport,
@@ -17,8 +16,8 @@ use std::path::Path;
 use synapse_canonical::ObjectKind;
 use synapse_core::{FsckLimits, Repository};
 use synapse_observation::{
-    byte_identity_configuration_oid, byte_identity_implementation_oid, BYTE_IDENTITY_ADAPTER_ID,
-    BYTE_IDENTITY_ADAPTER_VERSION,
+    BYTE_IDENTITY_ADAPTER_ID, BYTE_IDENTITY_ADAPTER_VERSION, byte_identity_configuration_oid,
+    byte_identity_implementation_oid,
 };
 use synapse_projection::{
     AdapterDeterminism, AnalysisReplayReadiness, ObjectAvailability, ProjectionLimits, RefScope,
@@ -1382,8 +1381,12 @@ pub(crate) fn load_base_snapshot_pointers(
     let comparison = if comparison_parts.iter().all(Option::is_none) {
         None
     } else if comparison_parts.iter().all(Option::is_some) {
-        let [analysis_oid, tool_actor_oid, implementation_oid, configuration_oid] =
-            comparison_parts.map(Option::unwrap);
+        let [
+            analysis_oid,
+            tool_actor_oid,
+            implementation_oid,
+            configuration_oid,
+        ] = comparison_parts.map(Option::unwrap);
         Some(ComparisonPointers {
             analysis_oid,
             tool_actor_oid,
