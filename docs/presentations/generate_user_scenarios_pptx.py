@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import re
 from pathlib import Path
 from typing import Iterable, Sequence
@@ -407,6 +408,46 @@ def add_pill(
     return pill
 
 
+def add_status_strip(
+    slide,
+    y: float,
+    now_text: str,
+    plan_text: str,
+    *,
+    x: float = 0.68,
+    w: float = 12.00,
+    h: float = 0.86,
+):
+    """Per-scenario now/plan legend so each slide is legible on its own."""
+    gap = 0.12
+    col_w = (w - gap) / 2
+    add_shape(
+        slide, MSO_SHAPE.ROUNDED_RECTANGLE, x, y, col_w, h,
+        fill=SUCCESS_SOFT, line=SUCCESS, line_width=1.0, name="Status: now",
+    )
+    add_shape(
+        slide, MSO_SHAPE.ROUNDED_RECTANGLE, x + col_w + gap, y, col_w, h,
+        fill=ACTIVITY_SOFT, line=ACTIVITY, line_width=1.0, name="Status: plan",
+    )
+    add_text(
+        slide, x + 0.16, y + 0.06, col_w - 0.30, 0.24,
+        f"今すぐ試せる（{TARGET_VERSION}）", size=12, fill=SUCCESS, bold=True,
+    )
+    add_text(
+        slide, x + 0.16, y + 0.30, col_w - 0.30, h - 0.36,
+        now_text, size=12, fill=INK,
+    )
+    px = x + col_w + gap
+    add_text(
+        slide, px + 0.16, y + 0.06, col_w - 0.30, 0.24,
+        "構想・未実装", size=12, fill=ACTIVITY, bold=True,
+    )
+    add_text(
+        slide, px + 0.16, y + 0.30, col_w - 0.30, h - 0.36,
+        plan_text, size=12, fill=INK,
+    )
+
+
 def set_slide_title(slide, text: str, x: float, y: float, w: float, h: float, *, size: float, fill: RGBColor):
     title = slide.shapes.title
     if title is None:
@@ -479,7 +520,8 @@ def add_node(slide, x, y, w, h, label, sublabel, accent, soft, *, dashed=False):
     if dashed:
         shape.line.dash_style = MSO_LINE_DASH_STYLE.DASH
     add_text(slide, x + 0.12, y + 0.14, w - 0.24, 0.36, label, size=15, fill=accent, bold=True, align=PP_ALIGN.CENTER)
-    add_text(slide, x + 0.10, y + 0.55, w - 0.20, 0.34, sublabel, size=12.5, fill=INK, align=PP_ALIGN.CENTER)
+    sublabel_h = max(0.34, h - 0.55 - 0.10)
+    add_text(slide, x + 0.10, y + 0.55, w - 0.20, sublabel_h, sublabel, size=12.5, fill=INK, align=PP_ALIGN.CENTER)
     return shape
 
 
@@ -603,40 +645,42 @@ def slide_mechanism(prs: Presentation):
     ]
     for index, (label, sub, accent, soft) in enumerate(images):
         x = 0.68 + index * 2.62
-        add_node(slide, x, 1.68, 2.40, 1.05, label, sub, accent, soft)
+        add_node(slide, x, 1.75, 2.52, 1.20, label, sub, accent, soft)
     for index in range(3):
-        x = 0.68 + index * 2.62 + 1.05
-        add_shape(slide, MSO_SHAPE.CHEVRON, x, 2.82, 0.30, 0.42, fill=HAIRLINE)
+        x = 0.68 + index * 2.62 + 1.11
+        add_shape(slide, MSO_SHAPE.CHEVRON, x, 2.98, 0.30, 0.34, fill=HAIRLINE)
 
-    add_node(slide, 0.68, 3.34, 2.40, 1.00, "記録", "Observation Record\nbyte OIDで保存", EVIDENCE, EVIDENCE_SOFT)
-    add_shape(slide, MSO_SHAPE.CHEVRON, 3.20, 3.72, 0.34, 0.46, fill=HAIRLINE)
-    add_node(slide, 3.60, 3.34, 2.86, 1.00, "byte identity比較", "主Blob OID一致／不一致のみ\n(pixel・EXIFは見ない)", ANALYSIS, ANALYSIS_SOFT, dashed=True)
-    add_shape(slide, MSO_SHAPE.CHEVRON, 6.58, 3.72, 0.34, 0.46, fill=HAIRLINE)
-    gate = add_shape(slide, MSO_SHAPE.HEXAGON, 7.06, 3.24, 2.10, 1.20, fill=DECISION_SOFT, line=DECISION, line_width=2.4, name="Human Decision gate")
-    add_text(slide, 7.20, 3.44, 1.82, 0.34, "人が判断", size=14.5, fill=DECISION, bold=True, align=PP_ALIGN.CENTER)
-    add_text(slide, 7.20, 3.80, 1.82, 0.56, "Adopt／Reject／Defer", size=12.5, fill=INK, align=PP_ALIGN.CENTER)
+    add_node(slide, 0.68, 3.38, 2.40, 1.15, "記録", "Observation Record\nbyte OIDで保存", EVIDENCE, EVIDENCE_SOFT)
+    add_shape(slide, MSO_SHAPE.CHEVRON, 3.20, 3.75, 0.34, 0.42, fill=HAIRLINE)
+    add_node(slide, 3.60, 3.38, 2.86, 1.15, "byte identity比較", "主Blob OID一致／不一致のみ\n(pixel・EXIFは見ない)", ANALYSIS, ANALYSIS_SOFT, dashed=True)
+    add_shape(slide, MSO_SHAPE.CHEVRON, 6.58, 3.75, 0.34, 0.42, fill=HAIRLINE)
+    gate = add_shape(slide, MSO_SHAPE.HEXAGON, 7.06, 3.38, 2.10, 1.15, fill=DECISION_SOFT, line=DECISION, line_width=2.4, name="Human Decision gate")
+    add_text(slide, 7.20, 3.54, 1.82, 0.30, "人が判断", size=14.5, fill=DECISION, bold=True, align=PP_ALIGN.CENTER)
+    add_text(slide, 7.20, 3.90, 1.82, 0.50, "Adopt／Reject／Defer", size=12.5, fill=INK, align=PP_ALIGN.CENTER)
     set_alt_text(gate, "人が判断", "Adopt・Reject・Deferのいずれかを人が選ぶ。SynapseGitはモデルを呼ばず、実行しない")
-    add_shape(slide, MSO_SHAPE.CHEVRON, 9.30, 3.72, 0.34, 0.46, fill=HAIRLINE)
+    add_shape(slide, MSO_SHAPE.CHEVRON, 9.30, 3.75, 0.34, 0.42, fill=HAIRLINE)
 
     destinations = [
         ("creator-report", "CLI出力", ACTIVITY, ACTIVITY_SOFT),
         ("localhost UI", "pending／完了画面", EVIDENCE, EVIDENCE_SOFT),
-        ("publication view", "synapse-present\nローカル生成のみ", SUCCESS, SUCCESS_SOFT),
+        ("publication view", "ローカル生成のみ", SUCCESS, SUCCESS_SOFT),
     ]
+    dest_h = 0.95
+    dest_stride = 1.07
     for index, (title, body, accent, soft) in enumerate(destinations):
-        y = 1.68 + index * 1.20
-        add_card(slide, 9.80, y, 2.86, 1.02, title=title, body=body, accent=accent, soft=soft, title_size=13.5, body_size=11.5)
-    add_line(slide, 9.20, 3.84, 9.80, 2.19, fill=HAIRLINE, width=1.4)
-    add_line(slide, 9.20, 3.84, 9.80, 3.39, fill=HAIRLINE, width=1.4)
-    add_line(slide, 9.20, 3.84, 9.80, 4.59, fill=HAIRLINE, width=1.4)
+        y = 1.75 + index * dest_stride
+        add_card(slide, 9.80, y, 2.86, dest_h, title=title, body=body, accent=accent, soft=soft, title_size=13.5, body_size=11.5)
+    for index in range(3):
+        center_y = 1.75 + index * dest_stride + dest_h / 2
+        add_line(slide, 9.16, 3.955, 9.80, center_y, fill=HAIRLINE, width=1.4)
 
-    add_shape(slide, MSO_SHAPE.ROUNDED_RECTANGLE, 0.68, 4.68, 12.00, 1.32, fill=WHITE, line=HAIRLINE, line_width=0.8)
+    add_shape(slide, MSO_SHAPE.ROUNDED_RECTANGLE, 0.68, 4.95, 12.00, 1.00, fill=WHITE, line=HAIRLINE, line_width=0.8)
     add_rich_text(
         slide,
         0.92,
-        4.80,
+        5.05,
         11.50,
-        1.10,
+        0.84,
         [
             ("候補は誰が用意する？　", DECISION, True),
             ("利用者が外部ツールで用意する。SynapseGitはmodelを呼ばず、自動実行しない。\n", INK, False),
@@ -645,22 +689,22 @@ def slide_mechanism(prs: Presentation):
             ("何を比較する？　", DECISION, True),
             ("主Blob OIDのbyte一致のみ。位置合わせ・pixel差分・意味解釈は行わない。", INK, False),
         ],
-        size=13,
+        size=12.5,
         valign=MSO_ANCHOR.TOP,
     )
     add_text(
         slide,
         0.72,
-        6.10,
+        6.06,
         11.9,
-        0.34,
+        0.30,
         "しないこと：AIの自動実行・自動採否／画像の意味解析・作者証明／pixel-levelの視覚差分",
         size=12,
         fill=GAP,
         bold=True,
         align=PP_ALIGN.CENTER,
     )
-    box = add_text(slide, 0.72, 6.46, 11.9, 0.32, "詳しい手順: 15分 壁画tutorial", size=12, fill=MUTED)
+    box = add_text(slide, 0.72, 6.40, 11.9, 0.28, "詳しい手順: 15分 壁画tutorial", size=12, fill=MUTED)
     run = box.text_frame.paragraphs[0].runs[0]
     run.hyperlink.address = LINKS["tutorial"]
     add_footer(slide, 4, "Creator workflow §§1-3 · core_model.md · tutorial/README.ja.md", dark=False)
@@ -684,7 +728,7 @@ def slide_painter(prs: Presentation):
     draw_canvas(slide, 0.78, 1.94, 2.58, 2.18, "before")
     add_text(slide, 4.05, 1.55, 2.4, 0.30, "制作 Session", size=14, fill=ACTIVITY, bold=True, align=PP_ALIGN.CENTER)
     add_shape(slide, MSO_SHAPE.ROUNDED_RECTANGLE, 4.12, 1.94, 2.28, 2.18, fill=ACTIVITY_SOFT, line=ACTIVITY, line_width=1.2)
-    add_text(slide, 4.43, 2.22, 1.65, 0.52, "描く\n塗り重ねる", size=19, fill=ACTIVITY, bold=True, align=PP_ALIGN.CENTER)
+    add_text(slide, 4.43, 2.16, 1.65, 0.68, "描く\n塗り重ねる", size=19, fill=ACTIVITY, bold=True, align=PP_ALIGN.CENTER)
     add_pill(slide, 4.34, 3.18, 1.84, 0.42, "任意の一言・音声", ACTIVITY, WHITE, 12)
     add_shape(slide, MSO_SHAPE.CHEVRON, 3.46, 2.76, 0.42, 0.52, fill=HAIRLINE)
     add_shape(slide, MSO_SHAPE.CHEVRON, 6.58, 2.76, 0.42, 0.52, fill=HAIRLINE)
@@ -705,7 +749,13 @@ def slide_painter(prs: Presentation):
         ("しないこと　", GAP, True),
         ("差分量を創造性・努力の点数にしない／画像から作者を特定しない", INK, False),
     ], size=14, valign=MSO_ANCHOR.TOP)
-    add_footer(slide, 5, "Core concept §§14.2, 20.2, 20.7", dark=False)
+    add_status_strip(
+        slide,
+        6.10,
+        "前後の画像と外部で用意した候補を記録し、byte identity比較と\n人のAdopt／Reject／Defer＋理由を残す",
+        "撮影(Capture)機能・pixel差分の差分候補・音声メモ・\n制作process pack",
+    )
+    add_footer(slide, 5, "Core concept §§14.2, 20.2, 20.7 · project_status.md", dark=False)
 
 
 def draw_plan_panel(slide, x, y, w, h, mode: str):
@@ -747,10 +797,15 @@ def slide_architect(prs: Presentation):
         ("次案件へ判断基準を再利用", SUCCESS, SUCCESS_SOFT),
     ]
     for index, (label, accent, soft) in enumerate(chips):
-        add_pill(slide, 0.88 + index * 4.02, 5.55, 3.62, 0.48, label, accent, soft, 13.5)
-    add_shape(slide, MSO_SHAPE.ROUNDED_RECTANGLE, 0.88, 6.23, 11.70, 0.50, fill=GAP_SOFT, line=GAP, line_width=0.8)
-    add_text(slide, 1.05, 6.31, 11.36, 0.30, "BIM/CADの代替ではない。写真中心の記録は自動的にAs-built認定せず、確認範囲付きのAs-recordedとして扱う。", size=12, fill=GAP, bold=True, align=PP_ALIGN.CENTER)
-    add_footer(slide, 6, "Core concept §§14.1, 14.3, 20.2", dark=False)
+        add_pill(slide, 0.88 + index * 4.02, 5.24, 3.62, 0.42, label, accent, soft, 13)
+    add_status_strip(
+        slide,
+        5.82,
+        "3画像（例: 参照・現況・候補）の記録と人の判断\n（Plan画像は通常の画像として取り込むだけ）",
+        "Plan／Previous／Currentの三者比較・計画適合／時間変化の\n自動判定・BIM/CAD連携（As-built自動認定はしない）",
+        h=1.05,
+    )
+    add_footer(slide, 6, "Core concept §§14.1, 14.3, 20.2 · project_status.md", dark=False)
 
 
 def slide_construction(prs: Presentation):
@@ -779,8 +834,13 @@ def slide_construction(prs: Presentation):
     add_shape(slide, MSO_SHAPE.ROUNDED_RECTANGLE, 0.78, 4.78, 4.28, 1.18, fill=GAP_SOFT, line=GAP, line_width=1.0)
     add_text(slide, 1.02, 4.94, 3.80, 0.32, "EvidenceGap — 撮れなかったことも記録", size=14, fill=GAP, bold=True)
     add_text(slide, 1.02, 5.34, 3.80, 0.44, "欠測・遮蔽・緊急対応を\n「変化なし」へ置き換えない", size=13, fill=INK)
-    add_text(slide, 1.05, 6.34, 11.25, 0.36, "契約適合や施工品質を自動証明しない。後任が判断できるEvidenceと、誰が何を確認したかを渡す。", size=13, fill=MUTED, align=PP_ALIGN.CENTER)
-    add_footer(slide, 7, "Core concept §§6, 14.1, 14.4, 20.2", dark=False)
+    add_status_strip(
+        slide,
+        6.10,
+        "処置前後の画像と候補の記録・人の判断、archive export／\nrestore、fsck",
+        "Procedure／Hold Point／Coverage／EvidenceGapの構造化、\n引渡しpackの自動生成",
+    )
+    add_footer(slide, 7, "Core concept §§6, 14.1, 14.4, 20.2 · project_status.md", dark=False)
 
 
 def slide_ai(prs: Presentation):
@@ -815,8 +875,14 @@ def slide_ai(prs: Presentation):
     for index, text in enumerate(boundaries):
         x = 0.98 + index * 3.86
         add_pill(slide, x, 5.25, 3.48, 0.56, text, color("E1D6EE"), color("2A2340"), 11.5)
-    add_text(slide, 0.92, 6.45, 11.40, 0.34, "generated_by AI ／ selected・modified・approved_by human を分離する。", size=13, fill=color("C3CDDA"), align=PP_ALIGN.CENTER)
-    add_footer(slide, 8, "Core concept §21 · Stage 0 Workstream D", dark=True)
+    add_status_strip(
+        slide,
+        5.95,
+        "外部ツールのAI出力をcaller-suppliedのAI-attributed proposal\nとして記録し、人だけが判断する（派生・再レビューは別session）",
+        "Context Packからの複数proposal系列の自動生成・AI model実行・\n部分採用",
+        h=0.98,
+    )
+    add_footer(slide, 8, "Core concept §21 · Stage 0 Workstream D · project_status.md", dark=True)
 
 
 def slide_handoff(prs: Presentation):
@@ -829,8 +895,8 @@ def slide_handoff(prs: Presentation):
     positions = [
         (0.82, 1.72, "何が変わった？", "方向付きDiff"),
         (0.82, 4.58, "なぜ変えた？", "採用理由・Claim"),
-        (4.78, 5.48, "何を採らなかった？", "Proposal／却下理由"),
-        (9.58, 1.72, "根拠は？", "Evidence／Observation"),
+        (4.78, 4.85, "何を採らなかった？", "Proposal／却下理由"),
+        (9.58, 1.72, "根拠は？", "Evidence記録"),
         (9.58, 4.58, "次に守ることは？", "制約・未解決事項"),
     ]
     for x, y, _, _ in positions:
@@ -846,8 +912,14 @@ def slide_handoff(prs: Presentation):
     add_text(slide, 3.28, 1.69, 2.10, 0.34, "報告・引き継ぎpack", size=14, fill=SUCCESS, bold=True, align=PP_ALIGN.CENTER)
     add_shape(slide, MSO_SHAPE.ROUNDED_RECTANGLE, 7.78, 5.53, 1.62, 0.58, fill=PLAN_SOFT, line=PLAN, line_width=0.8)
     add_text(slide, 7.92, 5.61, 1.34, 0.34, "open archive", size=13, fill=PLAN, bold=True, align=PP_ALIGN.CENTER)
-    add_text(slide, 1.28, 6.60, 10.78, 0.34, "hashで照合できるのは記録の同一性。内容の真実性、作者性、永久保存を保証するものではない。", size=12.5, fill=MUTED, align=PP_ALIGN.CENTER)
-    add_footer(slide, 9, "Core concept §§20.2, 20.6 · Pilot target", dark=False)
+    add_status_strip(
+        slide,
+        6.16,
+        "creator-report、localhost UIでの理由・timeline閲覧、archive／\nrestore、synapse-presentのlocal publication view",
+        "方向付きDiff（何が変わったかの自動可視化）。2分到達は\nPilot目標であり実績値ではない",
+        h=0.82,
+    )
+    add_footer(slide, 9, "Core concept §§20.2, 20.6 · Pilot target · project_status.md", dark=False)
 
 
 def slide_pilot(prs: Presentation):
@@ -869,11 +941,16 @@ def slide_pilot(prs: Presentation):
         ("05", "人が判断", "採用／是正／保留／不明", DECISION, DECISION_SOFT),
         ("06", "渡せる形へ", "report／handoff／archive", SUCCESS, SUCCESS_SOFT),
     ]
+    now_steps = {"01", "05", "06"}
     for index, (num, title, body, accent, soft) in enumerate(steps):
         row, col = divmod(index, 3)
         x = 0.72 + col * 4.10
         y = 2.80 + row * 1.40
         add_card(slide, x, y, 3.78, 1.12, title=f"{num}  {title}", body=body, accent=accent, soft=soft, title_size=15.5, body_size=11.5)
+        if num in now_steps:
+            add_pill(slide, x + 2.10, y - 0.13, 1.62, 0.26, f"今すぐ試せる·{TARGET_VERSION}", SUCCESS, SUCCESS_SOFT, 10.5)
+        else:
+            add_pill(slide, x + 2.10, y - 0.13, 1.62, 0.26, "構想・未実装", ACTIVITY, ACTIVITY_SOFT, 10.5)
     add_shape(slide, MSO_SHAPE.ROUNDED_RECTANGLE, 0.72, 5.78, 12.00, 0.76, fill=WHITE, line=HAIRLINE, line_width=0.8)
     metrics = [
         ("20秒以内", "Capture能動入力中央値"),
@@ -958,7 +1035,7 @@ def slide_current_state(prs: Presentation):
     ]
     for index, (label, url, accent) in enumerate(buttons):
         add_link_button(slide, 0.72 + index * 2.40, 6.28, 2.28, label, url, accent)
-    add_text(slide, 0.76, 6.80, 11.92, 0.24, f"リンク先はGitHub {TARGET_VERSION} tag。tag公開後に有効です。", size=10.5, fill=MUTED, align=PP_ALIGN.CENTER)
+    add_text(slide, 0.76, 6.80, 11.92, 0.24, f"リンク先はGitHub {TARGET_VERSION} tagの固定内容。", size=10.5, fill=MUTED, align=PP_ALIGN.CENTER)
     add_footer(slide, 11, "project_status.md · README · Stage 0 execution plan", dark=False)
 
 
@@ -984,6 +1061,52 @@ def build_presentation() -> Presentation:
     slide_pilot(prs)
     slide_current_state(prs)
     return prs
+
+
+_FULL_WIDTH_CHAR = re.compile(r"[　-ヿ㐀-鿿＀-￯]")
+
+
+def _estimate_line_width_in(text: str, size_pt: float) -> float:
+    """Conservative estimate: full-width glyphs ~1em, ASCII/Latin ~0.55em."""
+    em = size_pt / 72.0
+    width = 0.0
+    for ch in text:
+        width += em if _FULL_WIDTH_CHAR.match(ch) else 0.55 * em
+    return width
+
+
+def _estimate_text_frame_overflow(shape) -> bool:
+    """Very conservative heuristic: flag only frames that would need noticeably
+    more vertical space than they have, assuming naive greedy word-wrap. This
+    cannot know the real renderer's metrics, so it uses a generous slack factor
+    and is meant to catch gross overflows, not fine-tune layout."""
+    tf = shape.text_frame
+    if not tf.word_wrap:
+        return False
+    margin_l = (tf.margin_left.inches if tf.margin_left is not None else 0.1)
+    margin_r = (tf.margin_right.inches if tf.margin_right is not None else 0.1)
+    margin_t = (tf.margin_top.inches if tf.margin_top is not None else 0.05)
+    margin_b = (tf.margin_bottom.inches if tf.margin_bottom is not None else 0.05)
+    frame_w = shape.width / 914400 - margin_l - margin_r
+    frame_h = shape.height / 914400 - margin_t - margin_b
+    if frame_w <= 0 or frame_h <= 0:
+        return False
+    estimated_h = 0.0
+    for paragraph in tf.paragraphs:
+        text = "".join(run.text for run in paragraph.runs)
+        size_pt = 12.0
+        for run in paragraph.runs:
+            if run.font.size is not None:
+                size_pt = run.font.size.pt
+                break
+        if text.strip():
+            width = _estimate_line_width_in(text, size_pt)
+            lines_needed = max(1, math.ceil(width / frame_w))
+        else:
+            lines_needed = 1
+        estimated_h += lines_needed * (size_pt / 72.0) * 1.22
+    slack = 1.3
+    return estimated_h > frame_h * slack
 
 
 def validate_presentation(path: Path) -> list[str]:
@@ -1026,6 +1149,11 @@ def validate_presentation(path: Path) -> list[str]:
                     errors.append(
                         f"slide {index} has an unsafe text frame {shape.name} "
                         f"({shape.width / 914400:.2f} × {shape.height / 914400:.2f} in)"
+                    )
+                if _estimate_text_frame_overflow(shape):
+                    errors.append(
+                        f"slide {index} text frame {shape.name} likely overflows its "
+                        "box (conservative width/height estimate; not a renderer measurement)"
                     )
                 for paragraph in shape.text_frame.paragraphs:
                     for run in paragraph.runs:
@@ -1090,7 +1218,8 @@ def main() -> int:
         return 1
     print(
         f"ok: {output} "
-        "(11 slides, layout, Japanese fonts, accessibility metadata, and tag-pinned links validated)"
+        "(11 slides, layout, Japanese fonts, accessibility metadata, tag-pinned links, "
+        "and a conservative text-overflow estimate validated)"
     )
     return 0
 

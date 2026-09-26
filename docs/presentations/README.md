@@ -27,10 +27,15 @@ proposal）の3画像を記録し、byte identityのみで比較し、人がAdop
 `creator-report`・localhost UI・`synapse-present`のlocal publication viewで読み返せることを示す。この一連は
 v0.9.0で今すぐ試せる。
 
+シナリオslide（05〜10）はそれぞれ単独で読めるよう、下部に「今すぐ試せる（v0.9.0）」と「構想・未実装」を
+並べたstatus stripを持つ。START SMALL（10）は6つの手順それぞれに同じ趣旨の小さなbadgeを付けている。
+
 最終「CURRENT STATE」slideは、**今すぐ試せる（localhost限定）**ものと**未実装・構想のみ**のものを分けて示す。
 
 - 今すぐ試せる: loopback限定のlocalhost creator UI（3画像import／review）、byte identityのみのAnalysis、
-  `fsck`／archiveのブラウザ操作、process-local authenticated one-shot AI／Human application route
+  `fsck`／archiveのブラウザ操作
+- library実装済み（Rust API・利用者向けUIではない）: process-local authenticated one-shot AI／Human
+  application route。CoreとApp routeのRust libraryとして実装済みだが、HTTP／CLI／browser UIには未公開
 - 未実装・構想のみ: 汎用のcapture client、pixel registration・視覚差分、汎用（general-purpose）の
   creator application、本番運用向けHTTP／JWT・durable ACL・permit、release／quorum、SurrealDB比較
 
@@ -71,11 +76,14 @@ unzip -t docs/presentations/synapsegit_user_scenarios_ja.pptx
 - 図形にdecorative／alt metadataがあること
 - 対象versionのGitHub release tag（`v0.9.0`）へのhyperlink。`main`ブランチへは張らない
 - PPTXを`python-pptx`で再読込できること
+- 保守的なtext-overflow見積り（全角≈1em・半角≈0.55emでの行幅推定とword-wrap枠の高さ比較、
+  slack 1.3倍）。実viewerでの描画測定ではなく、明らかな高さ不足だけを拾う粗いheuristic
 
 `--check`で検証できないもの（人手確認が必要）:
 
 - PowerPoint／Keynote／LibreOffice Impress等の実viewerでの`Noto Sans JP`表示、改行、reading order
 - PowerPoint Accessibility Checker、PDF変換後のlink確認
+- overflow見積りが捉えない微妙な折返し・行間の見た目
 
 ## ビジュアル規則
 
