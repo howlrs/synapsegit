@@ -152,6 +152,7 @@
 </section>
 {% endif %}
 
+{% if import_inbox_supported %}
 <section class="card" hidden data-import-inbox data-project-key="{{ project_key }}" aria-labelledby="import-inbox-heading">
   <div class="card__header"><div><p class="eyebrow">Manifest-last inbox</p><h2 id="import-inbox-heading">取り込み待ち</h2><p class="muted">確認時に検証・stagingしたbytesだけをproposalへ取り込みます。</p></div></div>
   <p data-import-inbox-status role="status"></p>
@@ -172,6 +173,7 @@
     <div class="actions"><button type="submit" data-synapse-submit>Proposalを作成</button><button type="button" data-variant="secondary" data-import-inbox-cancel>一覧へ戻る</button></div>
   </form>
 </section>
+{% endif %}
 
 <section class="card" aria-labelledby="creator-upload-heading">
   <div class="card__header">

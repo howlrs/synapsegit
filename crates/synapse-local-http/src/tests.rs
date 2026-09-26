@@ -3,6 +3,7 @@ use axum::body::{Body, to_bytes};
 use axum::http::header::{CONTENT_DISPOSITION, CONTENT_TYPE, HOST, ORIGIN};
 use axum::http::{Request, StatusCode, header};
 use axum::response::Response;
+use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -73,6 +74,79 @@ fn test_app() -> (TestDirectory, Router) {
     let application =
         build_with_identity(service, 43123, "a".repeat(64), "local-test-instance".into());
     (directory, application.into_router())
+}
+
+fn test_app_with_import_root() -> (TestDirectory, Router) {
+    let directory = TestDirectory::new();
+    let repository = directory.0.join("repository");
+    let import_root = directory.0.join("inbox");
+    fs::create_dir(&repository).unwrap();
+    fs::create_dir(&import_root).unwrap();
+    let service = Arc::new(
+        LocalService::new([synapse_local_service::ProjectRegistration::new(
+            "demo",
+            "Demo project",
+            repository,
+        )])
+        .unwrap()
+        .with_import_roots(BTreeMap::from([("demo".to_owned(), import_root)]))
+        .unwrap(),
+    );
+    let application =
+        build_with_identity(service, 43123, "a".repeat(64), "local-test-instance".into());
+    (directory, application.into_router())
+}
+
+#[tokio::test]
+async fn import_inbox_page_is_rendered_only_for_configured_projects() {
+    let (_directory, app) = test_app();
+    let page = app
+        .clone()
+        .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(page.status(), StatusCode::OK);
+    let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
+    let page = std::str::from_utf8(&page).unwrap();
+    assert!(!page.contains("data-import-inbox"));
+
+    let unavailable = app
+        .oneshot(
+            request("/api/v1/projects/demo/import-inbox")
+                .header("x-synapse-local-token", "a".repeat(64))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_problem(
+        unavailable,
+        StatusCode::SERVICE_UNAVAILABLE,
+        "service_unavailable",
+    )
+    .await;
+
+    let (_directory, app) = test_app_with_import_root();
+    let page = app
+        .clone()
+        .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(page.status(), StatusCode::OK);
+    let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
+    let page = std::str::from_utf8(&page).unwrap();
+    assert!(page.contains("data-import-inbox"));
+
+    let configured = app
+        .oneshot(
+            request("/api/v1/projects/demo/import-inbox")
+                .header("x-synapse-local-token", "a".repeat(64))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(configured.status(), StatusCode::OK);
 }
 
 /// The exact bytes of one minimal, hand-written archive manifest with no

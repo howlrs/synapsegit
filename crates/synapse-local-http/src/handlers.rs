@@ -1206,6 +1206,7 @@ pub(crate) async fn project_page(
     let fsck_supported = dashboard.status.project.capabilities.fsck;
     let archive_export_supported = dashboard.status.project.capabilities.archive_export;
     let archive_restore_supported = dashboard.status.project.capabilities.archive_restore;
+    let import_inbox_supported = state.service.import_inbox_configured(&key);
     // `run_dashboard` has already established that these views came from one
     // snapshot. A target is eligible for the browser workflow only when its
     // visible Ref and reflog histories are both empty. The restore worker
@@ -1243,6 +1244,7 @@ pub(crate) async fn project_page(
             fsck_supported,
             archive_export_supported,
             archive_restore_supported,
+            import_inbox_supported,
             archive_restore_target_ready,
             has_last_fsck,
             last_fsck_clean,

@@ -542,6 +542,13 @@ impl LocalService {
         Ok(self)
     }
 
+    /// Whether this project has a startup-owned inbox root for the local UI.
+    /// The root itself remains server-owned and never crosses the transport
+    /// boundary.
+    pub fn import_inbox_configured(&self, project_key: &str) -> bool {
+        self.import_roots.contains_key(project_key)
+    }
+
     pub fn list_import_inbox(&self, project_key: &str) -> Result<ImportInboxList, ServiceError> {
         self.entry(project_key)?;
         let Some(root) = self.import_roots.get(project_key) else {
