@@ -58,12 +58,6 @@ async function appFixture({ archives = false, inbox = false }, use) {
       ];
       const start = async () => new Promise((resolve, reject) => {
         server = spawn(path.join(binaries, "synapse-local"), serverArgs, { stdio: ["ignore", "ignore", "pipe"] });
-=======
-        ...(inbox ? ["--import-root", `pending=${inboxRoot}`] : []),
-        ...["complete", "mixed", "broken", "transparent", "mismatch", "pending", "reviews", ...(archives ? ["restore"] : [])].flatMap((key) => ["--project", `${key}=${projectPath(key)}`]),
-      ], { stdio: ["ignore", "ignore", "pipe"] });
-      const origin = await new Promise((resolve, reject) => {
->>>>>>> 0d93399 (feat(local): add staged inbox review workflow)
         let log = "";
         const timeout = setTimeout(() => reject(new Error("localhost test server did not start")), 15_000);
         server.once("error", (error) => { clearTimeout(timeout); reject(error); });
