@@ -432,6 +432,17 @@ function releaseImageResources() {
   imageComparison?.refresh();
 }
 
+function releaseImagesWithin(root) {
+  for (const image of root.querySelectorAll("img[data-synapse-image]")) {
+    if (!(image instanceof HTMLImageElement)) continue;
+    IMAGE_REQUESTS.get(image)?.abort();
+    IMAGE_REQUESTS.delete(image);
+    revokeImageUrl(image);
+    ENHANCED_IMAGES.delete(image);
+    IMAGE_ELEMENTS.delete(image);
+  }
+}
+
 /** Compare decoded inline rasters; attachment Blob URLs never enter this view. */
 export function enhanceImageComparison(root = document) {
   const section = root.querySelector("[data-synapse-comparison]");
@@ -1461,7 +1472,24 @@ function enhanceImportInbox() {
   let stageId = null;
   const endpoint = `/api/v1/projects/${encodeURIComponent(project)}/import-inbox`;
   const note = () => { const value = { tool: form.elements.generation_tool.value, model: form.elements.generation_model.value, prompt: form.elements.generation_prompt.value, intent: form.elements.generation_intent.value }; return Object.values(value).every(field => field === "") ? null : value; };
-  const showList = async () => { const cancelled = stageId; form.hidden = true; list.hidden = false; stageId = null; images.replaceChildren(); list.querySelectorAll("button").forEach(button => { button.disabled = false; }); if (cancelled) await fetch(`${endpoint}/stages/${encodeURIComponent(cancelled)}`, { method: "DELETE" }); };
+  const showList = async () => {
+    if (!stageId) return;
+    const cancelled = stageId;
+    status.textContent = "stagingを破棄しています…";
+    try {
+      const response = await apiFetch(`${endpoint}/stages/${encodeURIComponent(cancelled)}`, { method: "DELETE" });
+      if (response.status !== 204) throw await responseProblem(response);
+      releaseImagesWithin(images);
+      images.replaceChildren();
+      stageId = null;
+      form.hidden = true;
+      list.hidden = false;
+      list.querySelectorAll("button").forEach(button => { button.disabled = false; });
+      status.textContent = "stagingを破棄しました。候補を選んでください。";
+    } catch (error) {
+      status.textContent = `stagingを破棄できませんでした。${publicErrorMessage(error)}`;
+    }
+  };
   const renderImages = () => {
     images.replaceChildren();
     for (const [role, label] of [["original", "Original image"], ["current", "Current image"], ["ai-output", "AI output"]]) {
@@ -1475,7 +1503,7 @@ function enhanceImportInbox() {
   const stage = async (slug, button) => {
     button.disabled = true; status.textContent = "候補を検証してstagingしています…";
     try {
-      const preview = await apiJson(`${endpoint}/${encodeURIComponent(slug)}/stages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+      const preview = await apiJson(`${endpoint}/${encodeURIComponent(slug)}/stages`, { method: "POST" });
       if (!preview || typeof preview.stage_id !== "string" || !/^[0-9a-f]{64}$/u.test(preview.stage_id)) throw new TypeError("staging応答が不正です。");
       stageId = preview.stage_id;
       for (const name of ["session", "subject_label", "creator_name"]) form.elements[name].value = preview[name] || "";
@@ -1510,7 +1538,7 @@ function enhanceImportInbox() {
       window.location.assign(`/projects/${encodeURIComponent(project)}/creator-sessions/${encodeURIComponent(pending.session)}`);
     } catch (error) { status.textContent = publicErrorMessage(error); if (submit) submit.disabled = false; }
   });
-  form.querySelector("[data-import-inbox-cancel]")?.addEventListener("click", showList);
+  form.querySelector("[data-import-inbox-cancel]")?.addEventListener("click", () => void showList());
   void load();
 }
 

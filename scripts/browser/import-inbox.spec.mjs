@@ -4,6 +4,7 @@ import { copyFile, mkdir, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 test("manifest-last inbox stages preview bytes before explicit Human Decision", async ({ page, app }) => {
+  test.setTimeout(120_000);
   const candidate = path.join(app.inboxRoot, "script-candidate");
   await mkdir(candidate);
   await copyFile(original, path.join(candidate, "original"));
@@ -18,10 +19,18 @@ test("manifest-last inbox stages preview bytes before explicit Human Decision", 
   await page.keyboard.press("Enter");
   await expect(page.locator("form[data-import-inbox-preview]")).toBeVisible();
   await expect(page.locator("[data-import-inbox-images] img")).toHaveCount(3);
-  await page.getByRole("button", { name: "一覧へ戻る" }).click();
-  await expect(page.locator("form[data-import-inbox-preview]")).toBeHidden();
   const restage = page.getByRole("button", { name: "確認する" });
-  await expect(restage).toBeEnabled();
+  for (let attempt = 0; attempt < 9; attempt += 1) {
+    const deleted = page.waitForResponse(response => response.request().method() === "DELETE" && response.url().includes("/import-inbox/stages/"));
+    await page.getByRole("button", { name: "一覧へ戻る" }).click();
+    expect((await deleted).status()).toBe(204);
+    await expect(page.locator("form[data-import-inbox-preview]")).toBeHidden();
+    await expect(restage).toBeEnabled();
+    if (attempt < 8) {
+      await restage.click();
+      await expect(page.locator("form[data-import-inbox-preview]")).toBeVisible();
+    }
+  }
   await restage.click();
   await expect(page.locator("form[data-import-inbox-preview]")).toBeVisible();
   await writeFile(path.join(candidate, "original"), "changed after staging");

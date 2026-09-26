@@ -459,6 +459,12 @@ impl LocalService {
     /// calling this leaves archive listing configured-empty, which
     /// `list_archives` reports as an empty list rather than an error.
     pub fn with_archive_root(mut self, archive_root: PathBuf) -> Result<Self, CatalogError> {
+        let archive_root = fs::canonicalize(&archive_root).map_err(|_| {
+            CatalogError::new(
+                "storage_error",
+                "an archive root could not be canonicalized",
+            )
+        })?;
         if self
             .import_roots
             .values()

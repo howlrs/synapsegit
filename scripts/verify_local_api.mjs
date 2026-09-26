@@ -265,7 +265,8 @@ for (const [route, pathItem] of Object.entries(contract.paths ?? {})) {
       if (method !== "post" && !isStagedImportCancellation) {
         fail("unexpected state-changing method: " + method.toUpperCase() + " " + route);
       }
-      if (!isStagedImportCancellation && !operation.requestBody) {
+      const isBodylessStaging = method === "post" && route === "/projects/{projectKey}/import-inbox/{slug}/stages";
+      if (!isStagedImportCancellation && !isBodylessStaging && !operation.requestBody) {
         fail(method.toUpperCase() + " " + route + " must have a request body");
       }
     }
@@ -392,7 +393,6 @@ function collectSchemaProperties(schema, properties, visitedReferences = new Set
 }
 
 const expectedWrites = new Map([
-  ["stageImportInbox", {mediaType: "application/json", properties: [], required: []}],
   ["beginStagedImportInbox", {mediaType: "application/json", properties: ["creator_name", "generation_note", "session", "subject_label"], required: ["creator_name", "generation_note", "session", "subject_label"]}],
   ["preparePresentationSidecar", {mediaType: "application/json", properties: ["creator_display_name", "current_caption", "original_caption", "proposal_agent_display_name", "proposal_caption", "public_decision_note", "session", "session_title", "summary", "title"], required: ["session"]}],
   ["beginDerivedCreatorSession", {mediaType: "multipart/form-data", properties: ["ai_output", "confirmation_id", "creator_name", "generation_intent", "generation_model", "generation_prompt", "generation_tool", "session", "subject_label"], required: ["ai_output", "confirmation_id", "creator_name", "session", "subject_label"]}],
@@ -439,7 +439,7 @@ const expectedWrites = new Map([
   ],
 ]);
 
-for (const { route, method, operation } of operations.filter(({ method }) => method === "post")) {
+for (const { route, method, operation } of operations.filter(({ method, operation }) => method === "post" && operation.operationId !== "stageImportInbox")) {
   const expectedWrite = expectedWrites.get(operation.operationId);
   const mediaTypes = Object.keys(operation.requestBody?.content ?? {});
   if (

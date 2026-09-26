@@ -371,3 +371,22 @@ fn archive_root_rejects_existing_import_root_regardless_of_builder_order() {
         "local_request_denied"
     );
 }
+
+#[test]
+fn archive_root_canonicalizes_relative_aliases_before_overlap_checking() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let mut roots = BTreeMap::new();
+    roots.insert("project".to_owned(), std::env::current_dir().unwrap());
+    let service = LocalService::new([ProjectRegistration::new("project", "Project", repository)])
+        .unwrap()
+        .with_import_roots(roots)
+        .unwrap();
+    assert_eq!(
+        service
+            .with_archive_root(PathBuf::from("."))
+            .unwrap_err()
+            .code(),
+        "local_request_denied"
+    );
+}
