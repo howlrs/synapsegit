@@ -330,7 +330,7 @@ pre {
   border-color: var(--line-strong);
 }
 
-.language-switch a[aria-current="true"] {
+.language-switch a[aria-current="page"] {
   color: var(--accent-strong);
   border-color: var(--accent);
   background: var(--accent-soft);

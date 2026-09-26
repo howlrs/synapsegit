@@ -63,6 +63,11 @@ test("the explicit language choice takes priority and preserves unrelated page p
   await page.goto(`${app.origin}/projects/complete?filter=complete&lang=en`);
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page).toHaveURL(`${app.origin}/projects/complete?filter=complete`);
+  const selectedLanguage = page.getByRole("link", { name: "English", exact: true });
+  const otherLanguage = page.getByRole("link", { name: "日本語", exact: true });
+  await expect(selectedLanguage).toHaveAttribute("aria-current", "page");
+  expect(await selectedLanguage.evaluate((link) => getComputedStyle(link).backgroundColor))
+    .not.toBe(await otherLanguage.evaluate((link) => getComputedStyle(link).backgroundColor));
   await expect(page.getByRole("link", { name: "日本語", exact: true })).toHaveAttribute("href", "/projects/complete?filter=complete&lang=ja");
   await page.goto(`${app.origin}/projects/complete?filter=complete`);
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
