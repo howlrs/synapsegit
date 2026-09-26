@@ -136,6 +136,32 @@ fn command_line_drives_ref_fsck_export_and_restore() {
 }
 
 #[test]
+fn export_to_bare_relative_destination_succeeds_and_restores() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repo");
+    let repository = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&repository);
+    drop(repository);
+
+    let export = Command::new(env!("CARGO_BIN_EXE_synapse"))
+        .current_dir(&temporary.0)
+        .args(["export", repository_path.to_str().unwrap(), "out"])
+        .output()
+        .unwrap();
+    assert_success(&export);
+    assert_eq!(String::from_utf8(export.stdout).unwrap(), "exported out\n");
+    assert!(temporary.join("out/manifest.json").is_file());
+
+    let restore = Command::new(env!("CARGO_BIN_EXE_synapse"))
+        .current_dir(&temporary.0)
+        .args(["restore", "out", "restored"])
+        .output()
+        .unwrap();
+    assert_success(&restore);
+    assert!(temporary.join("restored/refs.sqlite3").is_file());
+}
+
+#[test]
 fn concurrent_cli_exports_restore_consistent_ref_update_prefixes() {
     const ROUNDS: usize = 16;
     const REF_NAME: &str = "proposal/agent/export-race";

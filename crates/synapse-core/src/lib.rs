@@ -783,7 +783,10 @@ impl Repository {
                 )?;
             }
         }
-        let parent = destination.parent().unwrap_or_else(|| Path::new("."));
+        let parent = destination
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
         fs::create_dir_all(parent)
             .map_err(|error| RepositoryError::io("create archive parent", parent, error))?;
         let nonce = SystemTime::now()
@@ -1955,7 +1958,10 @@ impl Drop for StagingDirectory {
 }
 
 fn archive_staging_path(destination: &Path, nonce: u128) -> PathBuf {
-    let parent = destination.parent().unwrap_or_else(|| Path::new("."));
+    let parent = destination
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
     let mut name = OsString::from(".");
     name.push(
         destination
