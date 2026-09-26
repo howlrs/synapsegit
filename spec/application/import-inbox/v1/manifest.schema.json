@@ -21,6 +21,6 @@
     }
   },
   "$defs": {
-    "file": {"type":"object", "additionalProperties":false, "required":["name", "size"], "properties":{"name":{"type":"string", "minLength":1, "maxLength":255, "pattern":"^[^/\\\\]+$"}, "size":{"type":"integer", "minimum":0, "maximum":67108864}, "sha256":{"type":"string", "pattern":"^[A-Fa-f0-9]{64}$"}}}
+    "file": {"type":"object", "additionalProperties":false, "required":["name", "size"], "properties":{"name":{"type":"string", "minLength":1, "maxLength":255, "pattern":"^[^\\u0000/\\\\]+$", "not":{"enum":[".", ".."]}}, "size":{"type":"integer", "minimum":0, "maximum":67108864}, "sha256":{"type":"string", "pattern":"^[A-Fa-f0-9]{64}$"}}}
   }
 }

@@ -66,6 +66,15 @@ fn manifest_last_listing_and_staging_freeze_verified_bytes() {
             .bytes,
         b"original-a"
     );
+    let original_oid = service
+        .staged_import_image("project", &staged.stage_id, ImageRole::Original)
+        .unwrap()
+        .blob_oid;
+    let current_oid = service
+        .staged_import_image("project", &staged.stage_id, ImageRole::Current)
+        .unwrap()
+        .blob_oid;
+    assert_ne!(original_oid, current_oid);
 }
 
 #[cfg(unix)]
@@ -263,4 +272,102 @@ fn staging_ninth_candidate_hits_the_process_limit_before_copying_it() {
         .stage_import_inbox("project", "candidate-8")
         .unwrap_err();
     assert_eq!(error.code(), "resource_limit");
+}
+
+#[test]
+fn listing_skips_only_manifest_last_directories_and_reports_other_slug_entries() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let inbox = temporary.directory("inbox");
+    fs::create_dir(inbox.join("writing")).unwrap();
+    fs::write(inbox.join("plain-file"), b"not a candidate directory").unwrap();
+    let mut roots = BTreeMap::new();
+    roots.insert("project".to_owned(), inbox);
+    let service = LocalService::new([ProjectRegistration::new("project", "Project", repository)])
+        .unwrap()
+        .with_import_roots(roots)
+        .unwrap();
+    let items = service.list_import_inbox("project").unwrap().items;
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].slug, "plain-file");
+    assert!(!items[0].ready);
+    assert!(
+        items[0]
+            .reason
+            .as_deref()
+            .unwrap()
+            .contains("regular directory")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn listing_reports_candidate_directory_symlinks_as_rejected() {
+    use std::os::unix::fs::symlink;
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let inbox = temporary.directory("inbox");
+    let target = temporary.directory("outside");
+    symlink(target, inbox.join("linked")).unwrap();
+    let mut roots = BTreeMap::new();
+    roots.insert("project".to_owned(), inbox);
+    let service = LocalService::new([ProjectRegistration::new("project", "Project", repository)])
+        .unwrap()
+        .with_import_roots(roots)
+        .unwrap();
+    let items = service.list_import_inbox("project").unwrap().items;
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].slug, "linked");
+    assert!(!items[0].ready);
+    assert!(
+        items[0]
+            .reason
+            .as_deref()
+            .unwrap()
+            .contains("regular directory")
+    );
+}
+
+#[test]
+fn manifest_leaf_names_reject_escape_and_platform_separators() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let inbox = temporary.directory("inbox");
+    let candidate = inbox.join("first");
+    fs::create_dir(&candidate).unwrap();
+    fs::write(candidate.join("current"), b"two").unwrap();
+    fs::write(candidate.join("ai-output"), b"three").unwrap();
+    let mut roots = BTreeMap::new();
+    roots.insert("project".to_owned(), inbox);
+    let service = LocalService::new([ProjectRegistration::new("project", "Project", repository)])
+        .unwrap()
+        .with_import_roots(roots)
+        .unwrap();
+    for name in [".", "..", r"original\\other", "original\u{0}"] {
+        let manifest = format!(
+            r#"{{"version":"synapsegit-import-inbox-v1","original":{{"name":"{name}","size":3}},"current":{{"name":"current","size":3}},"ai_output":{{"name":"ai-output","size":5}},"metadata":{{"subject_label":"Subject","creator_name":"Creator"}}}}"#
+        );
+        fs::write(candidate.join("manifest.json"), manifest).unwrap();
+        assert!(
+            service.stage_import_inbox("project", "first").is_err(),
+            "{name:?}"
+        );
+    }
+}
+
+#[test]
+fn archive_root_rejects_existing_import_root_regardless_of_builder_order() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let shared = temporary.directory("shared");
+    let mut roots = BTreeMap::new();
+    roots.insert("project".to_owned(), shared.clone());
+    let service = LocalService::new([ProjectRegistration::new("project", "Project", repository)])
+        .unwrap()
+        .with_import_roots(roots)
+        .unwrap();
+    assert_eq!(
+        service.with_archive_root(shared).unwrap_err().code(),
+        "local_request_denied"
+    );
 }

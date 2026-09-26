@@ -1489,7 +1489,7 @@ function enhanceImportInbox() {
       section.hidden = false; list.replaceChildren();
       for (const item of result.items) {
         const row = document.createElement("li"); const title = document.createElement("strong"); title.textContent = item.slug;
-        const detail = document.createElement("p"); detail.className = "field__hint"; detail.textContent = item.ready ? "manifestを検査済み。確認へ進めます。" : item.reason || "候補を検査できません。";
+        const detail = document.createElement("p"); detail.className = "field__hint"; detail.textContent = item.ready ? "manifestは有効です。確認時に3ファイルを検証してstagingします。" : item.reason || "候補を検査できません。";
         row.append(title, detail);
         if (item.ready) { const button = document.createElement("button"); button.type = "button"; button.textContent = "確認する"; button.addEventListener("click", () => void stage(item.slug, button)); row.append(button); }
         list.append(row);

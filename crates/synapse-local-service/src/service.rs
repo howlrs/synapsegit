@@ -458,10 +458,19 @@ impl LocalService {
     /// HTTP-supplied path and this builder is the only way to set it. Not
     /// calling this leaves archive listing configured-empty, which
     /// `list_archives` reports as an empty list rather than an error.
-    #[must_use]
-    pub fn with_archive_root(mut self, archive_root: PathBuf) -> Self {
+    pub fn with_archive_root(mut self, archive_root: PathBuf) -> Result<Self, CatalogError> {
+        if self
+            .import_roots
+            .values()
+            .any(|root| overlaps(root, &archive_root))
+        {
+            return Err(CatalogError::new(
+                "local_request_denied",
+                "an archive root must not overlap an import root",
+            ));
+        }
         self.archive_root = Some(archive_root);
-        self
+        Ok(self)
     }
 
     /// Add canonical, startup-owned per-project inbox roots. Roots never cross
@@ -561,6 +570,11 @@ impl LocalService {
                 continue;
             };
             if !kind.is_dir() {
+                items.push(ImportInboxItem {
+                    slug,
+                    ready: false,
+                    reason: Some("The inbox candidate must be a regular directory.".to_owned()),
+                });
                 continue;
             }
             let manifest = entry.path().join("manifest.json");
@@ -669,12 +683,12 @@ impl LocalService {
                     false,
                 )
             })?;
-        let bytes = fs::read(match role {
-            ImageRole::Original => &staged.original,
-            ImageRole::Current => &staged.current,
-            ImageRole::AiOutput => &staged.output,
-        })
-        .map_err(|_| {
+        let (path, role_name) = match role {
+            ImageRole::Original => (&staged.original, "original"),
+            ImageRole::Current => (&staged.current, "current"),
+            ImageRole::AiOutput => (&staged.output, "ai-output"),
+        };
+        let bytes = fs::read(path).map_err(|_| {
             ServiceError::new(
                 "service_unavailable",
                 "The staged inbox bytes are unavailable.",
@@ -682,7 +696,7 @@ impl LocalService {
             )
         })?;
         Ok(CreatorImage {
-            blob_oid: format!("staged:{stage_id}"),
+            blob_oid: format!("staged:{stage_id}:{role_name}"),
             media_type: classify_image_media_type(&bytes),
             disposition: if classify_image_media_type(&bytes).is_attachment() {
                 ImageDisposition::Attachment
@@ -2017,6 +2031,8 @@ fn inspect_inbox_manifest(root: &Path, slug: &str) -> Result<CheckedInboxManifes
 fn validate_inbox_file(file: &InboxFile) -> Result<(), ServiceError> {
     if file.name.is_empty()
         || file.name.len() > 255
+        || file.name.contains('\\')
+        || file.name.contains('\0')
         || Path::new(&file.name).components().count() != 1
         || file.name == "."
         || file.name == ".."

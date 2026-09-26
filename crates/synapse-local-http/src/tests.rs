@@ -170,7 +170,8 @@ fn test_app_with_archive_root() -> (TestDirectory, Router, PathBuf) {
             repository,
         )])
         .unwrap()
-        .with_archive_root(archive_root.clone()),
+        .with_archive_root(archive_root.clone())
+        .unwrap(),
     );
     let application =
         build_with_identity(service, 43123, "a".repeat(64), "local-test-instance".into());
@@ -196,7 +197,8 @@ fn test_app_with_bad_oid_archive() -> (TestDirectory, Router) {
             repository,
         )])
         .unwrap()
-        .with_archive_root(archive_root),
+        .with_archive_root(archive_root)
+        .unwrap(),
     );
     let application =
         build_with_identity(service, 43123, "a".repeat(64), "local-test-instance".into());

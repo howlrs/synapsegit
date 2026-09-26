@@ -56,7 +56,9 @@ async fn run() -> Result<(), RunError> {
                 archive_root.display()
             ))
         })?;
-        service = service.with_archive_root(canonical);
+        service = service
+            .with_archive_root(canonical)
+            .map_err(|error| RunError::failure(error.to_string()))?;
     }
     let mut import_roots = BTreeMap::new();
     for (key, root) in cli.import_roots {

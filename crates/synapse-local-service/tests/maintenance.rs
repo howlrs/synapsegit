@@ -49,6 +49,7 @@ fn service_with_archive_root(repository: &Path, archive_root: &Path) -> LocalSer
     LocalService::new([ProjectRegistration::new("project", "Project", repository)])
         .unwrap()
         .with_archive_root(archive_root.to_path_buf())
+        .unwrap()
 }
 
 fn blob_path(repository: &Path, oid: &str) -> PathBuf {
