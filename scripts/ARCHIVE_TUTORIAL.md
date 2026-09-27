@@ -15,15 +15,14 @@ bundleの`README.md`(release notes)の隣にあります。同梱のrunner
 読んでいます。以下の手順はすべて自己完結しており、Rust toolchainも実行時の
 network accessも不要です。
 
-Only archives released after `v0.9.0` contain this file, the runner, and the
-sample images. If you downloaded the `v0.9.0` archive, it does not include
-them; use `scripts/run_mural_tutorial.sh` from a checkout of the `v0.9.0` tag
-instead (`git clone --branch v0.9.0 --depth 1 ...`), or upgrade to a later
-release.
+Archives released at v0.10.0 and later contain this file, the runner, and the
+sample images. The v0.9.0 archive does not include them; use
+`scripts/run_mural_tutorial.sh` from a checkout of the v0.9.0 tag instead
+(`git clone --branch v0.9.0 --depth 1 ...`), or upgrade to a later release.
 
-`v0.9.0`のarchiveにはこのfile・runner・sample画像は含まれません。`v0.9.0`を使う
-場合は`v0.9.0` tagをcheckoutしたsourceの`scripts/run_mural_tutorial.sh`を使うか、
-それより後のreleaseへupgradeしてください。
+v0.10.0以降のarchiveにはこのfile・runner・sample画像が含まれます。v0.9.0を使う場合は
+v0.9.0 tagをcheckoutしたsourceの`scripts/run_mural_tutorial.sh`を使うか、それより後の
+releaseへupgradeしてください。
 
 ## What this tutorial does and does not show / このtutorialが示すこと・示さないこと
 

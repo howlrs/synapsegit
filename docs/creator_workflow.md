@@ -1,7 +1,7 @@
 # 制作メモを残し、次の案を試す
 
-対象はv0.9.0です。生成メモ・判断ピン・通常の派生セッション・公開用文章フォームはv0.8.0で導入されました。v0.9.0では中断／Deferからの新しい再レビューと任意のInbox取り込みも利用できます。
-v0.9.0 release binaryを[install guide](install.md)から導入するか、
+対象はv0.10.0です。生成メモ・判断ピン・通常の派生セッション・公開用文章フォームはv0.8.0で導入されました。v0.10.0では中断／Deferからの新しい再レビューと任意のInbox取り込みも利用できます。
+v0.10.0 release binaryを[install guide](install.md)から導入するか、
 [source build](quickstart.md#1-build-する)で作成した`synapse-local`を
 [localhost runbook](../deploy/local/README.md)に従って起動してください。
 

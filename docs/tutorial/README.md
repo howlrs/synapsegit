@@ -45,8 +45,8 @@ replaces an existing repository.
 
 ## 1. Record the proposal and Human Decision
 
-Run this command from the cloned SynapseGit repository, or from an extracted
-release archive published after `v0.9.0` (it bundles the same
+Run this command from the cloned SynapseGit repository, or from the extracted
+v0.10.0 release archive (it bundles the same
 `docs/tutorial/assets/` paths; see `TUTORIAL.md` at the archive root), so the
 sample paths resolve:
 
@@ -118,8 +118,8 @@ effect when you move between pages or reload. Without one, the application
 uses a supported browser language preference and otherwise starts in Japanese.
 Only application labels and messages change: your subject, notes, rationale,
 stored history, API identifiers, and error codes remain exactly as recorded.
-This language selector is an unreleased main feature: build the current source
-to use it. The installed tagged v0.9.0 binary has the Japanese UI only.
+The tagged v0.10.0 binary includes this language selector. A header choice is
+retained in the browser and takes priority over `Accept-Language`.
 
 ![Actual SynapseGit Local overview generated from this tutorial repository](./assets/tutorial-overview.png)
 
