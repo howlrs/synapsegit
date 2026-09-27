@@ -42,19 +42,18 @@ linked into every distributed binary.
 | crypto-common | 0.2.2 | MIT OR Apache-2.0 | https://github.com/RustCrypto/traits |
 | data-encoding | 2.11.0 | MIT | https://github.com/ia0/data-encoding |
 | digest | 0.11.3 | MIT OR Apache-2.0 | https://github.com/RustCrypto/traits |
-| displaydoc | 0.2.6 | MIT OR Apache-2.0 | https://github.com/yaahc/displaydoc |
 | email_address | 0.2.9 | MIT | https://github.com/johnstonskj/rust-email_address.git |
 | encoding_rs | 0.8.35 | (Apache-2.0 OR MIT) AND BSD-3-Clause | https://github.com/hsivonen/encoding_rs |
 | equivalent | 1.0.2 | Apache-2.0 OR MIT | https://github.com/indexmap-rs/equivalent |
 | errno | 0.3.14 | MIT OR Apache-2.0 | https://github.com/lambda-fairy/rust-errno |
 | fallible-iterator | 0.3.0 | MIT/Apache-2.0 | https://github.com/sfackler/rust-fallible-iterator |
 | fallible-streaming-iterator | 0.1.9 | MIT/Apache-2.0 | https://github.com/sfackler/fallible-streaming-iterator |
-| fancy-regex | 0.18.0 | MIT | https://github.com/fancy-regex/fancy-regex |
+| fancy-regex | 0.19.2 | MIT | https://github.com/fancy-regex/fancy-regex |
 | find-msvc-tools | 0.1.9 | MIT OR Apache-2.0 | https://github.com/rust-lang/cc-rs |
 | fluent-uri | 0.4.1 | MIT | https://github.com/yescallop/fluent-uri-rs |
 | foldhash | 0.2.0 | Zlib | https://github.com/orlp/foldhash |
 | form_urlencoded | 1.2.2 | MIT OR Apache-2.0 | https://github.com/servo/rust-url |
-| fraction | 0.15.4 | MIT OR Apache-2.0 | https://github.com/dnsl48/fraction.git |
+| fraction | 0.17.0 | MIT OR Apache-2.0 | https://github.com/dnsl48/fraction.git |
 | futures-channel | 0.3.32 | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs |
 | futures-core | 0.3.32 | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs |
 | futures-task | 0.3.32 | MIT OR Apache-2.0 | https://github.com/rust-lang/futures-rs |
@@ -74,26 +73,15 @@ linked into every distributed binary.
 | hybrid-array | 0.4.13 | MIT OR Apache-2.0 | https://github.com/RustCrypto/hybrid-array |
 | hyper-util | 0.1.20 | MIT | https://github.com/hyperium/hyper-util |
 | hyper | 1.10.1 | MIT | https://github.com/hyperium/hyper |
-| icu_collections | 2.2.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
-| icu_locale_core | 2.2.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
-| icu_normalizer_data | 2.2.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
-| icu_normalizer | 2.2.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
-| icu_properties_data | 2.2.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
-| icu_properties | 2.2.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
-| icu_provider | 2.2.0 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
-| idna_adapter | 1.2.2 | Apache-2.0 OR MIT | https://github.com/hsivonen/idna_adapter |
-| idna | 1.1.0 | MIT OR Apache-2.0 | https://github.com/servo/rust-url/ |
 | indexmap | 2.14.0 | Apache-2.0 OR MIT | https://github.com/indexmap-rs/indexmap |
 | itoa | 1.0.18 | MIT OR Apache-2.0 | https://github.com/dtolnay/itoa |
 | js-sys | 0.3.103 | MIT OR Apache-2.0 | https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys |
-| jsonschema-regex | 0.49.2 | MIT | https://github.com/Stranger6667/jsonschema |
-| jsonschema-value | 0.49.2 | MIT | https://github.com/Stranger6667/jsonschema |
-| jsonschema | 0.49.2 | MIT | https://github.com/Stranger6667/jsonschema |
-| lazy_static | 1.5.0 | MIT OR Apache-2.0 | https://github.com/rust-lang-nursery/lazy-static.rs |
+| jsonschema-regex | 0.57.0 | MIT | https://github.com/Stranger6667/jsonschema |
+| jsonschema-value | 0.57.0 | MIT | https://github.com/Stranger6667/jsonschema |
+| jsonschema | 0.57.0 | MIT | https://github.com/Stranger6667/jsonschema |
 | libc | 0.2.186 | MIT OR Apache-2.0 | https://github.com/rust-lang/libc |
 | libsqlite3-sys | 0.37.0 | MIT | https://github.com/rusqlite/rusqlite |
 | linux-raw-sys | 0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | https://github.com/sunfishcode/linux-raw-sys |
-| litemap | 0.8.2 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | lock_api | 0.4.14 | MIT OR Apache-2.0 | https://github.com/Amanieu/parking_lot |
 | log | 0.4.33 | MIT OR Apache-2.0 | https://github.com/rust-lang/log |
 | matchit | 0.8.4 | MIT AND BSD-3-Clause | https://github.com/ibraheemdev/matchit |
@@ -117,7 +105,6 @@ linked into every distributed binary.
 | percent-encoding | 2.3.2 | MIT OR Apache-2.0 | https://github.com/servo/rust-url/ |
 | pin-project-lite | 0.2.17 | Apache-2.0 OR MIT | https://github.com/taiki-e/pin-project-lite |
 | pkg-config | 0.3.33 | MIT OR Apache-2.0 | https://github.com/rust-lang/pkg-config-rs |
-| potential_utf | 0.1.5 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | proc-macro2 | 1.0.106 | MIT OR Apache-2.0 | https://github.com/dtolnay/proc-macro2 |
 | quote | 1.0.46 | MIT OR Apache-2.0 | https://github.com/dtolnay/quote |
 | r-efi | 5.3.0 | MIT OR Apache-2.0 OR LGPL-2.1-or-later | https://github.com/r-efi/r-efi |
@@ -125,8 +112,8 @@ linked into every distributed binary.
 | redox_syscall | 0.5.18 | MIT | https://gitlab.redox-os.org/redox-os/syscall |
 | ref-cast-impl | 1.0.25 | MIT OR Apache-2.0 | https://github.com/dtolnay/ref-cast |
 | ref-cast | 1.0.25 | MIT OR Apache-2.0 | https://github.com/dtolnay/ref-cast |
-| referencing | 0.49.2 | MIT | https://github.com/Stranger6667/jsonschema |
-| regex-automata | 0.4.15 | MIT OR Apache-2.0 | https://github.com/rust-lang/regex |
+| referencing | 0.57.0 | MIT | https://github.com/Stranger6667/jsonschema |
+| regex-automata | 0.4.18 | MIT OR Apache-2.0 | https://github.com/rust-lang/regex |
 | regex-syntax | 0.8.11 | MIT OR Apache-2.0 | https://github.com/rust-lang/regex |
 | regex | 1.13.0 | MIT OR Apache-2.0 | https://github.com/rust-lang/regex |
 | rsqlite-vfs | 0.1.1 | MIT | registry+https://github.com/rust-lang/crates.io-index |
@@ -151,16 +138,13 @@ linked into every distributed binary.
 | socket2 | 0.6.5 | MIT OR Apache-2.0 | https://github.com/rust-lang/socket2 |
 | spin | 0.9.9 | MIT | https://github.com/mvdnes/spin-rs.git |
 | sqlite-wasm-rs | 0.5.5 | MIT | https://github.com/Spxg/sqlite-wasm-rs |
-| stable_deref_trait | 1.2.1 | MIT OR Apache-2.0 | https://github.com/storyyeller/stable_deref_trait |
 | strum_macros | 0.28.0 | MIT | https://github.com/Peternator7/strum |
 | strum | 0.28.0 | MIT | https://github.com/Peternator7/strum |
 | syn | 2.0.119 | MIT OR Apache-2.0 | https://github.com/dtolnay/syn |
 | syn | 3.0.3 | MIT OR Apache-2.0 | https://github.com/dtolnay/syn |
 | sync_wrapper | 1.0.2 | Apache-2.0 | https://github.com/Actyx/sync_wrapper |
-| synstructure | 0.13.2 | MIT | https://github.com/mystor/synstructure |
 | thiserror-impl | 2.0.18 | MIT OR Apache-2.0 | https://github.com/dtolnay/thiserror |
 | thiserror | 2.0.18 | MIT OR Apache-2.0 | https://github.com/dtolnay/thiserror |
-| tinystr | 0.8.3 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | tinyvec_macros | 0.1.1 | MIT OR Apache-2.0 OR Zlib | https://github.com/Soveu/tinyvec_macros |
 | tinyvec | 1.12.0 | Zlib OR Apache-2.0 OR MIT | https://github.com/Lokathor/tinyvec |
 | tokio-macros | 2.7.0 | MIT | https://github.com/tokio-rs/tokio |
@@ -178,7 +162,6 @@ linked into every distributed binary.
 | unicode-general-category | 1.1.0 | Apache-2.0 | https://github.com/yeslogic/unicode-general-category |
 | unicode-ident | 1.0.24 | (MIT OR Apache-2.0) AND Unicode-3.0 | https://github.com/dtolnay/unicode-ident |
 | unicode-normalization | 0.1.25 | MIT OR Apache-2.0 | https://github.com/unicode-rs/unicode-normalization |
-| utf8_iter | 1.0.4 | Apache-2.0 OR MIT | https://github.com/hsivonen/utf8_iter |
 | uuid-simd | 0.8.0 | MIT | https://github.com/Nugine/simd |
 | vcpkg | 0.2.15 | MIT/Apache-2.0 | https://github.com/mcgoo/vcpkg-rs |
 | version_check | 0.9.5 | MIT/Apache-2.0 | https://github.com/SergioBenitez/version_check |
@@ -193,16 +176,8 @@ linked into every distributed binary.
 | windows-sys | 0.61.2 | MIT OR Apache-2.0 | https://github.com/microsoft/windows-rs |
 | winnow | 1.0.4 | MIT | https://github.com/winnow-rs/winnow |
 | wit-bindgen | 0.57.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | https://github.com/bytecodealliance/wit-bindgen |
-| writeable | 0.6.3 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
-| yoke-derive | 0.8.2 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
-| yoke | 0.8.3 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | zerocopy-derive | 0.8.54 | BSD-2-Clause OR Apache-2.0 OR MIT | https://github.com/google/zerocopy |
 | zerocopy | 0.8.54 | BSD-2-Clause OR Apache-2.0 OR MIT | https://github.com/google/zerocopy |
-| zerofrom-derive | 0.1.7 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
-| zerofrom | 0.1.8 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
-| zerotrie | 0.2.4 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
-| zerovec-derive | 0.11.3 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
-| zerovec | 0.11.6 | Unicode-3.0 | https://github.com/unicode-org/icu4x |
 | zmij | 1.0.23 | MIT | https://github.com/dtolnay/zmij |
 
 ## License and notice texts
@@ -220,23 +195,19 @@ Applies to:
 - bumpalo 3.20.3 — LICENSE-APACHE
 - cc 1.2.67 — LICENSE-APACHE
 - cfg-if 1.0.4 — LICENSE-APACHE
-- displaydoc 0.2.6 — LICENSE-APACHE
 - equivalent 1.0.2 — LICENSE-APACHE
 - errno 0.3.14 — LICENSE-APACHE
 - find-msvc-tools 0.1.9 — LICENSE-APACHE
 - form_urlencoded 1.2.2 — LICENSE-APACHE
-- fraction 0.15.4 — LICENSE-APACHE
+- fraction 0.17.0 — LICENSE-APACHE
 - glob 0.3.3 — LICENSE-APACHE
 - hashbrown 0.16.1 — LICENSE-APACHE
 - hashbrown 0.17.1 — LICENSE-APACHE
 - hashlink 0.11.1 — LICENSE-APACHE
 - heck 0.5.0 — LICENSE-APACHE
 - httparse 1.10.1 — LICENSE-APACHE
-- idna 1.1.0 — LICENSE-APACHE
-- idna_adapter 1.2.2 — LICENSE-APACHE
 - indexmap 2.14.0 — LICENSE-APACHE
 - js-sys 0.3.103 — LICENSE-APACHE
-- lazy_static 1.5.0 — LICENSE-APACHE
 - linux-raw-sys 0.12.1 — LICENSE-APACHE
 - lock_api 0.4.14 — LICENSE-APACHE
 - log 0.4.33 — LICENSE-APACHE
@@ -254,14 +225,13 @@ Applies to:
 - percent-encoding 2.3.2 — LICENSE-APACHE
 - pkg-config 0.3.33 — LICENSE-APACHE
 - regex 1.13.0 — LICENSE-APACHE
-- regex-automata 0.4.15 — LICENSE-APACHE
+- regex-automata 0.4.18 — LICENSE-APACHE
 - regex-syntax 0.8.11 — LICENSE-APACHE
 - rustix 1.1.4 — LICENSE-APACHE
 - scopeguard 1.2.0 — LICENSE-APACHE
 - signal-hook-registry 1.4.8 — LICENSE-APACHE
 - smallvec 1.15.2 — LICENSE-APACHE
 - socket2 0.6.5 — LICENSE-APACHE
-- stable_deref_trait 1.2.1 — LICENSE-APACHE
 - unicode-normalization 0.1.25 — LICENSE-APACHE
 - vcpkg 0.2.15 — LICENSE-APACHE
 - version_check 0.9.5 — LICENSE-APACHE
@@ -802,7 +772,6 @@ Applies to:
 - allocator-api2 0.2.21 — LICENSE-MIT
 - atomic-waker 1.1.2 — LICENSE-MIT
 - basic-toml 0.1.10 — LICENSE-MIT
-- displaydoc 0.2.6 — LICENSE-MIT
 - itoa 1.0.18 — LICENSE-MIT
 - linux-raw-sys 0.12.1 — LICENSE-MIT
 - once_cell 1.21.4 — LICENSE-MIT
@@ -1319,7 +1288,7 @@ SHA-256: `f51ac2c59a222f7476ce507ca879960e2b64ea64bb2786eefdbeb7b0b538d1b7`
 Applies to:
 
 - bitflags 2.13.0 — LICENSE-MIT
-- fraction 0.15.4 — LICENSE-MIT
+- fraction 0.17.0 — LICENSE-MIT
 - glob 0.3.3 — LICENSE-MIT
 - log 0.4.33 — LICENSE-MIT
 - num 0.4.3 — LICENSE-MIT
@@ -1330,7 +1299,7 @@ Applies to:
 - num-rational 0.4.2 — LICENSE-MIT
 - num-traits 0.2.19 — LICENSE-MIT
 - regex 1.13.0 — LICENSE-MIT
-- regex-automata 0.4.15 — LICENSE-MIT
+- regex-automata 0.4.18 — LICENSE-MIT
 - regex-syntax 0.8.11 — LICENSE-MIT
 
 SHA-256: `6485b8ed310d3f0340bf1ad1f47645069ce4069dcc6bb46c7d5c6faf41de1fdb`
@@ -2225,7 +2194,6 @@ Applies to:
 
 - encoding_rs 0.8.35 — LICENSE-APACHE
 - tinyvec 1.12.0 — LICENSE-APACHE.md
-- utf8_iter 1.0.4 — LICENSE-APACHE
 
 SHA-256: `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`
 
@@ -2437,7 +2405,6 @@ SHA-256: `cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30`
 Applies to:
 
 - encoding_rs 0.8.35 — LICENSE-MIT
-- utf8_iter 1.0.4 — LICENSE-MIT
 
 SHA-256: `3fa4ca83dcc9237839b1bdeb2e6d16bdfb5ec0c5ce42b24694d8bbf0dcbef72c`
 
@@ -2630,7 +2597,7 @@ SHA-256: `8dcec5569a9be5b0e086c80faed6f1aefa670af0ec29cecc2f714303096887e0`
 
 Applies to:
 
-- fancy-regex 0.18.0 — AUTHORS
+- fancy-regex 0.19.2 — AUTHORS
 
 SHA-256: `9b406e2bd4a1ad1aad8fe7f38c2326bc648d7f25f04bf4fdbcc05ee9e310a76a`
 
@@ -2649,7 +2616,7 @@ SHA-256: `9b406e2bd4a1ad1aad8fe7f38c2326bc648d7f25f04bf4fdbcc05ee9e310a76a`
 
 Applies to:
 
-- fancy-regex 0.18.0 — LICENSE
+- fancy-regex 0.19.2 — LICENSE
 
 SHA-256: `3bc70e239e91272782006c638fc0452a714d384224f11f0923036b7be07cf9b5`
 
@@ -4040,147 +4007,6 @@ SHA-256: `9e0a97848ea543aef745c98e84fde696a9a3e0735538f6daefdd3cb1942effc1`
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
     THE SOFTWARE.
 
-### Notice f367c1b8e1aa
-
-Applies to:
-
-- icu_collections 2.2.0 — LICENSE
-- icu_locale_core 2.2.0 — LICENSE
-- icu_normalizer 2.2.0 — LICENSE
-- icu_normalizer_data 2.2.0 — LICENSE
-- icu_properties 2.2.0 — LICENSE
-- icu_properties_data 2.2.0 — LICENSE
-- icu_provider 2.2.0 — LICENSE
-- litemap 0.8.2 — LICENSE
-- potential_utf 0.1.5 — LICENSE
-- tinystr 0.8.3 — LICENSE
-- writeable 0.6.3 — LICENSE
-- yoke 0.8.3 — LICENSE
-- yoke-derive 0.8.2 — LICENSE
-- zerofrom 0.1.8 — LICENSE
-- zerofrom-derive 0.1.7 — LICENSE
-- zerotrie 0.2.4 — LICENSE
-- zerovec 0.11.6 — LICENSE
-- zerovec-derive 0.11.3 — LICENSE
-
-SHA-256: `f367c1b8e1aa262435251e442901da4607b4650e0e63a026f5044473ecfb90f2`
-
-    UNICODE LICENSE V3
-
-    COPYRIGHT AND PERMISSION NOTICE
-
-    Copyright © 2020-2024 Unicode, Inc.
-
-    NOTICE TO USER: Carefully read the following legal agreement. BY
-    DOWNLOADING, INSTALLING, COPYING OR OTHERWISE USING DATA FILES, AND/OR
-    SOFTWARE, YOU UNEQUIVOCALLY ACCEPT, AND AGREE TO BE BOUND BY, ALL OF THE
-    TERMS AND CONDITIONS OF THIS AGREEMENT. IF YOU DO NOT AGREE, DO NOT
-    DOWNLOAD, INSTALL, COPY, DISTRIBUTE OR USE THE DATA FILES OR SOFTWARE.
-
-    Permission is hereby granted, free of charge, to any person obtaining a
-    copy of data files and any associated documentation (the "Data Files") or
-    software and any associated documentation (the "Software") to deal in the
-    Data Files or Software without restriction, including without limitation
-    the rights to use, copy, modify, merge, publish, distribute, and/or sell
-    copies of the Data Files or Software, and to permit persons to whom the
-    Data Files or Software are furnished to do so, provided that either (a)
-    this copyright and permission notice appear with all copies of the Data
-    Files or Software, or (b) this copyright and permission notice appear in
-    associated Documentation.
-
-    THE DATA FILES AND SOFTWARE ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY
-    KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-    MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT OF
-    THIRD PARTY RIGHTS.
-
-    IN NO EVENT SHALL THE COPYRIGHT HOLDER OR HOLDERS INCLUDED IN THIS NOTICE
-    BE LIABLE FOR ANY CLAIM, OR ANY SPECIAL INDIRECT OR CONSEQUENTIAL DAMAGES,
-    OR ANY DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS,
-    WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
-    ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THE DATA
-    FILES OR SOFTWARE.
-
-    Except as contained in this notice, the name of a copyright holder shall
-    not be used in advertising or otherwise to promote the sale, use or other
-    dealings in these Data Files or Software without prior written
-    authorization of the copyright holder.
-
-    SPDX-License-Identifier: Unicode-3.0
-
-    —
-
-    Portions of ICU4X may have been adapted from ICU4C and/or ICU4J.
-    ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation and others.
-
-### Notice b38f11f60967
-
-Applies to:
-
-- idna 1.1.0 — LICENSE-MIT
-- percent-encoding 2.3.2 — LICENSE-MIT
-
-SHA-256: `b38f11f6096706e6de553dabe2a7ed142d59b6fa8c97e290c67496154745cdd5`
-
-    Copyright (c) 2013-2025 The rust-url developers
-
-    Permission is hereby granted, free of charge, to any
-    person obtaining a copy of this software and associated
-    documentation files (the "Software"), to deal in the
-    Software without restriction, including without
-    limitation the rights to use, copy, modify, merge,
-    publish, distribute, sublicense, and/or sell copies of
-    the Software, and to permit persons to whom the Software
-    is furnished to do so, subject to the following
-    conditions:
-
-    The above copyright notice and this permission notice
-    shall be included in all copies or substantial portions
-    of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-    ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-    TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-    PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-    SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-    OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-    IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-    DEALINGS IN THE SOFTWARE.
-
-### Notice 8b43ce8accd6
-
-Applies to:
-
-- idna_adapter 1.2.2 — LICENSE-MIT
-
-SHA-256: `8b43ce8accd61e9d370b5ca9e9c4f953279b5c239926c62315b40e24df51b726`
-
-    Copyright (c) The rust-url developers
-
-    Permission is hereby granted, free of charge, to any
-    person obtaining a copy of this software and associated
-    documentation files (the "Software"), to deal in the
-    Software without restriction, including without
-    limitation the rights to use, copy, modify, merge,
-    publish, distribute, sublicense, and/or sell copies of
-    the Software, and to permit persons to whom the Software
-    is furnished to do so, subject to the following
-    conditions:
-
-    The above copyright notice and this permission notice
-    shall be included in all copies or substantial portions
-    of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-    ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-    TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-    PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-    SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-    OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-    IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-    DEALINGS IN THE SOFTWARE.
-
 ### Notice ecc269ef87fd
 
 Applies to:
@@ -4219,10 +4045,10 @@ SHA-256: `ecc269ef87fd38a1d98e30bfac9ba964a9dbd9315c3770fed98d4d7cb5882055`
 
 Applies to:
 
-- jsonschema 0.49.2 — LICENSE
-- jsonschema-regex 0.49.2 — Stranger6667-jsonschema-LICENSE
-- jsonschema-value 0.49.2 — Stranger6667-jsonschema-LICENSE
-- referencing 0.49.2 — LICENSE
+- jsonschema 0.57.0 — LICENSE
+- jsonschema-regex 0.57.0 — Stranger6667-jsonschema-LICENSE
+- jsonschema-value 0.57.0 — Stranger6667-jsonschema-LICENSE
+- referencing 0.57.0 — LICENSE
 
 SHA-256: `117829c3ca21efb132d81a44b55363d395ab8eea18526873bc828da4c0e5f038`
 
@@ -4247,40 +4073,6 @@ SHA-256: `117829c3ca21efb132d81a44b55363d395ab8eea18526873bc828da4c0e5f038`
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
-
-### Notice 0621878e61f0
-
-Applies to:
-
-- lazy_static 1.5.0 — LICENSE-MIT
-
-SHA-256: `0621878e61f0d0fda054bcbe02df75192c28bde1ecc8289cbd86aeba2dd72720`
-
-    Copyright (c) 2010 The Rust Project Developers
-
-    Permission is hereby granted, free of charge, to any
-    person obtaining a copy of this software and associated
-    documentation files (the "Software"), to deal in the
-    Software without restriction, including without
-    limitation the rights to use, copy, modify, merge,
-    publish, distribute, sublicense, and/or sell copies of
-    the Software, and to permit persons to whom the Software
-    is furnished to do so, subject to the following
-    conditions:
-
-    The above copyright notice and this permission notice
-    shall be included in all copies or substantial portions
-    of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-    ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-    TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-    PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-    SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-    OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-    IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-    DEALINGS IN THE SOFTWARE.
 
 ### Notice 123a331b5dbf
 
@@ -5295,6 +5087,40 @@ SHA-256: `21e65a2d9564db9ef28dad3c0444eeb83a96b0cd5047a168d409c00c650bde6f`
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 
+### Notice b38f11f60967
+
+Applies to:
+
+- percent-encoding 2.3.2 — LICENSE-MIT
+
+SHA-256: `b38f11f6096706e6de553dabe2a7ed142d59b6fa8c97e290c67496154745cdd5`
+
+    Copyright (c) 2013-2025 The rust-url developers
+
+    Permission is hereby granted, free of charge, to any
+    person obtaining a copy of this software and associated
+    documentation files (the "Software"), to deal in the
+    Software without restriction, including without
+    limitation the rights to use, copy, modify, merge,
+    publish, distribute, sublicense, and/or sell copies of
+    the Software, and to permit persons to whom the Software
+    is furnished to do so, subject to the following
+    conditions:
+
+    The above copyright notice and this permission notice
+    shall be included in all copies or substantial portions
+    of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
+    ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
+    TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
+    PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
+    SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
+    OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
+    IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+    DEALINGS IN THE SOFTWARE.
+
 ### Notice 0d542e0c8804
 
 Applies to:
@@ -6169,40 +5995,6 @@ SHA-256: `58545fed1565e42d687aecec6897d35c6d37ccb71479a137c0deb2203e125c79`
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
 
-### Notice 3c125f249fc6
-
-Applies to:
-
-- stable_deref_trait 1.2.1 — LICENSE-MIT
-
-SHA-256: `3c125f249fc6fb19f2415d027a0d9a170860583960ea53d08ea1d2b3f269d153`
-
-    Copyright (c) 2017 Robert Grosse
-
-    Permission is hereby granted, free of charge, to any
-    person obtaining a copy of this software and associated
-    documentation files (the "Software"), to deal in the
-    Software without restriction, including without
-    limitation the rights to use, copy, modify, merge,
-    publish, distribute, sublicense, and/or sell copies of
-    the Software, and to permit persons to whom the Software
-    is furnished to do so, subject to the following
-    conditions:
-
-    The above copyright notice and this permission notice
-    shall be included in all copies or substantial portions
-    of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF
-    ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED
-    TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-    PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT
-    SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
-    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION
-    OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR
-    IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
-    DEALINGS IN THE SOFTWARE.
-
 ### Notice 8bce3b45e49e
 
 Applies to:
@@ -6233,22 +6025,6 @@ SHA-256: `8bce3b45e49ecd1461f223b46de133d8f62cd39f745cfdaf81bee554b908bd42`
     LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
     OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
     SOFTWARE.
-
-### Notice 219920e865ee
-
-Applies to:
-
-- synstructure 0.13.2 — LICENSE
-
-SHA-256: `219920e865eee70b7dcfc948a86b099e7f4fe2de01bcca2ca9a20c0a033f2b59`
-
-    Copyright 2016 Nika Layzell
-
-    Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
-
-    The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
-
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 ### Notice fd80a26fbb3f
 
@@ -6997,57 +6773,6 @@ SHA-256: `23860c2a7b5d96b21569afedf033469bab9fe14a1b24a35068b8641c578ce24d`
     at your option. All files in the project carrying such
     notice may not be copied, modified, or distributed except
     according to those terms.
-
-### Notice c30152c94a6d
-
-Applies to:
-
-- utf8_iter 1.0.4 — COPYRIGHT
-
-SHA-256: `c30152c94a6d75e021adbc52b3a52470366a46edb917e17deae3259251af244c`
-
-    Copyright Mozilla Foundation
-
-    Licensed under the Apache License (Version 2.0), or the MIT license,
-    (the "Licenses") at your option. You may not use this file except in
-    compliance with one of the Licenses. You may obtain copies of the
-    Licenses at:
-
-       https://www.apache.org/licenses/LICENSE-2.0
-       https://opensource.org/licenses/MIT
-
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the Licenses is distributed on an "AS IS" BASIS,
-    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-    See the Licenses for the specific language governing permissions and
-    limitations under the Licenses.
-
-    --
-
-    Test code is dedicated to the Public Domain when so designated (see
-    the individual files for PD/CC0-dedicated sections).
-
-    --
-
-    The implementation for Utf8CharIndices was adapted from the
-    CharIndices implementation of the Rust standard library at revision
-    ab32548539ec38a939c1b58599249f3b54130026
-    (https://github.com/rust-lang/rust/blob/ab32548539ec38a939c1b58599249f3b54130026/library/core/src/str/iter.rs).
-
-    Excerpt from https://github.com/rust-lang/rust/blob/ab32548539ec38a939c1b58599249f3b54130026/COPYRIGHT ,
-    which refers to
-    https://github.com/rust-lang/rust/blob/ab32548539ec38a939c1b58599249f3b54130026/LICENSE-APACHE
-    and
-    https://github.com/rust-lang/rust/blob/ab32548539ec38a939c1b58599249f3b54130026/LICENSE-MIT
-    :
-
-    For full authorship information, see the version control history or
-    https://thanks.rust-lang.org
-
-    Except as otherwise noted (below and/or in individual files), Rust is
-    licensed under the Apache License, Version 2.0 <LICENSE-APACHE> or
-    <http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
-    <LICENSE-MIT> or <http://opensource.org/licenses/MIT>, at your option.
 
 ### Notice 14e66de892a0
 
