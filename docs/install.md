@@ -3,7 +3,7 @@
 Audience: preview users and evaluators
 Status: Stage 0 prerelease
 Applies to: v0.10.0
-Last verified: 2026-09-26
+Last verified: 2026-09-27
 
 SynapseGit currently has one prebuilt distribution and one source-install path.
 It is not published to crates.io, Homebrew, a Linux package repository, or a
