@@ -316,6 +316,15 @@ complete sessionを残し得る。このPilotはどちらも自動resume／clean
 診断する。`reject`／`defer`でもAI outputとproposalは履歴に残り、reportの
 `reviewed_by_human`はreviewer、`selected`はproposalがdecision snapshotへ選ばれたかを示す。
 
+このCLI Pilotは、候補の取り込みとHuman Decisionを別のCLI実行へ分けない。`creator-run`の`--decision`は必須で、
+`adopt`、`reject`、`defer`のいずれもその実行中に一回だけ記録する。これはHuman Decisionのauthorityを同じprocess内の
+admitted proposal handleとone-shot permitへ束縛する設計であり、`--creator`は後のCLI実行でauthorityを再構築するcredentialではない。
+GUIのない環境では、実行前に別のviewerで3画像を確認し、この一回の`creator-run`実行で判断する。
+AI outputを先にbrowserで確認してから判断したい場合は、`synapse-local --import-root KEY=PATH`のInboxで候補を取り込み、
+同じlocal processで明示的に判断する。すでに`defer`したproposalまたは中断sessionを改めて検討する場合も、localhostの
+[再レビュー](../deploy/local/README.md#review-an-interrupted-or-deferred-proposal-again)で3画像から新しいsessionを作る。元proposalの
+authorityやdecisionはresume・変更しない。CLIと`synapse-local`は同じrepositoryへ同時に書き込めないため、CLI実行前にserverを停止する。
+
 ### 作者外へ説明するread-only publication bundle
 
 ```bash
