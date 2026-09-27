@@ -207,8 +207,11 @@ repository.
 - **The images look visually different but the report says only
   `byte_identity=different`** — that is the current conservative boundary.
 
-For command details, continue with the [CLI reference](../cli_reference.md),
-[usage guide](../usage_guide.md), and [security model](../security_model.md).
+To continue with your own images, follow the [Creator workflow](../creator_workflow.en.md)
+and then the [public-text workflow](../presentation_sidecar.en.md). For command
+details, see the [CLI reference (Japanese)](../cli_reference.md) and [usage
+guide (Japanese)](../usage_guide.md). Before using your own data or sharing a
+bundle, read the English [privacy and trust summary](../security_model.en.md).
 
 ## Next step
 
@@ -220,3 +223,5 @@ decision. Two of its files are already in English:
 [participant task sheet](../evaluation/creator-pilot/v1/participant-task-en.md)
 and
 [comprehension questions](../evaluation/creator-pilot/v1/comprehension-questions-en.md).
+For a real-work follow-up, use the [first real-work Pilot start checklist
+(Japanese)](../creator-pilot/start-checklist.ja.md).

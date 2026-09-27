@@ -1,5 +1,7 @@
 # 公開用の制作ノートを作る
 
+English: [Public-text workflow](./presentation_sidecar.en.md).
+
 対象はv0.8.0です。このフォームはv0.8.0 release binaryに含まれます。
 localhostのプロジェクト画面で「公開用の制作ノートを作る」を開き、通常の3画像取り込みで
 作成した完了セッションを一つ選びます。参照画像を再利用した派生セッションは公開形式v1に未対応で、
