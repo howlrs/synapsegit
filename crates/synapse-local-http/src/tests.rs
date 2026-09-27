@@ -560,6 +560,35 @@ async fn assert_problem(response: Response, status: StatusCode, code: &str) {
     assert_eq!(problem["code"], code);
 }
 
+async fn wait_for_terminal_operation(app: &Router, poll_path: &str) -> serde_json::Value {
+    let deadline = tokio::time::Instant::now() + Duration::from_secs(10);
+    loop {
+        let response = app
+            .clone()
+            .oneshot(
+                request(poll_path)
+                    .header("x-synapse-local-token", "a".repeat(64))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+        let status: serde_json::Value = serde_json::from_slice(&body).unwrap();
+        if matches!(
+            status["state"].as_str(),
+            Some("succeeded" | "failed" | "outcome_unknown")
+        ) {
+            return status;
+        }
+        if tokio::time::Instant::now() >= deadline {
+            panic!("operation did not finish within 10 seconds; last observed status: {status:?}");
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+}
+
 #[test]
 fn browser_write_enhancement_preserves_submitter_before_disabling_controls() {
     let prepare = APP_JS
@@ -1198,31 +1227,7 @@ async fn archive_export_is_confirmed_queued_polled_and_no_replace() {
     assert!(valid_operation_id(operation_id));
     let poll_path = accepted["poll_path"].as_str().unwrap();
 
-    let mut terminal = None;
-    for _ in 0..2_000 {
-        let response = app
-            .clone()
-            .oneshot(
-                request(poll_path)
-                    .header("x-synapse-local-token", "a".repeat(64))
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
-        let status: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        if matches!(
-            status["state"].as_str(),
-            Some("succeeded" | "failed" | "outcome_unknown")
-        ) {
-            terminal = Some(status);
-            break;
-        }
-        tokio::task::yield_now().await;
-    }
-    let terminal = terminal.expect("the empty-repository archive export did not finish");
+    let terminal = wait_for_terminal_operation(&app, poll_path).await;
     assert_eq!(terminal["kind"], "archive_export");
     assert_eq!(terminal["project_key"], "demo");
     assert_eq!(terminal["state"], "succeeded");
@@ -1368,31 +1373,7 @@ async fn archive_restore_is_confirmed_queued_polled_and_root_scoped() {
     assert!(valid_operation_id(operation_id));
     let poll_path = accepted["poll_path"].as_str().unwrap();
 
-    let mut terminal = None;
-    for _ in 0..2_000 {
-        let response = app
-            .clone()
-            .oneshot(
-                request(poll_path)
-                    .header("x-synapse-local-token", "a".repeat(64))
-                    .body(Body::empty())
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
-        let status: serde_json::Value = serde_json::from_slice(&body).unwrap();
-        if matches!(
-            status["state"].as_str(),
-            Some("succeeded" | "failed" | "outcome_unknown")
-        ) {
-            terminal = Some(status);
-            break;
-        }
-        tokio::task::yield_now().await;
-    }
-    let terminal = terminal.expect("the empty-target archive restore did not finish");
+    let terminal = wait_for_terminal_operation(&app, poll_path).await;
     assert_eq!(terminal["kind"], "archive_restore");
     assert_eq!(terminal["project_key"], "demo");
     assert_eq!(terminal["state"], "succeeded");
