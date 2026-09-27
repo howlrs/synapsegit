@@ -6,6 +6,41 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-27
+
+### Added
+
+- `synapse creator-run` accepts `--generation-note-file PATH`. The bounded
+  UTF-8 JSON file records optional private, user-declared `tool`, `model`,
+  `prompt`, and `intent` fields with the Creator session. Invalid input is
+  rejected before the repository is opened. The note remains separate from
+  Human Decision rationale, is retained by normal archive/restore and local
+  reporting, and is excluded from public bundles; it is not evidence that a
+  model ran or that any person authored the output.
+
+- Focused English follow-up guides cover the Creator workflow, public-text
+  sidecar, and privacy/trust boundary after the English tutorial. Japanese
+  references remain explicitly identified where no English equivalent exists.
+
+- Japanese real-work Creator Pilot templates add a pre-start checklist and a
+  retrospective/continuation-decision record. They document preparation,
+  archive/restore confirmation, private-record handling, measurable versus
+  unmeasurable observations, and a personal continuation decision without
+  claiming completed real-user evaluation.
+
+### Changed
+
+- Creator CLI documentation now records that `creator-run` requires its Human
+  Decision in the same process and cannot recover deferred decision authority
+  in a later CLI invocation. The documented alternatives are the localhost
+  Inbox before a decision and fresh localhost re-review after an interrupted
+  or deferred proposal; neither resumes or rewrites the original decision.
+
+- Remote GitHub delivery and Git identity/import adapters are documented as
+  design-only. The local projection/bundle remains implemented and GitHub
+  remains outside the local object/Ref/reflog authority; this release adds no
+  importer, GitHub App, remote publisher, or hosted service.
+
 ## [0.10.0] - 2026-09-27
 
 ### Added

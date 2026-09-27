@@ -11,7 +11,7 @@ Status: **Core v0.1 / Stage 0 draft**
 - [Documentation index](./README.md)
 - [15分 壁画チュートリアル](./tutorial/README.ja.md)
 - [15-minute mural tutorial (English)](./tutorial/README.md)
-- [v0.10.0 release notes](./releases/v0.10.0.md)
+- [v0.11.0 release notes](./releases/v0.11.0.md)
 - [5分Quickstart](./quickstart.md)
 - [Native localhost application起動手順](../deploy/local/README.md)
 - [想定利用者別シナリオ（PPTX・日本語）](./presentations/synapsegit_user_scenarios_ja.pptx)
