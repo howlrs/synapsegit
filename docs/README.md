@@ -65,6 +65,27 @@ HTTP／JWT、durable／distributed ACL・permit、Projection application route�
 membership resolver、OS sandbox／egress、Grant revocation、organization／quorum／release approvalは未実装である。
 creator PilotのidentityとAI outputはtrusted local integrationが供給し、実利用者の本人確認やmodel実行を行わない。
 
+## English reader path
+
+The English README and tutorial support a first evaluation without requiring a
+Japanese document. Continue from the tutorial with these focused guides:
+
+1. [Creator workflow](./creator_workflow.en.md): generation notes, decision
+   pins, derived and fresh re-review sessions, Inbox, limits, and private
+   storage.
+2. [Public-text workflow](./presentation_sidecar.en.md): author-supplied
+   `presentation.toml` and the separate local bundle operation.
+3. [Privacy and trust summary](./security_model.en.md): what remains private
+   in a repository and archive, what a public bundle excludes, and the
+   loopback-only `synapse-local` boundary.
+
+These documents are focused English paths, rather than translations of every
+technical document. Links from English documents identify Japanese-only
+documents with `(Japanese)`. The corresponding Japanese guides link back to
+the English paths. Protocol specifications, API contracts, architecture, CLI
+reference, release operations, and evaluation-facilitator material remain
+Japanese or mixed-language technical references unless a link says otherwise.
+
 ## 読みたい内容から選ぶ
 
 | 目的 | 最初に読む資料 | 次に読む資料 |

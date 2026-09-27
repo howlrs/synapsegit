@@ -77,9 +77,9 @@ UI mockups.
 | Try a complete visual example | [15-minute mural tutorial](./docs/tutorial/README.md) |
 | Install the three preview binaries | [Installation](./docs/install.md) |
 | Use my own three images | [Three-minute Pilot](#try-it-in-three-minutes) |
-| Inspect a repository in the browser | [Local application runbook](./deploy/local/README.md) |
-| Generate a shareable local read-only view | [`synapse-present` guide](./docs/cli_reference.md#synapse-present-companion-cli) |
-| Evaluate or embed the Rust boundaries | [Documentation index](./docs/README.md) |
+| Inspect a repository in the browser | [Local application runbook (Japanese)](./deploy/local/README.md) |
+| Generate a shareable local read-only view | [`synapse-present` guide (Japanese)](./docs/cli_reference.md#synapse-present-companion-cli) |
+| Evaluate or embed the Rust boundaries | [Documentation index (English path and Japanese index)](./docs/README.md#english-reader-path) |
 
 ## Who can use this preview
 
@@ -197,13 +197,13 @@ The old session and decision remain fixed. The project dashboard shows up to
 detail page or run `fsck` for verification.
 Diagnostics and maintenance do not resume, clean up, or rewrite a creator
 session. See the
-[local application runbook](./deploy/local/README.md), the
+[local application runbook (Japanese)](./deploy/local/README.md), the
 [installation guide](./docs/install.md), or the
-[source Quickstart](./docs/quickstart.md).
+[source Quickstart (Japanese)](./docs/quickstart.md).
 
 ### Record, review, and try another candidate
 
-The v0.8.0 Creator additions remain included in the v0.10.0 release binaries. See the [Creator workflow guide](docs/creator_workflow.md)
+The v0.8.0 Creator additions remain included in the v0.10.0 release binaries. See the [Creator workflow guide](docs/creator_workflow.en.md)
 for the complete sequence and input limits.
 
 | Step | Available behavior |
@@ -218,7 +218,7 @@ exclude those private notes. Reusing Current is not a new observation, and Adopt
 promotes the previous AI output to Current. **Frozen publication v1 refuses derived sessions**
 in both the public-text form and bundle export, including all-session export containing a
 complete derived session. Select a non-derived session with `--session`; existing v1 bundles
-remain verifiable. See the [public-text workflow](docs/presentation_sidecar.md).
+remain verifiable. See the [public-text workflow](docs/presentation_sidecar.en.md).
 
 ## What works now
 
@@ -312,7 +312,7 @@ prepare a local GitHub-ready view, but it does not upload, publish, or contact
 GitHub. Private
 rationale, internal Actor IDs, repository paths, and raw assets stay omitted;
 raw-asset rendering is not implemented, and a public note is separate
-author-supplied text. See the [CLI reference](./docs/cli_reference.md).
+author-supplied text. See the [CLI reference (Japanese)](./docs/cli_reference.md).
 
 Separately, the tagged v0.10.0 source/workspace libraries include a versioned
 generic-artifact projection and local bundle API. This API is not exposed by
@@ -353,7 +353,7 @@ The normative draft and its JSON Schemas live under
 [`spec/core/v0.1`](./spec/core/v0.1/README.md). Rust owns canonicalization,
 object IDs, schema validation, repository integrity, Ref updates, the current
 local application routes, and archive verification. Read the
-[runtime architecture](./docs/runtime_architecture.md) for component details.
+[runtime architecture (Japanese)](./docs/runtime_architecture.md) for component details.
 
 ## Documentation
 
@@ -361,21 +361,21 @@ local application routes, and archive verification. Read the
 |---|---|
 | Complete the illustrated first-use tutorial | [15-minute mural tutorial](./docs/tutorial/README.md) |
 | Install a release or build from a tag | [Installation](./docs/install.md) |
-| Run the complete source demo | [Core Quickstart](./docs/quickstart.md) |
-| Understand creator and AI-assisted use cases | [Usage guide](./docs/usage_guide.md) |
-| Record notes, review images, and try another candidate | [Creator workflow](./docs/creator_workflow.md) |
-| Run the loopback-only application | [Local application runbook](./deploy/local/README.md) |
-| Look up commands and errors | [CLI reference](./docs/cli_reference.md) |
-| Generate a read-only local publication bundle | [CLI reference](./docs/cli_reference.md#synapse-present-companion-cli) |
+| Run the complete source demo | [Core Quickstart (Japanese)](./docs/quickstart.md) |
+| Understand creator and AI-assisted use cases | [Usage guide (Japanese)](./docs/usage_guide.md) |
+| Record notes, review images, and try another candidate | [Creator workflow](./docs/creator_workflow.en.md) |
+| Run the loopback-only application | [Local application runbook (Japanese)](./deploy/local/README.md) |
+| Look up commands and errors | [CLI reference (Japanese)](./docs/cli_reference.md) |
+| Generate a read-only local publication bundle | [CLI reference (Japanese)](./docs/cli_reference.md#synapse-present-companion-cli) |
 | Evaluate publication comprehension | [Frozen complete and incomplete-only corpus](./docs/evaluation/publication-comprehension/v1/) |
 | Embed the generic regular-file contract | [Generic artifact v1](./spec/application/generic-artifact/v1/README.md) |
 | Build or extend a generic-artifact public projection | [Generic publication profile](./spec/application/generic-artifact-publication/v1/README.md) / [integration roadmap](./docs/generic_artifact_publication_roadmap.md) |
-| Evaluate current maturity and next work | [Project status](./docs/project_status.md) |
-| Review trust, privacy, and security limits | [Security model](./docs/security_model.md) |
+| Evaluate current maturity and next work | [Project status (Japanese)](./docs/project_status.md) |
+| Review trust, privacy, and security limits | [Privacy and trust summary](./docs/security_model.en.md) |
 | Implement the protocol | [Core Protocol v0.1](./spec/core/v0.1/README.md) |
-| Understand releases and distribution | [Distribution guide](./docs/distribution.md) |
+| Understand releases and distribution | [Distribution guide (Japanese)](./docs/distribution.md) |
 | Review use, Fork, and contribution terms | [License](./LICENSE) / [Japanese summary](./docs/license_ja.md) |
-| Browse everything | [Documentation index](./docs/README.md) |
+| Browse everything | [Documentation index (English path and Japanese index)](./docs/README.md#english-reader-path) |
 
 ## Distribution status
 
