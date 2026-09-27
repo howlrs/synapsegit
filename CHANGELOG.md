@@ -6,6 +6,20 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+## [0.11.1] - 2026-09-27
+
+### Changed
+
+- Updated the JSON Schema validation dependency from 0.49.2 to 0.57.0 and
+  refreshed the lockfile and third-party notices for its new packages.
+- Updated the pinned release attestation action to `actions/attest` v4.2.2 and
+  the CI build cache action to `Swatinem/rust-cache` v2.9.2.
+
+### Fixed
+
+- Archive export and restore HTTP tests now wait for asynchronous operations
+  with a bounded deadline, avoiding false failures on busy CI runners.
+
 ## [0.11.0] - 2026-09-27
 
 ### Added
@@ -522,7 +536,8 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.11.0...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/howlrs/synapsegit/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/howlrs/synapsegit/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/howlrs/synapsegit/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/howlrs/synapsegit/compare/v0.8.1...v0.9.0

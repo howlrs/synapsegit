@@ -2,7 +2,7 @@
 
 [日本語の完全な security and trust model](./security_model.md)
 
-This is the user-facing English summary for the v0.11.0 local preview. It
+This is the user-facing English summary for the v0.11.1 local preview. It
 does not replace the [Japanese security model](./security_model.md), which is
 the detailed technical reference.
 

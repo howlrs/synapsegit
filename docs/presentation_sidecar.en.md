@@ -2,7 +2,7 @@
 
 [日本語](./presentation_sidecar.md)
 
-This v0.8.0 feature is included in the v0.11.0 release binary. It lets you
+This v0.8.0 feature is included in the v0.11.1 release binary. It lets you
 prepare author-supplied public text for one complete, non-derived Creator
 session. It is deliberately separate from the private Creator record and from
 bundle generation.
