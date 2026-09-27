@@ -258,7 +258,13 @@ project ACL／FIFO fenceを通して`HumanDecisionRuntime::publish_decision`を�
 
 一つのlocal single-creator sessionをcreateする。生成メモを付ける場合だけ、手書きしたJSON objectをfileから渡す。
 
-ブラウザで判断前の候補を確認する用途は`creator-run`ではなく、`synapse-local --import-root KEY=PATH`のmanifest-last inboxを使う。browser requestはpathを送らずlogical slugだけを送り、一覧へ戻る操作はprivate stagingを破棄する。
+`creator-run`は候補の取り込みとHuman Decisionを別のCLI実行へ分けない。`--decision`は必須で、
+`adopt`、`reject`、`defer`のいずれもこの実行中に一回だけ記録する。これは、Human Decisionのauthorityを
+同じprocess内のadmitted proposal handleとone-shot permitへ束縛するPilotの境界である。`--creator`は表示名であり、
+後のCLI実行でauthorityを再構築するcredentialではない。old handle、OID、Refを渡して判断をresumeするcommandは提供しない。
+GUIのない環境では、実行前に別のviewerで3画像を確認し、この一回の`creator-run`実行で判断する。
+
+ブラウザで判断前の候補を確認する用途は`creator-run`ではなく、`synapse-local --import-root KEY=PATH`のmanifest-last inboxを使う。browser requestはpathを送らずlogical slugだけを送り、一覧へ戻る操作はprivate stagingを破棄する。すでに`defer`したproposalまたは中断sessionを改めて検討する場合は、localhostの再レビューが3画像から新しいsessionを作る。元proposalのauthorityやdecisionはresume・変更しない。CLIと`synapse-local`は同じrepositoryへ同時に書き込めないため、CLI実行前にserverを停止する。
 
 ```bash
 synapse creator-run .synapse-creator mural-1 \
