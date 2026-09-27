@@ -1143,16 +1143,31 @@ fn decide_creator_session_with_annotations_and_limits(
     Ok(completed)
 }
 
-/// Create one complete local creator session.
+/// Create one complete local creator session without a generation note.
 ///
-/// This compatibility wrapper preserves the original CLI contract while the
+/// This compatibility wrapper preserves the original Rust API while the
 /// localhost application can pause between proposal admission and review.
 pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunReceipt> {
+    run_creator_session_with_note(options, None)
+}
+
+/// Create one complete local creator session with an optional private,
+/// user-declared generation note.
+///
+/// The note is validated before the repository is opened, so invalid note
+/// input cannot create a repository or publish a Ref.
+pub fn run_creator_session_with_note(
+    options: &CreatorRunOptions,
+    note: Option<&crate::CreatorGenerationNote>,
+) -> Result<CreatorRunReceipt> {
     let decision = CreatorDecisionOptions {
         disposition: options.disposition,
         rationale: options.rationale.clone(),
     };
     validate_decision_metadata(&decision)?;
+    if let Some(note) = note {
+        note.validate()?;
+    }
     let begin = CreatorBeginOptions {
         repository: options.repository.clone(),
         session: options.session.clone(),
@@ -1162,7 +1177,7 @@ pub fn run_creator_session(options: &CreatorRunOptions) -> Result<CreatorRunRece
         subject_label: options.subject_label.clone(),
         creator_name: options.creator_name.clone(),
     };
-    let mut pending = begin_creator_session(&begin)?;
+    let mut pending = begin_creator_session_with_note(&begin, note)?;
     match decide_creator_session(&mut pending, &decision) {
         Ok(receipt) => Ok(receipt),
         Err(_) if pending.completed_receipt().is_some() => Ok(pending

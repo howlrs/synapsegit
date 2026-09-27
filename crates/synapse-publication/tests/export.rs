@@ -7,11 +7,11 @@ use synapse_canonical::{canonical_bytes, parse_strict};
 use synapse_core::Repository;
 use synapse_creator::{
     ANNOTATIONS_FORMAT, CreatorAnnotations, CreatorBeginOptions, CreatorDecisionOptions,
-    CreatorDisposition, CreatorGenerationNote, CreatorImageRole, CreatorPin, CreatorSourceBinding,
-    begin_creator_session, begin_creator_session_with_note,
+    CreatorDisposition, CreatorGenerationNote, CreatorImageRole, CreatorPin, CreatorRunOptions,
+    CreatorSourceBinding, begin_creator_session, begin_creator_session_with_note,
     begin_creator_session_with_reuse_source, begin_creator_session_with_source, creator_report,
     creator_reuse_source_from_snapshot, decide_creator_session,
-    decide_creator_session_with_annotations,
+    decide_creator_session_with_annotations, run_creator_session_with_note,
 };
 use synapse_publication::{
     BundleManifest, ChecksumsDocument, DEFAULT_MAX_SESSIONS, ExportOptions, OutputTarget,
@@ -332,6 +332,61 @@ fn exports_adopt_reject_and_defer_without_private_or_raw_source_material() {
     }
     assert!(all_bundle_bytes.contains("separately supplied public context"));
     assert_eq!(snapshot_tree(&temporary.join("repo")), repository_before);
+}
+
+#[test]
+fn creator_run_generation_notes_survive_every_decision_but_never_enter_public_bundles() {
+    let temporary = TempDirectory::new();
+    let (original, current, proposal) = create_input_fixture(&temporary.0);
+    let repository = temporary.join("repo");
+    for (session, disposition) in [
+        ("adopt-story", CreatorDisposition::Adopt),
+        ("reject-story", CreatorDisposition::Reject),
+        ("defer-story", CreatorDisposition::Defer),
+    ] {
+        let note = CreatorGenerationNote {
+            tool: "PRIVATE_NOTE_TOOL_CANARY".into(),
+            model: "PRIVATE_NOTE_MODEL_CANARY".into(),
+            prompt: format!("PRIVATE_NOTE_PROMPT_CANARY_{session}"),
+            intent: "PRIVATE_NOTE_INTENT_CANARY".into(),
+        };
+        run_creator_session_with_note(
+            &CreatorRunOptions {
+                repository: repository.clone(),
+                session: session.into(),
+                original_image: original.clone(),
+                current_image: current.clone(),
+                ai_output: proposal.clone(),
+                subject_label: "Public projection test".into(),
+                creator_name: "Creator".into(),
+                disposition,
+                rationale: None,
+            },
+            Some(&note),
+        )
+        .unwrap();
+        assert_eq!(
+            creator_report(&repository, session)
+                .unwrap()
+                .generation_note,
+            Some(note)
+        );
+    }
+
+    let bundle = export(&temporary, "noted-public-bundle", OutputTarget::Github);
+    verify_bundle(&bundle).unwrap();
+    let all_bundle_bytes = bundle_bytes(&bundle);
+    for canary in [
+        "PRIVATE_NOTE_TOOL_CANARY",
+        "PRIVATE_NOTE_MODEL_CANARY",
+        "PRIVATE_NOTE_PROMPT_CANARY_",
+        "PRIVATE_NOTE_INTENT_CANARY",
+    ] {
+        assert!(
+            !all_bundle_bytes.contains(canary),
+            "public bundle leaked generation-note canary {canary:?}"
+        );
+    }
 }
 
 #[test]
