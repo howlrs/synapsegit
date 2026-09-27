@@ -47,6 +47,7 @@ pub use session::{
     begin_creator_session_with_reuse_source, begin_creator_session_with_reuse_source_existing,
     begin_creator_session_with_source, begin_creator_session_with_source_existing,
     decide_creator_session, decide_creator_session_with_annotations, run_creator_session,
+    run_creator_session_with_note,
 };
 pub use synapse_observation::{AnalysisComparability, AnalysisStatus, ByteIdentityOutcome};
 pub use types::{
