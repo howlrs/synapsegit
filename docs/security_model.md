@@ -1,5 +1,7 @@
 # SynapseGit Core security and trust model
 
+English reader summary: [Privacy and trust summary](./security_model.en.md).
+
 この文書は Stage 0 local implementation の trust boundary と、利用者が誤解してはいけない保証範囲をまとめる。
 脅威モデルの完成版や production deployment guide ではない。
 

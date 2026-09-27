@@ -11,7 +11,7 @@ Status: **Core v0.1 / Stage 0 draft**
 - [Documentation index](./README.md)
 - [15分 壁画チュートリアル](./tutorial/README.ja.md)
 - [15-minute mural tutorial (English)](./tutorial/README.md)
-- [v0.10.0 release notes](./releases/v0.10.0.md)
+- [v0.11.0 release notes](./releases/v0.11.0.md)
 - [5分Quickstart](./quickstart.md)
 - [Native localhost application起動手順](../deploy/local/README.md)
 - [想定利用者別シナリオ（PPTX・日本語）](./presentations/synapsegit_user_scenarios_ja.pptx)
@@ -84,6 +84,10 @@ Coreは既存の制作ソフト、BIM/CAD、ペイントツールを置き換え
 
 このsampleは実在作品や実処置のevidenceではない。実際の`creator-run`、Human Decision、
 `creator-report`、localhost UI、`synapse-present`を一つの再現可能なflowとして示す。
+
+tutorialの後に自分の実制作を数週間試す場合は、[実制作 Pilot 開始前チェックリスト](./creator-pilot/start-checklist.ja.md)で
+対象、保存先、復元確認、privateな記録、停止条件を先に決める。終了時は同じdirectoryの
+[振り返り・継続判断テンプレート](./creator-pilot/retrospective-template.ja.md)へ観測値と判断を分けて残す。
 
 ### 1. 一つの対象を選ぶ
 
@@ -315,6 +319,15 @@ Human Decision前にfailureしたpartial sessionは`creator_session_incomplete`�
 complete sessionを残し得る。このPilotはどちらも自動resume／cleanupや上書きを行わないため、callerはcurrent Refsを
 診断する。`reject`／`defer`でもAI outputとproposalは履歴に残り、reportの
 `reviewed_by_human`はreviewer、`selected`はproposalがdecision snapshotへ選ばれたかを示す。
+
+このCLI Pilotは、候補の取り込みとHuman Decisionを別のCLI実行へ分けない。`creator-run`の`--decision`は必須で、
+`adopt`、`reject`、`defer`のいずれもその実行中に一回だけ記録する。これはHuman Decisionのauthorityを同じprocess内の
+admitted proposal handleとone-shot permitへ束縛する設計であり、`--creator`は後のCLI実行でauthorityを再構築するcredentialではない。
+GUIのない環境では、実行前に別のviewerで3画像を確認し、この一回の`creator-run`実行で判断する。
+AI outputを先にbrowserで確認してから判断したい場合は、`synapse-local --import-root KEY=PATH`のInboxで候補を取り込み、
+同じlocal processで明示的に判断する。すでに`defer`したproposalまたは中断sessionを改めて検討する場合も、localhostの
+[再レビュー](../deploy/local/README.md#review-an-interrupted-or-deferred-proposal-again)で3画像から新しいsessionを作る。元proposalの
+authorityやdecisionはresume・変更しない。CLIと`synapse-local`は同じrepositoryへ同時に書き込めないため、CLI実行前にserverを停止する。
 
 ### 作者外へ説明するread-only publication bundle
 

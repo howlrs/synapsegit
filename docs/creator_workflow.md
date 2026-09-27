@@ -1,7 +1,9 @@
 # 制作メモを残し、次の案を試す
 
-対象はv0.10.0です。生成メモ・判断ピン・通常の派生セッション・公開用文章フォームはv0.8.0で導入されました。v0.10.0では中断／Deferからの新しい再レビューと任意のInbox取り込みも利用できます。
-v0.10.0 release binaryを[install guide](install.md)から導入するか、
+English: [Creator workflow](./creator_workflow.en.md).
+
+対象はv0.11.0です。生成メモ・判断ピン・通常の派生セッション・公開用文章フォームはv0.8.0で導入されました。中断／Deferからの新しい再レビューと任意のInbox取り込みも利用できます。
+v0.11.0 release binaryを[install guide](install.md)から導入するか、
 [source build](quickstart.md#1-build-する)で作成した`synapse-local`を
 [localhost runbook](../deploy/local/README.md)に従って起動してください。
 
@@ -20,6 +22,9 @@ v0.10.0 release binaryを[install guide](install.md)から導入するか、
 生成メモは任意の利用者申告です。保存後は変更できず、モデル実行や作者性の証明にはなりません。
 文字数ではなくUTF-8 bytesで、ツール／モデルは各300、プロンプト8192、制作意図2048までです。
 空欄のままでも従来どおり取り込めます。
+
+CLIでも`creator-run --generation-note-file <path>`で、同じprivateな生成メモをUTF-8 JSON fileから記録できる。
+JSONには任意の`tool`、`model`、`prompt`、`intent` stringだけを指定し、通常archiveとlocal reportには残るがpublic bundleには出力しない。詳しい形式、上限、errorは[CLI reference](./cli_reference.md)を参照する。
 
 ## 2. 画像上のメモと判断を記録する
 

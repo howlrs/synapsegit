@@ -254,11 +254,17 @@ project ACL／FIFO fenceを通して`HumanDecisionRuntime::publish_decision`を�
 再利用できるが、registrationとpermitはone-shotである。以下の`creator-run`はこのrouteをfixed local Pilotとして
 内部利用する限定commandである。
 
-### `creator-run <repo> <session> <original> <current> <ai-output> --subject <label> --creator <name> --decision <adopt|reject|defer> [--rationale <text>]`
+### `creator-run <repo> <session> <original> <current> <ai-output> --subject <label> --creator <name> --decision <adopt|reject|defer> [--rationale <text>] [--generation-note-file <path>]`
 
-手書きJSONなしで、一つのlocal single-creator sessionをcreateする。
+一つのlocal single-creator sessionをcreateする。生成メモを付ける場合だけ、手書きしたJSON objectをfileから渡す。
 
-ブラウザで判断前の候補を確認する用途は`creator-run`ではなく、`synapse-local --import-root KEY=PATH`のmanifest-last inboxを使う。browser requestはpathを送らずlogical slugだけを送り、一覧へ戻る操作はprivate stagingを破棄する。
+`creator-run`は候補の取り込みとHuman Decisionを別のCLI実行へ分けない。`--decision`は必須で、
+`adopt`、`reject`、`defer`のいずれもこの実行中に一回だけ記録する。これは、Human Decisionのauthorityを
+同じprocess内のadmitted proposal handleとone-shot permitへ束縛するPilotの境界である。`--creator`は表示名であり、
+後のCLI実行でauthorityを再構築するcredentialではない。old handle、OID、Refを渡して判断をresumeするcommandは提供しない。
+GUIのない環境では、実行前に別のviewerで3画像を確認し、この一回の`creator-run`実行で判断する。
+
+ブラウザで判断前の候補を確認する用途は`creator-run`ではなく、`synapse-local --import-root KEY=PATH`のmanifest-last inboxを使う。browser requestはpathを送らずlogical slugだけを送り、一覧へ戻る操作はprivate stagingを破棄する。すでに`defer`したproposalまたは中断sessionを改めて検討する場合は、localhostの再レビューが3画像から新しいsessionを作る。元proposalのauthorityやdecisionはresume・変更しない。CLIと`synapse-local`は同じrepositoryへ同時に書き込めないため、CLI実行前にserverを停止する。
 
 ```bash
 synapse creator-run .synapse-creator mural-1 \
@@ -266,7 +272,8 @@ synapse creator-run .synapse-creator mural-1 \
   --subject "North wall mural" \
   --creator "Aki" \
   --decision adopt \
-  --rationale "The proposal fits the intended palette."
+  --rationale "The proposal fits the intended palette." \
+  --generation-note-file generation-note.json
 ```
 
 - repositoryは開くか新規作成する。
@@ -289,6 +296,12 @@ synapse creator-run .synapse-creator mural-1 \
 - `--rationale`は任意で最大5,000 UTF-8 bytes。省略時はdecision別の既定rationaleを記録する。
   DecisionFeedbackの既定は`reason_codes=["unspecified"]`、`visibility=private`、
   `training_use_policy=prohibited`である。
+- `--generation-note-file`は、`tool`、`model`、`prompt`、`intent`だけを任意のstring fieldとして持つ
+  UTF-8 JSON objectを読む。たとえば`{"tool":"image tool","model":"model-a","prompt":"青い空\\n引用符: \\"ok\\"","intent":"構図の候補"}`である。
+  これはprivateなuser-declaredの生成メモで、実行、作者性、権利の証明ではない。`creator-report`とlocalhost UIで
+  読め、通常archiveには保存されるがpublic bundleへ自動転記されない。各fieldの上限はtool／modelが300 bytes、
+  promptが8,192 bytes、intentが2,048 bytes、serialized note全体が16 KiBである。JSON不正、unknown field、上限超過は
+  repositoryを開く前に拒否する。
 - fileに外部検証済み時刻がないため、生成するObservationの`capture_time`とActivityの`valid_time`は
   `unknown`である。各stageのRecordにはrun内でstrictly monotonicになるrecording timestampを保存するが、
   `recorded_at`を撮影・生成・実行時刻や外部eventの物理順序の証拠として扱わない。
@@ -407,7 +420,7 @@ recording timestampになる。time basisはObservationなら`observation_record
 `activity_recorded_at_fallback`であり、unknownなcapture／valid timeを撮影時刻、AI execution time、
 外部eventの物理順序へ昇格させない。
 
-`creator-report` prints `generation_note_user_declared` when a proposal contains a private generation note. The text is escaped with Rust debug string formatting, remains user-declared, and is separate from `rationale`. The localhost import form and trusted `begin_creator_session_with_note` API create these notes; `creator-run` retains its existing inputs. Normal archives include notes; public bundles do not.
+`creator-report` prints `generation_note_user_declared` when a proposal contains a private generation note. The text is escaped with Rust debug string formatting, remains user-declared, and is separate from `rationale`. The localhost import form, `creator-run --generation-note-file`, and trusted `begin_creator_session_with_note` API create these notes. Normal archives include notes; public bundles do not.
 
 `creator-report` prints escaped `decision_pins_private` when valid private pins exist, or `decision_pins=unavailable` for an unsupported/malformed annotation extension. Annotation display failure is separate from the verified Human Decision lineage.
 
@@ -766,6 +779,7 @@ directory archive を検証し、object、reflog、Refs を復元する。
 | CLI structured file read | 16 MiB |
 | Blob | 512 MiB |
 | creator session / subject label / creator name / rationale | 64 ASCII bytes / 500 / 300 / 5,000 UTF-8 bytes |
+| creator generation note: tool / model / prompt / intent / serialized total | 300 / 300 / 8,192 / 2,048 UTF-8 bytes / 16 KiB |
 | JSON depth | 128 |
 | JSON nodes | 100,000 |
 | container members / items | 50,000 |

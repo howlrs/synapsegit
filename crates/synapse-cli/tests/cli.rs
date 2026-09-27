@@ -445,6 +445,272 @@ fn creator_cli_builds_reports_and_restores_one_human_gated_session() {
 }
 
 #[test]
+fn creator_run_records_a_generation_note_file_before_creating_the_repository() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.join("noted-repo");
+    let archive = temporary.join("noted-archive");
+    let restored = temporary.join("noted-restored");
+    let original = temporary.join("original.png");
+    let current = temporary.join("current.png");
+    let proposal = temporary.join("proposal.png");
+    let note_file = temporary.join("generation-note.json");
+    fs::write(&original, b"original").unwrap();
+    fs::write(&current, b"current").unwrap();
+    fs::write(&proposal, b"proposal").unwrap();
+    fs::write(
+        &note_file,
+        r#"{"tool":"画像ツール","model":"model-\"quoted\"","prompt":"青い空\n構図を比較する","intent":"採否の前に候補を残す"}"#,
+    )
+    .unwrap();
+
+    let created = run(&[
+        "creator-run",
+        repository.to_str().unwrap(),
+        "noted-session",
+        original.to_str().unwrap(),
+        current.to_str().unwrap(),
+        proposal.to_str().unwrap(),
+        "--subject",
+        "生成メモ付きの作品",
+        "--creator",
+        "Aki",
+        "--decision",
+        "defer",
+        "--generation-note-file",
+        note_file.to_str().unwrap(),
+    ]);
+    assert_success(&created);
+    let created = String::from_utf8(created.stdout).unwrap();
+    assert!(created.contains("generation_note_user_declared="));
+    assert!(created.contains("画像ツール"));
+    assert!(created.contains("青い空\\n構図を比較する"));
+
+    let report = run(&[
+        "creator-report",
+        repository.to_str().unwrap(),
+        "noted-session",
+        "--format",
+        "json",
+    ]);
+    let report = json_stdout(&report);
+    assert_eq!(report["generation_note"]["availability"], "present");
+    assert_eq!(report["generation_note"]["tool"], "画像ツール");
+    assert_eq!(report["generation_note"]["model"], "model-\"quoted\"");
+    assert_eq!(
+        report["generation_note"]["prompt"],
+        "青い空\n構図を比較する"
+    );
+    assert_eq!(report["generation_note"]["intent"], "採否の前に候補を残す");
+
+    for (session, disposition) in [("noted-adopt", "adopt"), ("noted-reject", "reject")] {
+        let created = run(&[
+            "creator-run",
+            repository.to_str().unwrap(),
+            session,
+            original.to_str().unwrap(),
+            current.to_str().unwrap(),
+            proposal.to_str().unwrap(),
+            "--subject",
+            "生成メモ付きの作品",
+            "--creator",
+            "Aki",
+            "--decision",
+            disposition,
+            "--generation-note-file",
+            note_file.to_str().unwrap(),
+        ]);
+        assert_success(&created);
+        let report = run(&[
+            "creator-report",
+            repository.to_str().unwrap(),
+            session,
+            "--format",
+            "json",
+        ]);
+        let report = json_stdout(&report);
+        assert_eq!(report["disposition"], disposition);
+        assert_eq!(report["generation_note"]["availability"], "present");
+        assert_eq!(
+            report["generation_note"]["prompt"],
+            "青い空\n構図を比較する"
+        );
+    }
+
+    assert_success(&run(&[
+        "export",
+        repository.to_str().unwrap(),
+        archive.to_str().unwrap(),
+    ]));
+    assert_success(&run(&[
+        "restore",
+        archive.to_str().unwrap(),
+        restored.to_str().unwrap(),
+    ]));
+    for (session, disposition) in [
+        ("noted-session", "defer"),
+        ("noted-adopt", "adopt"),
+        ("noted-reject", "reject"),
+    ] {
+        let restored_report = run(&[
+            "creator-report",
+            restored.to_str().unwrap(),
+            session,
+            "--format",
+            "json",
+        ]);
+        let restored_report = json_stdout(&restored_report);
+        assert_eq!(restored_report["disposition"], disposition);
+        assert_eq!(
+            restored_report["generation_note"]["availability"],
+            "present"
+        );
+        assert_eq!(restored_report["generation_note"]["tool"], "画像ツール");
+        assert_eq!(
+            restored_report["generation_note"]["prompt"],
+            "青い空\n構図を比較する"
+        );
+    }
+
+    let invalid_note = temporary.join("invalid-generation-note.json");
+    fs::write(&invalid_note, r#"{"unexpected":true}"#).unwrap();
+    let invalid_repository = temporary.join("invalid-note-repo");
+    let invalid = run(&[
+        "creator-run",
+        invalid_repository.to_str().unwrap(),
+        "invalid-note",
+        original.to_str().unwrap(),
+        current.to_str().unwrap(),
+        proposal.to_str().unwrap(),
+        "--subject",
+        "Invalid note",
+        "--creator",
+        "Aki",
+        "--decision",
+        "adopt",
+        "--generation-note-file",
+        invalid_note.to_str().unwrap(),
+    ]);
+    assert!(!invalid.status.success());
+    assert!(
+        String::from_utf8(invalid.stderr)
+            .unwrap()
+            .contains("usage_error: generation note file")
+    );
+    assert!(!invalid_repository.exists());
+
+    let missing_repository = temporary.join("missing-note-repo");
+    let missing_note = temporary.join("missing-generation-note.json");
+    let missing = run(&[
+        "creator-run",
+        missing_repository.to_str().unwrap(),
+        "missing-note",
+        original.to_str().unwrap(),
+        current.to_str().unwrap(),
+        proposal.to_str().unwrap(),
+        "--subject",
+        "Missing note",
+        "--creator",
+        "Aki",
+        "--decision",
+        "adopt",
+        "--generation-note-file",
+        missing_note.to_str().unwrap(),
+    ]);
+    assert!(!missing.status.success());
+    assert!(
+        String::from_utf8(missing.stderr)
+            .unwrap()
+            .contains("storage_error: open structured input file")
+    );
+    assert!(!missing_repository.exists());
+
+    let empty_note = temporary.join("empty-generation-note.json");
+    fs::write(&empty_note, b"").unwrap();
+    let empty_repository = temporary.join("empty-note-repo");
+    let empty = run(&[
+        "creator-run",
+        empty_repository.to_str().unwrap(),
+        "empty-note",
+        original.to_str().unwrap(),
+        current.to_str().unwrap(),
+        proposal.to_str().unwrap(),
+        "--subject",
+        "Empty note",
+        "--creator",
+        "Aki",
+        "--decision",
+        "adopt",
+        "--generation-note-file",
+        empty_note.to_str().unwrap(),
+    ]);
+    assert!(!empty.status.success());
+    assert!(
+        String::from_utf8(empty.stderr)
+            .unwrap()
+            .contains("usage_error: generation note file")
+    );
+    assert!(!empty_repository.exists());
+
+    let oversized_note = temporary.join("oversized-generation-note.json");
+    fs::write(
+        &oversized_note,
+        serde_json::json!({"prompt": "x".repeat(8193)}).to_string(),
+    )
+    .unwrap();
+    let oversized_repository = temporary.join("oversized-note-repo");
+    let oversized = run(&[
+        "creator-run",
+        oversized_repository.to_str().unwrap(),
+        "oversized-note",
+        original.to_str().unwrap(),
+        current.to_str().unwrap(),
+        proposal.to_str().unwrap(),
+        "--subject",
+        "Oversized note",
+        "--creator",
+        "Aki",
+        "--decision",
+        "adopt",
+        "--generation-note-file",
+        oversized_note.to_str().unwrap(),
+    ]);
+    assert!(!oversized.status.success());
+    assert!(
+        String::from_utf8(oversized.stderr)
+            .unwrap()
+            .contains("usage_error: generation note exceeds a UTF-8 byte limit")
+    );
+    assert!(!oversized_repository.exists());
+
+    let duplicate_repository = temporary.join("duplicate-note-repo");
+    let duplicate = run(&[
+        "creator-run",
+        duplicate_repository.to_str().unwrap(),
+        "duplicate-note",
+        original.to_str().unwrap(),
+        current.to_str().unwrap(),
+        proposal.to_str().unwrap(),
+        "--subject",
+        "Duplicate note",
+        "--creator",
+        "Aki",
+        "--decision",
+        "adopt",
+        "--generation-note-file",
+        note_file.to_str().unwrap(),
+        "--generation-note-file",
+        note_file.to_str().unwrap(),
+    ]);
+    assert!(!duplicate.status.success());
+    assert!(
+        String::from_utf8(duplicate.stderr)
+            .unwrap()
+            .contains("usage_error: invalid or duplicate creator-run option")
+    );
+    assert!(!duplicate_repository.exists());
+}
+
+#[test]
 fn creator_report_prints_escaped_three_blob_reuse_provenance() {
     use synapse_creator::{
         CreatorBeginOptions, CreatorDecisionOptions, CreatorDisposition, begin_creator_session,

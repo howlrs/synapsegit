@@ -15,14 +15,31 @@ identity, authenticates a GitHub user, installs a GitHub App, or operates a
 hosted service. Those capabilities must remain separate from the frozen public
 projection and renderer profiles.
 
-## Decisions and priority
+## Issue #17 design decision and priority
 
-The design work in [Issue #17](https://github.com/howlrs/synapsegit/issues/17)
-has two different delivery states. The local publication increment is
-implemented; the external adapters below are design only. The
+The design goal of [Issue #17](https://github.com/howlrs/synapsegit/issues/17)
+is complete: it selects the first destination, defines the disclosure and
+identity boundaries, and orders the implementation. This does not make the
+external adapters available. The local publication increment is implemented;
+the external adapters below are design only. The
 [Git provenance and identity design](./git_provenance_design.md) defines the
 initial import envelope, identity evidence, failure policy, and implementation
 gates. It does not register a new Core schema or add an importer.
+
+| Design question from #17 | Decision for the first increment |
+| --- | --- |
+| First GitHub destination | A completed, explicitly public **Release** containing one verified, reviewed bundle and its checksums. Actions artifacts are intermediate build results, not the lasting public reference. An Issue may link the Release receipt later; Discussion and Project synchronization are outside the first adapter. |
+| Minimum export and visibility | Use the existing versioned public projection bundle and its manifest/checksums. The adapter records the destination, exact bundle/projection digests, contract version, and delivery receipt separately. Private rationale, prompts, paths, account evidence, credentials, and internal authorization records are not export fields. The operator reviews the exact bytes and destination visibility immediately before delivery. |
+| Git identity mapping | Keep a separate private append-only evidence envelope with `self_asserted`, `provider_linked`, or `human_confirmed` **basis**, and `proposed`, `confirmed`, `disputed`, or `revoked` **status**. These are provenance categories, not a numerical confidence or authorship score. Unknown and conflicting identities remain unresolved. |
+| Import scope | Start with one explicitly selected **local Git repository**, read only and without network operations. GitHub API account association and remote import require a later adapter and separate consent. |
+| GitHub App and hosted licensing | Request only metadata read and the repository permission for the enabled destination; Release and Issue writes are separate capabilities. The current [source-available license](../LICENSE) does not grant third parties hosted or production use. Any hosted offering needs an explicit rights decision and separate authorization before implementation or operation. |
+
+The first implementation PRs after this design must separately cover a
+Release adapter with dry-run/confirmation and failure receipts, then a local
+Git importer with frozen schemas and fixtures. Identity confirmation,
+GitHub App delivery, and hosted multi-user operation follow their own gates
+below. Each PR must identify its own authority and privacy boundary; merging
+this design does not authorize a send or establish a hosted service.
 
 | Issue #17 concern | Current evidence | Remaining delivery |
 | --- | --- | --- |
@@ -32,9 +49,10 @@ gates. It does not register a new Core schema or add an importer.
 | Existing Git history and identity | [Local import design](./git_provenance_design.md) | Versioned schema, importer, independent fixture verification |
 | GitHub App and hosted operation | Separate permissions, consent, revocation, tenancy gates below | Independent implementation; no service is enabled by this document |
 
-The broad Issue remains a roadmap tracker: delivery of the local bundle or
-this design must not be presented as completion of remote publication, Git
-import, identity linking, or hosted service implementation.
+Closing the design Issue must not be presented as completion of remote
+publication, Git import, identity linking, or hosted service implementation.
+Those are distinct implementation increments with their own acceptance and
+review requirements below.
 
 The staged order is deliberately narrower than the full integration vision:
 

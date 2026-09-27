@@ -46,7 +46,7 @@ replaces an existing repository.
 ## 1. Record the proposal and Human Decision
 
 Run this command from the cloned SynapseGit repository, or from the extracted
-v0.10.0 release archive (it bundles the same
+v0.11.0 release archive (it bundles the same
 `docs/tutorial/assets/` paths; see `TUTORIAL.md` at the archive root), so the
 sample paths resolve:
 
@@ -118,7 +118,7 @@ effect when you move between pages or reload. Without one, the application
 uses a supported browser language preference and otherwise starts in Japanese.
 Only application labels and messages change: your subject, notes, rationale,
 stored history, API identifiers, and error codes remain exactly as recorded.
-The tagged v0.10.0 binary includes this language selector. A header choice is
+The tagged v0.11.0 binary includes this language selector. A header choice is
 retained in the browser and takes priority over `Accept-Language`.
 
 ![Actual SynapseGit Local overview generated from this tutorial repository](./assets/tutorial-overview.png)
@@ -207,8 +207,11 @@ repository.
 - **The images look visually different but the report says only
   `byte_identity=different`** — that is the current conservative boundary.
 
-For command details, continue with the [CLI reference](../cli_reference.md),
-[usage guide](../usage_guide.md), and [security model](../security_model.md).
+To continue with your own images, follow the [Creator workflow](../creator_workflow.en.md)
+and then the [public-text workflow](../presentation_sidecar.en.md). For command
+details, see the [CLI reference (Japanese)](../cli_reference.md) and [usage
+guide (Japanese)](../usage_guide.md). Before using your own data or sharing a
+bundle, read the English [privacy and trust summary](../security_model.en.md).
 
 ## Next step
 
@@ -220,3 +223,5 @@ decision. Two of its files are already in English:
 [participant task sheet](../evaluation/creator-pilot/v1/participant-task-en.md)
 and
 [comprehension questions](../evaluation/creator-pilot/v1/comprehension-questions-en.md).
+For a real-work follow-up, use the [first real-work Pilot start checklist
+(Japanese)](../creator-pilot/start-checklist.ja.md).
