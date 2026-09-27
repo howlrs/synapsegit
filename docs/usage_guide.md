@@ -85,6 +85,10 @@ Coreは既存の制作ソフト、BIM/CAD、ペイントツールを置き換え
 このsampleは実在作品や実処置のevidenceではない。実際の`creator-run`、Human Decision、
 `creator-report`、localhost UI、`synapse-present`を一つの再現可能なflowとして示す。
 
+tutorialの後に自分の実制作を数週間試す場合は、[実制作 Pilot 開始前チェックリスト](./creator-pilot/start-checklist.ja.md)で
+対象、保存先、復元確認、privateな記録、停止条件を先に決める。終了時は同じdirectoryの
+[振り返り・継続判断テンプレート](./creator-pilot/retrospective-template.ja.md)へ観測値と判断を分けて残す。
+
 ### 1. 一つの対象を選ぶ
 
 最初から建物全体や制作活動全体を対象にしない。キャンバス、壁画、小規模な壁面、内装の一区画など、時間を通して追跡する一つの`Subject`を選ぶ。

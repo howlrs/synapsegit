@@ -200,3 +200,8 @@ SynapseGitが自分の制作に合うかを確かめたい場合は、
 [Creator pilot 評価キット](../evaluation/creator-pilot/v1/)を試してください。
 このtutorialと同じ素材を使い、最初の制作記録に対する理解度確認と観察記録の手順を
 たどれます。
+
+自分の実制作を数週間試し、終了後に続けるかを判断する場合は、
+[実制作 Pilot 開始前チェックリスト](../creator-pilot/start-checklist.ja.md)を使います。
+対象、保存先、復元確認、privateな記録、停止条件を埋めてから開始し、終了時は
+[振り返り・継続判断テンプレート](../creator-pilot/retrospective-template.ja.md)へ進みます。
