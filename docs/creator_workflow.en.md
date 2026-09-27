@@ -2,7 +2,7 @@
 
 [日本語](./creator_workflow.md)
 
-This focused guide is for the v0.10.0 release binary. It explains the path
+This focused guide is for the v0.11.0 release binary. It explains the path
 after the [15-minute mural tutorial](./tutorial/README.md): record your own
 three images, keep optional private notes, make a Human Decision, and begin a
 fresh review when another candidate is needed.
@@ -31,11 +31,26 @@ they do not prove model execution or authorship. Limits are UTF-8 bytes:
 | Model | 300 |
 | Prompt | 8,192 |
 | Creative intent | 2,048 |
+| Serialized generation note | 16 KiB |
 | One image / all three images | 64 MiB / 192 MiB |
 
 The project overview lists at most 200 unverified summaries, with pending
 reviews first and then recent Ref updates. Open a session page or run `fsck`
 to verify a record; notes and rationales are not shown in the overview.
+
+The CLI can attach the same private note with a UTF-8 JSON file. For example,
+save `{"tool":"image editor","model":"model-a","prompt":"Restore the blue area","intent":"Compare a restrained option"}`
+as `generation-note.json`, then run:
+
+```sh
+synapse creator-run /path/to/repository session-1 original.png current.png candidate.png \
+  --subject "My work" --creator "My display name" --decision defer \
+  --generation-note-file generation-note.json
+```
+
+The file is parsed and validated before the repository is opened. `--decision`
+is still required in this invocation; the CLI does not resume a Human Decision
+later. Protect the note file, repository, and ordinary archive as private data.
 
 ## Pin an image and make the Human Decision
 

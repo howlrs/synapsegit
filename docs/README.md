@@ -102,6 +102,7 @@ Japanese or mixed-language technical references unless a link says otherwise.
 | 作者外へread-only履歴bundleを渡す | [Quickstart](./quickstart.md#4-作者外へ説明するlocal-bundleを生成する) | [CLI reference](./cli_reference.md#synapse-present-companion-cli) |
 | publicationを作者外の人／AIで評価する | [Publication comprehension corpus](./evaluation/publication-comprehension/v1/) | [Project status](./project_status.md#次の優先順位) |
 | 最初の制作記録を試し、理解度と使いにくさを確かめる | [Creator pilot 評価キット](./evaluation/creator-pilot/v1/) | [Creator操作ガイド](./creator_workflow.md) |
+| 自分の実制作で数週間試し、継続を判断する | [開始前チェックリスト](./creator-pilot/start-checklist.ja.md) | [振り返り・継続判断テンプレート](./creator-pilot/retrospective-template.ja.md) |
 | command と error を調べる | [CLI reference](./cli_reference.md) | [Security model](./security_model.md) |
 | 何を解決するか知る | [使用ガイド](./usage_guide.md) | [Core 構想](./core_concept.md) |
 | object と record の関係を知る | [Core データモデル](./core_model.md) | [Core Protocol](../spec/core/v0.1/README.md) |
