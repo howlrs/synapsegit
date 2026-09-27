@@ -2,10 +2,10 @@
 
 このテンプレートは、[15分 壁画チュートリアル](../tutorial/README.ja.md)を終えたあと、
 一つの実制作を数週間試すための準備用です。コピーして `[ ]` と記入欄を埋め、Pilot ごとに
-private な作業場所へ保管してください。これは v0.10.0 の local Pilot の利用計画であり、
+private な作業場所へ保管してください。これは v0.11.0 の Stage 0 local Pilot の利用計画であり、
 実制作の効果や安全性を立証する評価結果ではありません。
 
-v0.10.0 の `creator-run` は、利用者が用意した original、current、AI output の3 fileを
+v0.11.0 の `creator-run` は、利用者が用意した original、current、AI output の3 fileを
 取り込み、Human Decision を記録します。画像を撮影せず、pixel差分、視覚的・物理的な変化、
 model の実行、共同作業を判定しません。実装境界は[使用ガイド](../usage_guide.md#pilotでの基本的な使い方)と
 [CLI reference](../cli_reference.md)で確認してください。
