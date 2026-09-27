@@ -58,7 +58,7 @@ scripts/run_mural_tutorial.sh "$HOME/SynapseGit/mural-tutorial" adopt
 ```
 
 working directoryをsource checkoutのrepository rootに置いて実行するほか、
-v0.11.0のrelease archiveを展開したdirectory内に置いても実行できます(runnerとsample画像も
+v0.11.1のrelease archiveを展開したdirectory内に置いても実行できます(runnerとsample画像も
 archiveに同梱されます。archive rootの`TUTORIAL.md`を参照してください)。v0.9.0のarchiveには
 runnerとsample画像は含まれません。
 
@@ -80,7 +80,7 @@ applicationのcaptureです。
 
 ## 現在このpreviewを活用できる人
 
-v0.11.0 preview の主な対象は次の利用者です。
+v0.11.1 preview の主な対象は次の利用者です。
 
 - local CLIを扱えるtechnical creator
 - creative provenance、human-in-the-loop AI、content-addressed historyを
@@ -100,8 +100,8 @@ GNU向けで、glibc 2.34以降を必要とします。それ以外のplatform�
 ### 1. previewをinstallする
 
 ```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.11.0/synapsegit-v0.11.0-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.11.0/SHA256SUMS
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.11.1/synapsegit-v0.11.1-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.11.1/SHA256SUMS
 sha256sum --check SHA256SUMS
 ```
 
@@ -110,12 +110,12 @@ checksum検証が失敗した場合はここで中止し、archiveを展開・in
 検証手順もあります。
 
 ```bash
-tar -xzf synapsegit-v0.11.0-x86_64-unknown-linux-gnu.tar.gz
+tar -xzf synapsegit-v0.11.1-x86_64-unknown-linux-gnu.tar.gz
 
 mkdir -p "$HOME/.local/bin"
-install -m 0755 synapsegit-v0.11.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
-install -m 0755 synapsegit-v0.11.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
-install -m 0755 synapsegit-v0.11.0-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
+install -m 0755 synapsegit-v0.11.1-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
+install -m 0755 synapsegit-v0.11.1-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
+install -m 0755 synapsegit-v0.11.1-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
 export PATH="$HOME/.local/bin:$PATH"
 
 synapse --version
@@ -156,7 +156,7 @@ synapse-local \
   --label "demo=My first SynapseGit project"
 ```
 
-processが表示した正確な`http://127.0.0.1:...`を開きます。上記でinstallしたv0.11.0のUIでは、
+processが表示した正確な`http://127.0.0.1:...`を開きます。上記でinstallしたv0.11.1のUIでは、
 boundedな三file import、same-process Human review、creator Ref／headと安全な推奨actionを示す
 read-only diagnostics、project keyの明示確認を必要とするserver-boundedなbackground `fsck`を
 利用できます。`--archive-root`を設定すると、認証付きの確認付きbounded no-replace archive export
@@ -180,7 +180,7 @@ resume、cleanup、history書換えを行いません。
 
 ### 制作メモを残し、次の案を試す
 
-v0.8.0で導入した次の機能はv0.11.0 release binaryにも含まれます。
+v0.8.0で導入した次の機能はv0.11.1 release binaryにも含まれます。
 操作の流れと入力上限は[制作メモと次の案のガイド](docs/creator_workflow.md)を参照してください。
 
 | 操作 | 利用できる機能 |
@@ -203,23 +203,23 @@ completeな派生を含む全件exportも対象です。同じprojectの通常�
 | `adopt`、`reject`、`defer`を含む3-file creator Pilot | boundedなlocal CLI flowとして実装済み |
 | 人／AI帰属provenanceと比較情報を含むreport | 実装済み。AI outputはcaller-supplied。`creator-report --format json`はlocal tooling向けにversion付きprivate-local JSON documentを一つ出力する。`--format text`と省略時は従来のline-oriented text reportを維持する。`creator-run --generation-note-file`はboundedなprivate・user-declared生成メモを記録できるが、model実行や作者性を証明しない |
 | original／current比較 | primary Blobのbyte identityのみ。comparabilityは常にpartial。v0.8.0のlocalhost UIには2画像の目視確認用の全体表示／100%／200%拡大を追加。位置合わせ・差分解析は行わない |
-| local browser UI | tagged v0.11.0 archiveは日本語・英語のapplication label、accessible name、client message、画像代替textを提供する。headerの明示選択をbrowserごとに保持して最優先し、次に対応する`Accept-Language`、最後に日本語を使う。利用者入力・保存済みtext、API identifier、error codeは変更しない。read表示、boundedな三file import／same-process `adopt`・`reject`・`defer`、read-only incomplete-session diagnostics、確認付きbackground `fsck`も実装済み。project dashboardは最大200件のsession概要を、review待ち、最近のRef更新の順に表示し、state／dispositionで絞り込める。これらは未検証の概要値で、完全な検証はsession詳細画面で行う。派生元session画面には、未検証の派生先への移動用hintも表示する。任意の`--archive-root`起動flag指定時のみ、boundedなread-only archive listing表示（`GET /archives`）に加え、tagged v0.8.0は認証付きの確認付きbounded archive export API（`POST /archive-exports`）とempty-target restore API（`POST /archive-restores`）を含む。v0.8.0はproject画面にarchive controlを追加。restore先は表示中の空の登録済みprojectに固定され、一覧のslug、target key完全入力、checkbox、browser確認、job polling、report一致確認表示を必要とする |
+| local browser UI | tagged v0.11.1 archiveは日本語・英語のapplication label、accessible name、client message、画像代替textを提供する。headerの明示選択をbrowserごとに保持して最優先し、次に対応する`Accept-Language`、最後に日本語を使う。利用者入力・保存済みtext、API identifier、error codeは変更しない。read表示、boundedな三file import／same-process `adopt`・`reject`・`defer`、read-only incomplete-session diagnostics、確認付きbackground `fsck`も実装済み。project dashboardは最大200件のsession概要を、review待ち、最近のRef更新の順に表示し、state／dispositionで絞り込める。これらは未検証の概要値で、完全な検証はsession詳細画面で行う。派生元session画面には、未検証の派生先への移動用hintも表示する。任意の`--archive-root`起動flag指定時のみ、boundedなread-only archive listing表示（`GET /archives`）に加え、tagged v0.8.0は認証付きの確認付きbounded archive export API（`POST /archive-exports`）とempty-target restore API（`POST /archive-restores`）を含む。v0.8.0はproject画面にarchive controlを追加。restore先は表示中の空の登録済みprojectに固定され、一覧のslug、target key完全入力、checkbox、browser確認、job polling、report一致確認表示を必要とする |
 | script出力のInboxと再レビュー | 任意の`--import-root`でmanifest-last候補を確認し、明示的に新規Proposalを作成。検証済みの中断／Deferから3画像を別sessionへ引き継いで判断し直せるが、元のDecisionは固定。凍結済み公開v1はこれらの再利用sessionを拒否 |
 | 取り込み前の確認（v0.8.0） | ローカル画像プレビュー、サイズ表示、選択解除、UTF-8バイト上限の即時表示、送信中の入力固定。プレビューできないファイルも既存の制限内で取り込み可能 |
 | 判断と振り返り（v0.8.0） | adopt／reject／deferの結果説明と確認、理由のバイト数表示、送信中の入力固定、完了画面の理由表示。同じセッションの判断変更・再開は不可 |
-| generic regular-file artifact building block | tagged v0.11.0のsource／workspace libraryにbounded deterministic mapper／checkout、sequential Proposal／Decision、host-authenticated one-shot approval、SQLite journal統合済みrestart／reconciliation境界、固定v1 public-safe contract、別local public projectionを収録。配布する3 binaryはこれらをHTTP、CLI、browser UIから提供せず、model invocation、multi-process control plane、production serviceも提供しない |
+| generic regular-file artifact building block | tagged v0.11.1のsource／workspace libraryにbounded deterministic mapper／checkout、sequential Proposal／Decision、host-authenticated one-shot approval、SQLite journal統合済みrestart／reconciliation境界、固定v1 public-safe contract、別local public projectionを収録。配布する3 binaryはこれらをHTTP、CLI、browser UIから提供せず、model invocation、multi-process control plane、production serviceも提供しない |
 | content-addressed object、typed closure、Ref CAS、reflog | 実装済み、repository test対象 |
 | `fsck`、checksum付きdirectory export、verified restore | local repository formatで実装済み |
-| 人とAI向けのread-only履歴presentation | v0.11.0に収録。canonical JSON、Markdown、JavaScriptなしHTML、manifest、checksum、Synapse／GitHub target layoutをdeterministicなlocal bundleとして生成し、upload／network accessは行わない |
+| 人とAI向けのread-only履歴presentation | v0.11.1に収録。canonical JSON、Markdown、JavaScriptなしHTML、manifest、checksum、Synapse／GitHub target layoutをdeterministicなlocal bundleとして生成し、upload／network accessは行わない |
 | public multi-user service | architectureのみ。未実装 |
 | pixel registration、視覚的／物理的な差分解析 | 未実装 |
 
 「実装済み」は、このrepositoryのtestで検証される範囲を意味します。
-generic-artifactのrowはtagged v0.11.0 sourceに収録したlibrary／schema surfaceを表し、
+generic-artifactのrowはtagged v0.11.1 sourceに収録したlibrary／schema surfaceを表し、
 transport統合のtest完了や配布binaryの機能を意味しません。どちらもreal-user認証、
 network transport、production運用、一般利用者向けapplicationの完成を意味しません。
 
-tagged v0.11.0のsource／workspace libraryには、sibling applicationがgenericな
+tagged v0.11.1のsource／workspace libraryには、sibling applicationがgenericな
 regular-file reviewを実装するための評価用building blockもあります。
 `synapse-artifact`はregular-file manifest全体を検証し、Refを
 進めずにnested site Treeへdeterministicに変換します。trusted workflowはprofile-owned repositoryを
@@ -252,18 +252,18 @@ Core Ref／reflogとjournalのSQLite transactionは別なので、cross-database
 bounded reconciliationで解決します。Rust trusted workflow valueはgetter-onlyなprocess valueで、browserから
 authorityとして渡すtransport DTOではありません。
 
-これらのcapabilityはtagged v0.11.0のsource／workspace libraryに収録しています。配布する
+これらのcapabilityはtagged v0.11.1のsource／workspace libraryに収録しています。配布する
 3 binary（`synapse`、`synapse-local`、`synapse-present`）はこれらをHTTP、CLI、browser UIから
 提供しません。background serviceによる自動resume、model invocation、generic browser editor、
 durable identity／ACL storage、multi-process linearizability、production利用、配布許可も提供しません。
-配布するv0.11.0 Creator Pilotとlocalhost UIは引き続き画像専用で、そのpending review
+配布するv0.11.1 Creator Pilotとlocalhost UIは引き続き画像専用で、そのpending review
 authorityはsame-processかつrestart後にresumeできません。
 
-tagged v0.11.0の`synapse-local` binaryにはbrowser import／review、専用diagnostics、bounded browser
+tagged v0.11.1の`synapse-local` binaryにはbrowser import／review、専用diagnostics、bounded browser
 `fsck`が含まれます。review authorityとmaintenance job stateはprocess-localで、restart後に
 再開できません。
 
-v0.11.0 archiveには別binaryの`synapse-present`もあります。既存CASを変更せず、checkpoint済みで最大
+v0.11.1 archiveには別binaryの`synapse-present`もあります。既存CASを変更せず、checkpoint済みで最大
 512 MiBのRef SQLiteをprivate temporary copyへ取り込み、copy時とcopy後sourceのSHA-256一致を要求します。
 SQLiteにはsource databaseを直接openさせません。sidecarまたはcopy中に変化するsourceは
 `read_only_source_busy`で拒否します。
@@ -272,7 +272,7 @@ SQLiteにはsource databaseを直接openさせません。sidecarまたはcopy�
 repository path、raw assetは除外し、raw asset renderingは未実装です。public noteは別の
 author-supplied textとして扱います。詳しくは[CLI reference](./docs/cli_reference.md#synapse-present-companion-cli)を参照してください。
 
-さらにtagged v0.11.0のsource／workspace libraryには、versioned generic-artifact projection／
+さらにtagged v0.11.1のsource／workspace libraryには、versioned generic-artifact projection／
 local bundle APIも収録しています。このAPIは配布binary、HTTP、CLI、browser UIからは提供しません。
 complete projectionは上記bounded Decision checkoutからのみ構築し、pending／incomplete projectionは
 repository／authority identifierを含みません。canonical JSON、escaped Markdown、script-free HTML、
@@ -330,22 +330,23 @@ application route、archive verificationはRustが担当します。componentの
 
 ## 配布状況
 
-- [`v0.11.0`](https://github.com/howlrs/synapsegit/releases/tag/v0.11.0)はprereleaseであり、
+- [`v0.11.1`](https://github.com/howlrs/synapsegit/releases/tag/v0.11.1)はprereleaseであり、
   production releaseではありません。
 - 検証済みprebuilt artifactはLinux x86_64 GNU向けです。それ以外の対応可能なUnix-like
   environmentではtagged source buildを利用します。
 - Stage 0ではcrates.ioとGHCRを配布channelにしません。
-- Release assetにはSHA-256 checksumがあります。v0.11.0 archiveにはGitHub
+- Release assetにはSHA-256 checksumがあります。v0.11.1 archiveにはGitHub
   build-provenance attestationも付与します。
 - object、archive、OID formatはdraftで、stable releaseまでに変わる可能性があります。
 
 評価前に[changelog](./CHANGELOG.md)と
-[v0.11.0 release notes](./docs/releases/v0.11.0.md)を確認してください。
+[v0.11.1 release notes](./docs/releases/v0.11.1.md)を確認してください。
 
 タグごとのrelease notes（`main`上のfile）:
 
 | Tag | Release notes |
 |-----|---------------|
+| `v0.11.1` | [docs/releases/v0.11.1.md](./docs/releases/v0.11.1.md) |
 | `v0.11.0` | [docs/releases/v0.11.0.md](./docs/releases/v0.11.0.md) |
 | `v0.10.0` | [docs/releases/v0.10.0.md](./docs/releases/v0.10.0.md) |
 | `v0.9.0` | [docs/releases/v0.9.0.md](./docs/releases/v0.9.0.md) |

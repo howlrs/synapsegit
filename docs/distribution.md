@@ -2,7 +2,7 @@
 
 Audience: maintainer、release担当、公開文書を更新するcontributor
 Status: Stage 0運用runbook
-Applies to: v0.11.0
+Applies to: v0.11.1
 Last verified: 2026-09-27
 
 この文書は、SynapseGitを「GitHub上で見つける」「現在の用途を判断する」「安全に試す」までの
@@ -18,7 +18,7 @@ boundedな三file import、same-process Human review、read-only diagnostics、�
 `fsck`はv0.4.0にも収録される。この範囲に限ってwrite-capable／maintenance-capableである。
 
 v0.5.0でgeneric-artifact v1 workflow／schema／local projectionはtagged sourceのworkspace
-libraryとして固定され、v0.5.1、v0.6.0、v0.7.0、v0.8.0、v0.8.1、v0.9.0、v0.10.0、v0.11.0にも引き継がれるが、release archiveの
+libraryとして固定され、v0.5.1、v0.6.0、v0.7.0、v0.8.0、v0.8.1、v0.9.0、v0.10.0、v0.11.0、v0.11.1にも引き継がれるが、release archiveの
 利用者向けsurfaceには追加しない。generic-artifact用のHTTP／CLI／browser UI、新binary、remote
 publish adapterは提供しない。
 
@@ -38,12 +38,12 @@ v0.10.0から、archiveは壁画tutorial runner(`scripts/run_mural_tutorial.sh`)
 展開したarchiveだけでtutorialを実行できるようにするためで、三binary構成自体には変更が
 ない。v0.9.0 archiveにはこれらは含まれない。v0.10.0 archiveには含まれる。
 
-v0.11.0は`creator-run --generation-note-file`でprivate・user-declaredな生成メモを記録できる。
+v0.11.0から`creator-run --generation-note-file`でprivate・user-declaredな生成メモを記録できる。
 このfile入力はmodel実行や作者性を証明せず、通常archiveには含まれるがpublic bundleには含まれない。英語の
 focused documentation pathと、実制作Pilot用の日本語チェックリスト／振り返りテンプレートもtagged sourceに含む。
 CLIで取り込みと後日の判断を分ける経路、Git importer、GitHub App、remote publish、hosted serviceは追加しない。
 
-公開文面では、将来の利用構想とv0.11.0で実行できる能力を同じものとして表示しない。
+公開文面では、将来の利用構想とv0.11.1で実行できる能力を同じものとして表示しない。
 
 ## 公開surface
 
@@ -118,7 +118,7 @@ GitHub SettingsのSocial previewへ明示的にuploadしない限り、repositor
 
 ## Release asset構成
 
-v0.11.0 archiveは、v0.10.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
+v0.11.1 archiveは、v0.10.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
 generic-artifact v1のworkflow／schema／local projectionはtagged sourceに含まれるworkspace libraryであり、
 archiveへ第四のbinaryや既存binaryのgeneric HTTP／CLI／UI surfaceを追加しない。
 公開済みv0.6.0 archiveも同じ三binary構成であり、後から内容を変更しない。
@@ -168,7 +168,7 @@ tagをpushする前に、次を満たす。
 2. 全crate version、`docs/releases/vX.Y.Z.md`、`CHANGELOG.md`を更新する。
 3. root READMEと日本語READMEのversion、platform、boundaryを更新する。
 4. `docs/project_status.md`とcapability tableを更新する。
-5. 次の検証をclean checkoutで実行する。v0.11.0では、Bash fenced block、workspace direct-dependency
+5. 次の検証をclean checkoutで実行する。v0.11.0以降は、Bash fenced block、workspace direct-dependency
    diagram、OpenAPI revision registry、publication browser checksもこのgateに含まれる。
 
 ```bash
@@ -293,7 +293,7 @@ license変更時は少なくとも次を同じPull Requestで更新する。
 
 - [Installation](./install.md)
 - [Project status](./project_status.md)
-- [Release notes](./releases/v0.11.0.md)
+- [Release notes](./releases/v0.11.1.md)
 - [Security model](./security_model.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Documentation index](./README.md)
