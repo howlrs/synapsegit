@@ -43,7 +43,7 @@ test ! -e "$SYNAPSE_TUTORIAL_REPO"
 ## 1. 提案とHuman Decisionを記録する
 
 sample pathを解決できるよう、cloneしたSynapseGit repository rootか、
-`v0.9.0`より後に公開されたrelease archiveを展開したdirectory(同じ
+v0.11.0のrelease archiveを展開したdirectory(同じ
 `docs/tutorial/assets/`のpathがarchiveにも同梱されます。archive rootの
 `TUTORIAL.md`を参照してください)で実行します。
 
@@ -106,6 +106,13 @@ synapse-local \
 terminalに表示されたexactな`http://127.0.0.1:...` originを開きます。reverse proxyで
 外部公開しないでください。
 
+page headerの**日本語**または**English**で表示言語を選択できます。明示的な選択はこの
+browserに保存され、page移動・reload後も維持されます。選択しない場合はbrowserの対応言語
+設定を使い、それもない場合は日本語です。変わるのはapplicationのlabelとmessageだけで、
+Subject、メモ、rationale、保存済み履歴、API identifier、error codeは記録どおりです。
+この表示言語選択はtagged v0.11.0 binaryに含まれます。headerの選択はbrowserに保持され、
+`Accept-Language`より優先されます。
+
 ![このtutorial repositoryから生成した実際のSynapseGit Local overview](./assets/tutorial-overview.png)
 
 _tutorial fixtureを読み込んだ実際の`synapse-local`画面です。2 Refs、完了session 1件、
@@ -118,6 +125,11 @@ projectと完了sessionを開き、次を確認します。
 - Proposal／Decision Ref
 - comparison limitationとreplay readiness
 - 4 eventのtimeline
+
+browserで新しい判断を作る場合は、projectを開いて**Creator session を開始**を選び、
+Original、Current、AI outputを追加して**Proposalを作成**します。review pageの**Adopt**、
+**Reject**、**Defer**はいずれも記録するとそのsessionを完了します。Deferはreviewを開いた
+ままにしません。記録済み画像を再度検討する場合は、別sessionで再レビューする操作を使います。
 
 同じ実装UIによる詳しい完了session画面も参照できます。
 
@@ -181,3 +193,15 @@ sessionはcreate-onlyです。同じrepository内で`mural-treatment-01`を再�
 
 詳細は[CLI reference](../cli_reference.md)、[Usage guide](../usage_guide.md)、
 [Security model](../security_model.md)へ進んでください。
+
+## 次のステップ
+
+SynapseGitが自分の制作に合うかを確かめたい場合は、
+[Creator pilot 評価キット](../evaluation/creator-pilot/v1/)を試してください。
+このtutorialと同じ素材を使い、最初の制作記録に対する理解度確認と観察記録の手順を
+たどれます。
+
+自分の実制作を数週間試し、終了後に続けるかを判断する場合は、
+[実制作 Pilot 開始前チェックリスト](../creator-pilot/start-checklist.ja.md)を使います。
+対象、保存先、復元確認、privateな記録、停止条件を埋めてから開始し、終了時は
+[振り返り・継続判断テンプレート](../creator-pilot/retrospective-template.ja.md)へ進みます。

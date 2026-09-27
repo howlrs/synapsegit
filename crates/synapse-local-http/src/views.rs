@@ -4,6 +4,7 @@ use synapse_local_service::{
     CreatorSessionState, ProjectState, ServiceError,
 };
 
+use crate::i18n::Messages;
 use crate::state::AppState;
 
 #[derive(Clone)]
@@ -112,11 +113,11 @@ impl HttpFailure {
     }
 }
 
-pub(crate) fn project_state_label(state: ProjectState) -> &'static str {
+pub(crate) fn project_state_label(m: &Messages, state: ProjectState) -> &'static str {
     match state {
-        ProjectState::Ready => "利用可能",
-        ProjectState::EmptyRestoreTarget => "空の復元先",
-        ProjectState::Unavailable => "利用不可",
+        ProjectState::Ready => m.index.project_ready,
+        ProjectState::EmptyRestoreTarget => m.index.project_empty_restore_target,
+        ProjectState::Unavailable => m.index.project_unavailable,
     }
 }
 
@@ -128,11 +129,11 @@ pub(crate) fn project_state_tone(state: ProjectState) -> &'static str {
     }
 }
 
-pub(crate) fn session_state_label(state: CreatorSessionState) -> &'static str {
+pub(crate) fn session_state_label(m: &Messages, state: CreatorSessionState) -> &'static str {
     match state {
-        CreatorSessionState::Complete => "完了",
-        CreatorSessionState::PendingReview => "レビュー待ち",
-        CreatorSessionState::Incomplete => "未完了",
+        CreatorSessionState::Complete => m.common.state_complete,
+        CreatorSessionState::PendingReview => m.common.state_pending,
+        CreatorSessionState::Incomplete => m.common.state_incomplete,
     }
 }
 
@@ -144,11 +145,12 @@ pub(crate) fn session_state_tone(state: CreatorSessionState) -> &'static str {
     }
 }
 
-pub(crate) fn archive_state_label(state: ArchiveState) -> &'static str {
+pub(crate) fn archive_state_label(m: &Messages, state: ArchiveState) -> &'static str {
     match state {
+        // The manifest-level state names are shown unchanged in both languages.
         ArchiveState::Valid => "valid",
         ArchiveState::Invalid => "invalid",
-        ArchiveState::StagingOrUnknown => "staging または unknown",
+        ArchiveState::StagingOrUnknown => m.index.archive_staging_or_unknown,
     }
 }
 
@@ -201,19 +203,20 @@ pub(crate) struct SessionPageView {
 
 impl SessionPageView {
     pub(crate) fn new(
+        m: &Messages,
         project_key: &str,
-        _project_label: &str,
         session: &str,
         detail: CreatorSessionDetail,
         diagnostic: Option<CreatorSessionDiagnostic>,
     ) -> Self {
         match detail {
             CreatorSessionDetail::Complete(detail) => {
-                Self::complete(project_key, session, detail.report)
+                Self::complete(m, project_key, session, detail.report)
             }
             CreatorSessionDetail::PendingReview(detail) => {
                 let detail = *detail;
                 let images = Self::images(
+                    m,
                     project_key,
                     session,
                     &detail.original_blob_oid,
@@ -225,9 +228,9 @@ impl SessionPageView {
                     complete: false,
                     pending: true,
                     show_evidence: true,
-                    state_label: "レビュー待ち".into(),
+                    state_label: m.common.state_pending.into(),
                     state_tone: "info".into(),
-                    state_description: "このprocess内でHuman reviewを待っています。".into(),
+                    state_description: m.session.pending_description.into(),
                     ai_output_source: detail.ai_output_source,
                     review_id: detail.review_id,
                     decision_url: format!(
@@ -239,7 +242,7 @@ impl SessionPageView {
                     annotations: Vec::new(),
                     annotations_json: String::from("null"),
                     annotations_unavailable: false,
-                    generation_note: format_generation_note(detail.generation_note.as_ref()),
+                    generation_note: format_generation_note(m, detail.generation_note.as_ref()),
                     source: detail.source,
                     reuse_source: detail.reuse_source,
                     reuse_available: false,
@@ -256,12 +259,7 @@ impl SessionPageView {
                         "{} {}",
                         comparison.adapter_id, comparison.adapter_version
                     ),
-                    comparison_replay: if comparison.replay_ready {
-                        "はい"
-                    } else {
-                        "いいえ"
-                    }
-                    .into(),
+                    comparison_replay: m.yes_no(comparison.replay_ready).into(),
                     timeline: Vec::new(),
                     diagnostic: String::new(),
                     diagnostic_proposal_ref: String::new(),
@@ -275,6 +273,7 @@ impl SessionPageView {
                 let reuse_available = incomplete.recovery_supported;
                 let images = reuse_source.as_ref().map_or_else(Vec::new, |source| {
                     Self::images(
+                        m,
                         project_key,
                         session,
                         &source.original_blob_oid,
@@ -291,7 +290,7 @@ impl SessionPageView {
                 ) = diagnostic.map_or_else(
                     || {
                         (
-                            incomplete_diagnostic_message(reuse_available),
+                            incomplete_diagnostic_message(m, reuse_available),
                             "—".into(),
                             "—".into(),
                             "—".into(),
@@ -300,7 +299,7 @@ impl SessionPageView {
                     },
                     |diagnostic| {
                         (
-                            incomplete_diagnostic_message(reuse_available),
+                            incomplete_diagnostic_message(m, reuse_available),
                             diagnostic.proposal_ref.unwrap_or_else(|| "—".into()),
                             diagnostic.proposal_head.unwrap_or_else(|| "—".into()),
                             diagnostic.decision_ref.unwrap_or_else(|| "—".into()),
@@ -312,12 +311,12 @@ impl SessionPageView {
                     complete: false,
                     pending: false,
                     show_evidence: reuse_available,
-                    state_label: "未完了".into(),
+                    state_label: m.common.state_incomplete.into(),
                     state_tone: "warning".into(),
                     state_description: if reuse_available {
-                        "判断前に中断されたセッションです。記録済みの画像を新しいセッションで確認できます。".into()
+                        m.session.interrupted_description.into()
                     } else {
-                        "現在の記録を確認できません。fsckを実行して状態を確認してください。".into()
+                        m.session.unverifiable_description.into()
                     },
                     ai_output_source: String::new(),
                     review_id: String::new(),
@@ -354,10 +353,11 @@ impl SessionPageView {
         }
     }
 
-    fn complete(project_key: &str, session: &str, report: CreatorReport) -> Self {
+    fn complete(m: &Messages, project_key: &str, session: &str, report: CreatorReport) -> Self {
         let annotations_json =
             serde_json::to_string(&report.annotations).expect("serializable pins");
         let images = Self::images(
+            m,
             project_key,
             session,
             &report.original_blob_oid,
@@ -391,12 +391,7 @@ impl SessionPageView {
                 comparison.status,
                 comparison.comparability,
                 format!("{} {}", comparison.adapter_id, comparison.adapter_version),
-                if comparison.replay_ready {
-                    "はい"
-                } else {
-                    "いいえ"
-                }
-                .into(),
+                m.yes_no(comparison.replay_ready).into(),
             )
         } else {
             (
@@ -413,21 +408,15 @@ impl SessionPageView {
             complete: true,
             pending: false,
             show_evidence: true,
-            state_label: "完了".into(),
+            state_label: m.common.state_complete.into(),
             state_tone: "success".into(),
-            state_description: "現在のRefsとCASから検証済みレポートを再構築しました。".into(),
+            state_description: m.session.complete_description.into(),
             ai_output_source: report.ai_output_source,
             review_id: String::new(),
             decision_url: String::new(),
-            decision_outcome: match report.disposition.as_str() {
-                "adopt" => "AI outputを変更せず採用しました。",
-                "reject" => "AI outputを採用しない判断を記録しました。",
-                "defer" => "AI outputの採用を保留する判断を記録しました。",
-                _ => "検証済みレポートのDispositionを確認してください。",
-            }
-            .into(),
+            decision_outcome: m.decision_outcome(&report.disposition).into(),
             rationale: report.rationale.unwrap_or_default(),
-            generation_note: format_generation_note(report.generation_note.as_ref()),
+            generation_note: format_generation_note(m, report.generation_note.as_ref()),
             source: report.source,
             reuse_source: report.reuse_source,
             reuse_available: report.disposition == "defer",
@@ -436,11 +425,7 @@ impl SessionPageView {
             annotations_json,
             annotations_unavailable: report.annotations_unavailable,
             disposition: report.disposition,
-            selected: if report.selected_ai_output {
-                "はい".into()
-            } else {
-                "いいえ".into()
-            },
+            selected: m.yes_no(report.selected_ai_output).into(),
             fsck_objects: report.fsck_objects,
             images,
             has_comparison,
@@ -460,6 +445,7 @@ impl SessionPageView {
     }
 
     fn images(
+        m: &Messages,
         project_key: &str,
         session: &str,
         original_oid: &str,
@@ -471,21 +457,21 @@ impl SessionPageView {
         vec![
             ImageView {
                 label: "Original".into(),
-                alt: "取り込まれたoriginal画像".into(),
+                alt: m.session.original_alt.into(),
                 url: format!("{image_base}/original"),
                 oid: original_oid.into(),
                 download_name: format!("{session}-original.bin"),
             },
             ImageView {
                 label: "Current".into(),
-                alt: "取り込まれたcurrent画像".into(),
+                alt: m.session.current_alt.into(),
                 url: format!("{image_base}/current"),
                 oid: current_oid.into(),
                 download_name: format!("{session}-current.bin"),
             },
             ImageView {
                 label: "AI output".into(),
-                alt: "caller supplied AI output".into(),
+                alt: m.session.ai_output_alt.into(),
                 url: format!("{image_base}/ai-output"),
                 oid: ai_output_oid.into(),
                 download_name: format!("{session}-ai-output.bin"),
@@ -494,12 +480,11 @@ impl SessionPageView {
     }
 }
 
-fn incomplete_diagnostic_message(reuse_available: bool) -> String {
+fn incomplete_diagnostic_message(m: &Messages, reuse_available: bool) -> String {
     if reuse_available {
-        "判断前に中断された記録です。記録済みの3画像を確認し、新しいセッションでレビューできます。"
-            .into()
+        m.session.interrupted_diagnostic.into()
     } else {
-        "現在の記録を確認できません。fsckを実行して状態を確認してください。".into()
+        m.session.unverifiable_description.into()
     }
 }
 
@@ -577,13 +562,17 @@ pub(crate) struct TimelineView {
     pub(crate) time_basis: String,
 }
 
-fn format_generation_note(note: Option<&synapse_local_service::CreatorGenerationNote>) -> String {
+fn format_generation_note(
+    m: &Messages,
+    note: Option<&synapse_local_service::CreatorGenerationNote>,
+) -> String {
+    // Only these labels are localized; the declared note values are user data.
     note.map(|n| {
         [
-            ("使用ツール", &n.tool),
-            ("モデル", &n.model),
-            ("プロンプト", &n.prompt),
-            ("制作意図", &n.intent),
+            (m.note.short_label_tool, &n.tool),
+            (m.note.short_label_model, &n.model),
+            (m.common.note_prompt, &n.prompt),
+            (m.common.note_intent, &n.intent),
         ]
         .into_iter()
         .filter(|(_, value)| !value.is_empty())

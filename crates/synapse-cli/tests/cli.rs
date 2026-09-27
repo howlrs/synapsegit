@@ -445,6 +445,272 @@ fn creator_cli_builds_reports_and_restores_one_human_gated_session() {
 }
 
 #[test]
+fn creator_run_records_a_generation_note_file_before_creating_the_repository() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.join("noted-repo");
+    let archive = temporary.join("noted-archive");
+    let restored = temporary.join("noted-restored");
+    let original = temporary.join("original.png");
+    let current = temporary.join("current.png");
+    let proposal = temporary.join("proposal.png");
+    let note_file = temporary.join("generation-note.json");
+    fs::write(&original, b"original").unwrap();
+    fs::write(&current, b"current").unwrap();
+    fs::write(&proposal, b"proposal").unwrap();
+    fs::write(
+        &note_file,
+        r#"{"tool":"画像ツール","model":"model-\"quoted\"","prompt":"青い空\n構図を比較する","intent":"採否の前に候補を残す"}"#,
+    )
+    .unwrap();
+
+    let created = run(&[
+        "creator-run",
+        repository.to_str().unwrap(),
+        "noted-session",
+        original.to_str().unwrap(),
+        current.to_str().unwrap(),
+        proposal.to_str().unwrap(),
+        "--subject",
+        "生成メモ付きの作品",
+        "--creator",
+        "Aki",
+        "--decision",
+        "defer",
+        "--generation-note-file",
+        note_file.to_str().unwrap(),
+    ]);
+    assert_success(&created);
+    let created = String::from_utf8(created.stdout).unwrap();
+    assert!(created.contains("generation_note_user_declared="));
+    assert!(created.contains("画像ツール"));
+    assert!(created.contains("青い空\\n構図を比較する"));
+
+    let report = run(&[
+        "creator-report",
+        repository.to_str().unwrap(),
+        "noted-session",
+        "--format",
+        "json",
+    ]);
+    let report = json_stdout(&report);
+    assert_eq!(report["generation_note"]["availability"], "present");
+    assert_eq!(report["generation_note"]["tool"], "画像ツール");
+    assert_eq!(report["generation_note"]["model"], "model-\"quoted\"");
+    assert_eq!(
+        report["generation_note"]["prompt"],
+        "青い空\n構図を比較する"
+    );
+    assert_eq!(report["generation_note"]["intent"], "採否の前に候補を残す");
+
+    for (session, disposition) in [("noted-adopt", "adopt"), ("noted-reject", "reject")] {
+        let created = run(&[
+            "creator-run",
+            repository.to_str().unwrap(),
+            session,
+            original.to_str().unwrap(),
+            current.to_str().unwrap(),
+            proposal.to_str().unwrap(),
+            "--subject",
+            "生成メモ付きの作品",
+            "--creator",
+            "Aki",
+            "--decision",
+            disposition,
+            "--generation-note-file",
+            note_file.to_str().unwrap(),
+        ]);
+        assert_success(&created);
+        let report = run(&[
+            "creator-report",
+            repository.to_str().unwrap(),
+            session,
+            "--format",
+            "json",
+        ]);
+        let report = json_stdout(&report);
+        assert_eq!(report["disposition"], disposition);
+        assert_eq!(report["generation_note"]["availability"], "present");
+        assert_eq!(
+            report["generation_note"]["prompt"],
+            "青い空\n構図を比較する"
+        );
+    }
+
+    assert_success(&run(&[
+        "export",
+        repository.to_str().unwrap(),
+        archive.to_str().unwrap(),
+    ]));
+    assert_success(&run(&[
+        "restore",
+        archive.to_str().unwrap(),
+        restored.to_str().unwrap(),
+    ]));
+    for (session, disposition) in [
+        ("noted-session", "defer"),
+        ("noted-adopt", "adopt"),
+        ("noted-reject", "reject"),
+    ] {
+        let restored_report = run(&[
+            "creator-report",
+            restored.to_str().unwrap(),
+            session,
+            "--format",
+            "json",
+        ]);
+        let restored_report = json_stdout(&restored_report);
+        assert_eq!(restored_report["disposition"], disposition);
+        assert_eq!(
+            restored_report["generation_note"]["availability"],
+            "present"
+        );
+        assert_eq!(restored_report["generation_note"]["tool"], "画像ツール");
+        assert_eq!(
+            restored_report["generation_note"]["prompt"],
+            "青い空\n構図を比較する"
+        );
+    }
+
+    let invalid_note = temporary.join("invalid-generation-note.json");
+    fs::write(&invalid_note, r#"{"unexpected":true}"#).unwrap();
+    let invalid_repository = temporary.join("invalid-note-repo");
+    let invalid = run(&[
+        "creator-run",
+        invalid_repository.to_str().unwrap(),
+        "invalid-note",
+        original.to_str().unwrap(),
+        current.to_str().unwrap(),
+        proposal.to_str().unwrap(),
+        "--subject",
+        "Invalid note",
+        "--creator",
+        "Aki",
+        "--decision",
+        "adopt",
+        "--generation-note-file",
+        invalid_note.to_str().unwrap(),
+    ]);
+    assert!(!invalid.status.success());
+    assert!(
+        String::from_utf8(invalid.stderr)
+            .unwrap()
+            .contains("usage_error: generation note file")
+    );
+    assert!(!invalid_repository.exists());
+
+    let missing_repository = temporary.join("missing-note-repo");
+    let missing_note = temporary.join("missing-generation-note.json");
+    let missing = run(&[
+        "creator-run",
+        missing_repository.to_str().unwrap(),
+        "missing-note",
+        original.to_str().unwrap(),
+        current.to_str().unwrap(),
+        proposal.to_str().unwrap(),
+        "--subject",
+        "Missing note",
+        "--creator",
+        "Aki",
+        "--decision",
+        "adopt",
+        "--generation-note-file",
+        missing_note.to_str().unwrap(),
+    ]);
+    assert!(!missing.status.success());
+    assert!(
+        String::from_utf8(missing.stderr)
+            .unwrap()
+            .contains("storage_error: open structured input file")
+    );
+    assert!(!missing_repository.exists());
+
+    let empty_note = temporary.join("empty-generation-note.json");
+    fs::write(&empty_note, b"").unwrap();
+    let empty_repository = temporary.join("empty-note-repo");
+    let empty = run(&[
+        "creator-run",
+        empty_repository.to_str().unwrap(),
+        "empty-note",
+        original.to_str().unwrap(),
+        current.to_str().unwrap(),
+        proposal.to_str().unwrap(),
+        "--subject",
+        "Empty note",
+        "--creator",
+        "Aki",
+        "--decision",
+        "adopt",
+        "--generation-note-file",
+        empty_note.to_str().unwrap(),
+    ]);
+    assert!(!empty.status.success());
+    assert!(
+        String::from_utf8(empty.stderr)
+            .unwrap()
+            .contains("usage_error: generation note file")
+    );
+    assert!(!empty_repository.exists());
+
+    let oversized_note = temporary.join("oversized-generation-note.json");
+    fs::write(
+        &oversized_note,
+        serde_json::json!({"prompt": "x".repeat(8193)}).to_string(),
+    )
+    .unwrap();
+    let oversized_repository = temporary.join("oversized-note-repo");
+    let oversized = run(&[
+        "creator-run",
+        oversized_repository.to_str().unwrap(),
+        "oversized-note",
+        original.to_str().unwrap(),
+        current.to_str().unwrap(),
+        proposal.to_str().unwrap(),
+        "--subject",
+        "Oversized note",
+        "--creator",
+        "Aki",
+        "--decision",
+        "adopt",
+        "--generation-note-file",
+        oversized_note.to_str().unwrap(),
+    ]);
+    assert!(!oversized.status.success());
+    assert!(
+        String::from_utf8(oversized.stderr)
+            .unwrap()
+            .contains("usage_error: generation note exceeds a UTF-8 byte limit")
+    );
+    assert!(!oversized_repository.exists());
+
+    let duplicate_repository = temporary.join("duplicate-note-repo");
+    let duplicate = run(&[
+        "creator-run",
+        duplicate_repository.to_str().unwrap(),
+        "duplicate-note",
+        original.to_str().unwrap(),
+        current.to_str().unwrap(),
+        proposal.to_str().unwrap(),
+        "--subject",
+        "Duplicate note",
+        "--creator",
+        "Aki",
+        "--decision",
+        "adopt",
+        "--generation-note-file",
+        note_file.to_str().unwrap(),
+        "--generation-note-file",
+        note_file.to_str().unwrap(),
+    ]);
+    assert!(!duplicate.status.success());
+    assert!(
+        String::from_utf8(duplicate.stderr)
+            .unwrap()
+            .contains("usage_error: invalid or duplicate creator-run option")
+    );
+    assert!(!duplicate_repository.exists());
+}
+
+#[test]
 fn creator_report_prints_escaped_three_blob_reuse_provenance() {
     use synapse_creator::{
         CreatorBeginOptions, CreatorDecisionOptions, CreatorDisposition, begin_creator_session,
@@ -572,4 +838,521 @@ fn creator_report_prints_private_user_declared_notes_separately_and_escaped() {
     assert!(text.contains("日本語\\nPRIVATE_NOTE\\u{1b}[31m"));
     assert!(text.contains("rationale=\"別の判断理由\""));
     assert!(!text.contains('\u{1b}'));
+}
+
+fn json_stdout(output: &Output) -> serde_json::Value {
+    assert_success(output);
+    serde_json::from_slice(&output.stdout).unwrap_or_else(|error| {
+        panic!(
+            "creator-report --format json did not print a single parseable JSON document: {error}\nstdout={}",
+            String::from_utf8_lossy(&output.stdout)
+        )
+    })
+}
+
+#[test]
+fn creator_report_format_json_default_and_text_output_are_unchanged() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repo");
+    let original = temporary.join("original.png");
+    let current = temporary.join("current.png");
+    let proposal = temporary.join("proposal.png");
+    fs::write(&original, b"json original image").unwrap();
+    fs::write(&current, b"json current image").unwrap();
+    fs::write(&proposal, b"json proposal image").unwrap();
+
+    let created = run(&[
+        "creator-run",
+        repository_path.to_str().unwrap(),
+        "json-default",
+        original.to_str().unwrap(),
+        current.to_str().unwrap(),
+        proposal.to_str().unwrap(),
+        "--subject",
+        "JSON default subject",
+        "--creator",
+        "Aki",
+        "--decision",
+        "adopt",
+        "--rationale",
+        "adopted for the json contract test",
+    ]);
+    assert_success(&created);
+
+    // The existing line-oriented text output stays byte-identical whether
+    // --format is omitted or explicitly "text".
+    let default_output = run(&[
+        "creator-report",
+        repository_path.to_str().unwrap(),
+        "json-default",
+    ]);
+    assert_success(&default_output);
+    let explicit_text_output = run(&[
+        "creator-report",
+        repository_path.to_str().unwrap(),
+        "json-default",
+        "--format",
+        "text",
+    ]);
+    assert_success(&explicit_text_output);
+    assert_eq!(default_output.stdout, explicit_text_output.stdout);
+
+    let json_output = run(&[
+        "creator-report",
+        repository_path.to_str().unwrap(),
+        "json-default",
+        "--format",
+        "json",
+    ]);
+    let document = json_stdout(&json_output);
+    assert_eq!(
+        document["format"],
+        serde_json::json!("synapsegit-cli-creator-report-v1")
+    );
+    assert_eq!(document["scope"], serde_json::json!("private_local"));
+    assert_eq!(
+        document["ai_output_source"],
+        serde_json::json!("caller_supplied")
+    );
+    assert_eq!(document["disposition"], serde_json::json!("adopt"));
+    assert_eq!(document["selected_ai_output"], serde_json::json!(true));
+    assert_eq!(
+        document["rationale"],
+        serde_json::json!("adopted for the json contract test")
+    );
+    // No optional evidence was ever recorded for this session: every
+    // optional slot must say so explicitly rather than being silently
+    // omitted or defaulted to some other absence-shaped value.
+    assert_eq!(
+        document["source"]["availability"],
+        serde_json::json!("absent")
+    );
+    assert_eq!(
+        document["reuse_source"]["availability"],
+        serde_json::json!("absent")
+    );
+    assert_eq!(
+        document["generation_note"]["availability"],
+        serde_json::json!("absent")
+    );
+    assert_eq!(
+        document["decision_pins"]["availability"],
+        serde_json::json!("absent")
+    );
+    assert_eq!(
+        document["comparison"]["availability"],
+        serde_json::json!("present")
+    );
+    assert_eq!(
+        document["comparison"]["outcome"],
+        serde_json::json!("different")
+    );
+    assert!(!document["timeline"].as_array().unwrap().is_empty());
+    assert!(document["fsck"]["clean"] == serde_json::json!(true));
+
+    // Usage errors (unknown/duplicate option, bad value, missing value) stay
+    // on the existing CliError::Usage path/exit code, and never print JSON.
+    for bad_arguments in [
+        vec![
+            "creator-report",
+            repository_path.to_str().unwrap(),
+            "json-default",
+            "--format",
+            "yaml",
+        ],
+        vec![
+            "creator-report",
+            repository_path.to_str().unwrap(),
+            "json-default",
+            "--format",
+        ],
+        vec![
+            "creator-report",
+            repository_path.to_str().unwrap(),
+            "json-default",
+            "--bogus",
+            "json",
+        ],
+        vec![
+            "creator-report",
+            repository_path.to_str().unwrap(),
+            "json-default",
+            "--format",
+            "json",
+            "--format",
+            "text",
+        ],
+    ] {
+        let output = run(&bad_arguments);
+        assert!(
+            !output.status.success(),
+            "unexpectedly succeeded: {bad_arguments:?}"
+        );
+        assert!(
+            output.stdout.is_empty(),
+            "usage error leaked stdout: {bad_arguments:?}"
+        );
+        assert!(
+            String::from_utf8_lossy(&output.stderr).contains("usage_error"),
+            "command={bad_arguments:?}, stderr={}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+
+    // Verification failure (unknown session) must never print partial JSON.
+    let missing_session = run(&[
+        "creator-report",
+        repository_path.to_str().unwrap(),
+        "no-such-session",
+        "--format",
+        "json",
+    ]);
+    assert!(!missing_session.status.success());
+    assert!(missing_session.stdout.is_empty());
+    assert!(String::from_utf8_lossy(&missing_session.stderr).contains("creator_session_not_found"));
+}
+
+#[test]
+fn creator_report_format_json_represents_every_disposition_and_json_round_trips_archive() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repo");
+    let archive_path = temporary.join("archive");
+    let restored_path = temporary.join("restored");
+    let original = temporary.join("original.png");
+    let current = temporary.join("current.png");
+    let proposal = temporary.join("proposal.png");
+    fs::write(&original, b"disposition original image").unwrap();
+    fs::write(&current, b"disposition current image").unwrap();
+    fs::write(&proposal, b"disposition proposal image").unwrap();
+
+    for (session, decision, expected_disposition, expected_selected) in [
+        ("adopt-session", "adopt", "adopt", true),
+        ("reject-session", "reject", "reject", false),
+        ("defer-session", "defer", "defer", false),
+    ] {
+        let created = run(&[
+            "creator-run",
+            repository_path.to_str().unwrap(),
+            session,
+            original.to_str().unwrap(),
+            current.to_str().unwrap(),
+            proposal.to_str().unwrap(),
+            "--subject",
+            "Disposition subject",
+            "--creator",
+            "Aki",
+            "--decision",
+            decision,
+        ]);
+        assert_success(&created);
+
+        let json_output = run(&[
+            "creator-report",
+            repository_path.to_str().unwrap(),
+            session,
+            "--format",
+            "json",
+        ]);
+        let document = json_stdout(&json_output);
+        assert_eq!(
+            document["disposition"],
+            serde_json::json!(expected_disposition)
+        );
+        assert_eq!(
+            document["selected_ai_output"],
+            serde_json::json!(expected_selected)
+        );
+        assert_eq!(document["session"], serde_json::json!(session));
+    }
+
+    // Archive export/restore before/after must yield the identical JSON
+    // document (decision, image refs, provenance and comparison) for the
+    // same logical history.
+    let before = json_stdout(&run(&[
+        "creator-report",
+        repository_path.to_str().unwrap(),
+        "adopt-session",
+        "--format",
+        "json",
+    ]));
+
+    assert_success(&run(&[
+        "export",
+        repository_path.to_str().unwrap(),
+        archive_path.to_str().unwrap(),
+    ]));
+    assert_success(&run(&[
+        "restore",
+        archive_path.to_str().unwrap(),
+        restored_path.to_str().unwrap(),
+    ]));
+
+    let after = json_stdout(&run(&[
+        "creator-report",
+        restored_path.to_str().unwrap(),
+        "adopt-session",
+        "--format",
+        "json",
+    ]));
+    assert_eq!(before, after);
+    assert_eq!(before["disposition"], serde_json::json!("adopt"));
+    assert_eq!(before["blobs"], after["blobs"]);
+    assert_eq!(before["comparison"], after["comparison"]);
+    assert_eq!(before["source"], after["source"]);
+    assert_eq!(before["reuse_source"], after["reuse_source"]);
+}
+
+#[test]
+fn creator_report_format_json_represents_generation_note_pins_derived_and_reuse_provenance() {
+    use synapse_creator::{
+        ANNOTATIONS_FORMAT, CreatorAnnotations, CreatorBeginOptions, CreatorDecisionOptions,
+        CreatorDisposition, CreatorGenerationNote, CreatorImageRole, CreatorPin,
+        CreatorSourceBinding, begin_creator_session_with_note,
+        begin_creator_session_with_reuse_source, begin_creator_session_with_source,
+        creator_reuse_source_from_snapshot, decide_creator_session,
+        decide_creator_session_with_annotations,
+    };
+
+    let temporary = TempDirectory::new();
+    let repository = temporary.join("repo");
+    let original = temporary.join("original.png");
+    let current = temporary.join("current.png");
+    let proposal = temporary.join("proposal.png");
+    fs::write(&original, b"pins original image").unwrap();
+    fs::write(&current, b"pins current image").unwrap();
+    fs::write(&proposal, b"pins proposal image").unwrap();
+
+    let options = |session: &str| CreatorBeginOptions {
+        repository: repository.clone(),
+        session: session.into(),
+        original_image: original.clone(),
+        current_image: current.clone(),
+        ai_output: proposal.clone(),
+        subject_label: "Pins and provenance subject".into(),
+        creator_name: "Aki".into(),
+    };
+
+    // Generation note + decision pins present.
+    let note = CreatorGenerationNote {
+        tool: "paint-tool".into(),
+        model: "diffusion-mini".into(),
+        prompt: "日本語プロンプト\t\"quoted\"\nline two".into(),
+        intent: "restore the mural".into(),
+    };
+    let mut pinned =
+        begin_creator_session_with_note(&options("note-and-pins"), Some(&note)).unwrap();
+    let original_oid = pinned.receipt().original_blob_oid.clone();
+    let annotations = CreatorAnnotations {
+        format: ANNOTATIONS_FORMAT.into(),
+        pins: vec![CreatorPin {
+            role: CreatorImageRole::Original,
+            blob_oid: original_oid,
+            x: 10,
+            y: 20,
+            note: "見てください".into(),
+        }],
+    };
+    decide_creator_session_with_annotations(
+        &mut pinned,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Adopt,
+            rationale: Some("見た目\t確認済み\n次へ".into()),
+        },
+        Some(&annotations),
+    )
+    .unwrap();
+
+    let note_document = json_stdout(&run(&[
+        "creator-report",
+        repository.to_str().unwrap(),
+        "note-and-pins",
+        "--format",
+        "json",
+    ]));
+    assert_eq!(
+        note_document["generation_note"]["availability"],
+        serde_json::json!("present")
+    );
+    assert_eq!(
+        note_document["generation_note"]["prompt"],
+        serde_json::json!("日本語プロンプト\t\"quoted\"\nline two")
+    );
+    assert_eq!(
+        note_document["generation_note"]["intent"],
+        serde_json::json!("restore the mural")
+    );
+    assert_eq!(
+        note_document["decision_pins"]["availability"],
+        serde_json::json!("present")
+    );
+    assert_eq!(
+        note_document["decision_pins"]["format"],
+        serde_json::json!(ANNOTATIONS_FORMAT)
+    );
+    let pins = note_document["decision_pins"]["pins"].as_array().unwrap();
+    assert_eq!(pins.len(), 1);
+    assert_eq!(pins[0]["role"], serde_json::json!("original"));
+    assert_eq!(pins[0]["note"], serde_json::json!("見てください"));
+    assert_eq!(
+        note_document["rationale"],
+        serde_json::json!("見た目\t確認済み\n次へ")
+    );
+
+    // Derived source: begin a fresh session bound to a prior complete report.
+    let mut base = synapse_creator::begin_creator_session(&options("derived-base")).unwrap();
+    let base_receipt = decide_creator_session(
+        &mut base,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Adopt,
+            rationale: Some("base adopted".into()),
+        },
+    )
+    .unwrap();
+    let base_report = synapse_creator::creator_report(&repository, "derived-base").unwrap();
+    let source = CreatorSourceBinding::from_report(&base_report);
+    let mut derived =
+        begin_creator_session_with_source(&options("derived-session"), None, &source).unwrap();
+    decide_creator_session(
+        &mut derived,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Adopt,
+            rationale: None,
+        },
+    )
+    .unwrap();
+    let derived_document = json_stdout(&run(&[
+        "creator-report",
+        repository.to_str().unwrap(),
+        "derived-session",
+        "--format",
+        "json",
+    ]));
+    assert_eq!(
+        derived_document["source"]["availability"],
+        serde_json::json!("present")
+    );
+    assert_eq!(
+        derived_document["source"]["session"],
+        serde_json::json!("derived-base")
+    );
+    assert_eq!(
+        derived_document["source"]["proposal_head"],
+        serde_json::json!(base_receipt.proposal_head)
+    );
+    assert_eq!(
+        derived_document["reuse_source"]["availability"],
+        serde_json::json!("absent")
+    );
+    assert_eq!(derived_document["source_depth"], serde_json::json!(1));
+
+    // Three-image reuse provenance: a session that reuses all three blobs
+    // from a deferred prior review.
+    let mut deferred =
+        synapse_creator::begin_creator_session(&options("reuse-deferred-source")).unwrap();
+    decide_creator_session(
+        &mut deferred,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Defer,
+            rationale: Some("needs a fresh review".into()),
+        },
+    )
+    .unwrap();
+    let repository_handle = synapse_core::Repository::open_existing(&repository).unwrap();
+    let snapshot = repository_handle.refs().snapshot().unwrap();
+    let reuse_source =
+        creator_reuse_source_from_snapshot(&repository_handle, &snapshot, "reuse-deferred-source")
+            .unwrap();
+    let mut reused =
+        begin_creator_session_with_reuse_source(&options("reuse-session"), &reuse_source).unwrap();
+    decide_creator_session(
+        &mut reused,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Adopt,
+            rationale: None,
+        },
+    )
+    .unwrap();
+    let reuse_document = json_stdout(&run(&[
+        "creator-report",
+        repository.to_str().unwrap(),
+        "reuse-session",
+        "--format",
+        "json",
+    ]));
+    assert_eq!(
+        reuse_document["reuse_source"]["availability"],
+        serde_json::json!("present")
+    );
+    assert_eq!(
+        reuse_document["reuse_source"]["kind"],
+        serde_json::json!("deferred_rereview")
+    );
+    assert_eq!(
+        reuse_document["reuse_source"]["session"],
+        serde_json::json!("reuse-deferred-source")
+    );
+    assert_eq!(
+        reuse_document["reuse_source"]["original_blob_oid"],
+        serde_json::json!(reuse_source.original_blob_oid)
+    );
+    assert_eq!(
+        reuse_document["source"]["availability"],
+        serde_json::json!("absent")
+    );
+
+    // Archive export/restore (through the CLI process commands, not the
+    // library) must reproduce the identical JSON document -- decision,
+    // image refs, provenance and comparison -- for every session in this
+    // repository: a plain generation-note-and-pins session, a derived
+    // session, and a 3-image reuse session. Re-fetch each "before" document
+    // here (rather than reusing the ones captured mid-test) because
+    // `fsck.objects` reports the whole repository's object count, which
+    // keeps growing as later sessions are added to the same repository.
+    let archive_path = temporary.join("archive");
+    let restored_path = temporary.join("restored");
+    let sessions = ["note-and-pins", "derived-session", "reuse-session"];
+    let before_export: Vec<_> = sessions
+        .iter()
+        .map(|session| {
+            json_stdout(&run(&[
+                "creator-report",
+                repository.to_str().unwrap(),
+                session,
+                "--format",
+                "json",
+            ]))
+        })
+        .collect();
+
+    assert_success(&run(&[
+        "export",
+        repository.to_str().unwrap(),
+        archive_path.to_str().unwrap(),
+    ]));
+    assert_success(&run(&[
+        "restore",
+        archive_path.to_str().unwrap(),
+        restored_path.to_str().unwrap(),
+    ]));
+
+    for (session, before) in sessions.iter().zip(before_export.iter()) {
+        let after = json_stdout(&run(&[
+            "creator-report",
+            restored_path.to_str().unwrap(),
+            session,
+            "--format",
+            "json",
+        ]));
+        assert_eq!(
+            before, &after,
+            "session {session} changed across export/restore"
+        );
+        assert_eq!(before["disposition"], after["disposition"]);
+        assert_eq!(before["blobs"], after["blobs"]);
+        assert_eq!(before["comparison"], after["comparison"]);
+        assert_eq!(before["source"], after["source"]);
+        assert_eq!(before["reuse_source"], after["reuse_source"]);
+        assert_eq!(before["generation_note"], after["generation_note"]);
+        assert_eq!(before["decision_pins"], after["decision_pins"]);
+    }
 }

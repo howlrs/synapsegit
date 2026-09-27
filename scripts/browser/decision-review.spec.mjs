@@ -105,7 +105,7 @@ test("UTF-8 limit blocks before confirmation and failed submission preserves the
     await expect(rationale(page)).toBeDisabled();
     for (const name of ["Adopt", "Reject", "Defer"]) await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
   } finally { release(); }
-  await expect(page.locator("[data-synapse-status]")).toHaveText("Temporary review failure");
+  await expect(page.locator("[data-synapse-status]")).toContainText("Temporary review failure");
   await expect(rationale(page)).toBeEnabled();
   await expect(rationale(page)).toHaveValue("あ".repeat(1666) + "ab");
   expect(confirms).toBe(1);

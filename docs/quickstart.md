@@ -107,7 +107,13 @@ printf 'caller supplied proposal bytes\n' > "$DEMO/proposal.bin"
   "$DEMO/original.bin" "$DEMO/current.bin" "$DEMO/proposal.bin" \
   --subject "North wall" --creator "Aki" --decision adopt
 "$SG" creator-report "$CREATOR_REPO" wall-1
+"$SG" creator-report "$CREATOR_REPO" wall-1 --format json
 ```
+
+`--format json`はこの検証済みreportを、プライベートなローカル専用JSON contract
+（`"format": "synapsegit-cli-creator-report-v1"`、`"scope": "private_local"`）として一つのdocumentへ
+出力する。共有可能なbundleではないため、他者へ渡す場合は既存の`synapse-present export ... --public`を
+使う。詳細は[CLI reference](cli_reference.md#--format-json)を参照する。
 
 `creator-run`はimported／reference-only CaptureProfile、original／current Observation、専用
 `software_tool` Actor、byte-identity AnalysisResult、AI proposal、Human Decisionを手書きJSONなしで作る。
@@ -237,7 +243,7 @@ synapse fsck <repo>
 synapse export <repo> <archive-dir>
 synapse restore <archive-dir> <repo>
 synapse creator-run <repo> <session> <original> <current> <ai-output> --subject <label> --creator <name> --decision <adopt|reject|defer> [--rationale <text>]
-synapse creator-report <repo> <session>
+synapse creator-report <repo> <session> [--format text|json]
 
 synapse-present export <repo> <output-dir> [--session <id>] [--presentation <presentation.toml>] [--public] [--target <synapse|github> | --synapse | --github]
 synapse-present preview <bundle-dir>

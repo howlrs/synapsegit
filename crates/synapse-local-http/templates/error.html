@@ -1,11 +1,12 @@
 {% extends "base.html" %}
 
 {% block content %}
-<nav class="breadcrumbs" aria-label="パンくずリスト"><ol><li><a href="/">プロジェクト</a></li><li aria-current="page">エラー</li></ol></nav>
+<nav class="breadcrumbs" aria-label="{{ m.common.breadcrumb }}"><ol><li><a href="/">{{ m.common.nav_projects }}</a></li><li aria-current="page">{{ m.error.breadcrumb }}</li></ol></nav>
 <div class="notice" data-tone="danger">
   <p class="eyebrow">{{ status }}</p>
-  <h1>{{ title }}</h1>
-  <p>{{ detail }}</p>
+  <h1>{{ heading }}</h1>
+  <p>{{ summary }}</p>
+  <p class="muted">{{ m.error.server_detail }}{{ detail }}</p>
   <p class="muted">request <code>{{ request_id }}</code></p>
 </div>
 {% endblock %}

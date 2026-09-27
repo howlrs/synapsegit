@@ -59,10 +59,10 @@ scripts/run_mural_tutorial.sh "$HOME/SynapseGit/mural-tutorial" adopt
 ```
 
 Run that with the working directory at a source checkout's repository root,
-or, for archives released after `v0.9.0`, with the working directory inside
-the extracted release archive directory (the runner and sample images are
-bundled there too; see `TUTORIAL.md` at the archive root). The `v0.9.0`
-archive does not include the runner or sample images.
+or with the working directory inside the extracted v0.11.0 release archive
+directory (the runner and sample images are bundled there too; see
+`TUTORIAL.md` at the archive root). The v0.9.0 archive does not include the
+runner or sample images.
 
 The sample images are generated, non-sensitive fixtures. They are not evidence
 of a real artwork or treatment. The tutorial actually runs them through
@@ -77,13 +77,13 @@ UI mockups.
 | Try a complete visual example | [15-minute mural tutorial](./docs/tutorial/README.md) |
 | Install the three preview binaries | [Installation](./docs/install.md) |
 | Use my own three images | [Three-minute Pilot](#try-it-in-three-minutes) |
-| Inspect a repository in the browser | [Local application runbook](./deploy/local/README.md) |
-| Generate a shareable local read-only view | [`synapse-present` guide](./docs/cli_reference.md#synapse-present-companion-cli) |
-| Evaluate or embed the Rust boundaries | [Documentation index](./docs/README.md) |
+| Inspect a repository in the browser | [Local application runbook (Japanese)](./deploy/local/README.md) |
+| Generate a shareable local read-only view | [`synapse-present` guide (Japanese)](./docs/cli_reference.md#synapse-present-companion-cli) |
+| Evaluate or embed the Rust boundaries | [Documentation index (English path and Japanese index)](./docs/README.md#english-reader-path) |
 
 ## Who can use this preview
 
-The current v0.9.0 preview is most useful to:
+The current v0.11.0 preview is most useful to:
 
 - technical creators who are comfortable with a local command-line workflow;
 - researchers and tool builders evaluating creative provenance,
@@ -105,8 +105,8 @@ Ubuntu 22.04 and requires glibc 2.34 or newer. Other platforms can use the
 ### 1. Install the preview
 
 ```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.9.0/synapsegit-v0.9.0-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.9.0/SHA256SUMS
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.11.0/synapsegit-v0.11.0-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.11.0/SHA256SUMS
 sha256sum --check SHA256SUMS
 ```
 
@@ -115,12 +115,12 @@ archive; the [installation guide](./docs/install.md#install-the-linux-x86-64-rel
 also shows build-provenance verification.
 
 ```bash
-tar -xzf synapsegit-v0.9.0-x86_64-unknown-linux-gnu.tar.gz
+tar -xzf synapsegit-v0.11.0-x86_64-unknown-linux-gnu.tar.gz
 
 mkdir -p "$HOME/.local/bin"
-install -m 0755 synapsegit-v0.9.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
-install -m 0755 synapsegit-v0.9.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
-install -m 0755 synapsegit-v0.9.0-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
+install -m 0755 synapsegit-v0.11.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
+install -m 0755 synapsegit-v0.11.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
+install -m 0755 synapsegit-v0.11.0-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
 export PATH="$HOME/.local/bin:$PATH"
 
 synapse --version
@@ -163,7 +163,7 @@ synapse-local \
   --label "demo=My first SynapseGit project"
 ```
 
-Open the exact `http://127.0.0.1:...` URL printed by the process. The v0.9.0
+Open the exact `http://127.0.0.1:...` URL printed by the process. The v0.11.0
 binary supports bounded three-file import, same-process Human review, read-only
 incomplete-session diagnostics, and an explicitly confirmed, server-bounded
 background `fsck` with pollable results. With `--archive-root` configured, it
@@ -197,13 +197,13 @@ The old session and decision remain fixed. The project dashboard shows up to
 detail page or run `fsck` for verification.
 Diagnostics and maintenance do not resume, clean up, or rewrite a creator
 session. See the
-[local application runbook](./deploy/local/README.md), the
+[local application runbook (Japanese)](./deploy/local/README.md), the
 [installation guide](./docs/install.md), or the
-[source Quickstart](./docs/quickstart.md).
+[source Quickstart (Japanese)](./docs/quickstart.md).
 
 ### Record, review, and try another candidate
 
-The v0.8.0 Creator additions remain included in the v0.9.0 release binaries. See the [Creator workflow guide](docs/creator_workflow.md)
+The v0.8.0 Creator additions remain included in the v0.11.0 release binaries. See the [Creator workflow guide](docs/creator_workflow.en.md)
 for the complete sequence and input limits.
 
 | Step | Available behavior |
@@ -218,33 +218,33 @@ exclude those private notes. Reusing Current is not a new observation, and Adopt
 promotes the previous AI output to Current. **Frozen publication v1 refuses derived sessions**
 in both the public-text form and bundle export, including all-session export containing a
 complete derived session. Select a non-derived session with `--session`; existing v1 bundles
-remain verifiable. See the [public-text workflow](docs/presentation_sidecar.md).
+remain verifiable. See the [public-text workflow](docs/presentation_sidecar.en.md).
 
 ## What works now
 
 | Capability | Current repository status |
 |---|---|
 | Three-file creator Pilot with `adopt`, `reject`, and `defer` | Implemented as a bounded local CLI flow |
-| Human/AI-attributed provenance and a comparison-aware report | Implemented; AI output remains caller-supplied |
+| Human/AI-attributed provenance and a comparison-aware report | Implemented; AI output remains caller-supplied. `creator-report --format json` adds one versioned private-local JSON document for local tooling; `--format text` and the default retain the line-oriented text report. `creator-run --generation-note-file` can record bounded private, user-declared generation context without proving model execution or authorship |
 | Original/current comparison | Primary blob byte identity only; always partial comparability. The localhost UI also offers manual two-image viewing with fit/100%/200% zoom; no registration or difference analysis |
-| Local browser interface | Read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, confirmed background `fsck`, and project-page archive controls. The project dashboard shows at most 200 session summaries, prioritizing live reviews and then recent Ref updates, filterable by state or disposition. These are explicitly unverified overview values; full verification remains on session detail pages. Source-session pages also offer unverified derived-child navigation hints. Behind `--archive-root`, it provides a bounded read-only archive listing (`GET /archives`) plus authenticated confirmed bounded archive export and empty-target restore APIs (`POST /archive-exports`, `POST /archive-restores`). Restore fixes the target to the open registered empty project and requires a listed slug, typed key, checkbox, confirmation, queued polling, and a visible creator-report equivalence reminder |
+| Local browser interface | The tagged v0.11.0 archive provides Japanese and English application labels, accessible names, client messages, and image alternatives. A header choice takes priority and persists per browser, then a supported `Accept-Language` preference is used, with Japanese as the fallback. User-supplied and stored text, API identifiers, and error codes are unchanged. It also provides read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, confirmed background `fsck`, and project-page archive controls. The project dashboard shows at most 200 session summaries, prioritizing live reviews and then recent Ref updates, filterable by state or disposition. These are explicitly unverified overview values; full verification remains on session detail pages. Source-session pages also offer unverified derived-child navigation hints. Behind `--archive-root`, it provides a bounded read-only archive listing (`GET /archives`) plus authenticated confirmed bounded archive export and empty-target restore APIs (`POST /archive-exports`, `POST /archive-restores`). Restore fixes the target to the open registered empty project and requires a listed slug, typed key, checkbox, confirmation, queued polling, and a visible creator-report equivalence reminder |
 | Script-output Inbox and fresh review | Optional `--import-root` stages manifest-last image candidates for explicit Proposal creation. Verified interrupted or deferred sessions can start a new review using the recorded images, while the source Decision remains fixed. Frozen publication v1 refuses reused-session output |
 | Import preparation | Local raster previews, file sizes and selection clearing, UTF-8 byte-limit feedback, and fixed inputs while an upload is pending. Files that cannot be previewed remain importable under the existing limits |
 | Decision review | Described adopt/reject/defer outcomes and confirmation, live rationale byte counts, fixed inputs during submission, and escaped recorded-rationale display on completed sessions. No same-session decision changes or reopening |
-| Generic regular-file artifact building blocks | Tagged v0.9.0 source/workspace libraries include a bounded deterministic mapper and checkout, sequential Proposal/Decision workflow, host-authenticated one-shot approval, a SQLite journal-integrated restart/reconciliation boundary, a frozen v1 public-safe contract, and a separate local public projection. The packaged three binaries do not expose these capabilities through HTTP, CLI, or browser UI; no model invocation, multi-process control plane, or production service is provided |
+| Generic regular-file artifact building blocks | Tagged v0.11.0 source/workspace libraries include a bounded deterministic mapper and checkout, sequential Proposal/Decision workflow, host-authenticated one-shot approval, a SQLite journal-integrated restart/reconciliation boundary, a frozen v1 public-safe contract, and a separate local public projection. The packaged three binaries do not expose these capabilities through HTTP, CLI, or browser UI; no model invocation, multi-process control plane, or production service is provided |
 | Content-addressed objects, typed closure, Ref CAS, and reflog | Implemented and covered by repository tests |
 | `fsck`, checksum-bound directory export, and verified restore | Implemented for the local repository format |
-| Read-only history presentation for people and AI | Included in v0.9.0 as a deterministic local bundle: canonical JSON, Markdown, no-JavaScript HTML, manifest, checksums, and Synapse/GitHub target layouts; no upload or network access |
+| Read-only history presentation for people and AI | Included in v0.11.0 as a deterministic local bundle: canonical JSON, Markdown, no-JavaScript HTML, manifest, checksums, and Synapse/GitHub target layouts; no upload or network access |
 | Public multi-user service | Architecture only; not implemented |
 | Pixel registration or visual/physical difference analysis | Not implemented |
 
 “Implemented” means covered by this repository's tests. The generic-artifact
-row describes library and schema surfaces included in the tagged v0.9.0
+row describes library and schema surfaces included in the tagged v0.11.0
 source, not a tested transport integration or a packaged binary feature.
 Neither label means that real-user authentication, network transport,
 production operations, or a general creator-facing application is ready.
 
-The tagged v0.9.0 source/workspace libraries include evaluation-only building
+The tagged v0.11.0 source/workspace libraries include evaluation-only building
 blocks for sibling applications implementing generic regular-file review.
 `synapse-artifact` validates a complete regular-file manifest and
 deterministically maps it to a nested site Tree without advancing a Ref. Its
@@ -288,21 +288,21 @@ transactions are separate, so crash windows are resolved by explicit bounded
 reconciliation rather than by claiming cross-database atomicity. Rust trusted
 workflow values are getter-only process values, not browser-supplied authority.
 
-These capabilities are included in the tagged v0.9.0 source/workspace
+These capabilities are included in the tagged v0.11.0 source/workspace
 libraries. They are not exposed by any of the three packaged binaries
 (`synapse`, `synapse-local`, or `synapse-present`), including through HTTP,
 CLI, or browser UI. They also do not provide a background service that resumes
 work automatically, model invocation, a generic browser editor, durable
 identity or ACL storage, multi-process linearizability, production use, or a
-distribution permission. The packaged v0.9.0 Creator Pilot and localhost UI
+distribution permission. The packaged v0.11.0 Creator Pilot and localhost UI
 remain image-specific; their pending review authority is still same-process
 and non-resumable.
 
-The tagged v0.9.0 `synapse-local` binary includes browser import/review,
+The tagged v0.11.0 `synapse-local` binary includes browser import/review,
 dedicated diagnostics, and bounded browser `fsck`. Review authority and
 maintenance job state are process-local and cannot be resumed after restart.
 
-The v0.9.0 archive also provides the separate `synapse-present` companion. It reads
+The v0.11.0 archive also provides the separate `synapse-present` companion. It reads
 the existing CAS without mutation and copies checkpointed Ref SQLite (up to
 512 MiB) into a private temporary file, requiring the copy-time and post-copy
 source SHA-256 to match; SQLite never opens the source database directly.
@@ -312,9 +312,9 @@ prepare a local GitHub-ready view, but it does not upload, publish, or contact
 GitHub. Private
 rationale, internal Actor IDs, repository paths, and raw assets stay omitted;
 raw-asset rendering is not implemented, and a public note is separate
-author-supplied text. See the [CLI reference](./docs/cli_reference.md).
+author-supplied text. See the [CLI reference (Japanese)](./docs/cli_reference.md).
 
-Separately, the tagged v0.9.0 source/workspace libraries include a versioned
+Separately, the tagged v0.11.0 source/workspace libraries include a versioned
 generic-artifact projection and local bundle API. This API is not exposed by
 the packaged binaries, HTTP, CLI, or browser UI. A complete projection is
 built only through the bounded Decision checkout above; pending/incomplete
@@ -322,8 +322,9 @@ projections carry no repository or authority identifiers. Canonical JSON,
 escaped Markdown, script-free HTML, manifest, checksums, and local
 Synapse/GitHub layouts are generated without Git or network access. Remote
 Synapse/GitHub adapters, Git import and provenance, identity mapping, a GitHub
-App, and a hosted service remain distinct roadmap work; this source-only slice
-does not complete [#17](https://github.com/howlrs/synapsegit/issues/17).
+App, and a hosted service remain future implementation work. The design scope
+of [#17](https://github.com/howlrs/synapsegit/issues/17) is resolved without
+making any of those remote surfaces available in this release.
 
 ## How it works
 
@@ -353,7 +354,7 @@ The normative draft and its JSON Schemas live under
 [`spec/core/v0.1`](./spec/core/v0.1/README.md). Rust owns canonicalization,
 object IDs, schema validation, repository integrity, Ref updates, the current
 local application routes, and archive verification. Read the
-[runtime architecture](./docs/runtime_architecture.md) for component details.
+[runtime architecture (Japanese)](./docs/runtime_architecture.md) for component details.
 
 ## Documentation
 
@@ -361,42 +362,44 @@ local application routes, and archive verification. Read the
 |---|---|
 | Complete the illustrated first-use tutorial | [15-minute mural tutorial](./docs/tutorial/README.md) |
 | Install a release or build from a tag | [Installation](./docs/install.md) |
-| Run the complete source demo | [Core Quickstart](./docs/quickstart.md) |
-| Understand creator and AI-assisted use cases | [Usage guide](./docs/usage_guide.md) |
-| Record notes, review images, and try another candidate | [Creator workflow](./docs/creator_workflow.md) |
-| Run the loopback-only application | [Local application runbook](./deploy/local/README.md) |
-| Look up commands and errors | [CLI reference](./docs/cli_reference.md) |
-| Generate a read-only local publication bundle | [CLI reference](./docs/cli_reference.md#synapse-present-companion-cli) |
+| Run the complete source demo | [Core Quickstart (Japanese)](./docs/quickstart.md) |
+| Understand creator and AI-assisted use cases | [Usage guide (Japanese)](./docs/usage_guide.md) |
+| Record notes, review images, and try another candidate | [Creator workflow](./docs/creator_workflow.en.md) |
+| Run the loopback-only application | [Local application runbook (Japanese)](./deploy/local/README.md) |
+| Look up commands and errors | [CLI reference (Japanese)](./docs/cli_reference.md) |
+| Generate a read-only local publication bundle | [CLI reference (Japanese)](./docs/cli_reference.md#synapse-present-companion-cli) |
 | Evaluate publication comprehension | [Frozen complete and incomplete-only corpus](./docs/evaluation/publication-comprehension/v1/) |
 | Embed the generic regular-file contract | [Generic artifact v1](./spec/application/generic-artifact/v1/README.md) |
 | Build or extend a generic-artifact public projection | [Generic publication profile](./spec/application/generic-artifact-publication/v1/README.md) / [integration roadmap](./docs/generic_artifact_publication_roadmap.md) |
-| Evaluate current maturity and next work | [Project status](./docs/project_status.md) |
-| Review trust, privacy, and security limits | [Security model](./docs/security_model.md) |
+| Evaluate current maturity and next work | [Project status (Japanese)](./docs/project_status.md) |
+| Review trust, privacy, and security limits | [Privacy and trust summary](./docs/security_model.en.md) |
 | Implement the protocol | [Core Protocol v0.1](./spec/core/v0.1/README.md) |
-| Understand releases and distribution | [Distribution guide](./docs/distribution.md) |
+| Understand releases and distribution | [Distribution guide (Japanese)](./docs/distribution.md) |
 | Review use, Fork, and contribution terms | [License](./LICENSE) / [Japanese summary](./docs/license_ja.md) |
-| Browse everything | [Documentation index](./docs/README.md) |
+| Browse everything | [Documentation index (English path and Japanese index)](./docs/README.md#english-reader-path) |
 
 ## Distribution status
 
-- [`v0.9.0`](https://github.com/howlrs/synapsegit/releases/tag/v0.9.0) is a
+- [`v0.11.0`](https://github.com/howlrs/synapsegit/releases/tag/v0.11.0) is a
   prerelease, not a production release.
 - The supported prebuilt artifact is Linux x86_64 GNU. Tagged source builds are
   the current path for other supported Unix-like environments.
 - crates.io and GHCR are intentionally not distribution channels for Stage 0.
-- Release assets have SHA-256 checksums. The v0.9.0 archive also receives a
+- Release assets have SHA-256 checksums. The v0.11.0 archive also receives a
   GitHub build-provenance attestation.
 - The object, archive, and OID formats remain draft and may change before a
   stable release.
 
 See the [changelog](./CHANGELOG.md) and the
-[v0.9.0 release notes](./docs/releases/v0.9.0.md) before evaluating the
+[v0.11.0 release notes](./docs/releases/v0.11.0.md) before evaluating the
 preview with important data.
 
 Per-tag release notes on `main`:
 
 | Tag | Release notes |
 |-----|---------------|
+| `v0.11.0` | [docs/releases/v0.11.0.md](./docs/releases/v0.11.0.md) |
+| `v0.10.0` | [docs/releases/v0.10.0.md](./docs/releases/v0.10.0.md) |
 | `v0.9.0` | [docs/releases/v0.9.0.md](./docs/releases/v0.9.0.md) |
 | `v0.8.1` | [docs/releases/v0.8.1.md](./docs/releases/v0.8.1.md) |
 | `v0.8.0` | [docs/releases/v0.8.0.md](./docs/releases/v0.8.0.md) |

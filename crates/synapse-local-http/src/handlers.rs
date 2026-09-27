@@ -16,6 +16,7 @@ use synapse_local_service::{
     ProjectConfirmation, ReflogQuery, ServiceError,
 };
 
+use crate::i18n::{Locale, Messages};
 use crate::problem::problem_response;
 use crate::staging::{StagedCreatorUpload, StagedDerivedUpload};
 use crate::state::{AppState, BlockingError, OperationRegistryError};
@@ -1061,7 +1062,8 @@ fn image_response(image: CreatorImage, session: &str, role: &str) -> Response {
     response
 }
 
-pub(crate) async fn index_page(State(state): State<AppState>) -> Response {
+pub(crate) async fn index_page(State(state): State<AppState>, locale: Locale) -> Response {
+    let m = locale.messages();
     let projects = state.service.list_projects();
     let mut cards = Vec::with_capacity(projects.projects.len());
     for project in projects.projects {
@@ -1074,11 +1076,12 @@ pub(crate) async fn index_page(State(state): State<AppState>) -> Response {
         {
             Ok(status) => status,
             Err(BlockingError::Service(error)) => {
-                return page_failure(&state, HttpFailure::service(&state, error));
+                return page_failure(&state, m, HttpFailure::service(&state, error));
             }
             Err(BlockingError::Task) => {
                 return page_failure(
                     &state,
+                    m,
                     HttpFailure::internal(&state, "The project dashboard could not be built."),
                 );
             }
@@ -1087,7 +1090,7 @@ pub(crate) async fn index_page(State(state): State<AppState>) -> Response {
         cards.push(ProjectCardView {
             key: project.project_key,
             label: project.display_label,
-            state_label: project_state_label(project.state),
+            state_label: project_state_label(m, project.state),
             tone: project_state_tone(project.state),
             ref_count: status.snapshot.ref_count,
             complete_sessions: status.creator_session_counts.complete,
@@ -1109,7 +1112,7 @@ pub(crate) async fn index_page(State(state): State<AppState>) -> Response {
                     .into_iter()
                     .map(|archive| ArchiveView {
                         archive_name: archive.archive_name,
-                        state_label: archive_state_label(archive.state),
+                        state_label: archive_state_label(m, archive.state),
                         tone: archive_state_tone(archive.state),
                         checksum_preview: archive_checksum_preview(
                             archive.manifest_checksum.as_deref(),
@@ -1129,8 +1132,10 @@ pub(crate) async fn index_page(State(state): State<AppState>) -> Response {
 
     render_template(
         &state,
+        m,
         IndexTemplate {
-            page_title: "プロジェクト",
+            m,
+            page_title: m.index.page_title,
             token: state.security.token(),
             projects: &cards,
             archives: &archives,
@@ -1141,17 +1146,20 @@ pub(crate) async fn index_page(State(state): State<AppState>) -> Response {
 
 pub(crate) async fn project_page(
     State(state): State<AppState>,
+    locale: Locale,
     Path(project_key): Path<String>,
 ) -> Response {
+    let m = locale.messages();
     let key = project_key.clone();
     let dashboard = match run_dashboard(state.clone(), project_key).await {
         Ok(dashboard) => dashboard,
         Err(DashboardError::Service(error)) => {
-            return page_failure(&state, HttpFailure::service(&state, error));
+            return page_failure(&state, m, HttpFailure::service(&state, error));
         }
         Err(DashboardError::Changed) => {
             return page_failure(
                 &state,
+                m,
                 HttpFailure {
                     status: StatusCode::CONFLICT,
                     code: "ref_conflict".into(),
@@ -1167,6 +1175,7 @@ pub(crate) async fn project_page(
         Err(DashboardError::Task) => {
             return page_failure(
                 &state,
+                m,
                 HttpFailure::internal(&state, "The project dashboard read task failed."),
             );
         }
@@ -1189,7 +1198,9 @@ pub(crate) async fn project_page(
             event_id: entry.event_id,
             ref_name: entry.ref_name,
             new_head: entry.new_head,
-            message: entry.message.unwrap_or_else(|| "メッセージなし".into()),
+            message: entry
+                .message
+                .unwrap_or_else(|| m.project.no_reflog_message.into()),
         })
         .collect::<Vec<_>>();
     let sessions = dashboard
@@ -1199,26 +1210,26 @@ pub(crate) async fn project_page(
         .map(|session| SessionSummaryView {
             creator_name: session
                 .creator_name
-                .unwrap_or_else(|| "取得できません".into()),
+                .unwrap_or_else(|| m.project.unavailable_value.into()),
             session: session.session,
             state_code: match session.state {
                 CreatorSessionState::PendingReview => "pending",
                 CreatorSessionState::Complete => "complete",
                 CreatorSessionState::Incomplete => "incomplete",
             },
-            state_label: session_state_label(session.state),
+            state_label: session_state_label(m, session.state),
             tone: session_state_tone(session.state),
             proposal_head: short_oid(session.proposal_head.as_deref()),
             decision_head: short_oid(session.decision_head.as_deref()),
             subject_label: session
                 .subject_label
-                .unwrap_or_else(|| "取得できません".into()),
+                .unwrap_or_else(|| m.project.unavailable_value.into()),
             disposition: session
                 .disposition
-                .unwrap_or_else(|| "取得できません".into()),
+                .unwrap_or_else(|| m.project.unavailable_value.into()),
             recorded_at: session
                 .recorded_at
-                .unwrap_or_else(|| "取得できません".into()),
+                .unwrap_or_else(|| m.project.unavailable_value.into()),
             recorded_time_basis: session.recorded_time_basis.unwrap_or_else(|| "—".into()),
             source_session: session.source_session.unwrap_or_else(|| "—".into()),
         })
@@ -1252,7 +1263,9 @@ pub(crate) async fn project_page(
     let watermark = dashboard.status.snapshot.watermark;
     render_template(
         &state,
+        m,
         ProjectTemplate {
+            m,
             page_title: &project_label,
             token: state.security.token(),
             project_key: &key,
@@ -1346,8 +1359,10 @@ enum DashboardError {
 
 pub(crate) async fn session_page(
     State(state): State<AppState>,
+    locale: Locale,
     Path((project_key, session)): Path<(String, String)>,
 ) -> Response {
+    let m = locale.messages();
     let project_key_for_read = project_key.clone();
     let session_for_read = session.clone();
     let gate_key = project_key.clone();
@@ -1364,20 +1379,23 @@ pub(crate) async fn session_page(
         {
             Ok(value) => value,
             Err(BlockingError::Service(error)) => {
-                return page_failure(&state, HttpFailure::service(&state, error));
+                return page_failure(&state, m, HttpFailure::service(&state, error));
             }
             Err(BlockingError::Task) => {
                 return page_failure(
                     &state,
+                    m,
                     HttpFailure::internal(&state, "The creator session page could not be built."),
                 );
             }
         };
 
-    let view = SessionPageView::new(&project_key, &project_label, &session, detail, diagnostic);
+    let view = SessionPageView::new(m, &project_key, &session, detail, diagnostic);
     render_template(
         &state,
+        m,
         SessionTemplate {
+            m,
             page_title: &session,
             token: state.security.token(),
             project_key: &project_key,
@@ -1426,18 +1444,20 @@ pub(crate) async fn session_page(
 
 pub(crate) async fn not_found(
     State(state): State<AppState>,
+    locale: Locale,
     OriginalUri(uri): OriginalUri,
 ) -> Response {
     let failure = HttpFailure::not_found(&state, "The requested local resource was not found.");
     if uri.path().starts_with("/api/v1") {
         failure_response(failure)
     } else {
-        page_failure(&state, failure)
+        page_failure(&state, locale.messages(), failure)
     }
 }
 
 pub(crate) async fn method_not_allowed(
     State(state): State<AppState>,
+    locale: Locale,
     OriginalUri(uri): OriginalUri,
 ) -> Response {
     let failure = HttpFailure {
@@ -1451,7 +1471,7 @@ pub(crate) async fn method_not_allowed(
     if uri.path().starts_with("/api/v1") {
         failure_response(failure)
     } else {
-        page_failure(&state, failure)
+        page_failure(&state, locale.messages(), failure)
     }
 }
 
@@ -1500,13 +1520,18 @@ fn failure_response(failure: HttpFailure) -> Response {
     )
 }
 
-fn page_failure(state: &AppState, failure: HttpFailure) -> Response {
+/// Render an HTML error page. The heading and summary are localized from the
+/// stable status and code; the server's English detail is shown unchanged.
+fn page_failure(state: &AppState, m: &'static Messages, failure: HttpFailure) -> Response {
     let status_text = failure.status.as_u16().to_string();
+    let heading = m.error_heading(failure.status);
     let template = ErrorTemplate {
-        page_title: &failure.title,
+        m,
+        page_title: heading,
         token: state.security.token(),
         status: &status_text,
-        title: &failure.title,
+        heading,
+        summary: m.error_summary(&failure.code),
         detail: &failure.detail,
         request_id: &failure.request_id,
     };
@@ -1516,11 +1541,12 @@ fn page_failure(state: &AppState, failure: HttpFailure) -> Response {
     }
 }
 
-fn render_template(state: &AppState, template: impl Template) -> Response {
+fn render_template(state: &AppState, m: &'static Messages, template: impl Template) -> Response {
     match template.render() {
         Ok(html) => Html(html).into_response(),
         Err(_) => page_failure(
             state,
+            m,
             HttpFailure::internal(state, "The local page could not be rendered."),
         ),
     }
@@ -1552,8 +1578,10 @@ pub(crate) async fn api_creator_reuse_source(
 
 pub(crate) async fn derive_page(
     State(state): State<AppState>,
+    locale: Locale,
     Path((project_key, session)): Path<(String, String)>,
 ) -> Response {
+    let m = locale.messages();
     let key = project_key.clone();
     let source = session.clone();
     let instance = state.security.server_instance().to_owned();
@@ -1566,19 +1594,22 @@ pub(crate) async fn derive_page(
     {
         Ok(value) => value,
         Err(BlockingError::Service(error)) => {
-            return page_failure(&state, HttpFailure::service(&state, error));
+            return page_failure(&state, m, HttpFailure::service(&state, error));
         }
         Err(BlockingError::Task) => {
             return page_failure(
                 &state,
+                m,
                 HttpFailure::internal(&state, "The source preview could not be built."),
             );
         }
     };
     render_template(
         &state,
+        m,
         DeriveTemplate {
-            page_title: "次の案を試す",
+            m,
+            page_title: m.derive.page_title,
             token: state.security.token(),
             project_key: &project_key,
             project_label: &label,
@@ -1589,8 +1620,10 @@ pub(crate) async fn derive_page(
 
 pub(crate) async fn reuse_page(
     State(state): State<AppState>,
+    locale: Locale,
     Path((project_key, session)): Path<(String, String)>,
 ) -> Response {
+    let m = locale.messages();
     let key = project_key.clone();
     let source = session.clone();
     let instance = state.security.server_instance().to_owned();
@@ -1604,19 +1637,22 @@ pub(crate) async fn reuse_page(
     {
         Ok(value) => value,
         Err(BlockingError::Service(error)) => {
-            return page_failure(&state, HttpFailure::service(&state, error));
+            return page_failure(&state, m, HttpFailure::service(&state, error));
         }
         Err(BlockingError::Task) => {
             return page_failure(
                 &state,
+                m,
                 HttpFailure::internal(&state, "The reuse preview could not be built."),
             );
         }
     };
     render_template(
         &state,
+        m,
         ReuseTemplate {
-            page_title: "記録済み候補を再レビュー",
+            m,
+            page_title: m.reuse.page_title,
             token: state.security.token(),
             project_key: &project_key,
             project_label: &label,
@@ -1627,8 +1663,10 @@ pub(crate) async fn reuse_page(
 
 pub(crate) async fn presentation_page(
     State(state): State<AppState>,
+    locale: Locale,
     Path(project_key): Path<String>,
 ) -> Response {
+    let m = locale.messages();
     let key = project_key.clone();
     let (label, sessions) = match run_blocking(state.clone(), Some(key.clone()), move |service| {
         let label = service.project_status(&key)?.project.display_label;
@@ -1645,19 +1683,22 @@ pub(crate) async fn presentation_page(
     {
         Ok(value) => value,
         Err(BlockingError::Service(error)) => {
-            return page_failure(&state, HttpFailure::service(&state, error));
+            return page_failure(&state, m, HttpFailure::service(&state, error));
         }
         Err(BlockingError::Task) => {
             return page_failure(
                 &state,
+                m,
                 HttpFailure::internal(&state, "The session list could not be loaded."),
             );
         }
     };
     render_template(
         &state,
+        m,
         crate::templates::PresentationTemplate {
-            page_title: "公開用の制作ノート",
+            m,
+            page_title: m.presentation.page_title,
             token: state.security.token(),
             project_key: &project_key,
             project_label: &label,

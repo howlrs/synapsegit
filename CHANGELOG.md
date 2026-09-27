@@ -6,6 +6,43 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-09-27
+
+### Added
+
+- `synapse creator-run` accepts `--generation-note-file PATH`. The bounded
+  UTF-8 JSON file records optional private, user-declared `tool`, `model`,
+  `prompt`, and `intent` fields with the Creator session. Invalid input is
+  rejected before the repository is opened. The note remains separate from
+  Human Decision rationale, is retained by normal archive/restore and local
+  reporting, and is excluded from public bundles; it is not evidence that a
+  model ran or that any person authored the output.
+
+- Focused English follow-up guides cover the Creator workflow, public-text
+  sidecar, and privacy/trust boundary after the English tutorial. Japanese
+  references remain explicitly identified where no English equivalent exists.
+
+- Japanese real-work Creator Pilot templates add a pre-start checklist and a
+  retrospective/continuation-decision record. They document preparation,
+  archive/restore confirmation, private-record handling, measurable versus
+  unmeasurable observations, and a personal continuation decision without
+  claiming completed real-user evaluation.
+
+### Changed
+
+- Creator CLI documentation now records that `creator-run` requires its Human
+  Decision in the same process and cannot recover deferred decision authority
+  in a later CLI invocation. The documented alternatives are the localhost
+  Inbox before a decision and fresh localhost re-review after an interrupted
+  or deferred proposal; neither resumes or rewrites the original decision.
+
+- Remote GitHub delivery and Git identity/import adapters are documented as
+  design-only. The local projection/bundle remains implemented and GitHub
+  remains outside the local object/Ref/reflog authority; this release adds no
+  importer, GitHub App, remote publisher, or hosted service.
+
+## [0.10.0] - 2026-09-27
+
 ### Added
 
 - The release archive now bundles the mural tutorial runner
@@ -15,6 +52,41 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   can be completed from a freshly extracted archive alone, with the three
   binaries on `PATH` and no network access at run time. Archives at `v0.9.0`
   and earlier do not include them.
+
+- `synapse creator-report` accepts `--format text|json`. `--format json` prints
+  one private, local-only `"synapsegit-cli-creator-report-v1"` JSON document
+  (distinguishing absent/present/unavailable evidence such as generation
+  notes, decision pins, derived and 3-image-reuse provenance) to stdout with
+  diagnostics on stderr; verification failure never emits partial JSON.
+  Omitting `--format`, or passing `--format text`, keeps the existing
+  line-oriented text output unchanged. This is a separate, CLI-owned contract
+  from the public projection bundle (`synapse-present export ... --public`).
+
+- A creator pilot evaluation kit (`docs/evaluation/creator-pilot/v1/`) gives a
+  creator considering SynapseGit a bilingual task sheet and comprehension
+  questions for their own first recorded decision (import, compare,
+  Adopt/Reject/Defer with a rationale, read back), a facilitator guide with
+  separate check-points and observation items, and an empty per-session
+  result template. It ships as documentation only, with no new scorer or
+  schema, and a maintainer rehearsal on synthetic tutorial material that is
+  explicitly not a real-user evaluation.
+
+- SynapseGit Local now lets a person select Japanese or English in the page
+  header. The explicit browser preference takes priority over `Accept-Language`
+  and persists across page navigation and reloads; Japanese remains the
+  fallback. Application labels, accessible names, image alternatives, and
+  client messages follow the selected language. User-supplied and stored text,
+  API identifiers, and error codes remain unchanged.
+
+### Changed
+
+- The Japanese intended-user scenario deck (`docs/presentations/synapsegit_user_scenarios_ja.pptx`)
+  now matches v0.9.0: it distinguishes the loopback-only localhost creator UI and byte-identity
+  Analysis, which are usable today, from capture tooling, pixel-level comparison, a
+  general-purpose creator application, and production HTTP/JWT auth, which remain unimplemented.
+  A new "MECHANISM" slide walks through the concrete Original/Current/AI-attributed-proposal flow
+  from the mural tutorial. The deck now links to a fixed `v0.9.0` release tag instead of `main`
+  and states its target version and confirmation date.
 
 ## [0.9.0] - 2026-09-26
 
@@ -450,7 +522,9 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/howlrs/synapsegit/compare/v0.10.0...v0.11.0
+[0.10.0]: https://github.com/howlrs/synapsegit/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/howlrs/synapsegit/compare/v0.8.1...v0.9.0
 [0.8.1]: https://github.com/howlrs/synapsegit/compare/v0.8.0...v0.8.1
 [0.8.0]: https://github.com/howlrs/synapsegit/compare/v0.7.0...v0.8.0
