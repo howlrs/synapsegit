@@ -2,7 +2,7 @@
 
 [日本語](./creator_workflow.md)
 
-This focused guide is for the v0.11.1 release binary. It explains the path
+This focused guide is for the v0.12.0 release binary. It explains the path
 after the [15-minute mural tutorial](./tutorial/README.md): record your own
 three images, keep optional private notes, make a Human Decision, and begin a
 fresh review when another candidate is needed.
@@ -71,7 +71,17 @@ per-pin adoption, partial adoption, or editing/reopening of the same session.
 Pending review authority is process-local: after a restart, do not recreate it
 from values displayed in the browser.
 
-The completed page shows the notes, rationale, and pins. The CLI report also
+The completed page shows the notes, rationale, and pins. Its **Save private
+record (JSON)** control fetches the existing authenticated session-detail endpoint again
+and downloads the fresh native complete response unchanged:
+`{"state":"complete","report":{...}}`. It is shown only for a complete
+session; it is absent while a review is pending or incomplete, and it produces
+no file if the fresh verification fails. The response can contain private
+rationale, `generation_note`, pins or annotations, internal identifiers, and
+source lineage when present. Keep it private. It is neither a public bundle nor
+a repository backup, and it is not interchangeable with the CLI JSON document.
+
+The CLI report also
 shows generation notes as `generation_note_user_declared` and valid pins as
 `decision_pins_private`:
 

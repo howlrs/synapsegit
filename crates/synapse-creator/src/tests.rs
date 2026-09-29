@@ -1,8 +1,8 @@
 use crate::io::put_json;
 use crate::records::{actor_record, manifest_tree};
 use crate::report::{
-    creator_report_from_snapshot_with_limits, load_base_snapshot_pointers,
-    validate_byte_identity_metric,
+    byte_identity_implementation_evidence_is_accepted, creator_report_from_snapshot_with_limits,
+    load_base_snapshot_pointers, validate_byte_identity_metric,
 };
 use crate::session::{
     COMPARISON_ANALYSIS_ENTRY, COMPARISON_CONFIGURATION_ENTRY, COMPARISON_IMPLEMENTATION_ENTRY,
@@ -159,6 +159,31 @@ fn byte_identity_metric_rejects_extra_semantic_claims() {
             json!({ "mantissa": "1", "scale": 0, "unit": "unitless" }),
         );
     assert!(validate_byte_identity_metric(&payload, true).is_err());
+}
+
+#[test]
+fn byte_identity_implementation_evidence_accepts_only_bound_audited_oids() {
+    let current = synapse_observation::byte_identity_implementation_oid();
+    let historic =
+        "blob:sg-oid-v1:sha256:502facc39cce7dc4c6e3ca0ff77ba3a3a4c88d712d5f87505aec92edb58863b0";
+    let unknown =
+        "blob:sg-oid-v1:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+
+    assert!(byte_identity_implementation_evidence_is_accepted(
+        &current, &current
+    ));
+    assert!(byte_identity_implementation_evidence_is_accepted(
+        historic, historic
+    ));
+    assert!(!byte_identity_implementation_evidence_is_accepted(
+        unknown, unknown
+    ));
+    assert!(!byte_identity_implementation_evidence_is_accepted(
+        &current, historic
+    ));
+    assert!(!byte_identity_implementation_evidence_is_accepted(
+        historic, &current
+    ));
 }
 
 #[test]

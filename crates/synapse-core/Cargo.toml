@@ -1,6 +1,6 @@
 [package]
 name = "synapse-core"
-version = "0.11.1"
+version = "0.12.0"
 description = "Integrated local repository and archive boundary for SynapseGit Core"
 edition.workspace = true
 repository.workspace = true

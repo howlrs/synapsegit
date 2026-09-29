@@ -100,6 +100,8 @@ pub(crate) struct SessionTemplate<'a> {
     pub(crate) diagnostic_proposal_head: &'a str,
     pub(crate) diagnostic_decision_ref: &'a str,
     pub(crate) diagnostic_decision_head: &'a str,
+    pub(crate) report_proposal_head: &'a str,
+    pub(crate) report_decision_head: &'a str,
     pub(crate) derived_sessions: &'a [String],
 }
 

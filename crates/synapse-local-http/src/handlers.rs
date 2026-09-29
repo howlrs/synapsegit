@@ -1437,6 +1437,8 @@ pub(crate) async fn session_page(
             diagnostic_proposal_head: &view.diagnostic_proposal_head,
             diagnostic_decision_ref: &view.diagnostic_decision_ref,
             diagnostic_decision_head: &view.diagnostic_decision_head,
+            report_proposal_head: &view.report_proposal_head,
+            report_decision_head: &view.report_decision_head,
             derived_sessions: &derived_sessions,
         },
     )

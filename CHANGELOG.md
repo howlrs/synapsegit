@@ -6,6 +6,27 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+## [0.12.0] - 2026-09-30
+
+### Added
+
+- A completed Creator session page can download its freshly verified private
+  native JSON response from the existing authenticated session-detail endpoint.
+  The download has the raw `{ "state": "complete", "report": { ... } }`
+  response shape and may include private Human Decision rationale,
+  user-declared generation notes, annotations or pins, internal identifiers,
+  and source lineage. Pending and incomplete sessions have no control, and a
+  failed fresh verification produces no download. This is neither a public
+  bundle nor a repository backup, and it is separate from the CLI-owned
+  `creator-report --format json` document.
+
+### Fixed
+
+- The audited v0.11.1 archive report path preserves existing private report
+  JSON fields through current restore, `fsck`, and report reading. This
+  regression fix covers the audited fixture and does not promise general
+  backward compatibility.
+
 ## [0.11.1] - 2026-09-27
 
 ### Changed
@@ -536,7 +557,8 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.11.1...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/howlrs/synapsegit/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/howlrs/synapsegit/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/howlrs/synapsegit/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/howlrs/synapsegit/compare/v0.9.0...v0.10.0

@@ -2,8 +2,8 @@
 
 English: [Creator workflow](./creator_workflow.en.md).
 
-対象はv0.11.1です。生成メモはv0.11.0、判断ピン・通常の派生セッション・公開用文章フォームはv0.8.0で導入されました。中断／Deferからの新しい再レビューと任意のInbox取り込みも利用できます。
-v0.11.1 release binaryを[install guide](install.md)から導入するか、
+対象はv0.12.0です。生成メモはv0.11.0、判断ピン・通常の派生セッション・公開用文章フォームはv0.8.0で導入されました。中断／Deferからの新しい再レビューと任意のInbox取り込みも利用できます。
+v0.12.0 release binaryを[install guide](install.md)から導入するか、
 [source build](quickstart.md#1-build-する)で作成した`synapse-local`を
 [localhost runbook](../deploy/local/README.md)に従って起動してください。
 
@@ -41,7 +41,8 @@ pending reviewはサーバープロセス内に限られ、再起動後の再開
 
 ## 3. 完了した記録を読み返す
 
-完了画面では生成メモ、判断理由、ピンをそれぞれ確認できます。CLIでは次を実行します。
+完了画面では生成メモ、判断理由、ピンをそれぞれ確認できます。**非公開の記録を保存（JSON）**は、操作時に既存の認証付きsession detailを改めて読み、検証済みのcomplete response
+`{"state":"complete","report":{...}}`をそのまま保存します。pending／incompleteではこの操作を表示せず、再取得した記録の検証に失敗した場合はfileを出力しません。存在する場合、Human Decisionの理由、`generation_note`、annotation／pin、internal ID、source lineageを含む非公開の記録になります。public bundleやrepository backupではなく、CLIのJSON documentと互換・交換可能な形式でもありません。共有前に内容と共有先を確認してください。CLIでは次を実行します。
 
 ```sh
 synapse creator-report /path/to/repo session-1
