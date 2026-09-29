@@ -6,7 +6,7 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
-## [0.12.0] - 2026-09-29
+## [0.12.0] - 2026-09-30
 
 ### Added
 

@@ -3,7 +3,7 @@
 Audience: maintainer、release担当、公開文書を更新するcontributor
 Status: Stage 0運用runbook
 Applies to: v0.12.0 release preparation
-Last verified: 2026-09-29
+Last verified: 2026-09-30
 
 この文書は、SynapseGitを「GitHub上で見つける」「現在の用途を判断する」「安全に試す」までの
 公開導線とrelease手順を定義する。protocolの規範仕様ではない。

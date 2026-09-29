@@ -3,7 +3,7 @@
 Audience: preview evaluators、contributors、maintainers
 Status: public project snapshot
 Applies to: v0.12.0 release
-Last verified: 2026-09-29
+Last verified: 2026-09-30
 
 SynapseGit Coreは**Stage 0 draft**である。v0.12.0は、v0.3.0で配布したlocal repository、bounded
 creator Pilot、localhost import／review／diagnostics／`fsck`、read-only publication bundleの三binary
