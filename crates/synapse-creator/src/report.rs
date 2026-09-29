@@ -25,6 +25,26 @@ use synapse_projection::{
 };
 use synapse_sqlite::RefSnapshot;
 
+// Source provenance: SynapseGit v0.11.1, commit
+// 8ff4df29c4817869d47c85967d6548891fbf0846.  Its byte-identity implementation
+// source bundle has this exact CAS OID.  This deliberately remains a small,
+// audited release-baseline allowlist; archived bytes and their OIDs are never
+// normalized or recomputed by the report reader.
+const HISTORIC_BYTE_IDENTITY_IMPLEMENTATION_OIDS: &[&str] =
+    &["blob:sg-oid-v1:sha256:502facc39cce7dc4c6e3ca0ff77ba3a3a4c88d712d5f87505aec92edb58863b0"];
+
+/// Accept a current implementation bundle or an explicitly audited historical
+/// release bundle, while requiring the Tree pointer and analysis lineage to
+/// bind to the same exact object.
+pub(crate) fn byte_identity_implementation_evidence_is_accepted(
+    pointer_implementation_oid: &str,
+    lineage_implementation_oid: &str,
+) -> bool {
+    pointer_implementation_oid == lineage_implementation_oid
+        && (pointer_implementation_oid == byte_identity_implementation_oid()
+            || HISTORIC_BYTE_IDENTITY_IMPLEMENTATION_OIDS.contains(&pointer_implementation_oid))
+}
+
 /// Rebuild a creator report from current Refs and CAS.
 pub fn creator_report(repository_path: impl AsRef<Path>, session: &str) -> Result<CreatorReport> {
     validate_session(session)?;
@@ -1469,11 +1489,11 @@ fn validate_comparison_report(
             "byte-identity AnalysisResult adapter declaration is invalid".into(),
         ));
     }
-    let expected_implementation_oid = byte_identity_implementation_oid();
     let expected_configuration_oid = byte_identity_configuration_oid();
-    if pointers.implementation_oid != expected_implementation_oid
-        || pointers.configuration_oid != expected_configuration_oid
-        || lineage.adapter.implementation.oid != expected_implementation_oid
+    if !byte_identity_implementation_evidence_is_accepted(
+        &pointers.implementation_oid,
+        &lineage.adapter.implementation.oid,
+    ) || pointers.configuration_oid != expected_configuration_oid
         || lineage.adapter.configuration.oid != expected_configuration_oid
         || lineage.adapter.implementation.kind != ObjectKind::Blob
         || lineage.adapter.configuration.kind != ObjectKind::Blob

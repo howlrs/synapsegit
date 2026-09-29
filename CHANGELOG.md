@@ -20,6 +20,13 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   bundle nor a repository backup, and it is separate from the CLI-owned
   `creator-report --format json` document.
 
+### Fixed
+
+- The audited v0.11.1 archive report path preserves existing private report
+  JSON fields through current restore, `fsck`, and report reading. This
+  regression fix covers the audited fixture and does not promise general
+  backward compatibility.
+
 ## [0.11.1] - 2026-09-27
 
 ### Changed
