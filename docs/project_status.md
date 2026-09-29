@@ -2,15 +2,15 @@
 
 Audience: preview evaluators、contributors、maintainers
 Status: public project snapshot
-Applies to: v0.12.0 release
+Applies to: v0.13.0 release
 Last verified: 2026-09-30
 
-SynapseGit Coreは**Stage 0 draft**である。v0.12.0は、v0.3.0で配布したlocal repository、bounded
+SynapseGit Coreは**Stage 0 draft**である。v0.13.0は、v0.3.0で配布したlocal repository、bounded
 creator Pilot、localhost import／review／diagnostics／`fsck`、read-only publication bundleの三binary
 surfaceを維持しつつ、generic regular-file application boundaryをtagged sourceで評価するprereleaseである。
 production-readyなcreator applicationやmulti-user serviceではない。
 
-tagged v0.12.0 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
+tagged v0.13.0 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
 boundaryが含まれる。これはdeterministic mapper／bounded checkout、固定v1 JSON contract、sequential
 Proposal／Decision workflow、host-authenticated one-shot approval、Proposal／Decision CAS前後を別SQLite
 journalへ結ぶ明示的なrestart recovery／reconciliation orchestration、local public projectionである。
@@ -35,6 +35,7 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 - header選択式の日本語・英語localhost UI。選択はbrowser cookieに保持し、対応する`Accept-Language`、日本語の順で解決する。利用者入力・保存済みtext、API identifier、error codeは翻訳しない
 - pending／complete sessionで、表示可能な2画像の選択、全体表示／100%／200%拡大、同寸法画像の重ね表示と0〜100%の不透明度、keyboard操作、狭い画面の縦配置を提供するread-only比較ビュー（位置合わせ・差分解析は行わない）
 - プロジェクト画面では未検証のbounded（最大200件）セッション概要をレビュー待ち優先・最近のRef更新順で表示し、状態／判断で絞り込める。概要にはSubject、Creator、判断、ordering time／time basis、派生元を含み、理由本文は表示しない
+- 一覧外のsessionは、JavaScriptを有効にした**名前でセッションを開く**で完全一致の名前から開ける。1〜64文字の小文字開始の英数字・ハイフンだけを受けるcase-sensitive strict slugであり、検索や一覧の上限拡大ではない。存在しない名前は既存のsession-not-found errorになる
 - 完了セッションには派生先への逆リンクを表示し、取り込みとセッション一覧を保守操作より先に配置する。fsck／archive操作の確認強度は変更しない
 - boundedな三file importとsame-process Human reviewを行うlocalhost creator UI
 - 任意の`--import-root PROJECT=INBOX`で有効になる、script出力のboundedな確認・一時保持・明示的な新規Proposal取り込み
@@ -76,7 +77,7 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
   machine-readable質問／oracle、privacy canary、静的accessibility baseline
 - 英語tutorialから続けるCreator workflow／public-text／privacy/trustのfocused documentation path、および実制作Pilot用の日本語開始前チェックリストと振り返りテンプレート
 - GitHub projectionとGit identity/importは設計済みで、GitHubをobject／Ref／reflogのauthorityにしない。Git importer、GitHub App、remote publish、hosted serviceは未実装
-- Linux x86_64 GNU向けv0.12.0 prerelease archive、checksum、build attestation
+- Linux x86_64 GNU向けv0.13.0 prerelease archive、checksum、build attestation
 - 既存repository向け操作は未作成・不完全なrepositoryを拒否。新規作成は`synapse init`／`creator-run`、または空directoryを登録した`synapse-local`で可能
 - tracked Bash fence、Cargo direct-dependency図、OpenAPI revision registry、archive／generation browser flow、publication HTMLのrelease gate
 
@@ -147,15 +148,15 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 
 | Item | Status |
 |---|---|
-| Localhost Inbox and fresh interrupted/Defer review | Included in v0.12.0; explicit Human review, no source decision rewrite |
+| Localhost Inbox and fresh interrupted/Defer review | Included in v0.13.0; explicit Human review, no source decision rewrite |
 | Public repository | Available |
-| v0.12.0 GitHub prerelease | Available after the tag workflow publishes it |
+| v0.13.0 GitHub prerelease | Available after the tag workflow publishes it |
 | Linux x86_64 GNU binary | Available after the tag workflow; glibc 2.34+ |
 | Source build from fixed tag | Available after the tag workflow; Rust 1.88+ |
 | SHA-256 release checksum | Available after the tag workflow |
-| Build provenance attestation | Generated for the v0.12.0 archive by the tag workflow |
-| `synapse-present` binary | Included in v0.12.0; local generation only, with no remote publish |
-| Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v0.12.0 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
+| Build provenance attestation | Generated for the v0.13.0 archive by the tag workflow |
+| `synapse-present` binary | Included in v0.13.0; local generation only, with no remote publish |
+| Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v0.13.0 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
 | crates.io / GHCR / OS packages | Intentionally unavailable in Stage 0 |
 | Source use, Fork, and redistribution terms | Custom source-available license available; not open source |
 
@@ -163,7 +164,7 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 incomplete-session diagnostics、bounded browser `fsck`を含む。review authorityとmaintenance
 job stateはprocess-localであり、process restartを越えて再開できない。`synapse-present`も
 v0.3.0で導入された三binary構成をv0.4.0 archiveで維持するが、生成物のremote upload／publishは行わない。
-generic artifact C1 library／schema／local projectionはv0.12.0 tagged sourceのworkspace libraryであり、
+generic artifact C1 library／schema／local projectionはv0.13.0 tagged sourceのworkspace libraryであり、
 archiveのbinary数や既存binaryのHTTP／CLI／UI capabilityを変更しない。source-available licenseの
 production／distribution／brand制限も変更しない。
 

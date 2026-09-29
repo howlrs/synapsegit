@@ -27,6 +27,7 @@ const CREATOR_TEXT_FIELDS = new Map([
 const CREATOR_UPLOADS = new Map();
 const CREATOR_FILE_FIELDS = new Set(["original_image", "current_image", "ai_output"]);
 const UTF8_ENCODER = new TextEncoder();
+const CREATOR_SESSION_SLUG = /^[a-z][a-z0-9-]{0,63}$/u;
 
 // Interface messages keyed by stable identifiers. Each entry keeps Japanese
 // and English together; `node scripts/test_local_app.mjs` checks that both
@@ -793,6 +794,8 @@ export function enhanceImageComparison(root = document) {
 
 function enhanceCreatorSessionFilter(root = document) {
   const list = root.querySelector("[data-creator-session-list]");
+  if (!list) return;
+  enhanceCreatorSessionLocator(list);
   const filter = list?.querySelector("[data-creator-session-filter]");
   const count = list?.querySelector("[data-creator-session-count]");
   if (!filter || !count) return;
@@ -812,6 +815,39 @@ function enhanceCreatorSessionFilter(root = document) {
   filter.addEventListener("change", applyFilter);
   window.addEventListener("pageshow", applyFilter);
   applyFilter();
+}
+
+function enhanceCreatorSessionLocator(list) {
+  const locator = list.querySelector("[data-creator-session-locator]");
+  const form = locator?.querySelector("[data-creator-session-locator-form]");
+  const input = form?.elements.namedItem("session_name");
+  const basePath = locator?.dataset.sessionBase;
+  if (!(form instanceof HTMLFormElement) || !(input instanceof HTMLInputElement) || !basePath) return;
+
+  let base;
+  try {
+    base = new URL(basePath, window.location.origin);
+  } catch {
+    return;
+  }
+  if (base.origin !== window.location.origin || base.pathname !== basePath || base.search || base.hash) return;
+
+  const updateValidity = () => {
+    input.setCustomValidity(CREATOR_SESSION_SLUG.test(input.value) ? "" : input.dataset.invalidMessage || "");
+  };
+  input.addEventListener("input", updateValidity);
+  form.addEventListener("submit", (event) => {
+    updateValidity();
+    if (!input.checkValidity()) {
+      event.preventDefault();
+      input.reportValidity();
+      return;
+    }
+    event.preventDefault();
+    const target = new URL(`${base.pathname}${encodeURIComponent(input.value)}`, window.location.origin);
+    if (target.origin === window.location.origin && target.pathname.startsWith(base.pathname)) window.location.assign(target.pathname);
+  });
+  locator.hidden = false;
 }
 
 // The local chooser hint matches the server's raster signature allowlist.

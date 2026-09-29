@@ -156,15 +156,17 @@ const VERIFY_PROMPT = `あなたは検証担当。${worktree} 内で CI 同等�
  5. RUSTDOCFLAGS="-D warnings" cargo +1.88.0 doc --workspace --no-deps --locked
  6. for s in scripts/*.mjs; do node --check "$s"; done
  7. for s in scripts/*.sh; do bash -n "$s"; done
- 8. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_core_fixtures.mjs
- 9. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_local_api.mjs
-10. node scripts/test_publication_comprehension_scorer.mjs
-11. node scripts/verify_docs.mjs
-12. node scripts/verify_license.mjs
-13. RUSTUP_TOOLCHAIN=1.88.0 node scripts/generate_third_party_notices.mjs --check
-14. node scripts/verify_mermaid.mjs (ネットワーク不可なら MERMAID_CLI=<ローカル mmdc> を試し、それも不可なら skipped)
-15. node scripts/manage_github_security.mjs --validate
-16. git diff --check (worktree 内)` + GUARDRAILS
+ 8. node scripts/compare_creator_reports.mjs --self-test
+ 9. node scripts/select_archive_compat_baseline.mjs --self-test
+10. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_core_fixtures.mjs
+11. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_local_api.mjs
+12. node scripts/test_publication_comprehension_scorer.mjs
+13. node scripts/verify_docs.mjs
+14. node scripts/verify_license.mjs
+15. RUSTUP_TOOLCHAIN=1.88.0 node scripts/generate_third_party_notices.mjs --check
+16. node scripts/verify_mermaid.mjs (ネットワーク不可なら MERMAID_CLI=<ローカル mmdc> を試し、それも不可なら skipped)
+17. node scripts/manage_github_security.mjs --validate
+18. git diff --check (worktree 内)` + GUARDRAILS
 
 phase('Verify')
 const verify = await agent(VERIFY_PROMPT, { label: 'verify:ci-parity', schema: VERIFY_SCHEMA, model: 'sonnet', effort: 'low' })

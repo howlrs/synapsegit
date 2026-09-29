@@ -6,6 +6,27 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+## [0.13.0] - 2026-09-30
+
+### Added
+
+- The local project dashboard can open a Creator session outside its bounded
+  200-summary display by its exact case-sensitive strict-slug name. This is a
+  JavaScript-assisted direct locator, not search or an expanded listing.
+  Invalid names are rejected in the browser and nonexistent names follow the
+  existing session-not-found error path. With JavaScript disabled, the dashboard
+  stays readable and explains that older sessions require JavaScript to open by
+  name.
+
+### Changed
+
+- Added archive upgrade regression baselines for the pinned v0.11.1 source and
+  the latest eligible local annotated ancestor release below the current CLI
+  version. The gate checks the current CLI version, preserves old native JSON
+  fields while allowing additive current fields, and verifies both archive
+  round trips. This is a focused test baseline, not a general stable
+  compatibility promise.
+
 ## [0.12.0] - 2026-09-30
 
 ### Added
@@ -557,7 +578,8 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/howlrs/synapsegit/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/howlrs/synapsegit/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/howlrs/synapsegit/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/howlrs/synapsegit/compare/v0.10.0...v0.11.0

@@ -129,6 +129,18 @@
 <section class="project-sessions" aria-labelledby="sessions-heading" data-creator-session-list>
   <div class="section-heading"><h2 id="sessions-heading">{{ m.project.sessions_heading }}</h2><span class="badge" data-creator-session-count>{{ m.count_sessions(sessions.len()) }}</span></div>
   <p class="field__hint">{{ m.project.sessions_help }}</p>
+  <section class="card" hidden data-creator-session-locator data-session-base="/projects/{{ project_key }}/creator-sessions/" aria-labelledby="session-locator-heading">
+    <h3 id="session-locator-heading">{{ m.project.locator_heading }}</h3>
+    <p class="field__hint">{{ m.project.locator_help }}</p>
+    <form data-creator-session-locator-form>
+      <label class="field" for="session-locator-name"><span>{{ m.project.locator_label }}</span>
+        <input id="session-locator-name" name="session_name" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" aria-describedby="session-locator-hint" data-invalid-message="{{ m.project.locator_invalid }}">
+      </label>
+      <p id="session-locator-hint" class="field__hint">{{ m.project.locator_hint }}</p>
+      <div class="actions"><button type="submit">{{ m.project.locator_submit }}</button></div>
+    </form>
+  </section>
+  <noscript><p class="field__hint">{{ m.project.locator_noscript }}</p></noscript>
   <label class="field"><span>{{ m.project.filter_label }}</span><select data-creator-session-filter><option value="all">{{ m.project.filter_all }}</option><option value="pending">{{ m.common.state_pending }}</option><option value="complete">{{ m.common.state_complete }}</option><option value="adopt">Adopt</option><option value="reject">Reject</option><option value="defer">Defer</option><option value="incomplete">{{ m.common.state_incomplete }}</option></select></label>
   {% if sessions.is_empty() %}
   <div class="empty-state"><h3>{{ m.project.no_sessions_heading }}</h3><p>{{ m.project.no_sessions_help }}</p></div>

@@ -358,6 +358,13 @@ message_section! {
         upload_noscript: "JavaScriptが無効なため、この画面はread-onlyです。安全なuploadにはprocess-local tokenを付けるJavaScriptが必要です。", "JavaScript is disabled, so this page is read-only. Safe uploads need JavaScript to attach the process-local token.";
         sessions_heading: "セッション", "Sessions";
         sessions_help: "レビュー待ちを優先し、履歴の更新が新しい順に最大200件を表示します。概要は未検証です。取得できない項目は推測せず、セッションを開いて詳細を検証・確認できます。記録日時は制作時刻を証明するものではありません。", "Shows up to 200 sessions: those awaiting review first, then by most recent history update. Summaries are unverified. Items that cannot be read are not guessed; open a session to verify its details. Recorded times do not prove when the work was made.";
+        locator_heading: "名前でセッションを開く", "Open a session by name";
+        locator_help: "一覧は最大200件です。古いセッションも、完全に一致する名前で開けます。", "The list shows at most 200 sessions. Open an older session by its exact name.";
+        locator_label: "セッション名", "Session name";
+        locator_submit: "セッションを開く", "Open session";
+        locator_hint: "小文字英数字とハイフン、1–64文字。大文字小文字を区別します。", "Lowercase letters, digits, and hyphens; 1–64 characters. Names are case-sensitive.";
+        locator_invalid: "小文字で始まり、小文字英数字またはハイフンだけを使った1–64文字の名前を入力してください。", "Enter a 1–64 character name that starts with a lowercase letter and uses only lowercase letters, digits, or hyphens.";
+        locator_noscript: "古いセッションを名前で開くにはJavaScriptを有効にしてください。一覧は最大200件です。", "Enable JavaScript to open an older session by name. The list shows at most 200 sessions.";
         filter_label: "状態・判断で絞り込む", "Filter by state or decision";
         filter_all: "すべて", "All";
         no_sessions_heading: "セッションはまだありません", "No sessions yet";

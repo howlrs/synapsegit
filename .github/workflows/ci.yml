@@ -55,6 +55,8 @@ jobs:
         run: |
           for script in scripts/*.mjs; do node --check "$script"; done
           bash -n scripts/*.sh
+          node scripts/compare_creator_reports.mjs --self-test
+          node scripts/select_archive_compat_baseline.mjs --self-test
           node scripts/verify_core_fixtures.mjs
           node scripts/verify_local_api.mjs
           node scripts/test_local_api_version.mjs
@@ -75,7 +77,10 @@ jobs:
           cargo build -p synapse-cli -p synapse-local-http --locked
           npm ci --prefix scripts/browser --ignore-scripts
           scripts/browser/node_modules/.bin/playwright install --with-deps chromium
-          npm --prefix scripts/browser test
+          npm --prefix scripts/browser test -- --workers=2
+
+      - name: Verify archive compatibility baselines
+        run: CARGO_NET_OFFLINE=false bash scripts/verify_archive_compatibility.sh target/debug/synapse
 
       - name: Verify the archive tutorial bundle
         run: |
