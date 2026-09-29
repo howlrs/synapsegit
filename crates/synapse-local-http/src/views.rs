@@ -199,6 +199,10 @@ pub(crate) struct SessionPageView {
     pub(crate) diagnostic_proposal_head: String,
     pub(crate) diagnostic_decision_ref: String,
     pub(crate) diagnostic_decision_head: String,
+    /// Complete-page bindings used by the private report download.  They are
+    /// rendered only as data attributes and compared with a fresh read.
+    pub(crate) report_proposal_head: String,
+    pub(crate) report_decision_head: String,
 }
 
 impl SessionPageView {
@@ -266,6 +270,8 @@ impl SessionPageView {
                     diagnostic_proposal_head: String::new(),
                     diagnostic_decision_ref: String::new(),
                     diagnostic_decision_head: String::new(),
+                    report_proposal_head: String::new(),
+                    report_decision_head: String::new(),
                 }
             }
             CreatorSessionDetail::Incomplete(incomplete) => {
@@ -348,6 +354,8 @@ impl SessionPageView {
                     diagnostic_proposal_head,
                     diagnostic_decision_ref,
                     diagnostic_decision_head,
+                    report_proposal_head: String::new(),
+                    report_decision_head: String::new(),
                 }
             }
         }
@@ -441,6 +449,8 @@ impl SessionPageView {
             diagnostic_proposal_head: String::new(),
             diagnostic_decision_ref: String::new(),
             diagnostic_decision_head: String::new(),
+            report_proposal_head: report.proposal_head,
+            report_decision_head: report.decision_head,
         }
     }
 

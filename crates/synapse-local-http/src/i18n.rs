@@ -429,6 +429,9 @@ message_section! {
         recorded_rationale: "記録された理由", "Recorded rationale";
         no_rationale: "理由は記録されていません。", "No rationale was recorded.";
         recorded_hint: "現在のRefsとCASから検証した記録です。理由は記録されたテキストであり、その内容の正しさを検証したものではありません。", "This record was verified from the current Refs and CAS. The rationale is recorded text; its content has not been checked for correctness.";
+        private_report_heading: "記録を保存", "Save this record";
+        private_report_help: "理由、生成メモ、ピン、内部識別子を含む場合がある非公開の記録を、ご自身で保管するために保存できます。画像やrepository全体は含まれないため、backupや公開・共有用のファイルではありません。", "Save a private record for your own keeping. It can include rationale, generation notes, pins, and internal identifiers. It contains neither images nor the whole repository, so it is not a backup or a file for publishing or sharing.";
+        private_report_download: "非公開の記録を保存（JSON）", "Save private record (JSON)";
         review_required: "Human reviewが必要です", "Human review required";
         source_before: "AI output sourceは ", "AI output source: ";
         source_after: " です。これはcaller-supplied inputであり、このlocalhost processや特定のmodelが生成したという主張ではありません。", ". This is caller-supplied input, not a claim that this localhost process or any particular model generated it.";

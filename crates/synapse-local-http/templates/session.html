@@ -33,6 +33,21 @@
   <p class="field__hint">{{ m.session.recorded_hint }}</p>
   <p class="field__hint">{{ m.common.decision_finality }}</p>
 </section>
+<section
+  class="card"
+  aria-labelledby="private-report-heading"
+  data-private-report
+  data-endpoint="/api/v1/projects/{{ project_key }}/creator-sessions/{{ session }}"
+  data-project-key="{{ project_key }}"
+  data-session="{{ session }}"
+  data-proposal-head="{{ report_proposal_head }}"
+  data-decision-head="{{ report_decision_head }}"
+>
+  <h2 id="private-report-heading">{{ m.session.private_report_heading }}</h2>
+  <p>{{ m.session.private_report_help }}</p>
+  <button type="button" data-private-report-download hidden>{{ m.session.private_report_download }}</button>
+  <p class="field__hint" data-private-report-status role="status" aria-live="polite"></p>
+</section>
 {% endif %}
 
 {% if pending %}

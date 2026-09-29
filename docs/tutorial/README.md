@@ -46,7 +46,7 @@ replaces an existing repository.
 ## 1. Record the proposal and Human Decision
 
 Run this command from the cloned SynapseGit repository, or from the extracted
-v0.11.1 release archive (it bundles the same
+v0.12.0 release archive (it bundles the same
 `docs/tutorial/assets/` paths; see `TUTORIAL.md` at the archive root), so the
 sample paths resolve:
 
@@ -118,7 +118,7 @@ effect when you move between pages or reload. Without one, the application
 uses a supported browser language preference and otherwise starts in Japanese.
 Only application labels and messages change: your subject, notes, rationale,
 stored history, API identifiers, and error codes remain exactly as recorded.
-The tagged v0.11.1 binary includes this language selector. A header choice is
+The tagged v0.12.0 binary includes this language selector. A header choice is
 retained in the browser and takes priority over `Accept-Language`.
 
 ![Actual SynapseGit Local overview generated from this tutorial repository](./assets/tutorial-overview.png)
@@ -133,6 +133,16 @@ Open the project and the completed session to inspect:
 - Proposal and Decision Refs;
 - the comparison limitation and replay readiness; and
 - the four-event timeline.
+
+On that completed session, choose **Save private record (JSON)** when you need a
+local copy for permitted private review. The browser refetches and verifies the
+existing authenticated session detail at click time, then saves the native
+`{"state":"complete","report":{...}}` response. It may contain the private
+rationale, `generation_note`, annotations or pins, internal identifiers, and
+source lineage. Do not use it as a public presentation bundle, a repository
+backup, or a replacement for `synapse creator-report --format json`. Pending
+and incomplete sessions do not show the control; a failed fresh read does not
+produce a file.
 
 To make a new decision in the browser, open a project, choose **Start a
 creator session**, add Original, Current, and AI output, then select **Create

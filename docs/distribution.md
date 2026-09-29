@@ -2,8 +2,8 @@
 
 Audience: maintainer、release担当、公開文書を更新するcontributor
 Status: Stage 0運用runbook
-Applies to: v0.11.1
-Last verified: 2026-09-27
+Applies to: v0.12.0 release preparation
+Last verified: 2026-09-29
 
 この文書は、SynapseGitを「GitHub上で見つける」「現在の用途を判断する」「安全に試す」までの
 公開導線とrelease手順を定義する。protocolの規範仕様ではない。
@@ -18,7 +18,7 @@ boundedな三file import、same-process Human review、read-only diagnostics、�
 `fsck`はv0.4.0にも収録される。この範囲に限ってwrite-capable／maintenance-capableである。
 
 v0.5.0でgeneric-artifact v1 workflow／schema／local projectionはtagged sourceのworkspace
-libraryとして固定され、v0.5.1、v0.6.0、v0.7.0、v0.8.0、v0.8.1、v0.9.0、v0.10.0、v0.11.0、v0.11.1にも引き継がれるが、release archiveの
+libraryとして固定され、v0.5.1、v0.6.0、v0.7.0、v0.8.0、v0.8.1、v0.9.0、v0.10.0、v0.11.0、v0.11.1、v0.12.0にも引き継がれるが、release archiveの
 利用者向けsurfaceには追加しない。generic-artifact用のHTTP／CLI／browser UI、新binary、remote
 publish adapterは提供しない。
 
@@ -43,7 +43,14 @@ v0.11.0から`creator-run --generation-note-file`でprivate・user-declaredな�
 focused documentation pathと、実制作Pilot用の日本語チェックリスト／振り返りテンプレートもtagged sourceに含む。
 CLIで取り込みと後日の判断を分ける経路、Git importer、GitHub App、remote publish、hosted serviceは追加しない。
 
-公開文面では、将来の利用構想とv0.11.1で実行できる能力を同じものとして表示しない。
+v0.12.0はcomplete Creator sessionで、既存の認証付きsession detailを操作時に改めて検証して読み、
+`{"state":"complete","report":{...}}`を非公開JSONとして保存できる。pending／incompleteには表示せず、
+再取得した記録の検証に失敗した場合は保存しない。理由、`generation_note`、annotation／pin、internal ID、
+source lineageを含み得る。このfileはpublic bundleでもrepository backupでもなく、CLIの
+`creator-report --format json` documentと交換可能な形式ではない。Core、OID、archive、API revision、
+CLI contract、public bundle formatを変更しない。
+
+公開文面では、将来の利用構想とv0.12.0で実行できる能力を同じものとして表示しない。
 
 ## 公開surface
 
@@ -118,7 +125,7 @@ GitHub SettingsのSocial previewへ明示的にuploadしない限り、repositor
 
 ## Release asset構成
 
-v0.11.1 archiveは、v0.10.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
+v0.12.0 archiveは、v0.11.1、v0.10.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
 generic-artifact v1のworkflow／schema／local projectionはtagged sourceに含まれるworkspace libraryであり、
 archiveへ第四のbinaryや既存binaryのgeneric HTTP／CLI／UI surfaceを追加しない。
 公開済みv0.6.0 archiveも同じ三binary構成であり、後から内容を変更しない。
@@ -293,7 +300,7 @@ license変更時は少なくとも次を同じPull Requestで更新する。
 
 - [Installation](./install.md)
 - [Project status](./project_status.md)
-- [Release notes](./releases/v0.11.1.md)
+- [Release notes](./releases/v0.12.0.md)
 - [Security model](./security_model.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Documentation index](./README.md)

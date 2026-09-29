@@ -9,6 +9,8 @@ const IMAGE_ELEMENTS = new Set();
 const IMAGE_REQUESTS = new Map();
 const IMAGE_URLS = new Map();
 const INLINE_IMAGES = new WeakSet();
+const PRIVATE_REPORT_URLS = new Set();
+const PRIVATE_REPORT_REQUESTS = new Set();
 const ALLOWED_RASTER_TYPES = new Set(["image/png", "image/jpeg", "image/gif", "image/webp"]);
 const ATTACHMENT_MEDIA_TYPE = "application/octet-stream";
 const MAX_IMAGE_BYTES = 64 * 1024 * 1024;
@@ -34,6 +36,9 @@ const MESSAGE_ENTRIES = [
   ["client.tokenInvalid", "ローカルブラウザーセッションのtokenがないか、不正です。ページを再読み込みしてください。", "The local browser session token is missing or invalid. Reload the page."],
   ["client.apiBaseInvalid", "設定されたAPI baseは同一originのpathである必要があります。", "The configured API base must be a same-origin path."],
   ["client.apiUrlInvalid", "APIへのrequestは同一originのAPI base内に限られます。", "API requests must stay within the same-origin API base."],
+  ["privateReport.preparing", "記録を確認しています…", "Checking private record…"],
+  ["privateReport.invalid", "記録を確認できませんでした。保存は開始していません。", "The private record could not be verified. Saving did not start."],
+  ["privateReport.started", "記録のダウンロードを開始しました。", "Private record download started."],
   ["error.withDetail", "{summary}（詳細: {detail}）", "{summary} (Details: {detail})"],
   ["error.generic", "要求を完了できませんでした。", "The request could not be completed."],
   ["error.http", "ローカルアプリケーションがHTTP {status}を返しました。", "The local application returned HTTP {status}."],
@@ -1645,6 +1650,114 @@ function enhanceCreatorPins(root = document) {
   }
 }
 
+function privateReportEndpoint(project, session) {
+  const base = getApiBase().pathname;
+  return `${base}/projects/${encodeURIComponent(project)}/creator-sessions/${encodeURIComponent(session)}`;
+}
+
+function isPrivateReportBinding(value) {
+  return typeof value === "string" && value.length > 0 && value.length <= 512 && !/[\r\n]/u.test(value);
+}
+
+function verifiedPrivateReport(text, { session, proposalHead, decisionHead }) {
+  let detail;
+  try {
+    detail = JSON.parse(text);
+  } catch {
+    return false;
+  }
+  const report = detail && typeof detail === "object" && !Array.isArray(detail) ? detail.report : null;
+  return (
+    detail?.state === "complete" &&
+    report && typeof report === "object" && !Array.isArray(report) &&
+    report.session === session &&
+    report.proposal_head === proposalHead &&
+    report.decision_head === decisionHead
+  );
+}
+
+function releasePrivateReportResources() {
+  for (const controller of PRIVATE_REPORT_REQUESTS) controller.abort();
+  PRIVATE_REPORT_REQUESTS.clear();
+  for (const objectUrl of PRIVATE_REPORT_URLS) URL.revokeObjectURL(objectUrl);
+  PRIVATE_REPORT_URLS.clear();
+}
+
+/** Download one freshly verified complete-session Local API response. */
+export function enhancePrivateReportDownload(root = document) {
+  const section = root.querySelector("[data-private-report]");
+  if (!(section instanceof HTMLElement) || section.dataset.privateReportEnhanced === "true") return;
+  const button = section.querySelector("[data-private-report-download]");
+  const status = section.querySelector("[data-private-report-status]");
+  const { endpoint, projectKey: project, session, proposalHead, decisionHead } = section.dataset;
+  if (!(button instanceof HTMLButtonElement) || !(status instanceof HTMLElement)) return;
+  section.dataset.privateReportEnhanced = "true";
+
+  const valid =
+    typeof endpoint === "string" &&
+    typeof project === "string" &&
+    /^[a-z][a-z0-9-]{0,63}$/u.test(project) &&
+    typeof session === "string" &&
+    /^[a-z][a-z0-9-]{0,63}$/u.test(session) &&
+    isPrivateReportBinding(proposalHead) &&
+    isPrivateReportBinding(decisionHead) &&
+    endpoint === privateReportEndpoint(project, session);
+  if (!valid) {
+    button.disabled = true;
+    status.textContent = t("privateReport.invalid");
+    return;
+  }
+  button.hidden = false;
+
+  let busy = false;
+  button.addEventListener("click", async () => {
+    if (busy) return;
+    busy = true;
+    button.disabled = true;
+    status.textContent = t("privateReport.preparing");
+    const controller = new AbortController();
+    PRIVATE_REPORT_REQUESTS.add(controller);
+    try {
+      const response = await apiFetch(endpoint, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        signal: controller.signal,
+      });
+      if (!response.ok) throw await responseProblem(response);
+      const contentType = response.headers.get("Content-Type")?.split(";", 1)[0].trim().toLowerCase();
+      if (contentType !== "application/json") throw new TypeError(t("privateReport.invalid"));
+      const text = await response.text();
+      if (!verifiedPrivateReport(text, { session, proposalHead, decisionHead })) {
+        throw new TypeError(t("privateReport.invalid"));
+      }
+      if (controller.signal.aborted) return;
+      const objectUrl = URL.createObjectURL(new Blob([text], { type: "application/json;charset=utf-8" }));
+      PRIVATE_REPORT_URLS.add(objectUrl);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = `${session}-private-report.json`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => {
+        URL.revokeObjectURL(objectUrl);
+        PRIVATE_REPORT_URLS.delete(objectUrl);
+      }, 1_000);
+      status.textContent = t("privateReport.started");
+    } catch (error) {
+      if (!(error instanceof DOMException && error.name === "AbortError")) {
+        status.textContent = error instanceof TypeError && error.message === t("privateReport.invalid")
+          ? error.message
+          : `${t("privateReport.invalid")} ${publicErrorMessage(error)}`;
+      }
+    } finally {
+      PRIVATE_REPORT_REQUESTS.delete(controller);
+      busy = false;
+      button.disabled = false;
+    }
+  });
+}
+
 function start() {
   document.documentElement.classList.add("has-js");
   preserveLanguageSwitchQuery();
@@ -1656,6 +1769,7 @@ function start() {
   enhanceImageComparison();
   enhanceApiImages();
   enhanceImportInbox();
+  enhancePrivateReportDownload();
 }
 
 // The server removes only `lang` while preserving other page parameters. A
@@ -1680,6 +1794,7 @@ if (document.readyState === "loading") {
 
 window.addEventListener("pagehide", releaseImageResources);
 window.addEventListener("pagehide", releaseCreatorPreviews);
+window.addEventListener("pagehide", releasePrivateReportResources);
 window.addEventListener("pageshow", (event) => {
   if (event.persisted) {
     enhanceApiImages();

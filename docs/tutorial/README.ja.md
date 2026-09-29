@@ -43,7 +43,7 @@ test ! -e "$SYNAPSE_TUTORIAL_REPO"
 ## 1. 提案とHuman Decisionを記録する
 
 sample pathを解決できるよう、cloneしたSynapseGit repository rootか、
-v0.11.1のrelease archiveを展開したdirectory(同じ
+v0.12.0のrelease archiveを展開したdirectory(同じ
 `docs/tutorial/assets/`のpathがarchiveにも同梱されます。archive rootの
 `TUTORIAL.md`を参照してください)で実行します。
 
@@ -110,7 +110,7 @@ page headerの**日本語**または**English**で表示言語を選択できま
 browserに保存され、page移動・reload後も維持されます。選択しない場合はbrowserの対応言語
 設定を使い、それもない場合は日本語です。変わるのはapplicationのlabelとmessageだけで、
 Subject、メモ、rationale、保存済み履歴、API identifier、error codeは記録どおりです。
-この表示言語選択はtagged v0.11.1 binaryに含まれます。headerの選択はbrowserに保持され、
+この表示言語選択はtagged v0.12.0 binaryに含まれます。headerの選択はbrowserに保持され、
 `Accept-Language`より優先されます。
 
 ![このtutorial repositoryから生成した実際のSynapseGit Local overview](./assets/tutorial-overview.png)
@@ -125,6 +125,12 @@ projectと完了sessionを開き、次を確認します。
 - Proposal／Decision Ref
 - comparison limitationとreplay readiness
 - 4 eventのtimeline
+
+この完了sessionでは**非公開の記録を保存（JSON）**を選べます。操作時に既存の認証付き
+session detailを改めて検証・取得し、`{"state":"complete","report":{...}}`をそのまま保存します。
+理由、`generation_note`、annotation／pin、internal ID、source lineageを含み得る非公開の記録です。
+public presentation bundle、repository backup、`synapse creator-report --format json`の代わりには使いません。
+pending／incompleteには操作を表示せず、再取得した記録の検証に失敗した場合はfileを出力しません。
 
 browserで新しい判断を作る場合は、projectを開いて**Creator session を開始**を選び、
 Original、Current、AI outputを追加して**Proposalを作成**します。review pageの**Adopt**、
