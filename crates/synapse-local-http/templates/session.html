@@ -46,6 +46,7 @@
   <h2 id="private-report-heading">{{ m.session.private_report_heading }}</h2>
   <p>{{ m.session.private_report_help }}</p>
   <button type="button" data-private-report-download hidden>{{ m.session.private_report_download }}</button>
+  <noscript><p class="field__hint">{{ m.session.private_report_noscript }}</p></noscript>
   <p class="field__hint" data-private-report-status role="status" aria-live="polite"></p>
 </section>
 {% endif %}

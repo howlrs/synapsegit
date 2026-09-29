@@ -6,9 +6,24 @@ const routeFor = (origin) => `${origin}/api/v1/projects/complete/creator-session
 test("a complete session saves its freshly checked private JSON without external requests", async ({ page, app }) => {
   await page.goto(`${app.origin}/projects/complete/creator-sessions/sample?lang=en`);
   await page.evaluate(() => {
+    const create = URL.createObjectURL.bind(URL);
     const revoke = URL.revokeObjectURL.bind(URL);
+    const click = HTMLAnchorElement.prototype.click;
+    window.__privateReportUrl = null;
     window.__privateReportRevoked = [];
+    URL.createObjectURL = blob => {
+      const url = create(blob);
+      if (blob.type.startsWith("application/json")) window.__privateReportUrl = url;
+      return url;
+    };
     URL.revokeObjectURL = url => { window.__privateReportRevoked.push(url); revoke(url); };
+    HTMLAnchorElement.prototype.click = function () {
+      click.call(this);
+      if (this.href === window.__privateReportUrl) {
+        // Hide the page in the same task as the download, before URL timers.
+        window.dispatchEvent(new Event("pagehide"));
+      }
+    };
   });
   await expect(page.getByRole("heading", { name: "Save this record", exact: true })).toBeVisible();
   const button = page.getByRole("button", { name: "Save private record (JSON)", exact: true });
@@ -31,8 +46,8 @@ test("a complete session saves its freshly checked private JSON without external
   expect(typeof detail.report.project_id).toBe("string");
   expect(typeof detail.report.creator_id).toBe("string");
   await expect(page.locator("[data-private-report-status]")).toHaveText("Private record download started.");
-  await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
-  expect(await page.evaluate(() => window.__privateReportRevoked.length)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => window.__privateReportUrl !== null
+    && window.__privateReportRevoked.includes(window.__privateReportUrl))).toBe(true);
   expect(external).toEqual([]);
 });
 
@@ -100,6 +115,9 @@ test("pending sessions do not offer a private report save action", async ({ page
   await page.getByRole("button", { name: "Proposalを作成", exact: true }).click();
   await page.waitForURL("**/creator-sessions/private-report-pending");
   await expect(page.locator("[data-private-report]")).toHaveCount(0);
+  await app.restart();
+  await page.goto(`${app.origin}/projects/reviews/creator-sessions/private-report-pending`);
+  await expect(page.locator("[data-private-report]")).toHaveCount(0);
 });
 
 test("the save control needs JavaScript and a double click reads only once", async ({ page, app, browser }) => {
@@ -108,6 +126,7 @@ test("the save control needs JavaScript and a double click reads only once", asy
     const reader = await context.newPage();
     await reader.goto(`${app.origin}/projects/complete/creator-sessions/sample`);
     await expect(reader.getByRole("button", { name: "非公開の記録を保存（JSON）", exact: true })).toBeHidden();
+    await expect(reader.getByText("記録を保存するにはJavaScriptを有効にしてください。", { exact: true })).toBeVisible();
   } finally {
     await context.close();
   }
