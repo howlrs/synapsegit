@@ -43,7 +43,7 @@ test ! -e "$SYNAPSE_TUTORIAL_REPO"
 ## 1. 提案とHuman Decisionを記録する
 
 sample pathを解決できるよう、cloneしたSynapseGit repository rootか、
-v0.12.0のrelease archiveを展開したdirectory(同じ
+v0.13.0のrelease archiveを展開したdirectory(同じ
 `docs/tutorial/assets/`のpathがarchiveにも同梱されます。archive rootの
 `TUTORIAL.md`を参照してください)で実行します。
 
@@ -110,7 +110,7 @@ page headerの**日本語**または**English**で表示言語を選択できま
 browserに保存され、page移動・reload後も維持されます。選択しない場合はbrowserの対応言語
 設定を使い、それもない場合は日本語です。変わるのはapplicationのlabelとmessageだけで、
 Subject、メモ、rationale、保存済み履歴、API identifier、error codeは記録どおりです。
-この表示言語選択はtagged v0.12.0 binaryに含まれます。headerの選択はbrowserに保持され、
+この表示言語選択はtagged v0.13.0 binaryに含まれます。headerの選択はbrowserに保持され、
 `Accept-Language`より優先されます。
 
 ![このtutorial repositoryから生成した実際のSynapseGit Local overview](./assets/tutorial-overview.png)

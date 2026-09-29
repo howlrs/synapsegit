@@ -92,6 +92,8 @@ const INSPECTORS = [
 担当: 軽量契約検証の実行 (cargo ビルドなし)。以下を順に実行し、fail したものを findings 化 (fail の出力要約を detail に)。全て pass なら info 1件で報告。
 - for s in scripts/*.mjs; do node --check "$s"; done
 - for s in scripts/*.sh; do bash -n "$s"; done
+- node scripts/compare_creator_reports.mjs --self-test
+- node scripts/select_archive_compat_baseline.mjs --self-test
 - node scripts/verify_docs.mjs
 - node scripts/verify_license.mjs
 - RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_core_fixtures.mjs
@@ -122,15 +124,17 @@ if (args === 'full' || (args && args.full === true)) {
  5. RUSTDOCFLAGS="-D warnings" cargo +1.88.0 doc --workspace --no-deps --locked
  6. for s in scripts/*.mjs; do node --check "$s"; done
  7. for s in scripts/*.sh; do bash -n "$s"; done
- 8. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_core_fixtures.mjs
- 9. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_local_api.mjs
-10. node scripts/test_publication_comprehension_scorer.mjs
-11. node scripts/verify_docs.mjs
-12. node scripts/verify_license.mjs
-13. RUSTUP_TOOLCHAIN=1.88.0 node scripts/generate_third_party_notices.mjs --check
-14. node scripts/verify_mermaid.mjs (ネットワーク不可なら MERMAID_CLI=<ローカル mmdc> を試し、それも不可なら skip と明記)
-15. node scripts/manage_github_security.mjs --validate
-16. git diff --check`, { label: 'verify:ci-parity', phase: 'Full verify', model: 'sonnet', effort: 'low' })
+ 8. node scripts/compare_creator_reports.mjs --self-test
+ 9. node scripts/select_archive_compat_baseline.mjs --self-test
+10. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_core_fixtures.mjs
+11. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_local_api.mjs
+12. node scripts/test_publication_comprehension_scorer.mjs
+13. node scripts/verify_docs.mjs
+14. node scripts/verify_license.mjs
+15. RUSTUP_TOOLCHAIN=1.88.0 node scripts/generate_third_party_notices.mjs --check
+16. node scripts/verify_mermaid.mjs (ネットワーク不可なら MERMAID_CLI=<ローカル mmdc> を試し、それも不可なら skip と明記)
+17. node scripts/manage_github_security.mjs --validate
+18. git diff --check`, { label: 'verify:ci-parity', phase: 'Full verify', model: 'sonnet', effort: 'low' })
 }
 
 const order = { high: 0, medium: 1, low: 2, info: 3 }

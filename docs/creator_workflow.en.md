@@ -2,7 +2,7 @@
 
 [日本語](./creator_workflow.md)
 
-This focused guide is for the v0.12.0 release binary. It explains the path
+This focused guide is for the v0.13.0 release binary. It explains the path
 after the [15-minute mural tutorial](./tutorial/README.md): record your own
 three images, keep optional private notes, make a Human Decision, and begin a
 fresh review when another candidate is needed.
@@ -37,6 +37,17 @@ they do not prove model execution or authorship. Limits are UTF-8 bytes:
 The project overview lists at most 200 unverified summaries, with pending
 reviews first and then recent Ref updates. Open a session page or run `fsck`
 to verify a record; notes and rationales are not shown in the overview.
+
+## Open an older session by name
+
+The project dashboard keeps its 200-summary limit. To open a session outside
+that list, use **Open a session by name** and enter its exact session name.
+Names are case-sensitive strict slugs: 1–64 characters, beginning with a
+lowercase letter and using only lowercase letters, digits, and hyphens. This
+opens one exact session; it does not search or enumerate more sessions. A name
+that does not exist follows the usual session-not-found error path. JavaScript
+is required for this control. Without it, the dashboard remains readable but
+cannot open an older session by name.
 
 The CLI can attach the same private note with a UTF-8 JSON file. For example,
 save `{"tool":"image editor","model":"model-a","prompt":"Restore the blue area","intent":"Compare a restrained option"}`

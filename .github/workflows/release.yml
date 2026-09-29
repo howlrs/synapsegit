@@ -55,6 +55,8 @@ jobs:
           cargo test --workspace --all-targets --locked
           cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
           RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
+          node scripts/compare_creator_reports.mjs --self-test
+          node scripts/select_archive_compat_baseline.mjs --self-test
           node scripts/verify_core_fixtures.mjs
           node scripts/verify_local_api.mjs
           node scripts/test_publication_comprehension_scorer.mjs
@@ -70,6 +72,9 @@ jobs:
           cargo build --release --locked -p synapse-cli --bin synapse
           cargo build --release --locked -p synapse-local-http --bin synapse-local
           cargo build --release --locked -p synapse-publication --bin synapse-present
+
+      - name: Verify archive compatibility baselines
+        run: CARGO_NET_OFFLINE=false bash scripts/verify_archive_compatibility.sh target/release/synapse
 
       - name: Smoke-test release binaries
         run: |

@@ -117,16 +117,19 @@ const verify = await agent(
  5. RUSTDOCFLAGS="-D warnings" cargo +1.88.0 doc --workspace --no-deps --locked
  6. for s in scripts/*.mjs; do node --check "$s"; done
  7. for s in scripts/*.sh; do bash -n "$s"; done
- 8. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_core_fixtures.mjs
- 9. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_local_api.mjs
-10. node scripts/test_publication_comprehension_scorer.mjs
-11. node scripts/verify_docs.mjs
-12. node scripts/verify_license.mjs
-13. RUSTUP_TOOLCHAIN=1.88.0 node scripts/generate_third_party_notices.mjs --check
-14. node scripts/verify_mermaid.mjs (ネットワーク不可なら MERMAID_CLI を試し、それも不可なら skipped)
-15. node scripts/manage_github_security.mjs --validate
-16. git diff --check
-17. 旧版数残存の再確認: 凍結領域・履歴以外の Markdown に ${version} より古い版数参照が残っていないか grep` + GUARDRAILS,
+ 8. node scripts/compare_creator_reports.mjs --self-test
+ 9. node scripts/select_archive_compat_baseline.mjs --self-test
+10. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_core_fixtures.mjs
+11. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_local_api.mjs
+12. node scripts/test_publication_comprehension_scorer.mjs
+13. node scripts/verify_docs.mjs
+14. node scripts/verify_license.mjs
+15. RUSTUP_TOOLCHAIN=1.88.0 node scripts/generate_third_party_notices.mjs --check
+16. node scripts/verify_mermaid.mjs (ネットワーク不可なら MERMAID_CLI を試し、それも不可なら skipped)
+17. node scripts/manage_github_security.mjs --validate
+18. CARGO_TARGET_DIR=${targetDir} cargo +1.88.0 build -p synapse-cli --bin synapse --locked && bash scripts/verify_archive_compatibility.sh ${targetDir}/debug/synapse
+19. git diff --check
+20. 旧版数残存の再確認: 凍結領域・履歴以外の Markdown に ${version} より古い版数参照が残っていないか grep` + GUARDRAILS,
   { label: 'verify:release-gate', schema: VERIFY_SCHEMA, model: 'sonnet', effort: 'low' }
 )
 

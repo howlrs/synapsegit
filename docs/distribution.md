@@ -2,7 +2,7 @@
 
 Audience: maintainer、release担当、公開文書を更新するcontributor
 Status: Stage 0運用runbook
-Applies to: v0.12.0 release preparation
+Applies to: v0.13.0 release preparation
 Last verified: 2026-09-30
 
 この文書は、SynapseGitを「GitHub上で見つける」「現在の用途を判断する」「安全に試す」までの
@@ -18,7 +18,7 @@ boundedな三file import、same-process Human review、read-only diagnostics、�
 `fsck`はv0.4.0にも収録される。この範囲に限ってwrite-capable／maintenance-capableである。
 
 v0.5.0でgeneric-artifact v1 workflow／schema／local projectionはtagged sourceのworkspace
-libraryとして固定され、v0.5.1、v0.6.0、v0.7.0、v0.8.0、v0.8.1、v0.9.0、v0.10.0、v0.11.0、v0.11.1、v0.12.0にも引き継がれるが、release archiveの
+libraryとして固定され、v0.5.1、v0.6.0、v0.7.0、v0.8.0、v0.8.1、v0.9.0、v0.10.0、v0.11.0、v0.11.1、v0.12.0、v0.13.0にも引き継がれるが、release archiveの
 利用者向けsurfaceには追加しない。generic-artifact用のHTTP／CLI／browser UI、新binary、remote
 publish adapterは提供しない。
 
@@ -43,14 +43,20 @@ v0.11.0から`creator-run --generation-note-file`でprivate・user-declaredな�
 focused documentation pathと、実制作Pilot用の日本語チェックリスト／振り返りテンプレートもtagged sourceに含む。
 CLIで取り込みと後日の判断を分ける経路、Git importer、GitHub App、remote publish、hosted serviceは追加しない。
 
-v0.12.0はcomplete Creator sessionで、既存の認証付きsession detailを操作時に改めて検証して読み、
+v0.13.0はcomplete Creator sessionで、既存の認証付きsession detailを操作時に改めて検証して読み、
 `{"state":"complete","report":{...}}`を非公開JSONとして保存できる。pending／incompleteには表示せず、
 再取得した記録の検証に失敗した場合は保存しない。理由、`generation_note`、annotation／pin、internal ID、
 source lineageを含み得る。このfileはpublic bundleでもrepository backupでもなく、CLIの
 `creator-report --format json` documentと交換可能な形式ではない。Core、OID、archive、API revision、
 CLI contract、public bundle formatを変更しない。
 
-公開文面では、将来の利用構想とv0.12.0で実行できる能力を同じものとして表示しない。
+v0.13.0では、project dashboardの最大200件の未検証概要を維持したまま、一覧外のsessionを
+**名前でセッションを開く**から完全一致の名前で直接開ける。名前は大文字小文字を区別する1〜64文字の
+strict slugで、小文字から始まり小文字英数字とハイフンだけを使う。検索や一覧の拡張ではなく、存在しない
+名前は既存のsession-not-found errorになる。操作にはJavaScriptが必要で、無効時も一覧は読めるが名前で
+古いsessionを開くことはできない。
+
+公開文面では、将来の利用構想とv0.13.0で実行できる能力を同じものとして表示しない。
 
 ## 公開surface
 
@@ -125,7 +131,7 @@ GitHub SettingsのSocial previewへ明示的にuploadしない限り、repositor
 
 ## Release asset構成
 
-v0.12.0 archiveは、v0.11.1、v0.10.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
+v0.13.0 archiveは、v0.11.1、v0.10.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
 generic-artifact v1のworkflow／schema／local projectionはtagged sourceに含まれるworkspace libraryであり、
 archiveへ第四のbinaryや既存binaryのgeneric HTTP／CLI／UI surfaceを追加しない。
 公開済みv0.6.0 archiveも同じ三binary構成であり、後から内容を変更しない。
@@ -201,10 +207,22 @@ node scripts/verify_mermaid.mjs
 node scripts/manage_github_security.mjs --validate
 git diff --check
 cargo build -p synapse-cli -p synapse-local-http --locked
+bash scripts/verify_archive_compatibility.sh target/debug/synapse
 npm ci --prefix scripts/browser --ignore-scripts
 scripts/browser/node_modules/.bin/playwright install --with-deps chromium
 npm --prefix scripts/browser test
 ```
+
+`verify_archive_compatibility.sh` first checks that the supplied binary matches
+the current `synapse-cli` version. It always tests the pinned v0.11.1 source
+baseline and also tests the latest eligible local annotated ancestor release
+below that version when distinct. It preserves old native JSON fields while
+allowing additive current fields, then verifies both archive round trips. This
+is a regression baseline, not a general stable compatibility promise. Local
+runs default to `CARGO_NET_OFFLINE=true` and require cached old-source
+dependencies. Controlled CI or release jobs can set `CARGO_NET_OFFLINE=false`;
+the archived old Cargo build may then download dependencies. Local `git archive`
+selection itself does not fetch or download commits.
 
 browser testはChromiumとbrowser dependencyを必要とする。詳細と一時成果物の扱いは
 [browser regression tests](../CONTRIBUTING.md#browser-regression-tests)を参照する。tag workflow自体は
@@ -300,7 +318,7 @@ license変更時は少なくとも次を同じPull Requestで更新する。
 
 - [Installation](./install.md)
 - [Project status](./project_status.md)
-- [Release notes](./releases/v0.12.0.md)
+- [Release notes](./releases/v0.13.0.md)
 - [Security model](./security_model.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Documentation index](./README.md)

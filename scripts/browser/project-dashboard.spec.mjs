@@ -3,11 +3,11 @@ import { test, expect } from "./fixtures.mjs";
 
 test("project dashboard keeps creation first and filters readable session summaries", async ({ page, app }, testInfo) => {
   await page.goto(`${app.origin}/projects/complete`);
-  await expect(page.getByRole("heading", { name: "セッション" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "セッション", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "メンテナンス", exact: true })).toBeVisible();
   await expect(page.locator("header.page-header").getByRole("link", { name: "公開用の制作ノートを作る" })).toBeVisible();
   const upload = page.getByRole("heading", { name: /Creator session を開始/ });
-  const sessions = page.getByRole("heading", { name: "セッション" });
+  const sessions = page.getByRole("heading", { name: "セッション", exact: true });
   const maintenance = page.getByRole("heading", { name: "リポジトリ整合性の確認" });
   expect(await upload.boundingBox()).toBeTruthy();
   expect((await sessions.boundingBox()).y).toBeGreaterThan((await upload.boundingBox()).y);
@@ -38,7 +38,7 @@ test("project dashboard remains readable without JavaScript", async ({ browser, 
   const context = await browser.newContext({ javaScriptEnabled: false });
   const page = await context.newPage();
   await page.goto(`${app.origin}/projects/complete`);
-  await expect(page.getByRole("heading", { name: "セッション" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "セッション", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "メンテナンス", exact: true })).toBeVisible();
   await expect(page.locator("header.page-header").getByRole("link", { name: "公開用の制作ノートを作る" })).toBeVisible();
   await expect(page.getByText("Comparison browser fixture")).toBeVisible();
