@@ -28,7 +28,7 @@ test("a complete session saves its freshly checked private JSON without external
   await expect(page.getByRole("heading", { name: "Save this record", exact: true })).toBeVisible();
   const button = page.getByRole("button", { name: "Save private record (JSON)", exact: true });
   const external = [];
-  page.on("request", request => { if (!request.url().startsWith(app.origin)) external.push(request.url()); });
+  page.on("request", request => { if (new URL(request.url()).origin !== app.origin) external.push(request.url()); });
   const requested = page.waitForRequest(request => request.url() === routeFor(app.origin));
   const downloaded = page.waitForEvent("download");
   await button.focus();
