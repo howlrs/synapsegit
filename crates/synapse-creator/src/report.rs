@@ -26,7 +26,7 @@ use synapse_projection::{
 use synapse_sqlite::RefSnapshot;
 
 // Source provenance: SynapseGit v0.11.1 (commit
-// 8ff4df29c4817869d47c85967d6548891fbf0846) and v0.12.0. Their audited
+// 8ff4df29c4817869d47c85967d6548891fbf0846), v0.12.0, and v0.13.0. Their audited
 // byte-identity source bundles differ only in the package manifest version.  This deliberately remains a small,
 // audited release-baseline allowlist; archived bytes and their OIDs are never
 // normalized or recomputed by the report reader.
@@ -35,6 +35,8 @@ const HISTORIC_BYTE_IDENTITY_IMPLEMENTATION_OIDS: &[&str] = &[
     "blob:sg-oid-v1:sha256:502facc39cce7dc4c6e3ca0ff77ba3a3a4c88d712d5f87505aec92edb58863b0",
     // v0.12.0
     "blob:sg-oid-v1:sha256:75a96747b5d794634369bcdbbd4f2a68a0cac65da9551889071f16359ac5fd54",
+    // v0.13.0
+    "blob:sg-oid-v1:sha256:42470f8fea88b2e5caa3ef5f6494105f3dce7ed17d39cc12a8912fca73419b53",
 ];
 
 /// Accept a current implementation bundle or an explicitly audited historical

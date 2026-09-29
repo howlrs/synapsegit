@@ -44,7 +44,10 @@ test("manifest-last inbox stages preview bytes before explicit Human Decision", 
   await page.waitForURL("**/creator-sessions/inbox-review");
   await page.getByLabel("Rationale（任意）", { exact: true }).fill("Inbox bytes reviewed.");
   page.once("dialog", dialog => dialog.accept());
+  const navigation = page.waitForEvent("framenavigated", { predicate: (frame) => frame === page.mainFrame() });
   await page.getByRole("button", { name: "Defer", exact: true }).click();
+  await navigation;
+  await page.waitForLoadState("domcontentloaded");
   await expect(page.getByRole("heading", { name: "記録した判断", exact: true })).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.locator("main").evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true);

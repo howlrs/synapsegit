@@ -6,6 +6,22 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+## [0.13.1] - 2026-09-30
+
+### Changed
+
+- Browser regression CI now uses optimized release binaries already required
+  for packaging. Assertions, timeouts, retries, and the default local debug
+  workflow are unchanged. This follows three navigation timeouts in the
+  v0.13.0 main CI.
+- The Inbox decision browser test now waits explicitly for the asynchronous
+  decision reload before checking the recorded heading, matching the existing
+  decision tests.
+- Audited the v0.13.0 Observation implementation bundle to confirm that its
+  prior archive report remains readable after this version bump. The archive
+  regression gate continues to validate pinned v0.11.1 and the latest eligible
+  annotated ancestor baseline, currently v0.13.0.
+
 ## [0.13.0] - 2026-09-30
 
 ### Added
@@ -578,7 +594,8 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.13.1...HEAD
+[0.13.1]: https://github.com/howlrs/synapsegit/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/howlrs/synapsegit/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/howlrs/synapsegit/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/howlrs/synapsegit/compare/v0.11.0...v0.11.1

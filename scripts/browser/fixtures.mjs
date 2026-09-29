@@ -6,7 +6,15 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
-const binaries = path.resolve(root, process.env.CARGO_TARGET_DIR || "target", "debug");
+const browserProfile = process.env.SYNAPSEGIT_BROWSER_PROFILE === undefined
+  ? "debug"
+  : process.env.SYNAPSEGIT_BROWSER_PROFILE;
+if (browserProfile !== "debug" && browserProfile !== "release") {
+  throw new Error(
+    `Invalid SYNAPSEGIT_BROWSER_PROFILE ${JSON.stringify(browserProfile)}; expected "debug" or "release"`,
+  );
+}
+const binaries = path.resolve(root, process.env.CARGO_TARGET_DIR || "target", browserProfile);
 const assets = path.join(root, "docs/tutorial/assets");
 export const original = path.join(assets, "mural-original.png");
 export const current = path.join(assets, "mural-current.png");

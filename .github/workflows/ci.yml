@@ -74,13 +74,13 @@ jobs:
 
       - name: Verify localhost browser workflows in Chromium
         run: |
-          cargo build -p synapse-cli -p synapse-local-http --locked
+          cargo build --release -p synapse-cli -p synapse-local-http --locked
           npm ci --prefix scripts/browser --ignore-scripts
           scripts/browser/node_modules/.bin/playwright install --with-deps chromium
-          npm --prefix scripts/browser test -- --workers=2
+          SYNAPSEGIT_BROWSER_PROFILE=release npm --prefix scripts/browser test -- --workers=2
 
       - name: Verify archive compatibility baselines
-        run: CARGO_NET_OFFLINE=false bash scripts/verify_archive_compatibility.sh target/debug/synapse
+        run: CARGO_NET_OFFLINE=false bash scripts/verify_archive_compatibility.sh target/release/synapse
 
       - name: Verify the archive tutorial bundle
         run: |

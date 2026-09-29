@@ -68,9 +68,17 @@ scripts/browser/node_modules/.bin/playwright install --with-deps chromium
 npm --prefix scripts/browser test
 ```
 
-If using a dedicated Cargo target directory, pass the same `CARGO_TARGET_DIR`
-to the build and browser test commands. Browser traces and screenshots from
-failures are written to ignored `scripts/browser/test-results/`.
+The local default uses Cargo's `debug` profile. To test release binaries, build
+and run with the matching browser profile:
+
+```bash
+CARGO_TARGET_DIR=/absolute/path/to/target cargo +1.88.0 build --release -p synapse-cli -p synapse-local-http --locked
+CARGO_TARGET_DIR=/absolute/path/to/target SYNAPSEGIT_BROWSER_PROFILE=release npm --prefix scripts/browser test
+```
+
+Use the same `CARGO_TARGET_DIR` for the build and browser test commands.
+Browser traces and screenshots from failures are written to ignored
+`scripts/browser/test-results/`.
 
 ## workspace map
 
