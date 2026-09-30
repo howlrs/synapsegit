@@ -21,6 +21,10 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   runner stall.
 - Dependabot groups compatible cargo updates and GitHub Actions updates into
   one monthly PR each, so one CI run and one notices refresh cover them.
+- The English derive and re-review browser tests use the same 120-second
+  timeout as the dedicated derive and re-review tests. They perform the same
+  review, decision, and follow-up session work, and both timed out at the
+  60-second default in the v0.13.0 main CI debug run.
 
 ## [0.13.1] - 2026-09-30
 
