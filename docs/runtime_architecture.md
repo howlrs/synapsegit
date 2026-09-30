@@ -174,6 +174,23 @@ OS／runtimeを束縛しないため、Projectionの`Ready`と同様にexact rep
 objectをCASへ書くがRefを更新しない。Refを公開するcallerは、AnalysisResultとObservationのoptional non-media
 dependencyを含むcandidate closureを検証してreachable snapshotへ結び付ける。
 
+creator reportのreaderは、implementation OIDが現在のbuildのbundleか、公開済みreleaseが記録したbundleで
+あることを要求する。後者は`crates/synapse-creator/src/report.rs`の監査済みallowlistに、release tagとOIDの
+組で列挙する。v0.1.0からv0.13.1までの全release tagで`src/byte_identity.rs`と`src/lib.rs`は同一であり、
+bundleの差はpackage manifest（毎releaseのversion、v0.2.0の`license-file`／`publish`、v0.5.0の`[lints]`／
+workspace `serde_json`）だけである。`scripts/verify_byte_identity_allowlist.mjs`は各tagのsourceからOIDを
+再計算する。CIとrelease workflowは、entryとtag sourceの不一致、および現在のversionより古い公開releaseの
+欠落を拒否する。readerは保存済みbundleのbytesを解析・正規化・再計算しない。どちらにも該当しないOIDは、
+他のcomparison evidenceが整合していれば`creator_implementation_unrecognized`で拒否する。新しいreleaseや
+未リリースのsource buildで作ったsessionが該当し、このcodeはデータ破損を示さない。
+
+bundle構成（`Cargo.toml`を含むv1 framing）は変えない（[#133](https://github.com/howlrs/synapsegit/issues/133)の判断）。
+manifestを外すと以後に記録するimplementation Blobのidentityが変わるため、code先行ではなくOID／identityに
+関わるspec判断として扱う。version bumpごとのOID変化は、上記verifierが登録漏れを機械的に検出する。
+保存済みBlobを解析して受け入れる方式は採らない。監査済みsource以外のmanifest（dependencyやfeature）を、
+reader側の判断で信頼することになるためである。bundle構成は、adapter versionを上げるsemantic変更の際に
+再検討する。
+
 Workstream Cで未実装なのは、Painting control／Building validation dataset、repeatable／calibrated CaptureProfileを
 使うcapture、pixel-level registration／diff、mask、照明／遮蔽／blur等の評価である。このbaselineを画像変化判定や
 registrationの代替として扱わない。

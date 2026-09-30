@@ -25,30 +25,94 @@ use synapse_projection::{
 };
 use synapse_sqlite::RefSnapshot;
 
-// Source provenance: SynapseGit v0.11.1 (commit
-// 8ff4df29c4817869d47c85967d6548891fbf0846), v0.12.0, and v0.13.0. Their audited
-// byte-identity source bundles differ only in the package manifest version.  This deliberately remains a small,
-// audited release-baseline allowlist; archived bytes and their OIDs are never
+// Byte-identity implementation bundles recorded by published SynapseGit
+// releases. Every annotated release tag from v0.1.0 through v0.13.1 embeds the
+// same `src/byte_identity.rs` and `src/lib.rs` bytes; the bundles differ only in
+// the package manifest (the version on every release, `license-file`/`publish`
+// in v0.2.0, and `[lints]`/workspace `serde_json` in v0.5.0).
+// `scripts/verify_byte_identity_allowlist.mjs` recomputes each OID from the
+// tagged source and fails when an entry drifts or a published release below the
+// current version is missing. This deliberately remains an audited
+// release-baseline allowlist; archived bytes and their OIDs are never
 // normalized or recomputed by the report reader.
-const HISTORIC_BYTE_IDENTITY_IMPLEMENTATION_OIDS: &[&str] = &[
-    // v0.11.1
-    "blob:sg-oid-v1:sha256:502facc39cce7dc4c6e3ca0ff77ba3a3a4c88d712d5f87505aec92edb58863b0",
-    // v0.12.0
-    "blob:sg-oid-v1:sha256:75a96747b5d794634369bcdbbd4f2a68a0cac65da9551889071f16359ac5fd54",
-    // v0.13.0
-    "blob:sg-oid-v1:sha256:42470f8fea88b2e5caa3ef5f6494105f3dce7ed17d39cc12a8912fca73419b53",
+pub(crate) const HISTORIC_BYTE_IDENTITY_IMPLEMENTATION_OIDS: &[(&str, &str)] = &[
+    (
+        "v0.1.0",
+        "blob:sg-oid-v1:sha256:cce835384026b51df3029211baab744540f2f3d12f12c52261ebb6d45a30eaa5",
+    ),
+    (
+        "v0.2.0",
+        "blob:sg-oid-v1:sha256:25a2cb13dba0dcc8d155e1d4f28e04d07a803b3e78c01eb8b4f4ed105ed22c70",
+    ),
+    (
+        "v0.3.0",
+        "blob:sg-oid-v1:sha256:22bc3d3931402be8d92e18203a1cde0f1e8d51c85cd5e49e4fc9eade94c30b3d",
+    ),
+    (
+        "v0.4.0",
+        "blob:sg-oid-v1:sha256:a4a9e304c0c87f3a2c870836f3ac134742ec6f44e345210e0404a42c271721a7",
+    ),
+    (
+        "v0.5.0",
+        "blob:sg-oid-v1:sha256:781d3068ccd92817f1c0a5ce0fdad89c87979efb3cd0613ecc76b75211ad88d1",
+    ),
+    (
+        "v0.5.1",
+        "blob:sg-oid-v1:sha256:d77d6e257de4f4c7fca11d5e980e1c555b809724dfff4927ff4149bb167cabc0",
+    ),
+    (
+        "v0.6.0",
+        "blob:sg-oid-v1:sha256:9c11ce860ba084ccad4154092274a6b738394a4616c45e9a8a36f105453d82f1",
+    ),
+    (
+        "v0.7.0",
+        "blob:sg-oid-v1:sha256:24efdda86c8d4a84179bc35249db203b8599e488953aba6411accc8840c16503",
+    ),
+    (
+        "v0.8.0",
+        "blob:sg-oid-v1:sha256:889e9bbbd06d3b0c7076f903110baa6d31edf98debb653c788164760b3f5ba19",
+    ),
+    (
+        "v0.8.1",
+        "blob:sg-oid-v1:sha256:09c8a160b8f14a3baa96f062d9e320bead098ec3ca57d26117cd05f2a5d40043",
+    ),
+    (
+        "v0.9.0",
+        "blob:sg-oid-v1:sha256:93b9b3f6264a8ebc2527cfb3a5b83ad1e5482e4c113df519932bbff110e21ad0",
+    ),
+    (
+        "v0.10.0",
+        "blob:sg-oid-v1:sha256:37061012c82acd5b86d28577890a7f32b7917adaa3cc88c2b1b04b619929445c",
+    ),
+    (
+        "v0.11.0",
+        "blob:sg-oid-v1:sha256:4490a6a014bbe51b87927cd5be47d5b4aa882ecf1234b6afd1c981db8a398ca8",
+    ),
+    (
+        "v0.11.1",
+        "blob:sg-oid-v1:sha256:502facc39cce7dc4c6e3ca0ff77ba3a3a4c88d712d5f87505aec92edb58863b0",
+    ),
+    (
+        "v0.12.0",
+        "blob:sg-oid-v1:sha256:75a96747b5d794634369bcdbbd4f2a68a0cac65da9551889071f16359ac5fd54",
+    ),
+    (
+        "v0.13.0",
+        "blob:sg-oid-v1:sha256:42470f8fea88b2e5caa3ef5f6494105f3dce7ed17d39cc12a8912fca73419b53",
+    ),
+    (
+        "v0.13.1",
+        "blob:sg-oid-v1:sha256:93b7f96bec0b2e80fb3a6ef6087af7f11d77daff36b6145095a273c2af30e180",
+    ),
 ];
 
-/// Accept a current implementation bundle or an explicitly audited historical
-/// release bundle, while requiring the Tree pointer and analysis lineage to
-/// bind to the same exact object.
-pub(crate) fn byte_identity_implementation_evidence_is_accepted(
-    pointer_implementation_oid: &str,
-    lineage_implementation_oid: &str,
-) -> bool {
-    pointer_implementation_oid == lineage_implementation_oid
-        && (pointer_implementation_oid == byte_identity_implementation_oid()
-            || HISTORIC_BYTE_IDENTITY_IMPLEMENTATION_OIDS.contains(&pointer_implementation_oid))
+/// Whether an implementation Blob OID names the current bundle or an audited
+/// published release bundle.
+pub(crate) fn byte_identity_implementation_is_recognized(implementation_oid: &str) -> bool {
+    implementation_oid == byte_identity_implementation_oid()
+        || HISTORIC_BYTE_IDENTITY_IMPLEMENTATION_OIDS
+            .iter()
+            .any(|(_, oid)| *oid == implementation_oid)
 }
 
 /// Rebuild a creator report from current Refs and CAS.
@@ -1496,10 +1560,8 @@ fn validate_comparison_report(
         ));
     }
     let expected_configuration_oid = byte_identity_configuration_oid();
-    if !byte_identity_implementation_evidence_is_accepted(
-        &pointers.implementation_oid,
-        &lineage.adapter.implementation.oid,
-    ) || pointers.configuration_oid != expected_configuration_oid
+    if pointers.implementation_oid != lineage.adapter.implementation.oid
+        || pointers.configuration_oid != expected_configuration_oid
         || lineage.adapter.configuration.oid != expected_configuration_oid
         || lineage.adapter.implementation.kind != ObjectKind::Blob
         || lineage.adapter.configuration.kind != ObjectKind::Blob
@@ -1712,6 +1774,13 @@ fn validate_comparison_report(
         ));
     }
     validate_byte_identity_metric(payload, outcome == "identical")?;
+    // Checked last so that this distinct rejection is reported only for
+    // otherwise consistent evidence, never in place of a structural mismatch.
+    if !byte_identity_implementation_is_recognized(&pointers.implementation_oid) {
+        return Err(CreatorError::UnrecognizedImplementation(
+            pointers.implementation_oid.clone(),
+        ));
+    }
 
     Ok(CreatorComparisonReport {
         analysis_oid: pointers.analysis_oid.clone(),

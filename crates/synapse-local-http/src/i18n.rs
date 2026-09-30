@@ -802,6 +802,10 @@ impl Messages {
                 "ローカルの保存データを読み込めませんでした。時間をおいて再読み込みしてください。",
                 "The local storage could not be read. Try reloading later.",
             ),
+            "creator_implementation_unrecognized" => self.pick(
+                "このセッションは、この版が認識しないSynapseGit（新しい版や未リリースのsource build）で作成されました。データの破損を示すものではありません。作成した版、またはそれ以降の版で開いてください。",
+                "This session was recorded by a SynapseGit build this version does not recognize, such as a newer release or an unreleased source build. This does not indicate damaged data. Open it with the recording build or a later release.",
+            ),
             "creator_report_invalid" | "fsck_failed" | "oid_mismatch" | "closure_missing"
             | "reference_type_mismatch" | "schema_invalid" => self.pick(
                 "記録を検証できませんでした。fsckで状態を確認してください。",

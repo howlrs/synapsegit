@@ -48,6 +48,71 @@ try {
   assert.notEqual(result.status, 0, "invalid bash syntax must fail");
   assert.ok(result.stderr.includes(`docs/cli_reference.md:${fenceLine} invalid bash block`), result.stderr);
 
+  fs.writeFileSync(reference, original);
+
+  // SECURITY.md must name the synapse-cli minor series as the supported row.
+  const security = path.join(fixture, "SECURITY.md");
+  const securityOriginal = fs.readFileSync(security, "utf8");
+  const supportedRow = /^\| Latest v\d+\.\d+\.x prerelease \|/mu;
+  assert.match(securityOriginal, supportedRow);
+  fs.writeFileSync(security, securityOriginal.replace(supportedRow, "| Latest v0.1.x prerelease |"));
+  result = verify();
+  assert.notEqual(result.status, 0, "a stale SECURITY.md support row must fail");
+  assert.match(result.stderr, /SECURITY\.md: Supported versions names Latest v0\.1\.x prerelease, but synapse-cli is /u);
+  fs.writeFileSync(security, securityOriginal);
+
+  // Release notes after v0.13.1 double as the archive README and must keep the
+  // verification, backup, and license essentials.
+  const cliManifest = path.join(fixture, "crates", "synapse-cli", "Cargo.toml");
+  const manifestOriginal = fs.readFileSync(cliManifest, "utf8");
+  const versionLine = /^version = "0\.(\d+)\.\d+"$/mu.exec(manifestOriginal);
+  assert.ok(versionLine, "synapse-cli must use a 0.y.z version");
+  const minor = Number(versionLine[1]) + 1;
+  const nextTag = `v0.${minor}.0`;
+  fs.writeFileSync(cliManifest, manifestOriginal.replace(versionLine[0], `version = "0.${minor}.0"`));
+  fs.writeFileSync(security, securityOriginal.replace(supportedRow, `| Latest v0.${minor}.x prerelease |`));
+  const notes = path.join(fixture, "docs", "releases", `${nextTag}.md`);
+  result = verify();
+  assert.notEqual(result.status, 0, "missing release notes must fail");
+  assert.ok(result.stderr.includes(`docs/releases/${nextTag}.md: release notes for the current synapse-cli version are missing`), result.stderr);
+
+  fs.writeFileSync(notes, [
+    `# SynapseGit ${nextTag} — Stage 0 preview`,
+    "",
+    "After the tag workflow publishes the prerelease, read the installation guide.",
+    "",
+  ].join("\n"));
+  result = verify();
+  assert.notEqual(result.status, 0, "incomplete release notes must fail");
+  for (const expected of [
+    "missing the rule not to extract or install an unverified archive",
+    "missing the export-before-update backup precaution",
+    "missing that the license is not OSI-approved",
+    "missing the separate written permission requirement",
+    "missing the THIRD_PARTY_NOTICES.md reference",
+    `missing the tag-pinned installation guide link https://github.com/howlrs/synapsegit/blob/${nextTag}/docs/install.md`,
+    "contains pre-publication wording",
+  ]) {
+    assert.ok(result.stderr.includes(`docs/releases/${nextTag}.md: ${expected}`), `${expected}\n${result.stderr}`);
+  }
+
+  fs.writeFileSync(notes, [
+    `# SynapseGit ${nextTag} — Stage 0 preview`,
+    "",
+    "Stop if either verification command fails. Do not extract or install an",
+    "unverified archive.",
+    `See the [installation guide](https://github.com/howlrs/synapsegit/blob/${nextTag}/docs/install.md).`,
+    "",
+    "Export important repositories with the old binary before updating so that a",
+    "known-good recovery copy remains available.",
+    "",
+    "It is not an OSI-approved open-source license. Commercial use requires separate written permission.",
+    "Third-party terms are reproduced in `THIRD_PARTY_NOTICES.md`.",
+    "",
+  ].join("\n"));
+  result = verify();
+  assert.equal(result.status, 0, `wrapped required prose must pass\n${result.stderr}`);
+
   console.log("docs_test_ok");
 } finally {
   fs.rmSync(temporary, { recursive: true, force: true });

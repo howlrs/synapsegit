@@ -319,7 +319,8 @@ length semantics.
 
 Errors use `application/problem+json` with `type`, `title`, `status`, stable
 `code`, safe `detail`, `request_id`, and `retryable`. Existing semantic codes,
-including `creator_session_*`, `creator_report_invalid`, `fsck_failed`,
+including `creator_session_*`, `creator_report_invalid`,
+`creator_implementation_unrecognized`, `fsck_failed`,
 `archive_invalid`, `archive_not_empty`, `resource_limit`, `ref_conflict`,
 `stale_base`, and `storage_error`, remain distinguishable. Filesystem paths,
 credentials, tokens, internal handles, SQL text, and raw nested error messages

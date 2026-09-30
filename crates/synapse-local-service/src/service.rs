@@ -3453,6 +3453,9 @@ fn creator_error(error: CreatorError) -> ServiceError {
         "creator_session_incomplete" => "The creator session is incomplete.",
         "resource_limit" => "The creator operation exceeded a configured resource limit.",
         "creator_report_invalid" => "The creator session report could not be validated.",
+        "creator_implementation_unrecognized" => {
+            "The creator session was recorded by a SynapseGit build this version does not recognize."
+        }
         "fsck_failed" => "Creator session integrity validation failed.",
         "ref_conflict" | "stale_base" => "The creator session changed before publication.",
         "authentication_required"
@@ -3481,6 +3484,7 @@ fn problem_title(code: &str) -> &'static str {
         "creator_session_exists" => "Creator session already exists",
         "creator_session_incomplete" => "Creator session incomplete",
         "creator_report_invalid" => "Creator report invalid",
+        "creator_implementation_unrecognized" => "Creator implementation unrecognized",
         "creator_review_busy" => "Creator review busy",
         "creator_review_state_lost" => "Creator review state lost",
         "creator_outcome_unknown" => "Creator outcome unknown",

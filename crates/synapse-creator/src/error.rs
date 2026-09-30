@@ -30,6 +30,9 @@ pub enum CreatorError {
     Json(serde_json::Error),
     Integrity(String),
     ReportInvalid(String),
+    /// Consistent byte-identity evidence whose implementation Blob OID is
+    /// neither the current bundle nor an audited published release bundle.
+    UnrecognizedImplementation(String),
 }
 
 impl CreatorError {
@@ -47,6 +50,7 @@ impl CreatorError {
             Self::Projection(error) => error.code(),
             Self::Json(_) | Self::ReportInvalid(_) => "creator_report_invalid",
             Self::Integrity(_) => "fsck_failed",
+            Self::UnrecognizedImplementation(_) => "creator_implementation_unrecognized",
         }
     }
 
@@ -87,6 +91,10 @@ impl fmt::Display for CreatorError {
             Self::Projection(error) => error.fmt(formatter),
             Self::Json(error) => write!(formatter, "invalid stored creator JSON: {error}"),
             Self::Integrity(message) | Self::ReportInvalid(message) => formatter.write_str(message),
+            Self::UnrecognizedImplementation(oid) => write!(
+                formatter,
+                "byte-identity implementation {oid} is not recognized by this build; the session may have been recorded by a newer release or an unreleased source build"
+            ),
         }
     }
 }

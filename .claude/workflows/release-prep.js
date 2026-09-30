@@ -93,11 +93,11 @@ const prep = await agent(
 ## 作業項目 (すべて同一ブランチ上)
 1. 全 15 クレート (crates/*/Cargo.toml) の version を ${bare} に統一。ワークスペース内クロス依存の version 指定があればそれも更新。
 2. Cargo.lock を更新: CARGO_TARGET_DIR=${targetDir} cargo +1.88.0 update --workspace を実行し、workspace メンバーの版のみ変わることを git diff で確認。
-3. docs/releases/${version}.md を新規作成 (既存リリースノートの構造 — Highlights / Install と検証手順 / Compatibility and migration / Known limits — に合わせる。Stage 0 preview の抑制的トーンを維持)。
+3. docs/releases/${version}.md を新規作成 (既存リリースノートの構造 — Highlights / Install と検証手順 / Compatibility and migration / Known limits — に合わせる。Stage 0 preview の抑制的トーンを維持)。このファイルは archive 同梱 README.md も兼ねるため、v0.13.0 の Install／Compatibility／License 節にある必須文 (検証失敗時は展開・install しない、更新前に旧 binary で export、license 要点と THIRD_PARTY_NOTICES.md、tag 固定の install guide link) を省かず、"After the tag workflow publishes" のような公開前の文面を書かない。node scripts/verify_docs.mjs が検査する。
 4. CHANGELOG.md: [Unreleased] の内容を [${bare}] - <今日の日付 (date +%F)> セクションへ移動し、空の [Unreleased] を残す。末尾の compare link 定義を更新。過去セクションは変更しない。
 5. README.md / README.ja.md のリリース参照 (版数・Release URL・checksum 手順の版数) を更新。両言語で同時に。
 6. docs/install.md / docs/project_status.md / docs/distribution.md の版数と Last verified を更新。
-7. SECURITY.md の Supported versions 表を ${version} 系に更新 (過去リリースで更新漏れの実績がある要注意項目)。
+7. SECURITY.md の Supported versions 表を ${version} 系に更新 (v0.11.0／v0.13.0／v0.13.1 で更新漏れの実績がある要注意項目。node scripts/verify_docs.mjs が synapse-cli の版数と照合する)。
 8. 旧版数の参照が他の Markdown に残っていないか grep で確認し、履歴・凍結領域以外は更新 (過去実績: docs/tutorial/README*.md, deploy/local/README.md に残存)。
 9. RUSTUP_TOOLCHAIN=1.88.0 node scripts/generate_third_party_notices.mjs --check を実行し、依存が変わっていれば --write で更新 (Gemini レビュー指摘による明示項目)。
 10. 変更を論理単位でローカルコミット (メッセージ例: "release: prepare ${version}")。push はしない。
@@ -118,7 +118,7 @@ const verify = await agent(
  6. for s in scripts/*.mjs; do node --check "$s"; done
  7. for s in scripts/*.sh; do bash -n "$s"; done
  8. node scripts/compare_creator_reports.mjs --self-test
- 9. node scripts/select_archive_compat_baseline.mjs --self-test
+ 9. node scripts/select_archive_compat_baseline.mjs --self-test && node scripts/verify_byte_identity_allowlist.mjs --self-test && node scripts/verify_byte_identity_allowlist.mjs
 10. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_core_fixtures.mjs
 11. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_local_api.mjs
 12. node scripts/test_publication_comprehension_scorer.mjs

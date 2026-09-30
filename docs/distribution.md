@@ -178,7 +178,11 @@ softwareが安全であることやownerの法的意思を代替しない。
 tagをpushする前に、次を満たす。
 
 1. root `LICENSE`、Cargo `license-file` metadata、README、archiveの条件が一致し、license verifierを通る。
-2. 全crate version、`docs/releases/vX.Y.Z.md`、`CHANGELOG.md`を更新する。
+2. 全crate version、`docs/releases/vX.Y.Z.md`、`CHANGELOG.md`、`SECURITY.md`のSupported versions表を更新する。
+   release notesはGitHub Release本文とarchive同梱の`README.md`を兼ねる。v0.13.2以降は、検証に失敗した
+   archiveを展開・installしない原則、更新前に旧binaryでexportする注意、licenseの要点（OSI承認ではないこと、
+   別途の書面許諾、`THIRD_PARTY_NOTICES.md`）、tag固定のinstallation guide linkを含め、公開前を前提にした
+   文面を残さない。`node scripts/verify_docs.mjs`がこれらとSupported versions表の版数を検査する。
 3. root READMEと日本語READMEのversion、platform、boundaryを更新する。
 4. `docs/project_status.md`とcapability tableを更新する。
 5. 次の検証をclean checkoutで実行する。v0.11.0以降は、Bash fenced block、workspace direct-dependency
@@ -192,6 +196,8 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 for script in scripts/*.mjs; do node --check "$script"; done
 bash -n scripts/*.sh
+node scripts/verify_byte_identity_allowlist.mjs --self-test
+node scripts/verify_byte_identity_allowlist.mjs
 node scripts/verify_core_fixtures.mjs
 node scripts/verify_local_api.mjs
 node scripts/test_local_api_version.mjs
@@ -224,6 +230,13 @@ runs default to `CARGO_NET_OFFLINE=true` and require cached old-source
 dependencies. Controlled CI or release jobs can set `CARGO_NET_OFFLINE=false`;
 the archived old Cargo build may then download dependencies. Local `git archive`
 selection itself does not fetch or download commits.
+
+`verify_byte_identity_allowlist.mjs` recomputes the byte-identity implementation
+OID of every listed release tag from its tagged source and requires every local
+annotated release tag below the current version. After a version bump, add the
+entry it prints for the previous release to
+`crates/synapse-creator/src/report.rs`. It needs the release tags locally, as
+the archive gate does.
 
 browser testはChromiumとbrowser dependencyを必要とする。詳細と一時成果物の扱いは
 [browser regression tests](../CONTRIBUTING.md#browser-regression-tests)を参照する。tag workflow自体は

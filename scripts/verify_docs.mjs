@@ -217,6 +217,69 @@ for (const relativePath of bashMarkdownFiles) {
   checkBash(relativePath, fs.readFileSync(path.join(root, relativePath), "utf8"));
 }
 
+// Release metadata that a person reads before trusting an archive. The release
+// notes double as the bundled archive README.md, so each release after v0.13.1
+// must keep the verification, backup, and license essentials in that file.
+const RELEASE_NOTES_REQUIREMENTS_SINCE = [0, 13, 2];
+const RELEASE_NOTES_REQUIRED = [
+  [/Do not extract or install an unverified archive\./u, "the rule not to extract or install an unverified archive"],
+  [/Export important repositories with the old binary before updating/u, "the export-before-update backup precaution"],
+  [/not an OSI-approved open-source license/u, "that the license is not OSI-approved"],
+  [/requires separate written permission/u, "the separate written permission requirement"],
+  [/THIRD_PARTY_NOTICES\.md/u, "the THIRD_PARTY_NOTICES.md reference"],
+];
+const RELEASE_NOTES_FORBIDDEN = [
+  [/After the tag workflow publishes/u, "pre-publication wording that stays in the published Release body"],
+];
+
+function cliVersion() {
+  const manifest = fs.readFileSync(path.join(root, "crates", "synapse-cli", "Cargo.toml"), "utf8");
+  const match = /^version\s*=\s*"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"\s*$/mu.exec(manifest);
+  return match ? match.slice(1).map(Number) : null;
+}
+
+function checkReleaseMetadata() {
+  const version = cliVersion();
+  if (!version) {
+    failures.push("crates/synapse-cli/Cargo.toml: missing normal semver package version");
+    return;
+  }
+  const [major, minor, patch] = version;
+  const security = fs.readFileSync(path.join(root, "SECURITY.md"), "utf8");
+  const supported = [...security.matchAll(/^\|\s*Latest v(\d+)\.(\d+)\.x prerelease\s*\|/gmu)];
+  if (supported.length !== 1) {
+    failures.push("SECURITY.md: Supported versions must have exactly one 'Latest vX.Y.x prerelease' row");
+  } else if (Number(supported[0][1]) !== major || Number(supported[0][2]) !== minor) {
+    failures.push(
+      `SECURITY.md: Supported versions names Latest v${supported[0][1]}.${supported[0][2]}.x prerelease, ` +
+        `but synapse-cli is ${major}.${minor}.${patch}; use Latest v${major}.${minor}.x prerelease`,
+    );
+  }
+
+  const since = RELEASE_NOTES_REQUIREMENTS_SINCE;
+  const current = version.findIndex((value, index) => value !== since[index]);
+  if (current >= 0 && version[current] < since[current]) return;
+  const tag = `v${major}.${minor}.${patch}`;
+  const notesPath = path.join("docs", "releases", `${tag}.md`);
+  if (!fs.existsSync(path.join(root, notesPath))) {
+    failures.push(`${notesPath}: release notes for the current synapse-cli version are missing`);
+    return;
+  }
+  const notes = fs.readFileSync(path.join(root, notesPath), "utf8");
+  // Compare prose with line wrapping collapsed so authors may reflow paragraphs.
+  const prose = notes.replace(/\s+/gu, " ");
+  for (const [pattern, label] of RELEASE_NOTES_REQUIRED) {
+    if (!pattern.test(prose)) failures.push(`${notesPath}: missing ${label}`);
+  }
+  const installGuide = `https://github.com/howlrs/synapsegit/blob/${tag}/docs/install.md`;
+  if (!notes.includes(installGuide)) failures.push(`${notesPath}: missing the tag-pinned installation guide link ${installGuide}`);
+  for (const [pattern, label] of RELEASE_NOTES_FORBIDDEN) {
+    if (pattern.test(prose)) failures.push(`${notesPath}: contains ${label}`);
+  }
+}
+
+checkReleaseMetadata();
+
 if (failures.length > 0) {
   for (const failure of failures) {
     console.error("docs_error: " + failure);
