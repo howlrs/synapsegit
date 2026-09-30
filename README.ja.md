@@ -322,6 +322,7 @@ application route、archive verificationはRustが担当します。componentの
 | publicationの理解度を評価する | [complete／incomplete-only固定コーパス](./docs/evaluation/publication-comprehension/v1/) |
 | generic regular-file contractをembedする | [Generic artifact v1](./spec/application/generic-artifact/v1/README.md) |
 | 成熟度と次の作業を確認する | [Project status](./docs/project_status.md) |
+| v1.0の範囲・互換性の約束・リリース条件を確認する | [v1.0 release plan](./docs/v1_release_plan.md) |
 | trust、privacy、security boundaryを確認する | [Security model](./docs/security_model.md) |
 | protocolを実装する | [Core Protocol v0.1](./spec/core/v0.1/README.md) |
 | releaseと配布方針を確認する | [Distribution guide](./docs/distribution.md) |

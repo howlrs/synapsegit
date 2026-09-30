@@ -372,6 +372,7 @@ local application routes, and archive verification. Read the
 | Embed the generic regular-file contract | [Generic artifact v1](./spec/application/generic-artifact/v1/README.md) |
 | Build or extend a generic-artifact public projection | [Generic publication profile](./spec/application/generic-artifact-publication/v1/README.md) / [integration roadmap](./docs/generic_artifact_publication_roadmap.md) |
 | Evaluate current maturity and next work | [Project status (Japanese)](./docs/project_status.md) |
+| See the v1.0 scope, compatibility promise, and release criteria | [v1.0 release plan (Japanese)](./docs/v1_release_plan.md) |
 | Review trust, privacy, and security limits | [Privacy and trust summary](./docs/security_model.en.md) |
 | Implement the protocol | [Core Protocol v0.1](./spec/core/v0.1/README.md) |
 | Understand releases and distribution | [Distribution guide (Japanese)](./docs/distribution.md) |
