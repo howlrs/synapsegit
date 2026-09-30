@@ -38,7 +38,7 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 - 一覧外のsessionは、JavaScriptを有効にした**名前でセッションを開く**で完全一致の名前から開ける。1〜64文字の小文字開始の英数字・ハイフンだけを受けるcase-sensitive strict slugであり、検索や一覧の上限拡大ではない。存在しない名前は既存のsession-not-found errorになる
 - 完了セッションには派生先への逆リンクを表示し、取り込みとセッション一覧を保守操作より先に配置する。fsck／archive操作の確認強度は変更しない
 - boundedな三file importとsame-process Human reviewを行うlocalhost creator UI
-- 任意の`--import-root PROJECT=INBOX`で有効になる、script出力のboundedな確認・一時保持・明示的な新規Proposal取り込み
+- 任意の`--import-root PROJECT=INBOX`で有効になる、script出力のboundedな確認・一時保持・明示的な新規Proposal取り込み。CLIの`synapse inbox put`は、repositoryを開かず判断も記録せずに、この形式の候補を書き出す（AIエージェント経由の既定の経路）
 - 検証済みの中断Proposal／完了Deferから3画像を引き継ぎ、元の判断を変更せず別sessionで再レビューする操作
 - CLIの`creator-run`は取り込みとHuman Decisionを別実行へ分けず、同一processのone-shot authorityで一回だけ判断する。候補の事前確認はInbox、再検討はlocalhostの新session再レビューを使う
 - v0.8.0の取り込み前ローカル画像プレビュー、サイズ・選択数表示、ファイル解除、UTF-8バイト上限の即時feedback、送信中の入力固定

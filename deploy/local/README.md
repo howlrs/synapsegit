@@ -288,6 +288,13 @@ the inbox. Returning to the list discards that staging immediately. Inbox conten
 evidence, and no decision is made until the browser records an explicit Human
 Decision.
 
+`synapse inbox put INBOX SLUG ORIGINAL CURRENT AI_OUTPUT --subject LABEL --creator NAME`
+writes such a candidate from the command line or an AI agent. It copies the
+files under the fixed names above, records their sizes and SHA-256 digests,
+and publishes the candidate directory without replacing an existing slug. It
+opens no repository and records no decision, so it can run while this service
+is running. See the [CLI reference (Japanese)](../../docs/cli_reference.md).
+
 ```bash
 mkdir -p "$HOME/SynapseGit/inbox"
 ./target/release/synapse-local \

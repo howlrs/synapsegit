@@ -15,6 +15,14 @@ pub use annotations::{
 };
 mod error;
 mod fsck;
+mod inbox;
+pub use inbox::{
+    IMPORT_INBOX_AI_OUTPUT_NAME, IMPORT_INBOX_CREATOR_MAX_BYTES, IMPORT_INBOX_CURRENT_NAME,
+    IMPORT_INBOX_FILE_MAX_BYTES, IMPORT_INBOX_MANIFEST_MAX_BYTES, IMPORT_INBOX_MANIFEST_NAME,
+    IMPORT_INBOX_MANIFEST_VERSION, IMPORT_INBOX_ORIGINAL_NAME, IMPORT_INBOX_SUBJECT_MAX_BYTES,
+    ImportInboxCandidate, ImportInboxFile, ImportInboxManifest, ImportInboxManifestError,
+    ImportInboxMetadata, ImportInboxReceipt, is_import_inbox_slug, put_import_inbox_candidate,
+};
 mod io;
 mod notes;
 pub use notes::{CreatorGenerationNote, GENERATION_NOTE_KEY};

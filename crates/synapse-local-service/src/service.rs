@@ -1,4 +1,3 @@
-use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -22,7 +21,8 @@ use synapse_creator::{
     CreatorPendingReceipt as CorePendingReceipt, CreatorReport as CoreCreatorReport,
     CreatorRunReceipt as CoreRunReceipt, CreatorSessionState as CoreCreatorSessionState,
     CreatorSnapshotReport, CreatorTimelineEntry as CoreTimelineEntry,
-    PendingCreatorSession as CorePendingCreatorSession,
+    IMPORT_INBOX_MANIFEST_MAX_BYTES, IMPORT_INBOX_MANIFEST_NAME, ImportInboxFile,
+    ImportInboxManifest, PendingCreatorSession as CorePendingCreatorSession,
     begin_creator_session_with_note_existing as core_begin,
     begin_creator_session_with_reuse_source_existing, creator_report_from_snapshot,
     creator_reuse_source_context_from_binding, creator_reuse_source_display_from_snapshot,
@@ -2028,44 +2028,16 @@ fn random_review_id() -> Result<String, ServiceError> {
     Ok(review_id)
 }
 
-/// The on-disk contract is deliberately small: a producer writes the three
-/// files and then atomically publishes this manifest as its final operation.
-/// It is parsed strictly so a newer producer cannot silently change what the
-/// local process will import.
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct InboxManifest {
-    version: String,
-    original: InboxFile,
-    current: InboxFile,
-    #[serde(rename = "ai_output")]
-    ai_output: InboxFile,
-    metadata: InboxMetadata,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct InboxFile {
-    name: String,
-    size: u64,
-    #[serde(default)]
-    sha256: Option<String>,
-}
-
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct InboxMetadata {
-    subject_label: String,
-    creator_name: String,
-    #[serde(default)]
-    generation_note: Option<synapse_creator::CreatorGenerationNote>,
-}
-
+/// The on-disk contract is `synapse_creator::ImportInboxManifest`: a producer
+/// writes the three files and then publishes the manifest as its final
+/// operation.  It is parsed strictly so a newer producer cannot silently change
+/// what the local process will import, and `synapse inbox put` writes the same
+/// type.
 struct CheckedInboxManifest {
     directory: File,
-    original: InboxFile,
-    current: InboxFile,
-    ai_output: InboxFile,
+    original: ImportInboxFile,
+    current: ImportInboxFile,
+    ai_output: ImportInboxFile,
     subject_label: String,
     creator_name: String,
     generation_note: Option<synapse_creator::CreatorGenerationNote>,
@@ -2077,11 +2049,11 @@ fn inbox_denied(detail: impl Into<String>) -> ServiceError {
 
 fn inspect_inbox_manifest(root: &Path, slug: &str) -> Result<CheckedInboxManifest, ServiceError> {
     let directory = open_inbox_directory(root, slug)?;
-    let mut manifest_file = open_inbox_leaf(&directory, "manifest.json")?;
+    let mut manifest_file = open_inbox_leaf(&directory, IMPORT_INBOX_MANIFEST_NAME)?;
     let manifest_metadata = manifest_file
         .metadata()
         .map_err(|_| inbox_denied("The inbox manifest metadata could not be read."))?;
-    if !manifest_metadata.is_file() || manifest_metadata.len() > 64 * 1024 {
+    if !manifest_metadata.is_file() || manifest_metadata.len() > IMPORT_INBOX_MANIFEST_MAX_BYTES {
         return Err(inbox_denied(
             "The inbox manifest must be a regular file no larger than 64 KiB.",
         ));
@@ -2089,30 +2061,14 @@ fn inspect_inbox_manifest(root: &Path, slug: &str) -> Result<CheckedInboxManifes
     let bytes = read_exact_bounded(
         &mut manifest_file,
         manifest_metadata.len(),
-        64 * 1024,
+        IMPORT_INBOX_MANIFEST_MAX_BYTES,
         "The inbox manifest",
     )?;
-    let manifest: InboxManifest = serde_json::from_slice(&bytes)
+    let manifest: ImportInboxManifest = serde_json::from_slice(&bytes)
         .map_err(|_| inbox_denied("The inbox manifest is not valid strict JSON."))?;
-    if manifest.version != "synapsegit-import-inbox-v1" {
-        return Err(inbox_denied("The inbox manifest version is unsupported."));
-    }
-    for file in [&manifest.original, &manifest.current, &manifest.ai_output] {
-        validate_inbox_file(file)?;
-    }
-    if manifest.metadata.subject_label.is_empty()
-        || manifest.metadata.subject_label.len() > 500
-        || manifest.metadata.creator_name.is_empty()
-        || manifest.metadata.creator_name.len() > 300
-    {
-        return Err(inbox_denied(
-            "The inbox metadata display names exceed their limits.",
-        ));
-    }
-    if let Some(note) = &manifest.metadata.generation_note {
-        note.validate()
-            .map_err(|_| inbox_denied("The inbox generation note exceeds its limits."))?;
-    }
+    manifest
+        .validate()
+        .map_err(|error| inbox_denied(error.to_string()))?;
     Ok(CheckedInboxManifest {
         directory,
         original: manifest.original,
@@ -2122,30 +2078,6 @@ fn inspect_inbox_manifest(root: &Path, slug: &str) -> Result<CheckedInboxManifes
         creator_name: manifest.metadata.creator_name,
         generation_note: manifest.metadata.generation_note,
     })
-}
-
-fn validate_inbox_file(file: &InboxFile) -> Result<(), ServiceError> {
-    if file.name.is_empty()
-        || file.name.len() > 255
-        || file.name.contains('\\')
-        || file.name.contains('\0')
-        || Path::new(&file.name).components().count() != 1
-        || file.name == "."
-        || file.name == ".."
-        || file.size > IMAGE_RESPONSE_MAX_BYTES
-    {
-        return Err(inbox_denied(
-            "Each inbox manifest file name must name one bounded file.",
-        ));
-    }
-    if let Some(hash) = &file.sha256 {
-        if hash.len() != 64 || !hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-            return Err(inbox_denied(
-                "An inbox SHA-256 must be 64 hexadecimal characters.",
-            ));
-        }
-    }
-    Ok(())
 }
 
 #[cfg(unix)]
@@ -2214,7 +2146,7 @@ fn read_exact_bounded(
 
 fn copy_inbox_file(
     directory: &File,
-    expected: &InboxFile,
+    expected: &ImportInboxFile,
     destination: &Path,
 ) -> Result<(), ServiceError> {
     let mut file = open_inbox_leaf(directory, &expected.name)?;

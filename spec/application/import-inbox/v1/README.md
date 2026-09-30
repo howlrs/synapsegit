@@ -15,3 +15,11 @@ The localhost service receives only a configured project key and logical slug.
 It opens the configured root, candidate, and leaves without following links,
 copies verified bytes into private process staging, and creates a proposal only
 from those staged bytes. Removing a preview in the browser discards its stage.
+
+A file `name` is one leaf without NUL, `/`, or `\`, as the schema requires;
+the service rejects any other name. `synapse inbox put` is the reference
+producer. It writes the fixed names `original`, `current`, and `ai-output`,
+always records `sha256`, and builds the candidate in a hidden directory whose
+name is not a slug. It then renames that directory to the slug without
+replacing an existing entry, so the manifest is present when the candidate
+first becomes visible.

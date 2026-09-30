@@ -137,6 +137,11 @@ before it begins a Proposal from retained bytes. Closing that confirmation
 discards the process-private staging. Inbox does not make the producer or its
 output trusted, and it does not invoke a model.
 
+From the command line or an AI agent, `synapse inbox put` writes such a
+candidate without opening a repository or recording a decision. A person still
+reviews the candidate and decides in the browser. This is the default path when
+an AI agent operates the CLI for you.
+
 ## Prepare public text separately
 
 For one complete, non-derived session created with the normal three-file

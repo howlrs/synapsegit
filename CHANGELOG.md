@@ -19,6 +19,16 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   release below the current version is missing. Restore regression fixtures
   written by the v0.1.0 and v0.11.0 release binaries, and by an unreleased
   source build, cover both outcomes.
+- `synapse inbox put` writes one candidate for the `synapse-local` import
+  inbox without opening a repository, creating a Proposal, or recording a
+  decision. It copies the three files under fixed names, records their sizes
+  and SHA-256 digests in a `synapsegit-import-inbox-v1` manifest, and publishes
+  the candidate directory without replacing an existing slug
+  (`inbox_candidate_exists`). A person still reviews and decides in the
+  localhost UI. `--format json` prints a `synapsegit-cli-inbox-put-v1`
+  document. The CLI and the localhost service now share one manifest type and
+  validation; manifest file names containing `/` are rejected, as the v1 schema
+  already required.
 
 ### Changed
 

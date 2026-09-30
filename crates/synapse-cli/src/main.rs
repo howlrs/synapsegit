@@ -12,7 +12,8 @@ use synapse_canonical::{DEFAULT_MAX_STRUCTURED_BYTES, ObjectKind};
 use synapse_core::{Repository, RepositoryError};
 use synapse_creator::{
     CreatorDisposition, CreatorError, CreatorGenerationNote, CreatorReport, CreatorRunOptions,
-    creator_report, run_creator_session_with_note,
+    ImportInboxCandidate, creator_report, put_import_inbox_candidate,
+    run_creator_session_with_note,
 };
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
 
@@ -36,6 +37,7 @@ Usage:
   synapse restore <archive-dir> <repo>
   synapse creator-run <repo> <session> <original> <current> <ai-output> --subject <label> --creator <name> --decision <adopt|reject|defer> [--rationale <text>] [--generation-note-file <path>]
   synapse creator-report <repo> <session> [--format text|json]
+  synapse inbox put <inbox-dir> <slug> <original> <current> <ai-output> --subject <label> --creator <name> [--generation-note-file <path>] [--format text|json]
 
 creator-report --format json prints one private, LOCAL-only JSON document to
 stdout, tagged \"format\": \"synapsegit-cli-creator-report-v1\" and
@@ -51,6 +53,32 @@ creator-run --generation-note-file accepts a UTF-8 JSON object with optional
 user-declared note; it is not execution or authorship evidence and is never
 included in public bundles. Each field is limited to 300, 300, 8192, and 2048
 UTF-8 bytes respectively, with a 16 KiB serialized-note limit.
+
+inbox put writes one candidate for the synapse-local import inbox. It needs no
+repository, records no decision, and creates no Proposal: a person reviews the
+candidate and decides in the localhost UI started with --import-root. Run
+`synapse inbox --help` for details.
+";
+const INBOX_USAGE: &str = "\
+Usage:
+  synapse inbox put <inbox-dir> <slug> <original> <current> <ai-output> --subject <label> --creator <name> [--generation-note-file <path>] [--format text|json]
+
+Write one candidate for the synapse-local import inbox without recording a
+decision. The command copies the three files to <inbox-dir>/<slug>/ as
+original, current, and ai-output, records their sizes and SHA-256 digests in a
+synapsegit-import-inbox-v1 manifest, and publishes the directory without
+replacing an existing one. <inbox-dir> must already exist; it is not created.
+It opens no repository, so it is safe while synapse-local is running.
+
+Then start or keep synapse-local running with --import-root PROJECT=<inbox-dir>
+and let a person open the project page, review the candidate, and record the
+decision.
+
+<slug> must match [a-z][a-z0-9-]{0,63} and must not exist yet. Each file must be
+a regular file of at most 64 MiB. --subject is limited to 500 and --creator to
+300 UTF-8 bytes. --generation-note-file uses the creator-run note format and
+limits. --format json prints one JSON document tagged
+\"format\": \"synapsegit-cli-inbox-put-v1\".
 ";
 const VERSION: &str = concat!("synapse ", env!("CARGO_PKG_VERSION"));
 
@@ -215,6 +243,7 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
         }
         "creator-run" => creator_run(&args)?,
         "creator-report" => creator_report_command(&args)?,
+        "inbox" => inbox_command(&args)?,
         "help" | "--help" | "-h" => println!("{USAGE}"),
         "version" | "--version" | "-V" => println!("{VERSION}"),
         other => return Err(CliError::Usage(format!("unknown command {other:?}"))),
@@ -320,6 +349,111 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
     );
     println!("disposition={}", receipt.disposition.as_cli_str());
     print_creator_report(&report);
+    Ok(())
+}
+
+const INBOX_PUT_FORMAT: &str = "synapsegit-cli-inbox-put-v1";
+const INBOX_NEXT_STEP: &str = "start synapse-local with --import-root PROJECT=<inbox-dir>, open the project page, and let a person review the candidate and record the decision";
+
+fn inbox_command(args: &[String]) -> Result<(), CliError> {
+    let is_help = |value: Option<&String>| {
+        matches!(value.map(String::as_str), Some("--help" | "-h" | "help"))
+    };
+    if is_help(args.get(1))
+        || (args.get(1).is_some_and(|value| value == "put") && is_help(args.get(2)))
+    {
+        print!("{INBOX_USAGE}");
+        return Ok(());
+    }
+    if args.get(1).map(String::as_str) != Some("put") {
+        return Err(CliError::Usage("inbox requires the put subcommand".into()));
+    }
+    if args.len() < 7 {
+        return Err(CliError::Usage(
+            "inbox put requires <inbox-dir> <slug> <original> <current> <ai-output> and --subject, --creator".into(),
+        ));
+    }
+    let mut subject = None;
+    let mut creator = None;
+    let mut generation_note_file = None;
+    let mut format = None;
+    let mut index = 7;
+    while index < args.len() {
+        let value = args
+            .get(index + 1)
+            .ok_or_else(|| CliError::Usage(format!("{} requires a value", args[index])))?;
+        match args[index].as_str() {
+            "--subject" if subject.is_none() => subject = Some(value.clone()),
+            "--creator" if creator.is_none() => creator = Some(value.clone()),
+            "--generation-note-file" if generation_note_file.is_none() => {
+                generation_note_file = Some(PathBuf::from(value));
+            }
+            "--format" if format.is_none() => {
+                format = Some(match value.as_str() {
+                    "text" => CreatorReportFormat::Text,
+                    "json" => CreatorReportFormat::Json,
+                    other => {
+                        return Err(CliError::Usage(format!(
+                            "--format must be text or json, got {other:?}"
+                        )));
+                    }
+                });
+            }
+            other => {
+                return Err(CliError::Usage(format!(
+                    "invalid or duplicate inbox put option {other:?}"
+                )));
+            }
+        }
+        index += 2;
+    }
+    let subject = subject.ok_or_else(|| CliError::Usage("inbox put requires --subject".into()))?;
+    let creator = creator.ok_or_else(|| CliError::Usage("inbox put requires --creator".into()))?;
+    let generation_note = generation_note_file
+        .as_deref()
+        .map(read_generation_note_file)
+        .transpose()?;
+    let receipt = put_import_inbox_candidate(&ImportInboxCandidate {
+        inbox_root: Path::new(&args[2]),
+        slug: &args[3],
+        original: Path::new(&args[4]),
+        current: Path::new(&args[5]),
+        ai_output: Path::new(&args[6]),
+        subject_label: &subject,
+        creator_name: &creator,
+        generation_note: generation_note.as_ref(),
+    })?;
+    let manifest = &receipt.manifest;
+    match format.unwrap_or(CreatorReportFormat::Text) {
+        CreatorReportFormat::Text => {
+            println!("inbox_candidate={}", args[3]);
+            println!("path={}", receipt.directory.display());
+            for (role, file) in [
+                ("original", &manifest.original),
+                ("current", &manifest.current),
+                ("ai_output", &manifest.ai_output),
+            ] {
+                println!("{role}_size={}", file.size);
+                println!("{role}_sha256={}", file.sha256.as_deref().unwrap_or(""));
+            }
+            println!("decision_recorded=false");
+            println!("next={INBOX_NEXT_STEP}");
+        }
+        CreatorReportFormat::Json => {
+            let document = serde_json::json!({
+                "format": INBOX_PUT_FORMAT,
+                "slug": args[3],
+                "path": receipt.directory.display().to_string(),
+                "manifest": manifest,
+                "decision_recorded": false,
+                "next": INBOX_NEXT_STEP,
+            });
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&document).expect("serializable inbox receipt")
+            );
+        }
+    }
     Ok(())
 }
 

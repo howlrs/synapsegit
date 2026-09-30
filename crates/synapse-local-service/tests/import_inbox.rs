@@ -31,6 +31,64 @@ impl Drop for TempDirectory {
 }
 
 #[test]
+fn a_candidate_written_by_the_shared_producer_is_ready_and_stages_its_bytes() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let inbox = temporary.directory("inbox");
+    let inputs = temporary.directory("inputs");
+    for (name, bytes) in [
+        ("original.png", b"original-p".as_slice()),
+        ("current.png", b"current-p"),
+        ("output.png", b"output-p"),
+    ] {
+        fs::write(inputs.join(name), bytes).unwrap();
+    }
+    let note = synapse_creator::CreatorGenerationNote {
+        tool: "Generator".into(),
+        intent: "Keep the evening light".into(),
+        ..Default::default()
+    };
+    synapse_creator::put_import_inbox_candidate(&synapse_creator::ImportInboxCandidate {
+        inbox_root: &inbox,
+        slug: "from-cli",
+        original: &inputs.join("original.png"),
+        current: &inputs.join("current.png"),
+        ai_output: &inputs.join("output.png"),
+        subject_label: "Subject",
+        creator_name: "Creator",
+        generation_note: Some(&note),
+    })
+    .unwrap();
+    let mut roots = BTreeMap::new();
+    roots.insert("project".to_owned(), inbox);
+    let service = LocalService::new([ProjectRegistration::new("project", "Project", repository)])
+        .unwrap()
+        .with_import_roots(roots)
+        .unwrap();
+    let items = service.list_import_inbox("project").unwrap().items;
+    assert_eq!(items.len(), 1);
+    assert_eq!(items[0].slug, "from-cli");
+    assert!(items[0].ready, "{:?}", items[0].reason);
+    let staged = service.stage_import_inbox("project", "from-cli").unwrap();
+    assert_eq!(staged.subject_label, "Subject");
+    assert_eq!(staged.creator_name, "Creator");
+    assert_eq!(staged.generation_note, Some(note));
+    for (role, bytes) in [
+        (ImageRole::Original, b"original-p".as_slice()),
+        (ImageRole::Current, b"current-p"),
+        (ImageRole::AiOutput, b"output-p"),
+    ] {
+        assert_eq!(
+            service
+                .staged_import_image("project", &staged.stage_id, role)
+                .unwrap()
+                .bytes,
+            bytes
+        );
+    }
+}
+
+#[test]
 fn manifest_last_listing_and_staging_freeze_verified_bytes() {
     let temporary = TempDirectory::new();
     let repository = temporary.directory("repository");

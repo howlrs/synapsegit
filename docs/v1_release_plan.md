@@ -28,7 +28,7 @@ v1.0は、Stage 0 previewを終え、生成AIを使って制作する個人が�
 この利用モデルから、v1.0には次が必要になる。
 
 1. **AIが誤りなく扱えるCLI**: 機械可読な出力、subcommandごとのhelp、安定したexit code／error code、errorの後の次の操作の案内。
-2. **AI経由でもHuman Gateを保つこと**: 現在の`creator-run`は`--decision`が必須で、取り込みと判断を一度に行う。AIエージェントが実行すると、AIが選んだ判断が人のHuman Decisionとして記録される。v1.0でCLIの互換性を約束する前に、この扱いを決める。
+2. **AI経由でもHuman Gateを保つこと**: 現在の`creator-run`は`--decision`が必須で、取り込みと判断を一度に行う。AIエージェントが実行すると、AIが選んだ判断が人のHuman Decisionとして記録される。v1.0でCLIの互換性を約束する前に、この扱いを決める。[#166](https://github.com/howlrs/synapsegit/issues/166)で、AIエージェントは`synapse inbox put`でInboxへ候補を置き、人がlocalhost UIで判断する経路を既定にすると決めた。
 3. **人が読めるlocalhost UI**: 人が画像を見て判断する場として、protocolの用語を知らなくても読める画面にする。
 4. **AIエージェント向けの操作ガイド**: 役割分担、手順、してはいけないことを1か所にまとめ、release archiveに同梱する。
 
@@ -83,7 +83,8 @@ GitHub milestone [`v1.0`](https://github.com/howlrs/synapsegit/milestone/1)が�
 AI経由のCLI操作:
 
 - [#157](https://github.com/howlrs/synapsegit/issues/157) CLIにsession一覧、subcommandごとのhelp、次の操作の案内を追加する
-- [#166](https://github.com/howlrs/synapsegit/issues/166) AIエージェント経由の利用でHuman Decisionを人に残す方法を決める（設計）
+- [#166](https://github.com/howlrs/synapsegit/issues/166) AIエージェント経由の利用でHuman Decisionを人に残す方法を決める（設計。決定済み）
+- [#171](https://github.com/howlrs/synapsegit/issues/171) `synapse inbox put`で、判断をせずにInboxへ候補を書き出す
 - [#167](https://github.com/howlrs/synapsegit/issues/167) AIエージェント向けの操作ガイドを用意する
 
 互換性・配布・リリース:
