@@ -33,7 +33,7 @@
     <p class="notice" data-tone="warning">{{ m.project.inbox_warning }}</p>
     <div class="upload-grid" data-import-inbox-images></div>
     <div class="form-grid">
-      <label class="field"><span>Inbox session</span><input name="inbox_session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}"></label>
+      <label class="field"><span>Inbox session</span><input name="inbox_session" required maxlength="64" pattern="[a-z][a-z0-9\-]{0,63}"></label>
       <label class="field"><span>Inbox creator name</span><input name="inbox_creator_name" required maxlength="300"></label>
       <label class="field form-grid__wide"><span>Inbox subject label</span><input name="inbox_subject_label" required maxlength="500"></label>
       <label class="field"><span>Inbox generation tool</span><input name="inbox_generation_tool" maxlength="300"></label>
@@ -71,7 +71,7 @@
     <div class="form-grid">
       <div class="field">
         <label for="creator-session">Session</label>
-        <input id="creator-session" name="session" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" aria-describedby="creator-session-hint" autocomplete="off" placeholder="first-review">
+        <input id="creator-session" name="session" required maxlength="64" pattern="[a-z][a-z0-9\-]{0,63}" aria-describedby="creator-session-hint" autocomplete="off" placeholder="first-review">
         <span id="creator-session-hint" class="field__hint">{{ m.project.session_hint }}</span>
       </div>
       <div class="field">
@@ -134,7 +134,7 @@
     <p class="field__hint">{{ m.project.locator_help }}</p>
     <form data-creator-session-locator-form>
       <label class="field" for="session-locator-name"><span>{{ m.project.locator_label }}</span>
-        <input id="session-locator-name" name="session_name" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" aria-describedby="session-locator-hint" data-invalid-message="{{ m.project.locator_invalid }}">
+        <input id="session-locator-name" name="session_name" required maxlength="64" pattern="[a-z][a-z0-9\-]{0,63}" autocomplete="off" aria-describedby="session-locator-hint" data-invalid-message="{{ m.project.locator_invalid }}">
       </label>
       <p id="session-locator-hint" class="field__hint">{{ m.project.locator_hint }}</p>
       <div class="actions"><button type="submit">{{ m.project.locator_submit }}</button></div>
@@ -190,7 +190,7 @@
   >
     <label class="field">
       <span>{{ m.project.confirm_key_before }}<code>{{ project_key }}</code>{{ m.project.confirm_key_after }}</span>
-      <input name="confirm_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
+      <input name="confirm_project_key" required maxlength="64" pattern="[a-z][a-z0-9\-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
     </label>
     <div class="actions"><button type="submit" data-synapse-submit>{{ m.project.fsck_submit }}</button></div>
     <p class="field__hint">{{ m.project.fsck_hint }}</p>
@@ -225,12 +225,12 @@
     <div class="form-grid">
       <label class="field">
         <span>Archive name</span>
-        <input name="archive_name" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="nightly-2026-08-26">
+        <input name="archive_name" required maxlength="64" pattern="[a-z][a-z0-9\-]{0,63}" autocomplete="off" placeholder="nightly-2026-08-26">
         <span class="field__hint">{{ m.project.archive_name_hint }}</span>
       </label>
       <label class="field">
         <span>{{ m.project.confirm_key_before }}<code>{{ project_key }}</code>{{ m.project.confirm_key_after }}</span>
-        <input name="confirm_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
+        <input name="confirm_project_key" required maxlength="64" pattern="[a-z][a-z0-9\-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
         <span class="field__hint">{{ m.project.confirm_value_hint }}</span>
       </label>
     </div>
@@ -268,12 +268,12 @@
     <div class="form-grid">
       <label class="field">
         <span>Archive name</span>
-        <input name="archive_name" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="nightly-2026-08-26">
+        <input name="archive_name" required maxlength="64" pattern="[a-z][a-z0-9\-]{0,63}" autocomplete="off" placeholder="nightly-2026-08-26">
         <span class="field__hint">{{ m.project.restore_name_hint }}</span>
       </label>
       <label class="field">
         <span>{{ m.project.restore_confirm_before }}<code>{{ project_key }}</code>{{ m.project.restore_confirm_after }}</span>
-        <input name="confirm_target_project_key" required maxlength="64" pattern="[a-z][a-z0-9-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
+        <input name="confirm_target_project_key" required maxlength="64" pattern="[a-z][a-z0-9\-]{0,63}" autocomplete="off" placeholder="{{ project_key }}">
       </label>
       <label class="check-field form-grid__wide">
         <input type="checkbox" name="confirm_empty_target" value="true" required>
