@@ -270,6 +270,7 @@ cargo run -p synapse-cli -- --help
 | `fsck_failed` | integrity issue が見つかった | 元 data を保全し、手編集せず原因を調査する |
 | `creator_session_exists` / `creator_session_incomplete` | create-only session名がcomplete／partial stateですでに存在する | current creator Refsを診断し、completeなら`creator-report`、新規runなら別session名を使う |
 | `creator_report_invalid` | current creator Refs、lineage、既知byte-identity evidenceがsession contractと一致しない | Ref／CASを保全し、手編集せず不一致を調査する |
+| `creator_implementation_unrecognized` | sessionを作ったbuildのbyte-identity implementationを、このbuildが認識しない（新しいreleaseや未リリースのsource build） | データ破損ではない。作成したbuild、またはそれ以降のreleaseで開く |
 
 ## 次に読む
 

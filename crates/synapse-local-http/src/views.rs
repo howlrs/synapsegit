@@ -35,6 +35,7 @@ impl HttpFailure {
             | "stale_base"
             | "archive_not_empty" => StatusCode::CONFLICT,
             "creator_report_invalid"
+            | "creator_implementation_unrecognized"
             | "fsck_failed"
             | "oid_mismatch"
             | "closure_missing"

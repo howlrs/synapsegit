@@ -196,6 +196,8 @@ cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 RUSTDOCFLAGS="-D warnings" cargo doc --workspace --no-deps --locked
 for script in scripts/*.mjs; do node --check "$script"; done
 bash -n scripts/*.sh
+node scripts/verify_byte_identity_allowlist.mjs --self-test
+node scripts/verify_byte_identity_allowlist.mjs
 node scripts/verify_core_fixtures.mjs
 node scripts/verify_local_api.mjs
 node scripts/test_local_api_version.mjs
@@ -228,6 +230,13 @@ runs default to `CARGO_NET_OFFLINE=true` and require cached old-source
 dependencies. Controlled CI or release jobs can set `CARGO_NET_OFFLINE=false`;
 the archived old Cargo build may then download dependencies. Local `git archive`
 selection itself does not fetch or download commits.
+
+`verify_byte_identity_allowlist.mjs` recomputes the byte-identity implementation
+OID of every listed release tag from its tagged source and requires every local
+annotated release tag below the current version. After a version bump, add the
+entry it prints for the previous release to
+`crates/synapse-creator/src/report.rs`. It needs the release tags locally, as
+the archive gate does.
 
 browser testはChromiumとbrowser dependencyを必要とする。詳細と一時成果物の扱いは
 [browser regression tests](../CONTRIBUTING.md#browser-regression-tests)を参照する。tag workflow自体は
