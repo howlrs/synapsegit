@@ -199,6 +199,10 @@ async fn import_inbox_page_is_rendered_only_for_configured_projects() {
     let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
     let page = std::str::from_utf8(&page).unwrap();
     assert!(page.contains("data-import-inbox"));
+    assert!(page.contains("<span>Inboxのセッション名</span>"));
+    assert!(page.contains(">新しいセッション名</label>"));
+    assert!(page.contains("<option value=\"adopt\">採用</option>"));
+    assert_no_application_english(page);
 
     let configured = app
         .oneshot(
@@ -1072,8 +1076,15 @@ async fn incomplete_session_diagnostics_are_read_only_structured_and_rendered() 
     assert!(page.contains(&fixture.proposal_head));
     assert!(page.contains(&fixture.decision_ref));
     assert!(page.contains(&fixture.decision_head));
-    assert!(page.contains("Automatic resume"));
-    assert!(page.contains("Automatic cleanup"));
+    assert!(page.contains("自動再開"));
+    assert!(page.contains("自動クリーンアップ"));
+    for english in [
+        "Automatic resume",
+        "Automatic cleanup",
+        "Creator session diagnostics",
+    ] {
+        assert!(!page.contains(english), "{english}");
+    }
     assert!(!page.contains(directory.0.to_str().unwrap()));
 
     for session in ["missing-session", "Invalid-Session"] {
@@ -1175,7 +1186,7 @@ async fn bounded_fsck_is_confirmed_queued_polled_and_reflected_in_project_status
     let page = std::str::from_utf8(&page).unwrap();
     assert!(page.contains("リポジトリ整合性の確認"));
     assert!(page.contains("name=\"confirm_project_key\""));
-    assert!(page.contains("直近のprocess-local結果: clean"));
+    assert!(page.contains("直近のprocess-local結果: 問題なし"));
     assert!(!page.contains("アーカイブを書き出す"));
     assert!(!page.contains("アーカイブを復元する"));
 
@@ -1604,6 +1615,7 @@ async fn creator_multipart_and_decision_complete_the_two_step_transport_workflow
     assert_eq!(complete["report"]["disposition"], "adopt");
 
     let completed_page = app
+        .clone()
         .oneshot(
             request("/projects/demo/creator-sessions/web-review")
                 .body(Body::empty())
@@ -1616,8 +1628,78 @@ async fn creator_multipart_and_decision_complete_the_two_step_transport_workflow
         .await
         .unwrap();
     let completed_html = std::str::from_utf8(&completed_html).unwrap();
-    assert!(completed_html.contains("Disposition"));
+    assert!(
+        completed_html.contains("<span class=\"metric__label\">判断</span><strong>採用</strong>")
+    );
+    assert!(completed_html.contains(">タイムライン</h2>"));
+    assert!(completed_html.contains("<span class=\"badge\">観測</span>"));
+    assert_no_application_english(completed_html);
     assert!(!completed_html.contains("Human reviewが必要です"));
+
+    // English keeps the previous labels and the stored codes.
+    let english_page = app
+        .oneshot(
+            request("/projects/demo/creator-sessions/web-review")
+                .header(header::COOKIE, "synapse_local_lang=en")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let english_html = to_bytes(english_page.into_body(), 2 * 1024 * 1024)
+        .await
+        .unwrap();
+    let english_html = std::str::from_utf8(&english_html).unwrap();
+    assert!(
+        english_html
+            .contains("<span class=\"metric__label\">Disposition</span><strong>adopt</strong>")
+    );
+    assert!(english_html.contains(">Timeline</h2>"));
+    assert!(english_html.contains("<span class=\"badge\">observation</span>"));
+}
+
+/// Application-supplied labels that were once rendered in English on Japanese
+/// pages.  User data, identifiers, and the documented glossary terms (Original,
+/// Current, AI output, Ref, Blob, Proposal, Decision, head) are not listed.
+const FORMER_ENGLISH_LABELS: &[&str] = &[
+    ">Creator session<",
+    ">Disposition<",
+    ">AI output selected<",
+    ">Verified objects<",
+    ">Human Decision<",
+    ">Human gate<",
+    ">Byte identity evidence<",
+    ">Status<",
+    ">Comparability<",
+    ">Adapter<",
+    ">Replay ready<",
+    ">Timeline<",
+    ">Adopt<",
+    ">Reject<",
+    ">Defer<",
+    ">Session<",
+    ">Creator name<",
+    ">Subject label<",
+    ">Original image<",
+    ">Current image<",
+    ">AI output (caller-supplied)<",
+    ">Inbox session<",
+    ">Manifest-last inbox<",
+    ">Proposal-only import<",
+    ">Archive name<",
+    ">Rationale（任意）<",
+    "aria-label=\"Disposition\"",
+    ">event ",
+    "<strong>adopt</strong>",
+    "<span class=\"badge\">observation</span>",
+    "<span class=\"badge\">activity</span>",
+];
+
+fn assert_no_application_english(html: &str) {
+    assert!(html.contains("<html lang=\"ja\">"));
+    for label in FORMER_ENGLISH_LABELS {
+        assert!(!html.contains(label), "Japanese page still renders {label}");
+    }
 }
 
 #[tokio::test]
@@ -1882,7 +1964,7 @@ async fn index_project_and_session_pages_render_with_untrusted_labels_escaped() 
         ("/projects/demo", "セッション"),
         (
             "/projects/demo/creator-sessions/render-session",
-            "Byte identity evidence",
+            "Byte identityの証拠",
         ),
     ] {
         let response = app
@@ -2635,7 +2717,7 @@ async fn index_page_renders_a_bounded_archives_section() {
     assert_eq!(page.status(), StatusCode::OK);
     let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
     let page = std::str::from_utf8(&page).unwrap();
-    assert!(page.contains("Archives"));
+    assert!(page.contains(">アーカイブ</h2>"));
     assert!(page.contains("aaa-valid"));
     assert!(page.contains("bbb-invalid"));
     assert!(page.contains("ccc-staging"));

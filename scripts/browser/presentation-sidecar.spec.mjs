@@ -17,10 +17,10 @@ test("fresh public text previews and downloads without private source text or Co
   await page.locator('[name="generation_prompt"]').fill("PRIVATE_PROMPT_CANARY");
   await page.getByRole("button", { name: "Proposalを作成", exact: true }).click();
   await page.waitForURL("**/creator-sessions/public-source");
-  await page.getByLabel("Rationale（任意）", { exact: true }).fill("PRIVATE_RATIONALE_CANARY");
+  await page.getByLabel("理由（任意）", { exact: true }).fill("PRIVATE_RATIONALE_CANARY");
   page.once("dialog", dialog => dialog.accept());
   const navigation = page.waitForEvent("framenavigated", { predicate: frame => frame === page.mainFrame() });
-  await page.getByRole("button", { name: "Reject", exact: true }).click();
+  await page.getByRole("button", { name: "不採用", exact: true }).click();
   await navigation;
   await page.goto(`${app.origin}/projects/reviews`);
   await page.getByRole("link", { name: "公開用の制作ノートを作る", exact: true }).click();

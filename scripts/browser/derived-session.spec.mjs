@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { isolatedTest as test, expect, original, current, output } from "./fixtures.mjs";
+import { isolatedTest as test, expect, decisionButton, original, current, output } from "./fixtures.mjs";
 
 for (const disposition of ["Adopt", "Reject", "Defer"]) {
   test(`derive from ${disposition} with one fresh candidate and unchanged reference bytes`, async ({ page, app }) => {
@@ -15,10 +15,10 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     await page.getByRole("button", { name: "Proposalを作成", exact: true }).click();
     await page.waitForURL(`**/creator-sessions/${source}`);
     const oids = await page.locator("img[data-synapse-image]").evaluateAll(images => images.map(image => image.dataset.oid));
-    await page.getByLabel("Rationale（任意）", { exact: true }).fill("OLD_SOURCE_RATIONALE");
+    await page.getByLabel("理由（任意）", { exact: true }).fill("OLD_SOURCE_RATIONALE");
     page.once("dialog", dialog => dialog.accept());
     const navigation = page.waitForEvent("framenavigated", { predicate: frame => frame === page.mainFrame() });
-    await page.getByRole("button", { name: disposition, exact: true }).click();
+    await page.getByRole("button", { name: decisionButton[disposition], exact: true }).click();
     await navigation;
     await page.getByRole("link", { name: "この記録から次の案を試す", exact: true }).click();
     await expect(page.getByRole("heading", { name: "派生元と再利用する参照画像", exact: true })).toBeVisible();
@@ -54,7 +54,7 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     await expect(page.getByText("生成メモなし", { exact: true })).toBeVisible();
     page.once("dialog", dialog => dialog.accept());
     const completed = page.waitForEvent("framenavigated", { predicate: frame => frame === page.mainFrame() });
-    await page.getByRole("button", { name: disposition, exact: true }).click();
+    await page.getByRole("button", { name: decisionButton[disposition], exact: true }).click();
     await completed;
     // The navigation event precedes document readiness; finish the app reload
     // before requesting a second reload to verify persisted history.

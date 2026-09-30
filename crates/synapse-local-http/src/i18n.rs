@@ -298,7 +298,10 @@ message_section! {
         note_prompt: "プロンプト", "Prompt";
         note_intent: "制作意図", "Intent";
         new_session_heading: "新しいセッション", "New session";
-        new_session_label: "新しいSession", "New session name";
+        new_session_label: "新しいセッション名", "New session name";
+        field_creator_name: "作成者名", "Creator name";
+        field_subject_label: "対象名", "Subject label";
+        event_label: "イベント", "event";
         clear_selection: "選択を解除", "Clear selection";
         create_proposal: "Proposalを作成", "Create proposal";
         zoom_fit: "全体を表示", "Fit to view";
@@ -319,6 +322,7 @@ message_section! {
         no_projects_before: "サーバー起動時に ", "Start the server with ";
         no_projects_after: " を指定してください。", ".";
         completed_sessions: "完了セッション", "Completed sessions";
+        archives_heading: "アーカイブ", "Archives";
         archives_help_listing: "server-owned archive root直下のbounded read-onlyな一覧です。exportと、空のtarget projectへのrestoreは各project画面から行います。", "A bounded, read-only list of the entries directly under the server-owned archive root. Export, and restore into an empty target project, start from each project page.";
         archives_help_evidence: "各状態はmanifest checksumと構造のみを確認したmanifest-level evidenceであり、object内容の再検証やrestore成功を保証するものではありません。", "Each state is manifest-level evidence from checking only the manifest checksum and structure. It does not re-verify object contents or guarantee a successful restore.";
         archives_error_heading: "Archive listingを読み込めません", "The archive listing could not be loaded";
@@ -338,12 +342,25 @@ message_section! {
         local_available: "ローカル・利用可能", "Local · available";
         create_public_notes: "公開用の制作ノートを作る", "Create public production notes";
         overview_label: "プロジェクト概要", "Project overview";
+        inbox_eyebrow: "スクリプト出力のInbox", "Manifest-last inbox";
         inbox_heading: "取り込み待ち", "Waiting to import";
+        inbox_session: "Inboxのセッション名", "Inbox session";
+        inbox_creator_name: "Inboxの作成者名", "Inbox creator name";
+        inbox_subject_label: "Inboxの対象名", "Inbox subject label";
+        inbox_generation_tool: "Inboxの使用ツール", "Inbox generation tool";
+        inbox_generation_model: "Inboxのモデル名", "Inbox generation model";
+        inbox_generation_prompt: "Inboxのプロンプト", "Inbox generation prompt";
+        inbox_generation_intent: "Inboxの制作意図", "Inbox generation intent";
         inbox_help: "確認時に検証・stagingしたbytesだけをproposalへ取り込みます。", "Only the bytes verified and staged when you review a candidate are imported into a proposal.";
         inbox_review_heading: "取り込み内容を確認", "Review the import";
         inbox_warning: "AI outputと生成メモはcaller-suppliedです。明示的な判断を行うまでDecisionは記録されません。", "The AI output and generation note are caller-supplied. No Decision is recorded until you make one explicitly.";
         back_to_list: "一覧へ戻る", "Back to the list";
+        upload_eyebrow: "Proposalだけを作る取り込み", "Proposal-only import";
         upload_heading: "Creator session を開始", "Start a creator session";
+        session_label: "新しいセッション名", "Session";
+        original_image: "Original画像", "Original image";
+        current_image: "Current画像", "Current image";
+        ai_output_file: "AI output（caller-supplied）", "AI output (caller-supplied)";
         upload_help: "3ファイルをローカルでstagingし、AI proposalを公開してHuman reviewへ進めます。", "Stage three files locally, publish the AI proposal, and continue to Human review.";
         upload_warning_heading: "AI output は caller-supplied です", "The AI output is caller-supplied";
         upload_warning: "この画面やlocalhost processがAI出力を生成したという意味ではありません。判断前に必ず3つの内容とbyte identity evidenceを確認してください。", "This does not mean that this page or the localhost process generated the AI output. Before deciding, always check all three files and the byte identity evidence.";
@@ -379,6 +396,10 @@ message_section! {
         fsck_heading: "リポジトリ整合性の確認", "Check repository integrity";
         fsck_help: "現在の履歴と保存データの整合性を、上限を設けて読み取り専用で確認します。", "Checks the consistency of the current history and stored data, read-only and within fixed limits.";
         last_fsck_prefix: "直近のprocess-local結果: ", "Latest process-local result: ";
+        fsck_clean: "問題なし", "clean";
+        fsck_issues_found: "問題あり", "issues found";
+        fsck_verified_objects: "検証したobject: ", "Verified objects: ";
+        fsck_issues: " · 問題: ", " · Issues: ";
         fsck_busy: "整合性の確認を開始しています…", "Starting the integrity check…";
         confirm_key_before: "確認のため project key ", "To confirm, type the project key ";
         confirm_key_after: " を入力", "";
@@ -390,6 +411,7 @@ message_section! {
         export_warning_heading: "既存のアーカイブは上書きしません", "Existing archives are never overwritten";
         export_warning: "新しいアーカイブ名を指定してください。保存先は起動時の設定で固定され、この画面から変更できません。", "Enter a new archive name. The destination is fixed by the startup configuration and cannot be changed from this page.";
         export_busy: "アーカイブの書き出しを開始しています…", "Starting the archive export…";
+        archive_name: "アーカイブ名", "Archive name";
         archive_name_hint: "小文字英数字とハイフン、1–64文字。新しい名前で作成します。", "Lowercase letters, digits, and hyphens; 1–64 characters. Use a new name.";
         confirm_value_hint: "操作対象を確認するため、表示された値をそのまま入力してください。", "Type the value shown exactly, to confirm the target.";
         export_submit: "Archiveを作成", "Create archive";
@@ -399,10 +421,10 @@ message_section! {
         restore_help: "保存したアーカイブを、このプロジェクトへ復元します。", "Restores a saved archive into this project.";
         restore_warning_heading: "履歴がないプロジェクトへ復元します", "Restores only into a project without history";
         restore_warning_before: "アーカイブの状態は", "Check the archive state in the ";
-        restore_warning_link: "Archives一覧", "Archives list";
+        restore_warning_link: "アーカイブ一覧", "Archives list";
         restore_warning_after: "で確認してください。", ".";
         restore_busy: "アーカイブの復元を開始しています…", "Starting the archive restore…";
-        restore_name_hint: "Archives一覧の名前を小文字のまま入力してください。", "Type the name from the Archives list, in lowercase.";
+        restore_name_hint: "アーカイブ一覧の名前を小文字のまま入力してください。", "Type the name from the Archives list, in lowercase.";
         restore_confirm_before: "確認のため復元先の project key ", "To confirm, type the restore target's project key ";
         restore_confirm_after: " を入力", "";
         restore_empty_check: "このプロジェクトに既存の履歴がないことを確認しました。", "I have confirmed that this project has no existing history.";
@@ -429,6 +451,23 @@ message_section! {
 message_section! {
     /// Creator session review, decision, evidence, pins, and diagnostics.
     Session {
+        eyebrow: "Creatorセッション", "Creator session";
+        metric_disposition: "判断", "Disposition";
+        metric_ai_selected: "AI outputの選択", "AI output selected";
+        metric_verified_objects: "検証したobject数", "Verified objects";
+        decision_eyebrow: "人の判断", "Human Decision";
+        gate_eyebrow: "人の判断", "Human gate";
+        original_blob: "OriginalのBlob", "Original Blob";
+        current_blob: "CurrentのBlob", "Current Blob";
+        evidence_heading: "Byte identityの証拠", "Byte identity evidence";
+        evidence_status: "状態", "Status";
+        evidence_comparability: "比較可能性", "Comparability";
+        evidence_adapter: "使用したadapter", "Adapter";
+        evidence_replay: "再実行の準備", "Replay ready";
+        diagnostics_label: "Creatorセッションの診断", "Creator session diagnostics";
+        automatic_resume: "自動再開", "Automatic resume";
+        automatic_cleanup: "自動クリーンアップ", "Automatic cleanup";
+        timeline_heading: "タイムライン", "Timeline";
         try_next: "この記録から次の案を試す", "Try a next candidate from this record";
         rereview_deferred: "保留した提案を改めて判断する", "Re-review the deferred proposal in a new session";
         result_label: "レビュー結果", "Review result";
@@ -503,7 +542,7 @@ message_section! {
         decision_heading: "判断を記録", "Record a decision";
         decision_busy: "Human decisionを検証して公開しています…", "Verifying and publishing the Human decision…";
         decision_success: "Decisionを公開しました。ページを再読み込みします。", "Decision published. Reloading the page.";
-        rationale_label: "Rationale（任意）", "Rationale (optional)";
+        rationale_label: "理由（任意）", "Rationale (optional)";
         rationale_placeholder: "この判断の理由や、後から確認したい点", "Why you made this decision, or what to check later";
         rationale_hint: "UTF-8で5000 bytes以内。記録後、このセッションで読み返せます。", "Up to 5000 UTF-8 bytes. You can read it again in this session after it is recorded.";
         adopt_heading: "採用", "Adopt";
@@ -617,6 +656,26 @@ message_section! {
     ErrorPage {
         breadcrumb: "エラー", "Error";
         server_detail: "サーバーからの詳細（英語）: ", "Server detail: ";
+        request_label: "リクエストID", "request";
+    }
+}
+
+message_section! {
+    /// Display labels for known stored codes.  English keeps the stored code so
+    /// the English interface is unchanged; unknown codes are shown as stored.
+    Values {
+        adopt: "採用", "adopt";
+        reject: "不採用", "reject";
+        defer: "保留", "defer";
+        identical: "同一", "identical";
+        different: "異なる", "different";
+        not_compared: "比較なし", "not_compared";
+        succeeded: "成功", "succeeded";
+        not_run: "未実行", "not_run";
+        partial: "部分的", "partial";
+        incomparable: "比較不能", "incomparable";
+        observation: "観測", "observation";
+        activity: "活動", "activity";
     }
 }
 
@@ -632,6 +691,7 @@ pub(crate) struct Messages {
     pub(crate) reuse: Reuse,
     pub(crate) presentation: Presentation,
     pub(crate) error: ErrorPage,
+    pub(crate) values: Values,
 }
 
 static JA: Messages = Messages {
@@ -645,6 +705,7 @@ static JA: Messages = Messages {
     reuse: Reuse::JA,
     presentation: Presentation::JA,
     error: ErrorPage::JA,
+    values: Values::JA,
 };
 
 static EN: Messages = Messages {
@@ -658,6 +719,7 @@ static EN: Messages = Messages {
     reuse: Reuse::EN,
     presentation: Presentation::EN,
     error: ErrorPage::EN,
+    values: Values::EN,
 };
 
 /// Parameterized and keyed messages. Every method takes both languages, so
@@ -750,6 +812,43 @@ impl Messages {
         }
     }
 
+    /// A display label for a known stored code, or the code itself.
+    ///
+    /// Only the interface label is localized; the stored value, API fields, and
+    /// data attributes keep the code.
+    pub(crate) fn value_label(&self, code: impl AsRef<str>) -> String {
+        let code = code.as_ref();
+        let values = &self.values;
+        match code {
+            "adopt" => values.adopt,
+            "reject" => values.reject,
+            "defer" => values.defer,
+            "identical" => values.identical,
+            "different" => values.different,
+            "not_compared" => values.not_compared,
+            "succeeded" => values.succeeded,
+            "not_run" => values.not_run,
+            "partial" => values.partial,
+            "incomparable" => values.incomparable,
+            "observation" => values.observation,
+            "activity" => values.activity,
+            _ => code,
+        }
+        .to_owned()
+    }
+
+    /// The display name of a stored image role.  Role names are glossary terms
+    /// kept in both languages; this only normalizes the stored spelling.
+    pub(crate) fn role_label(&self, role: impl AsRef<str>) -> String {
+        match role.as_ref() {
+            "original" => "Original",
+            "current" => "Current",
+            "ai-output" | "ai_output" => "AI output",
+            other => other,
+        }
+        .to_owned()
+    }
+
     pub(crate) fn decision_outcome(&self, disposition: &str) -> &'static str {
         match disposition {
             "adopt" => self.session.outcome_adopt,
@@ -834,6 +933,7 @@ impl Messages {
             self.reuse.entries(),
             self.presentation.entries(),
             self.error.entries(),
+            self.values.entries(),
         ]
         .concat()
     }

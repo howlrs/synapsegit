@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { isolatedTest as test, expect, original, current, output } from "./fixtures.mjs";
+import { isolatedTest as test, expect, decisionButton, original, current, output } from "./fixtures.mjs";
 
 for (const disposition of ["Adopt", "Reject", "Defer"]) {
   test(`generation note survives ${disposition} and reload`, async ({ page, app }) => {
@@ -26,7 +26,7 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     await expect(page.getByText("モデルの実行・実作者の証明ではありません。", { exact: false })).toBeVisible();
     page.once("dialog", dialog => dialog.accept());
     const navigation = page.waitForEvent("framenavigated", { predicate: frame => frame === page.mainFrame() });
-    await page.getByRole("button", { name: disposition, exact: true }).click();
+    await page.getByRole("button", { name: decisionButton[disposition], exact: true }).click();
     await navigation;
     // The navigation event precedes document readiness; finish the app reload
     // before requesting a second reload to verify persisted history.

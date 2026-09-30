@@ -433,6 +433,26 @@ label:
 are never converted into “no change”. `recorded_at` fallback is labelled as
 recording order, not capture or AI-execution time.
 
+### Display language and glossary terms
+
+Pages resolve one display language in the order implemented by
+`crates/synapse-local-http/src/i18n.rs`: an explicit header choice, a supported
+`Accept-Language`, then Japanese. Every application-supplied heading, field
+label, button, filter option, accessible name, and alternative text comes from
+that catalog. The Japanese interface shows known stored codes as labels:
+dispositions (`adopt`, `reject`, `defer`), comparison `outcome`, `status`, and
+`comparability`, and Timeline record kinds. English shows the stored code, and
+an unknown code is shown as stored. Data attributes, API fields, and error
+codes always keep the code. User-supplied text is never translated.
+
+The Japanese interface intentionally keeps these glossary terms in English:
+the image roles Original, Current, and AI output; the protocol terms Ref,
+Refs, Ref snapshot, Blob, Proposal, Decision, head, reflog, and fsck; the
+`caller-supplied` qualifier; the product name; and command-line flags. Timeline
+stage and time-basis codes remain as recorded until
+[#151](https://github.com/howlrs/synapsegit/issues/151) replaces them with
+readable descriptions.
+
 ## Two-step creator workflow
 
 The compatibility `run_creator_session` still accepts a disposition and

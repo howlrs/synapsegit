@@ -9,7 +9,7 @@
   </ol>
 </nav>
 <header class="page-header">
-  <div class="page-header__intro"><p class="eyebrow">Creator session</p><h1>{{ session }}</h1><p class="muted">{{ state_description }}</p></div>
+  <div class="page-header__intro"><p class="eyebrow">{{ m.session.eyebrow }}</p><h1>{{ session }}</h1><p class="muted">{{ state_description }}</p></div>
   <span class="status-badge" data-tone="{{ state_tone }}">{{ state_label }}</span>
 </header>
 
@@ -17,12 +17,12 @@
 <p><a class="button" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/derive">{{ m.session.try_next }}</a></p>
 {% if reuse_available %}<p><a class="button button--secondary" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/reuse">{{ m.session.rereview_deferred }}</a></p>{% endif %}
 <section class="metric-grid" aria-label="{{ m.session.result_label }}">
-  <article class="metric"><span class="metric__label">Disposition</span><strong>{{ disposition }}</strong></article>
-  <article class="metric"><span class="metric__label">AI output selected</span><strong>{{ selected }}</strong></article>
-  <article class="metric"><span class="metric__label">Verified objects</span><strong>{{ fsck_objects }}</strong></article>
+  <article class="metric"><span class="metric__label">{{ m.session.metric_disposition }}</span><strong>{{ m.value_label(disposition) }}</strong></article>
+  <article class="metric"><span class="metric__label">{{ m.session.metric_ai_selected }}</span><strong>{{ selected }}</strong></article>
+  <article class="metric"><span class="metric__label">{{ m.session.metric_verified_objects }}</span><strong>{{ fsck_objects }}</strong></article>
 </section>
 <section class="card decision-summary" aria-labelledby="recorded-decision-heading">
-  <div class="card__header"><div><p class="eyebrow">Human Decision</p><h2 id="recorded-decision-heading">{{ m.session.recorded_decision }}</h2></div></div>
+  <div class="card__header"><div><p class="eyebrow">{{ m.session.decision_eyebrow }}</p><h2 id="recorded-decision-heading">{{ m.session.recorded_decision }}</h2></div></div>
   <p data-decision-outcome>{{ decision_outcome }}</p>
   <h3>{{ m.session.recorded_rationale }}</h3>
   {% if rationale.is_empty() %}
@@ -62,9 +62,9 @@
 {% if let Some(source) = source %}
 <section class="card" aria-labelledby="source-heading" data-creator-source>
   <h2 id="source-heading">{{ m.session.derived_source_heading }}</h2>
-  <p><a href="/projects/{{ project_key }}/creator-sessions/{{ source.session }}">{{ source.session }}</a>{{ m.common.original_decision_prefix }}{{ source.disposition }}</p>
+  <p><a href="/projects/{{ project_key }}/creator-sessions/{{ source.session }}">{{ source.session }}</a>{{ m.common.original_decision_prefix }}{{ m.value_label(source.disposition) }}</p>
   <p>{{ m.session.derived_source_help }}</p>
-  <dl class="detail-list"><div><dt>{{ m.common.pinned_proposal }}</dt><dd><code>{{ source.proposal_head }}</code></dd></div><div><dt>{{ m.common.pinned_decision }}</dt><dd><code>{{ source.decision_head }}</code></dd></div><div><dt>Original Blob</dt><dd><code>{{ source.original_blob_oid }}</code></dd></div><div><dt>Current Blob</dt><dd><code>{{ source.current_blob_oid }}</code></dd></div></dl>
+  <dl class="detail-list"><div><dt>{{ m.common.pinned_proposal }}</dt><dd><code>{{ source.proposal_head }}</code></dd></div><div><dt>{{ m.common.pinned_decision }}</dt><dd><code>{{ source.decision_head }}</code></dd></div><div><dt>{{ m.session.original_blob }}</dt><dd><code>{{ source.original_blob_oid }}</code></dd></div><div><dt>{{ m.session.current_blob }}</dt><dd><code>{{ source.current_blob_oid }}</code></dd></div></dl>
   <p class="field__hint">{{ m.session.derived_source_hint }}</p>
 </section>
 {% endif %}
@@ -85,7 +85,7 @@
   {% if reference.unavailable %}<p role="status">{{ m.session.reference_unavailable }}</p>{% endif %}
   {% if let Some(note) = reference.generation_note %}<h3>{{ m.session.reference_note_heading }}</h3><dl class="detail-list"><div><dt>{{ m.common.note_tool }}</dt><dd>{{ note.tool }}</dd></div><div><dt>{{ m.common.note_model }}</dt><dd>{{ note.model }}</dd></div><div><dt>{{ m.common.note_prompt }}</dt><dd>{{ note.prompt }}</dd></div><div><dt>{{ m.common.note_intent }}</dt><dd>{{ note.intent }}</dd></div></dl>{% endif %}
   {% if let Some(rationale) = reference.deferred_rationale %}<h3>{{ m.session.reference_defer_heading }}</h3><p class="decision-rationale">{{ rationale }}</p>{% endif %}
-  {% if let Some(annotations) = reference.annotations %}<h3>{{ m.session.reference_pins_heading }}</h3><ol>{% for pin in annotations.pins %}<li>{{ pin.role.as_str() }} · ({{ pin.x }}, {{ pin.y }}) · {{ pin.note }}</li>{% endfor %}</ol>{% endif %}
+  {% if let Some(annotations) = reference.annotations %}<h3>{{ m.session.reference_pins_heading }}</h3><ol>{% for pin in annotations.pins %}<li>{{ m.role_label(pin.role.as_str()) }} · ({{ pin.x }}, {{ pin.y }}) · {{ pin.note }}</li>{% endfor %}</ol>{% endif %}
 </section>
 {% endif %}
 
@@ -180,24 +180,24 @@
     {% if pending %}<button type="button" data-pin-add>{{ m.session.pin_add }}</button><p class="field__hint">{{ m.session.pin_help }}</p>{% endif %}
   </div>
   <ol data-pin-list class="pin-list">
-    {% for pin in annotations %}<li>{{ pin.role.as_str() }} · ({{ pin.x }}, {{ pin.y }}) <p class="decision-rationale">{{ pin.note }}</p></li>{% endfor %}
+    {% for pin in annotations %}<li>{{ m.role_label(pin.role.as_str()) }} · ({{ pin.x }}, {{ pin.y }}) <p class="decision-rationale">{{ pin.note }}</p></li>{% endfor %}
   </ol>
   {% if complete && annotations.is_empty() && !annotations_unavailable %}<p>{{ m.session.no_pins }}</p>{% endif %}
 </section>
 
 <section aria-labelledby="evidence-heading">
-  <div class="section-heading"><h2 id="evidence-heading">Byte identity evidence</h2></div>
+  <div class="section-heading"><h2 id="evidence-heading">{{ m.session.evidence_heading }}</h2></div>
   {% if has_comparison %}
   <div class="notice" data-tone="warning">
-    <h3>{{ comparison_outcome }}</h3>
+    <h3>{{ m.value_label(comparison_outcome) }}</h3>
     <p>{{ comparison_warning }}</p>
     <p>{{ m.session.evidence_limit }}</p>
   </div>
   <dl class="detail-list">
-    <div><dt>Status</dt><dd>{{ comparison_status }}</dd></div>
-    <div><dt>Comparability</dt><dd>{{ comparison_comparability }}</dd></div>
-    <div><dt>Adapter</dt><dd><code>{{ comparison_adapter }}</code></dd></div>
-    <div><dt>Replay ready</dt><dd>{{ comparison_replay }}</dd></div>
+    <div><dt>{{ m.session.evidence_status }}</dt><dd>{{ m.value_label(comparison_status) }}</dd></div>
+    <div><dt>{{ m.session.evidence_comparability }}</dt><dd>{{ m.value_label(comparison_comparability) }}</dd></div>
+    <div><dt>{{ m.session.evidence_adapter }}</dt><dd><code>{{ comparison_adapter }}</code></dd></div>
+    <div><dt>{{ m.session.evidence_replay }}</dt><dd>{{ comparison_replay }}</dd></div>
   </dl>
   {% else %}
   <div class="notice"><h3>{{ m.session.no_comparison_heading }}</h3><p>{{ m.session.no_comparison }}</p></div>
@@ -213,13 +213,13 @@
     {% if reuse_available %}<p>{{ m.session.cannot_resume_reuse }}</p>{% else %}<p>{{ m.session.cannot_resume_no_reuse }}</p>{% endif %}
     <p>{{ m.session.no_automatic_change }}</p>
   </div>
-  <dl class="detail-list" aria-label="Creator session diagnostics">
+  <dl class="detail-list" aria-label="{{ m.session.diagnostics_label }}">
     <div><dt>Proposal Ref</dt><dd><code>{{ diagnostic_proposal_ref }}</code></dd></div>
     <div><dt>Proposal head</dt><dd><code>{{ diagnostic_proposal_head }}</code></dd></div>
     <div><dt>Decision Ref</dt><dd><code>{{ diagnostic_decision_ref }}</code></dd></div>
     <div><dt>Decision head</dt><dd><code>{{ diagnostic_decision_head }}</code></dd></div>
-    <div><dt>Automatic resume</dt><dd>{{ m.session.not_supported }}</dd></div>
-    <div><dt>Automatic cleanup</dt><dd>{{ m.session.not_supported }}</dd></div>
+    <div><dt>{{ m.session.automatic_resume }}</dt><dd>{{ m.session.not_supported }}</dd></div>
+    <div><dt>{{ m.session.automatic_cleanup }}</dt><dd>{{ m.session.not_supported }}</dd></div>
   </dl>
   {% if reuse_available %}<p><a class="button" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/reuse">{{ m.common.review_in_new_session }}</a></p>{% endif %}
 </section>
@@ -227,7 +227,7 @@
 
 {% if pending %}
 <section class="card" aria-labelledby="decision-heading">
-  <div class="card__header"><div><p class="eyebrow">Human gate</p><h2 id="decision-heading">{{ m.session.decision_heading }}</h2></div></div>
+  <div class="card__header"><div><p class="eyebrow">{{ m.session.gate_eyebrow }}</p><h2 id="decision-heading">{{ m.session.decision_heading }}</h2></div></div>
   <form
     hidden
     method="post"
@@ -249,21 +249,21 @@
     </div>
     <p data-decision-json-count class="field__hint" aria-live="polite"></p>
     <p id="decision-finality" class="field__hint">{{ m.common.decision_finality }}</p>
-    <div class="decision-choices" role="group" aria-label="Disposition" aria-describedby="decision-finality">
+    <div class="decision-choices" role="group" aria-label="{{ m.session.metric_disposition }}" aria-describedby="decision-finality">
       <div class="decision-choice">
         <h3>{{ m.session.adopt_heading }}</h3>
         <p id="adopt-help">{{ m.session.adopt_help }}</p>
-        <button type="submit" name="disposition" value="adopt" aria-describedby="adopt-help" data-decision-summary="{{ m.session.adopt_help }}" data-synapse-submit>Adopt</button>
+        <button type="submit" name="disposition" value="adopt" aria-describedby="adopt-help" data-decision-summary="{{ m.session.adopt_help }}" data-synapse-submit>{{ m.session.adopt_heading }}</button>
       </div>
       <div class="decision-choice">
         <h3>{{ m.session.reject_heading }}</h3>
         <p id="reject-help">{{ m.session.reject_help }}</p>
-        <button type="submit" name="disposition" value="reject" aria-describedby="reject-help" data-decision-summary="{{ m.session.reject_help }}" data-variant="danger" data-synapse-submit>Reject</button>
+        <button type="submit" name="disposition" value="reject" aria-describedby="reject-help" data-decision-summary="{{ m.session.reject_help }}" data-variant="danger" data-synapse-submit>{{ m.session.reject_heading }}</button>
       </div>
       <div class="decision-choice">
         <h3>{{ m.session.defer_heading }}</h3>
         <p id="defer-help">{{ m.session.defer_help }}</p>
-        <button type="submit" name="disposition" value="defer" aria-describedby="defer-help" data-decision-summary="{{ m.session.defer_help }}" data-variant="secondary" data-synapse-submit>Defer</button>
+        <button type="submit" name="disposition" value="defer" aria-describedby="defer-help" data-decision-summary="{{ m.session.defer_help }}" data-variant="secondary" data-synapse-submit>{{ m.session.defer_heading }}</button>
       </div>
     </div>
     <p class="field__hint">{{ m.session.decision_js_hint }}</p>
@@ -275,10 +275,10 @@
 
 {% if complete %}
 <section aria-labelledby="timeline-heading">
-  <div class="section-heading"><h2 id="timeline-heading">Timeline</h2><span class="badge">{{ m.count_events(timeline.len()) }}</span></div>
+  <div class="section-heading"><h2 id="timeline-heading">{{ m.session.timeline_heading }}</h2><span class="badge">{{ m.count_events(timeline.len()) }}</span></div>
   <ol class="timeline">
     {% for entry in timeline %}
-    <li class="timeline__item"><div class="timeline__marker" aria-hidden="true"></div><div><p><strong>{{ entry.stage }}</strong> <span class="badge">{{ entry.kind }}</span></p><p>{{ entry.ordering_time }}</p><p class="muted">{{ entry.time_basis }} · <code>{{ entry.oid }}</code></p></div></li>
+    <li class="timeline__item"><div class="timeline__marker" aria-hidden="true"></div><div><p><strong>{{ entry.stage }}</strong> <span class="badge">{{ m.value_label(entry.kind) }}</span></p><p>{{ entry.ordering_time }}</p><p class="muted">{{ entry.time_basis }} · <code>{{ entry.oid }}</code></p></div></li>
     {% endfor %}
   </ol>
 </section>

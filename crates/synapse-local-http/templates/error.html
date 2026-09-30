@@ -7,6 +7,6 @@
   <h1>{{ heading }}</h1>
   <p>{{ summary }}</p>
   <p class="muted">{{ m.error.server_detail }}{{ detail }}</p>
-  <p class="muted">request <code>{{ request_id }}</code></p>
+  <p class="muted">{{ m.error.request_label }} <code>{{ request_id }}</code></p>
 </div>
 {% endblock %}

@@ -25,7 +25,7 @@
 
 {% if import_inbox_supported %}
 <section class="card" hidden data-import-inbox data-project-key="{{ project_key }}" aria-labelledby="import-inbox-heading">
-  <div class="card__header"><div><p class="eyebrow">Manifest-last inbox</p><h2 id="import-inbox-heading">{{ m.project.inbox_heading }}</h2><p class="muted">{{ m.project.inbox_help }}</p></div></div>
+  <div class="card__header"><div><p class="eyebrow">{{ m.project.inbox_eyebrow }}</p><h2 id="import-inbox-heading">{{ m.project.inbox_heading }}</h2><p class="muted">{{ m.project.inbox_help }}</p></div></div>
   <p data-import-inbox-status role="status"></p>
   <ul data-import-inbox-list class="stack"></ul>
   <form hidden data-import-inbox-preview>
@@ -33,13 +33,13 @@
     <p class="notice" data-tone="warning">{{ m.project.inbox_warning }}</p>
     <div class="upload-grid" data-import-inbox-images></div>
     <div class="form-grid">
-      <label class="field"><span>Inbox session</span><input name="inbox_session" required maxlength="64" pattern="[a-z][a-z0-9\-]{0,63}"></label>
-      <label class="field"><span>Inbox creator name</span><input name="inbox_creator_name" required maxlength="300"></label>
-      <label class="field form-grid__wide"><span>Inbox subject label</span><input name="inbox_subject_label" required maxlength="500"></label>
-      <label class="field"><span>Inbox generation tool</span><input name="inbox_generation_tool" maxlength="300"></label>
-      <label class="field"><span>Inbox generation model</span><input name="inbox_generation_model" maxlength="300"></label>
-      <label class="field form-grid__wide"><span>Inbox generation prompt</span><textarea name="inbox_generation_prompt" maxlength="8192" rows="3"></textarea></label>
-      <label class="field form-grid__wide"><span>Inbox generation intent</span><textarea name="inbox_generation_intent" maxlength="2048" rows="2"></textarea></label>
+      <label class="field"><span>{{ m.project.inbox_session }}</span><input name="inbox_session" required maxlength="64" pattern="[a-z][a-z0-9\-]{0,63}"></label>
+      <label class="field"><span>{{ m.project.inbox_creator_name }}</span><input name="inbox_creator_name" required maxlength="300"></label>
+      <label class="field form-grid__wide"><span>{{ m.project.inbox_subject_label }}</span><input name="inbox_subject_label" required maxlength="500"></label>
+      <label class="field"><span>{{ m.project.inbox_generation_tool }}</span><input name="inbox_generation_tool" maxlength="300"></label>
+      <label class="field"><span>{{ m.project.inbox_generation_model }}</span><input name="inbox_generation_model" maxlength="300"></label>
+      <label class="field form-grid__wide"><span>{{ m.project.inbox_generation_prompt }}</span><textarea name="inbox_generation_prompt" maxlength="8192" rows="3"></textarea></label>
+      <label class="field form-grid__wide"><span>{{ m.project.inbox_generation_intent }}</span><textarea name="inbox_generation_intent" maxlength="2048" rows="2"></textarea></label>
     </div>
     <div class="actions"><button type="submit" data-synapse-submit>{{ m.common.create_proposal }}</button><button type="button" data-variant="secondary" data-import-inbox-cancel>{{ m.project.back_to_list }}</button></div>
   </form>
@@ -48,7 +48,7 @@
 <section class="card project-creator-upload" aria-labelledby="creator-upload-heading">
   <div class="card__header">
     <div>
-      <p class="eyebrow">Proposal-only import</p>
+      <p class="eyebrow">{{ m.project.upload_eyebrow }}</p>
       <h2 id="creator-upload-heading">{{ m.project.upload_heading }}</h2>
       <p class="muted">{{ m.project.upload_help }}</p>
     </div>
@@ -70,18 +70,18 @@
   >
     <div class="form-grid">
       <div class="field">
-        <label for="creator-session">Session</label>
+        <label for="creator-session">{{ m.project.session_label }}</label>
         <input id="creator-session" name="session" required maxlength="64" pattern="[a-z][a-z0-9\-]{0,63}" aria-describedby="creator-session-hint" autocomplete="off" placeholder="first-review">
         <span id="creator-session-hint" class="field__hint">{{ m.project.session_hint }}</span>
       </div>
       <div class="field">
-        <label for="creator-name">Creator name</label>
+        <label for="creator-name">{{ m.common.field_creator_name }}</label>
         <input id="creator-name" name="creator_name" required maxlength="300" aria-describedby="creator-name-hint creator-name-count" autocomplete="name">
         <span id="creator-name-hint" class="field__hint">{{ m.project.creator_name_hint }}</span>
         <span id="creator-name-count" class="field__hint" data-creator-text-count="creator_name" aria-live="polite" hidden></span>
       </div>
       <div class="field form-grid__wide">
-        <label for="creator-subject">Subject label</label>
+        <label for="creator-subject">{{ m.common.field_subject_label }}</label>
         <input id="creator-subject" name="subject_label" required maxlength="500" aria-describedby="creator-subject-hint creator-subject-count" autocomplete="off">
         <span id="creator-subject-hint" class="field__hint">{{ m.project.subject_hint }}</span>
         <span id="creator-subject-count" class="field__hint" data-creator-text-count="subject_label" aria-live="polite" hidden></span>
@@ -90,31 +90,31 @@
     <p class="field__hint upload-hint" data-creator-preview-note hidden>{{ m.project.preview_note }}</p>
     <div class="upload-grid">
       <div class="upload-file" data-creator-file>
-        <label for="creator-original_image">Original image</label>
+        <label for="creator-original_image">{{ m.project.original_image }}</label>
         <input id="creator-original_image" type="file" name="original_image" required aria-describedby="creator-original_image-hint creator-original_image-info creator-original_image-status">
         <p id="creator-original_image-hint" class="field__hint">{{ m.project.raw_bytes_hint }}</p>
         <p id="creator-original_image-info" data-creator-file-info class="field__hint" hidden></p>
-        <img data-creator-preview class="upload-file__preview" alt="{{ m.local_preview_alt("Original image") }}" hidden>
+        <img data-creator-preview class="upload-file__preview" alt="{{ m.local_preview_alt(m.project.original_image) }}" hidden>
         <p id="creator-original_image-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
-        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="{{ m.clear_selection_label("Original image") }}" hidden>{{ m.common.clear_selection }}</button>
+        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="{{ m.clear_selection_label(m.project.original_image) }}" hidden>{{ m.common.clear_selection }}</button>
       </div>
       <div class="upload-file" data-creator-file>
-        <label for="creator-current_image">Current image</label>
+        <label for="creator-current_image">{{ m.project.current_image }}</label>
         <input id="creator-current_image" type="file" name="current_image" required aria-describedby="creator-current_image-hint creator-current_image-info creator-current_image-status">
         <p id="creator-current_image-hint" class="field__hint">{{ m.project.raw_bytes_hint }}</p>
         <p id="creator-current_image-info" data-creator-file-info class="field__hint" hidden></p>
-        <img data-creator-preview class="upload-file__preview" alt="{{ m.local_preview_alt("Current image") }}" hidden>
+        <img data-creator-preview class="upload-file__preview" alt="{{ m.local_preview_alt(m.project.current_image) }}" hidden>
         <p id="creator-current_image-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
-        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="{{ m.clear_selection_label("Current image") }}" hidden>{{ m.common.clear_selection }}</button>
+        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="{{ m.clear_selection_label(m.project.current_image) }}" hidden>{{ m.common.clear_selection }}</button>
       </div>
       <div class="upload-file" data-creator-file>
-        <label for="creator-ai_output">AI output (caller-supplied)</label>
+        <label for="creator-ai_output">{{ m.project.ai_output_file }}</label>
         <input id="creator-ai_output" type="file" name="ai_output" required aria-describedby="creator-ai_output-hint creator-ai_output-info creator-ai_output-status">
         <p id="creator-ai_output-hint" class="field__hint">{{ m.project.raw_bytes_hint }}</p>
         <p id="creator-ai_output-info" data-creator-file-info class="field__hint" hidden></p>
-        <img data-creator-preview class="upload-file__preview" alt="{{ m.local_preview_alt("AI output (caller-supplied)") }}" hidden>
+        <img data-creator-preview class="upload-file__preview" alt="{{ m.local_preview_alt(m.project.ai_output_file) }}" hidden>
         <p id="creator-ai_output-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
-        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="{{ m.clear_selection_label("AI output (caller-supplied)") }}" hidden>{{ m.common.clear_selection }}</button>
+        <button type="button" data-creator-file-clear data-variant="secondary" aria-label="{{ m.clear_selection_label(m.project.ai_output_file) }}" hidden>{{ m.common.clear_selection }}</button>
       </div>
     </div>
     {% include "generation-note-fields.html" %}
@@ -141,7 +141,7 @@
     </form>
   </section>
   <noscript><p class="field__hint">{{ m.project.locator_noscript }}</p></noscript>
-  <label class="field"><span>{{ m.project.filter_label }}</span><select data-creator-session-filter><option value="all">{{ m.project.filter_all }}</option><option value="pending">{{ m.common.state_pending }}</option><option value="complete">{{ m.common.state_complete }}</option><option value="adopt">Adopt</option><option value="reject">Reject</option><option value="defer">Defer</option><option value="incomplete">{{ m.common.state_incomplete }}</option></select></label>
+  <label class="field"><span>{{ m.project.filter_label }}</span><select data-creator-session-filter><option value="all">{{ m.project.filter_all }}</option><option value="pending">{{ m.common.state_pending }}</option><option value="complete">{{ m.common.state_complete }}</option><option value="adopt">{{ m.session.adopt_heading }}</option><option value="reject">{{ m.session.reject_heading }}</option><option value="defer">{{ m.session.defer_heading }}</option><option value="incomplete">{{ m.common.state_incomplete }}</option></select></label>
   {% if sessions.is_empty() %}
   <div class="empty-state"><h3>{{ m.project.no_sessions_heading }}</h3><p>{{ m.project.no_sessions_help }}</p></div>
   {% else %}
@@ -151,7 +151,7 @@
       {% for session in sessions %}
       <tr data-creator-session-row data-state="{{ session.state_code }}" data-disposition="{{ session.disposition }}">
         <th scope="row"><a href="/projects/{{ project_key }}/creator-sessions/{{ session.session }}">{{ session.session }}</a><br><span class="muted">{{ session.subject_label }}</span><br><span class="muted">{{ session.creator_name }}</span></th>
-        <td><span class="status-badge" data-tone="{{ session.tone }}">{{ session.state_label }}</span> {{ session.disposition }}</td>
+        <td><span class="status-badge" data-tone="{{ session.tone }}">{{ session.state_label }}</span> {{ m.value_label(session.disposition) }}</td>
         <td>{{ session.recorded_at }}<br><span class="muted">{{ session.recorded_time_basis }}</span></td>
         <td>{% if session.source_session == "—" %}—{% else %}<a href="/projects/{{ project_key }}/creator-sessions/{{ session.source_session }}">{{ session.source_session }}</a>{% endif %}</td>
         <td><code>{{ session.proposal_head }}</code><br><code>{{ session.decision_head }}</code></td>
@@ -175,8 +175,8 @@
   </div>
   {% if has_last_fsck %}
   <div class="notice" data-tone="{% if last_fsck_clean %}success{% else %}danger{% endif %}">
-    <h3>{{ m.project.last_fsck_prefix }}{% if last_fsck_clean %}clean{% else %}issues found{% endif %}</h3>
-    <p>Verified objects: {{ last_fsck_objects }} · Issues: {{ last_fsck_issues }}</p>
+    <h3>{{ m.project.last_fsck_prefix }}{% if last_fsck_clean %}{{ m.project.fsck_clean }}{% else %}{{ m.project.fsck_issues_found }}{% endif %}</h3>
+    <p>{{ m.project.fsck_verified_objects }}{{ last_fsck_objects }}{{ m.project.fsck_issues }}{{ last_fsck_issues }}</p>
   </div>
   {% endif %}
   <form
@@ -224,7 +224,7 @@
   >
     <div class="form-grid">
       <label class="field">
-        <span>Archive name</span>
+        <span>{{ m.project.archive_name }}</span>
         <input name="archive_name" required maxlength="64" pattern="[a-z][a-z0-9\-]{0,63}" autocomplete="off" placeholder="nightly-2026-08-26">
         <span class="field__hint">{{ m.project.archive_name_hint }}</span>
       </label>
@@ -267,7 +267,7 @@
   >
     <div class="form-grid">
       <label class="field">
-        <span>Archive name</span>
+        <span>{{ m.project.archive_name }}</span>
         <input name="archive_name" required maxlength="64" pattern="[a-z][a-z0-9\-]{0,63}" autocomplete="off" placeholder="nightly-2026-08-26">
         <span class="field__hint">{{ m.project.restore_name_hint }}</span>
       </label>
@@ -302,7 +302,7 @@
     <div class="section-heading"><h2 id="refs-heading">Refs</h2><span class="badge">{{ refs.len() }}</span></div>
     <div class="stack">
       {% for reference in refs %}
-      <article class="card card--compact"><h3><code>{{ reference.name }}</code></h3><p><code>{{ reference.head }}</code></p><p class="muted">event {{ reference.event_id }}</p></article>
+      <article class="card card--compact"><h3><code>{{ reference.name }}</code></h3><p><code>{{ reference.head }}</code></p><p class="muted">{{ m.common.event_label }} {{ reference.event_id }}</p></article>
       {% endfor %}
     </div>
   </section>
@@ -310,7 +310,7 @@
     <div class="section-heading"><h2 id="reflog-heading">{{ m.project.reflog_heading }}</h2><span class="badge">{{ reflog.len() }}</span></div>
     <ol class="timeline">
       {% for entry in reflog %}
-      <li class="timeline__item"><div class="timeline__marker" aria-hidden="true"></div><div><p><strong>{{ entry.ref_name }}</strong></p><p><code>{{ entry.new_head }}</code></p><p class="muted">event {{ entry.event_id }} · {{ entry.message }}</p></div></li>
+      <li class="timeline__item"><div class="timeline__marker" aria-hidden="true"></div><div><p><strong>{{ entry.ref_name }}</strong></p><p><code>{{ entry.new_head }}</code></p><p class="muted">{{ m.common.event_label }} {{ entry.event_id }} · {{ entry.message }}</p></div></li>
       {% endfor %}
     </ol>
   </section>
