@@ -18,10 +18,10 @@ linked into every distributed binary.
 | ahash | 0.8.12 | MIT OR Apache-2.0 | https://github.com/tkaitchuck/ahash |
 | aho-corasick | 1.1.4 | Unlicense OR MIT | https://github.com/BurntSushi/aho-corasick |
 | allocator-api2 | 0.2.21 | MIT OR Apache-2.0 | https://github.com/zakarumych/allocator-api2 |
-| askama_derive | 0.16.0 | MIT OR Apache-2.0 | https://github.com/askama-rs/askama |
-| askama_macros | 0.16.0 | MIT OR Apache-2.0 | https://github.com/askama-rs/askama |
-| askama_parser | 0.16.0 | MIT OR Apache-2.0 | https://github.com/askama-rs/askama |
-| askama | 0.16.0 | MIT OR Apache-2.0 | https://github.com/askama-rs/askama |
+| askama_derive | 0.16.1 | MIT OR Apache-2.0 | https://github.com/askama-rs/askama |
+| askama_macros | 0.16.1 | MIT OR Apache-2.0 | https://github.com/askama-rs/askama |
+| askama_parser | 0.16.1 | MIT OR Apache-2.0 | https://github.com/askama-rs/askama |
+| askama | 0.16.1 | MIT OR Apache-2.0 | https://github.com/askama-rs/askama |
 | atomic-waker | 1.1.2 | Apache-2.0 OR MIT | https://github.com/smol-rs/atomic-waker |
 | autocfg | 1.5.1 | Apache-2.0 OR MIT | https://github.com/cuviper/autocfg |
 | axum-core | 0.5.6 | MIT | https://github.com/tokio-rs/axum |
@@ -119,7 +119,7 @@ linked into every distributed binary.
 | rsqlite-vfs | 0.1.1 | MIT | registry+https://github.com/rust-lang/crates.io-index |
 | rusqlite | 0.39.0 | MIT | https://github.com/rusqlite/rusqlite |
 | rustc-hash | 2.1.3 | Apache-2.0 OR MIT | https://github.com/rust-lang/rustc-hash |
-| rustix | 1.1.4 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | https://github.com/bytecodealliance/rustix |
+| rustix | 1.1.5 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | https://github.com/bytecodealliance/rustix |
 | rustversion | 1.0.23 | MIT OR Apache-2.0 | https://github.com/dtolnay/rustversion |
 | ryu | 1.0.23 | Apache-2.0 OR BSL-1.0 | https://github.com/dtolnay/ryu |
 | scopeguard | 1.2.0 | MIT OR Apache-2.0 | https://github.com/bluss/scopeguard |
@@ -152,7 +152,7 @@ linked into every distributed binary.
 | toml_datetime | 1.1.1+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
 | toml_parser | 1.1.3+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
 | toml_writer | 1.1.2+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
-| toml | 1.1.4+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
+| toml | 1.1.6+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
 | tower-layer | 0.3.3 | MIT | https://github.com/tower-rs/tower |
 | tower-service | 0.3.3 | MIT | https://github.com/tower-rs/tower |
 | tower | 0.5.3 | MIT | https://github.com/tower-rs/tower |
@@ -227,7 +227,7 @@ Applies to:
 - regex 1.13.0 — LICENSE-APACHE
 - regex-automata 0.4.18 — LICENSE-APACHE
 - regex-syntax 0.8.11 — LICENSE-APACHE
-- rustix 1.1.4 — LICENSE-APACHE
+- rustix 1.1.5 — LICENSE-APACHE
 - scopeguard 1.2.0 — LICENSE-APACHE
 - signal-hook-registry 1.4.8 — LICENSE-APACHE
 - smallvec 1.15.2 — LICENSE-APACHE
@@ -781,7 +781,7 @@ Applies to:
 - ref-cast 1.0.25 — LICENSE-MIT
 - ref-cast-impl 1.0.25 — LICENSE-MIT
 - rustc-hash 2.1.3 — LICENSE-MIT
-- rustix 1.1.4 — LICENSE-MIT
+- rustix 1.1.5 — LICENSE-MIT
 - rustversion 1.0.23 — LICENSE-MIT
 - serde 1.0.229 — LICENSE-MIT
 - serde_core 1.0.229 — LICENSE-MIT
@@ -828,10 +828,10 @@ SHA-256: `23f18e03dc49df91622fe2a76176497404e46ced8a715d9d2b67a7446571cca3`
 
 Applies to:
 
-- askama 0.16.0 — LICENSE-APACHE
-- askama_derive 0.16.0 — LICENSE-APACHE
-- askama_macros 0.16.0 — LICENSE-APACHE
-- askama_parser 0.16.0 — LICENSE-APACHE
+- askama 0.16.1 — LICENSE-APACHE
+- askama_derive 0.16.1 — LICENSE-APACHE
+- askama_macros 0.16.1 — LICENSE-APACHE
+- askama_parser 0.16.1 — LICENSE-APACHE
 
 SHA-256: `689b632b0e852d8aef6b03881967683a9a1fda1c896fd4ef9cdf0f26ab55b9de`
 
@@ -1041,10 +1041,10 @@ SHA-256: `689b632b0e852d8aef6b03881967683a9a1fda1c896fd4ef9cdf0f26ab55b9de`
 
 Applies to:
 
-- askama 0.16.0 — LICENSE-MIT
-- askama_derive 0.16.0 — LICENSE-MIT
-- askama_macros 0.16.0 — LICENSE-MIT
-- askama_parser 0.16.0 — LICENSE-MIT
+- askama 0.16.1 — LICENSE-MIT
+- askama_derive 0.16.1 — LICENSE-MIT
+- askama_macros 0.16.1 — LICENSE-MIT
+- askama_parser 0.16.1 — LICENSE-MIT
 
 SHA-256: `df20e0180764bf5bd76f74d47bc9e8c0069a666401629c390003a1d5eba99c92`
 
@@ -1078,7 +1078,7 @@ SHA-256: `df20e0180764bf5bd76f74d47bc9e8c0069a666401629c390003a1d5eba99c92`
 
 Applies to:
 
-- askama_parser 0.16.0 — LICENSE.md
+- askama_parser 0.16.1 — LICENSE.md
 
 SHA-256: `ceca995f2a9ba147d4ada210d9527769091630651e565e40e841acf435c9cea2`
 
@@ -1649,7 +1649,7 @@ Applies to:
 - fallible-iterator 0.3.0 — LICENSE-APACHE
 - fallible-streaming-iterator 0.1.9 — LICENSE-APACHE
 - serde_spanned 1.1.1 — LICENSE-APACHE
-- toml 1.1.4+spec-1.1.0 — LICENSE-APACHE
+- toml 1.1.6+spec-1.1.0 — LICENSE-APACHE
 - toml_datetime 1.1.1+spec-1.1.0 — LICENSE-APACHE
 - toml_parser 1.1.3+spec-1.1.0 — LICENSE-APACHE
 - toml_writer 1.1.2+spec-1.1.0 — LICENSE-APACHE
@@ -4213,7 +4213,7 @@ SHA-256: `3290ae0fbc9ddb77d2239121d710f0bb9d31b3b4744e6d97fe01e652b4c1870b`
 Applies to:
 
 - linux-raw-sys 0.12.1 — LICENSE-Apache-2.0_WITH_LLVM-exception
-- rustix 1.1.4 — LICENSE-Apache-2.0_WITH_LLVM-exception
+- rustix 1.1.5 — LICENSE-Apache-2.0_WITH_LLVM-exception
 - wasi 0.11.1+wasi-snapshot-preview1 — LICENSE-Apache-2.0_WITH_LLVM-exception
 - wasip2 1.0.4+wasi-0.2.12 — LICENSE-Apache-2.0_WITH_LLVM-exception
 - wit-bindgen 0.57.1 — LICENSE-Apache-2.0_WITH_LLVM-exception
@@ -5607,7 +5607,7 @@ SHA-256: `e1c1975c3474cce31722836f101a40ffaf1cc784e4d2f38ce3e77b9712934e78`
 
 Applies to:
 
-- rustix 1.1.4 — COPYRIGHT
+- rustix 1.1.5 — COPYRIGHT
 
 SHA-256: `377c2e7c53250cc5905c0b0532d35973392af16ffb9596a41d99d202cf3617c9`
 
@@ -5712,7 +5712,7 @@ SHA-256: `fb77f0a9c53e473abe5103c8632ef9f0f2874d4fb3f17cb2d8c661aab9cee9d7`
 Applies to:
 
 - serde_spanned 1.1.1 — LICENSE-MIT
-- toml 1.1.4+spec-1.1.0 — LICENSE-MIT
+- toml 1.1.6+spec-1.1.0 — LICENSE-MIT
 - toml_datetime 1.1.1+spec-1.1.0 — LICENSE-MIT
 - toml_parser 1.1.3+spec-1.1.0 — LICENSE-MIT
 - toml_writer 1.1.2+spec-1.1.0 — LICENSE-MIT
