@@ -77,6 +77,9 @@ CARGO_TARGET_DIR=/absolute/path/to/target SYNAPSEGIT_BROWSER_PROFILE=release npm
 ```
 
 Use the same `CARGO_TARGET_DIR` for the build and browser test commands.
+Local runs do not retry. When `CI` is set, as on GitHub Actions, each failed
+test is retried once; a test that passes only on retry is reported as flaky in
+the list output and as a GitHub annotation, and should still be investigated.
 Browser traces and screenshots from failures are written to ignored
 `scripts/browser/test-results/`.
 
