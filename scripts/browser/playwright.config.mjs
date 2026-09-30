@@ -7,7 +7,12 @@ export default defineConfig({
   workers: 1,
   timeout: 60_000,
   expect: { timeout: 10_000 },
-  reporter: "list",
+  // CI retries a failed test once so that a single runner stall does not fail
+  // an otherwise green run. A test that passes only on retry is still reported
+  // as flaky, in the list output and as a GitHub annotation. Local runs keep
+  // zero retries so a failure reproduces directly.
+  retries: process.env.CI ? 1 : 0,
+  reporter: process.env.CI ? [["list"], ["github"]] : "list",
   use: {
     browserName: "chromium",
     headless: true,

@@ -10,9 +10,18 @@ updates:
       # cfg_select! standard macro stabilized after the workspace's Rust 1.88.
       - dependency-name: rusqlite
         versions: ["0.40.x"]
+    # One monthly PR for compatible updates needs one CI run and one
+    # THIRD_PARTY_NOTICES.md refresh. Major updates still arrive separately.
+    groups:
+      cargo-minor-and-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
     open-pull-requests-limit: 5
+    groups:
+      github-actions:
+        patterns: ["*"]

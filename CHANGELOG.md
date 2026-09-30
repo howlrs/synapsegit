@@ -15,6 +15,12 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   cancelled, or never ran. v0.12.0 and v0.13.0 were published without one.
 - The release gate in the distribution guide builds and tests release-profile
   binaries, matching main CI and the tag workflow.
+- The browser suite retries a failed test once on CI only and reports tests
+  that pass on retry as flaky, including as GitHub annotations. Local runs keep
+  zero retries. Every earlier failed CI run on `main` was a browser timeout or
+  runner stall.
+- Dependabot groups compatible cargo updates and GitHub Actions updates into
+  one monthly PR each, so one CI run and one notices refresh cover them.
 
 ## [0.13.1] - 2026-09-30
 
