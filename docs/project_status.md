@@ -170,6 +170,11 @@ production／distribution／brand制限も変更しない。
 
 ## 次の優先順位
 
+v1.0に向けた対象利用者、互換性の約束、範囲、リリース条件は[v1.0 release plan](./v1_release_plan.md)で決めた
+（[#147](https://github.com/howlrs/synapsegit/issues/147)）。v1.0の必須作業はGitHub milestone `v1.0`で管理する。
+次のStage 0の優先順位のうち、2の実利用者評価はv1.0-rcのPilotとして行い、3の派生セッション公開はv1.0の後に扱う。
+6の追加platformは、v1.0ではmacOS arm64を対象にする。
+
 1. 分離済みの[publication comprehension corpus](./evaluation/publication-comprehension/v1/)で、
    zero-context AI、実Human、axe／keyboard／screen reader理解・accessibility評価を実施する。
 2. 実装済みlocalhost import／review／diagnostics／bounded `fsck`／archive browser controlsの

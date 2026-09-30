@@ -122,6 +122,7 @@ Japanese or mixed-language technical references unless a link says otherwise.
 | private GCP CLI smoke deploymentを再現する | [GCP CLI smoke deployment](../deploy/gcp/README.md) | [Cloud service architecture](./cloud_service_architecture.md) |
 | 実装へ参加する | [Contributing](../CONTRIBUTING.md) | [Stage 0 execution plan](./stage0_execution_plan.md) |
 | 成熟度と次の作業を確認する | [Project status](./project_status.md) | [Stage 0 execution plan](./stage0_execution_plan.md) |
+| v1.0の範囲・互換性の約束・リリース条件を確認する | [v1.0 release plan](./v1_release_plan.md) | [Project status](./project_status.md) |
 | GitHub Releaseと公開導線を運用する | [Distribution guide](./distribution.md) | [Security policy](../SECURITY.md) |
 | GitHub本体のmerge／security設定を監査する | [GitHub security baseline](../deploy/github/README.md) | [Security policy](../SECURITY.md) |
 | 利用・Fork・contribution条件を確認する | [License](../LICENSE) | [日本語概要](./license_ja.md) / [Third-party notices](../THIRD_PARTY_NOTICES.md) |
