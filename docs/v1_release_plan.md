@@ -48,12 +48,9 @@ v1.xは次の二つを約束する。
 | Private report JSON | `synapsegit-cli-creator-report-v1` | 凍結（既存のadditive rule） | fieldの追加はv1のまま行い、削除・rename・意味の変更には`-v2`を使う |
 | 公開bundle | publication profile v1 | 凍結（既存どおり） | 新しいprofileを追加し、v1 bundleの検証を維持する |
 | Generic artifact contracts | `generic-artifact` v1、`generic-artifact-publication` v1 | 凍結（既存どおり） | 同上 |
-| CLI | command名、引数、exit code、machine-readable error code | 安定 | 削除・変更の手順は提案段階である（下記）。text出力の文言と行は人向けで、変わり得る。機械処理にはJSON出力を使う |
+| CLI | command名、引数、exit code、machine-readable error code | 安定 | 削除・変更の前に、少なくとも1 minor versionの非推奨期間を置く。text出力の文言と行は人向けで、変わり得る。機械処理にはJSON出力を使う |
 | localhost HTTP API | `/api/v1`（`info.version`は`-draft`） | 約束しない | browser UIの内部契約とする |
 | Rust crateのAPI | workspace crates | 約束しない | crates.ioへ公開しない |
-
-CLIの削除・変更の前に少なくとも1 minor versionの非推奨期間を置く規則は、この計画の作成時に加えた提案であり、
-メンテナの決定ではない。v1.0の公開前に採否を決め、この文書を更新する。
 
 OID凍結の根拠は、Rust実装と独立したJavaScript verifierがすべてのgolden fixtureでOID、canonical length、
 canonical SHA-256について一致すること、および全公開版の読み取り互換testとする。
@@ -158,5 +155,6 @@ Stage 1への移行判断は、v1.x以降の研究として続ける。
 | 互換性 | 読み取り互換とv1形式の凍結 | 読み取り互換だけを約束する、第二の独立実装を待って凍結する |
 | Platform | Linux x86_64とmacOS arm64 | Linux ARM64も配布する、Linux x86_64のみ |
 | 実利用者の評価 | v1.0-rcで3〜5人の小規模なPilotを行い、条件にする | 条件にせず、v1.0の後に行う |
+| CLIの変更手順 | 削除・変更の前に、少なくとも1 minor versionの非推奨期間を置く | 規則を置かない |
 
-必須・入れば良い・v1.0の後の区分と、CLIの非推奨期間の規則は、この決定から導いた提案である。区分を変える場合は、この文書とmilestoneを同じPRで更新する。
+必須・入れば良い・v1.0の後の区分とCLIの変更手順は、上の決定から導いた案を、メンテナが同日に[PR #170](https://github.com/howlrs/synapsegit/pull/170)のreviewで承認した。区分を変える場合は、この文書とmilestoneを同じPRで更新する。
