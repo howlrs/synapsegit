@@ -76,9 +76,9 @@ linked into every distributed binary.
 | indexmap | 2.14.0 | Apache-2.0 OR MIT | https://github.com/indexmap-rs/indexmap |
 | itoa | 1.0.18 | MIT OR Apache-2.0 | https://github.com/dtolnay/itoa |
 | js-sys | 0.3.103 | MIT OR Apache-2.0 | https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys |
-| jsonschema-regex | 0.57.0 | MIT | https://github.com/Stranger6667/jsonschema |
-| jsonschema-value | 0.57.0 | MIT | https://github.com/Stranger6667/jsonschema |
-| jsonschema | 0.57.0 | MIT | https://github.com/Stranger6667/jsonschema |
+| jsonschema-regex | 0.58.2 | MIT | https://github.com/Stranger6667/jsonschema |
+| jsonschema-value | 0.58.2 | MIT | https://github.com/Stranger6667/jsonschema |
+| jsonschema | 0.58.2 | MIT | https://github.com/Stranger6667/jsonschema |
 | libc | 0.2.186 | MIT OR Apache-2.0 | https://github.com/rust-lang/libc |
 | libsqlite3-sys | 0.37.0 | MIT | https://github.com/rusqlite/rusqlite |
 | linux-raw-sys | 0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | https://github.com/sunfishcode/linux-raw-sys |
@@ -112,7 +112,7 @@ linked into every distributed binary.
 | redox_syscall | 0.5.18 | MIT | https://gitlab.redox-os.org/redox-os/syscall |
 | ref-cast-impl | 1.0.25 | MIT OR Apache-2.0 | https://github.com/dtolnay/ref-cast |
 | ref-cast | 1.0.25 | MIT OR Apache-2.0 | https://github.com/dtolnay/ref-cast |
-| referencing | 0.57.0 | MIT | https://github.com/Stranger6667/jsonschema |
+| referencing | 0.58.2 | MIT | https://github.com/Stranger6667/jsonschema |
 | regex-automata | 0.4.18 | MIT OR Apache-2.0 | https://github.com/rust-lang/regex |
 | regex-syntax | 0.8.11 | MIT OR Apache-2.0 | https://github.com/rust-lang/regex |
 | regex | 1.13.0 | MIT OR Apache-2.0 | https://github.com/rust-lang/regex |
@@ -4045,10 +4045,10 @@ SHA-256: `ecc269ef87fd38a1d98e30bfac9ba964a9dbd9315c3770fed98d4d7cb5882055`
 
 Applies to:
 
-- jsonschema 0.57.0 — LICENSE
-- jsonschema-regex 0.57.0 — Stranger6667-jsonschema-LICENSE
-- jsonschema-value 0.57.0 — Stranger6667-jsonschema-LICENSE
-- referencing 0.57.0 — LICENSE
+- jsonschema 0.58.2 — LICENSE
+- jsonschema-regex 0.58.2 — Stranger6667-jsonschema-LICENSE
+- jsonschema-value 0.58.2 — Stranger6667-jsonschema-LICENSE
+- referencing 0.58.2 — LICENSE
 
 SHA-256: `117829c3ca21efb132d81a44b55363d395ab8eea18526873bc828da4c0e5f038`
 
