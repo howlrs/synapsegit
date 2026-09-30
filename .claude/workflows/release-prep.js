@@ -158,7 +158,7 @@ return {
     '1. 差分確認: git -C ' + worktree + ' diff origin/main',
     '2. push (人間が実行): git -C ' + worktree + ' push -u origin ' + branch,
     '3. PR 作成 → 独立レビュー → CI green → squash merge → tree 一致検証 + merge commit CI 確認 (確立プロトコル)',
-    '4. merge 後、clean checkout で docs/distribution.md の Release gate フル検証を再実行',
+    '4. merge 後、merge commit の main CI を gh run watch <run-id> --exit-status で完了まで待ち成功を確認し、clean checkout で docs/distribution.md の Release gate フル検証を再実行 (tag workflow も scripts/wait_for_main_ci.mjs で同じ main CI 成功を待ち、未成功なら公開しない)',
     '5. annotated tag 作成と push (人間が実行): git tag -a ' + version + ' -m "SynapseGit ' + version + '" <merge commit> && git push origin ' + version + ' (lightweight tag は release.yml が拒否する)',
     '6. release.yml 完了後の独立検証: 別ディレクトリへ download → sha256sum --check → gh attestation verify --repo howlrs/synapsegit --deny-self-hosted-runners → 三 binary の smoke (docs/distribution.md 記載の手順)',
   ],
