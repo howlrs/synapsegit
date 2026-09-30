@@ -61,6 +61,7 @@ const MESSAGE_ENTRIES = [
   ["error.code.archive_not_empty", "復元先のプロジェクトに既存の履歴があります。", "The restore target project already has history."],
   ["error.code.fsck_failed", "整合性の確認を完了できませんでした。", "The integrity check could not be completed."],
   ["error.code.creator_report_invalid", "記録を検証できませんでした。fsckで状態を確認してください。", "The record could not be verified. Check its state with fsck."],
+  ["error.code.creator_implementation_unrecognized", "このセッションは、この版が認識しないSynapseGit（新しい版や未リリースのsource build）で作成されました。作成した版、またはそれ以降の版で開いてください。", "This session was recorded by a SynapseGit build this version does not recognize, such as a newer release or an unreleased source build. Open it with the recording build or a later release."],
   ["error.code.schema_invalid", "入力が記録形式の検証に失敗しました。", "The input failed record-format validation."],
   ["error.code.storage_error", "ローカルの保存データにアクセスできませんでした。時間をおいて再試行してください。", "The local storage could not be accessed. Try again later."],
   ["error.code.service_unavailable", "この機能は現在利用できません。", "This feature is not available right now."],

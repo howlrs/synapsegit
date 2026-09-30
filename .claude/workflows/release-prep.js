@@ -118,7 +118,7 @@ const verify = await agent(
  6. for s in scripts/*.mjs; do node --check "$s"; done
  7. for s in scripts/*.sh; do bash -n "$s"; done
  8. node scripts/compare_creator_reports.mjs --self-test
- 9. node scripts/select_archive_compat_baseline.mjs --self-test
+ 9. node scripts/select_archive_compat_baseline.mjs --self-test && node scripts/verify_byte_identity_allowlist.mjs --self-test && node scripts/verify_byte_identity_allowlist.mjs
 10. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_core_fixtures.mjs
 11. RUSTUP_TOOLCHAIN=1.88.0 node scripts/verify_local_api.mjs
 12. node scripts/test_publication_comprehension_scorer.mjs

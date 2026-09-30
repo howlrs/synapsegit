@@ -1,8 +1,9 @@
 use crate::io::put_json;
 use crate::records::{actor_record, manifest_tree};
 use crate::report::{
-    byte_identity_implementation_evidence_is_accepted, creator_report_from_snapshot_with_limits,
-    load_base_snapshot_pointers, validate_byte_identity_metric,
+    HISTORIC_BYTE_IDENTITY_IMPLEMENTATION_OIDS, byte_identity_implementation_is_recognized,
+    creator_report_from_snapshot_with_limits, load_base_snapshot_pointers,
+    validate_byte_identity_metric,
 };
 use crate::session::{
     COMPARISON_ANALYSIS_ENTRY, COMPARISON_CONFIGURATION_ENTRY, COMPARISON_IMPLEMENTATION_ENTRY,
@@ -162,28 +163,23 @@ fn byte_identity_metric_rejects_extra_semantic_claims() {
 }
 
 #[test]
-fn byte_identity_implementation_evidence_accepts_only_bound_audited_oids() {
+fn byte_identity_implementation_recognizes_only_current_and_released_bundles() {
     let current = synapse_observation::byte_identity_implementation_oid();
-    let historic =
-        "blob:sg-oid-v1:sha256:502facc39cce7dc4c6e3ca0ff77ba3a3a4c88d712d5f87505aec92edb58863b0";
     let unknown =
         "blob:sg-oid-v1:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
 
-    assert!(byte_identity_implementation_evidence_is_accepted(
-        &current, &current
-    ));
-    assert!(byte_identity_implementation_evidence_is_accepted(
-        historic, historic
-    ));
-    assert!(!byte_identity_implementation_evidence_is_accepted(
-        unknown, unknown
-    ));
-    assert!(!byte_identity_implementation_evidence_is_accepted(
-        &current, historic
-    ));
-    assert!(!byte_identity_implementation_evidence_is_accepted(
-        historic, &current
-    ));
+    assert!(byte_identity_implementation_is_recognized(&current));
+    for (_, historic) in HISTORIC_BYTE_IDENTITY_IMPLEMENTATION_OIDS {
+        assert!(byte_identity_implementation_is_recognized(historic));
+    }
+    assert!(!byte_identity_implementation_is_recognized(unknown));
+
+    let mut tags = std::collections::BTreeSet::new();
+    let mut oids = std::collections::BTreeSet::new();
+    for (tag, oid) in HISTORIC_BYTE_IDENTITY_IMPLEMENTATION_OIDS {
+        assert!(tags.insert(*tag), "duplicate release tag {tag}");
+        assert!(oids.insert(*oid), "duplicate implementation OID {oid}");
+    }
 }
 
 #[test]
