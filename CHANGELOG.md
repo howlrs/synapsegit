@@ -6,6 +6,16 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+### Changed
+
+- CI runs for pushes to `main` are no longer cancelled by later merges; each
+  main commit keeps its own result. The release workflow now waits for a
+  successful main CI run of the tagged commit, including the browser suite,
+  before it builds or publishes, and stops when that run failed, was
+  cancelled, or never ran. v0.12.0 and v0.13.0 were published without one.
+- The release gate in the distribution guide builds and tests release-profile
+  binaries, matching main CI and the tag workflow.
+
 ## [0.13.1] - 2026-09-30
 
 ### Changed

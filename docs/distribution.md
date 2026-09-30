@@ -205,12 +205,13 @@ node scripts/verify_workspace_diagrams.mjs
 node scripts/test_verify_workspace_diagrams.mjs
 node scripts/verify_mermaid.mjs
 node scripts/manage_github_security.mjs --validate
+node scripts/wait_for_main_ci.mjs --self-test
 git diff --check
-cargo build -p synapse-cli -p synapse-local-http --locked
-bash scripts/verify_archive_compatibility.sh target/debug/synapse
+cargo build --release -p synapse-cli -p synapse-local-http --locked
+bash scripts/verify_archive_compatibility.sh target/release/synapse
 npm ci --prefix scripts/browser --ignore-scripts
 scripts/browser/node_modules/.bin/playwright install --with-deps chromium
-npm --prefix scripts/browser test
+SYNAPSEGIT_BROWSER_PROFILE=release npm --prefix scripts/browser test
 ```
 
 `verify_archive_compatibility.sh` first checks that the supplied binary matches
@@ -227,9 +228,16 @@ selection itself does not fetch or download commits.
 browser testはChromiumとbrowser dependencyを必要とする。詳細と一時成果物の扱いは
 [browser regression tests](../CONTRIBUTING.md#browser-regression-tests)を参照する。tag workflow自体は
 release assetを作成する。上記browser checksは`main`／Pull Request CIで実行し、tag前に同じ
-clean checkoutで実行する。
+clean checkoutで実行する。このgateは、main CIとtag workflowが検証・packageするものと同じrelease profileの
+binaryを使う。開発時のlocal既定がdebug profileであることは変わらない。
 
-6. release tagはversion commitを指すannotated tagとして作る。署名運用を導入した後はsigned tagを必須にする。
+6. version commit（squash merge commit）に対する`main`のCIが、browser suite、archive互換gate、packaging検証を
+   含めて成功したことを確認してから、そのcommitを指すannotated tagを作る。`main`へのpushのCIは、後続の
+   mergeでcancelされない。`gh pr checks --watch`はpush直後に即終了することがあるため、
+   `gh run list --workflow CI --branch main --commit <merge-commit>`でrun IDを調べ、
+   `gh run watch <run-id> --exit-status`で完了を待つ。tag workflowも、build前に`scripts/wait_for_main_ci.mjs`で
+   同じcommitのmain CI成功を待つ。失敗・cancel・未実行のままなら公開しない。その場合は、該当するmain CI runを
+   成功までre-runしてから、release workflowをre-runする。署名運用を導入した後はsigned tagを必須にする。
 7. tag workflowがdraft prereleaseを作り、asset upload、checksum、attestation、公開まで成功したことを確認する。
 8. 別directoryへassetをdownloadし、checksum、attestation、三binaryの`--version`／`--help`、3-file Pilot、
    read-only local publication bundleのexport／previewを確認する。archiveに第四のbinaryや

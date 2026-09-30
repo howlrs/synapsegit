@@ -10,9 +10,12 @@ on:
 permissions:
   contents: read
 
+# Pull requests and other refs cancel superseded runs. Each main commit gets its
+# own group and is never cancelled, because a release tag requires the main CI
+# result of its exact commit (scripts/wait_for_main_ci.mjs).
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
   verify:
@@ -70,6 +73,7 @@ jobs:
           node scripts/generate_third_party_notices.mjs --check
           node scripts/verify_mermaid.mjs
           node scripts/manage_github_security.mjs --validate
+          node scripts/wait_for_main_ci.mjs --self-test
           git diff --check
 
       - name: Verify localhost browser workflows in Chromium
