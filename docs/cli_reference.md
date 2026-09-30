@@ -359,6 +359,8 @@ timelineのAI Activityはcurrent proposal transitionと一致しなければな�
 Analysis lineageからordered input、adapter digest、software-tool attribution、両creator Refからの到達性、
 prerequisite object availabilityも検証する。
 最後にrepository全体を`fsck`し、lineage不一致は`creator_report_invalid`、integrity issueは`fsck_failed`で拒否する。
+comparison evidenceが整合していても、implementation OIDが現在のbuildのbundleでも公開済みreleaseのbundleでもない場合は
+`creator_implementation_unrecognized`で拒否する。新しいreleaseや未リリースのsource buildで作ったsessionが該当する。
 Projectionは一時的なderived query stateで、authorization、archive、recoveryの入力ではない。
 
 主要出力は次の形式である。`selected=true`は`adopt`だけで、`reject`／`defer`ではfalseになる。
@@ -821,6 +823,7 @@ directory archive を検証し、object、reflog、Refs を復元する。
 | `creator_session_not_found` | `creator-report`に必要なcurrent proposal／decision Refがない |
 | `creator_report_unavailable_after_commit` | `creator-run`のsession commit／fsckは完了したが、続くreport構築が失敗。再実行で上書きせず`creator-report`で再確認する |
 | `creator_report_invalid` | current proposal／Feedback／decision snapshot／AI Activity、またはcomparison Tree set／Analysis／tool Actor／adapter digest／ordered input／replay prerequisite／両Ref reachabilityがcreator contractと一致しない |
+| `creator_implementation_unrecognized` | comparison evidenceは整合しているが、byte-identity implementation OIDが現在のbuildのbundleでも公開済みreleaseのbundleでもない。新しいreleaseや未リリースのsource buildで作ったsession。retry不可、identityへの影響なし |
 | `authentication_required` | application routeのcredentialをAuthenticatorが受理しない。`creator-run`のfixed Pilot routeから透過し得る |
 | `project_access_denied` | application routeのmalformed／unknown／forbidden project、またはproject-scoped handle/profile不一致。`creator-run`から透過し得る |
 | `execution_permit_invalid` | AIまたはHuman application permitがwrong session／instance、consumed、revoked、expired、またはClock backward。`creator-run`から透過し得る |

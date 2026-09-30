@@ -171,6 +171,15 @@ Preview releases may change the object, archive, or OID draft. Before updating:
 5. do not assume forward or backward compatibility unless the release notes say
    it is supported.
 
+v0.13.1 and earlier binaries refuse Creator sessions recorded by releases before
+v0.11.1 with `creator_report_invalid`, even though `fsck` passes
+([#132](https://github.com/howlrs/synapsegit/issues/132)). Releases after v0.13.1
+read Creator sessions recorded by every published release, in place or after
+archive restore. A session recorded by a newer release or an unreleased source
+build is refused with `creator_implementation_unrecognized`. That code does not
+indicate damaged data; open the session with the recording build or a later
+release.
+
 There is no automatic updater.
 
 ## Uninstall

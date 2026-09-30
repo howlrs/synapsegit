@@ -142,6 +142,7 @@ async function deferEnglishSource(page, app, source) {
 }
 
 test("English derive carries reference images into a separate session", async ({ page, app }) => {
+  test.setTimeout(120_000);
   await deferEnglishSource(page, app, "english-derive-source");
   await page.getByRole("link", { name: "Try a next candidate from this record", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Source and reused reference images", exact: true })).toBeVisible();
@@ -153,6 +154,7 @@ test("English derive carries reference images into a separate session", async ({
 });
 
 test("English re-review creates a separate session from a deferred record", async ({ page, app }) => {
+  test.setTimeout(120_000);
   await deferEnglishSource(page, app, "english-reuse-source");
   await page.getByRole("link", { name: "Re-review the deferred proposal in a new session", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Review a recorded proposal in a new session", exact: true })).toBeVisible();

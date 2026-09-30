@@ -850,6 +850,82 @@ fn json_stdout(output: &Output) -> serde_json::Value {
     })
 }
 
+fn creator_archive_fixture(name: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/creator-archives")
+        .join(name)
+}
+
+#[test]
+fn creator_report_reads_archived_release_sessions_and_rejects_unreleased_bundles() {
+    let temporary = TempDirectory::new();
+    for (fixture, implementation_oid, note_availability) in [
+        (
+            "v0.1.0",
+            "blob:sg-oid-v1:sha256:cce835384026b51df3029211baab744540f2f3d12f12c52261ebb6d45a30eaa5",
+            "absent",
+        ),
+        (
+            "v0.11.0",
+            "blob:sg-oid-v1:sha256:4490a6a014bbe51b87927cd5be47d5b4aa882ecf1234b6afd1c981db8a398ca8",
+            "present",
+        ),
+    ] {
+        let restored = temporary.join(fixture);
+        let restored = restored.to_str().unwrap();
+        assert_success(&run(&[
+            "restore",
+            creator_archive_fixture(fixture).to_str().unwrap(),
+            restored,
+        ]));
+        assert_success(&run(&["fsck", restored]));
+        let report = json_stdout(&run(&[
+            "creator-report",
+            restored,
+            "release-fixture",
+            "--format",
+            "json",
+        ]));
+        assert_eq!(report["disposition"], "defer", "{fixture}");
+        assert_eq!(
+            report["rationale"], "Private fixture rationale.",
+            "{fixture}"
+        );
+        assert_eq!(
+            report["generation_note"]["availability"], note_availability,
+            "{fixture}"
+        );
+        assert_eq!(report["comparison"]["availability"], "present", "{fixture}");
+        assert_eq!(
+            report["comparison"]["implementation_oid"], implementation_oid,
+            "{fixture}"
+        );
+    }
+
+    // The same session contract recorded by a source build whose Observation
+    // manifest differs from every release stays verifiable but unrecognized.
+    let restored = temporary.join("unreleased-source-build");
+    let restored = restored.to_str().unwrap();
+    assert_success(&run(&[
+        "restore",
+        creator_archive_fixture("unreleased-source-build")
+            .to_str()
+            .unwrap(),
+        restored,
+    ]));
+    assert_success(&run(&["fsck", restored]));
+    let output = run(&["creator-report", restored, "unreleased-fixture"]);
+    assert!(!output.status.success());
+    assert!(output.stdout.is_empty());
+    assert_eq!(
+        String::from_utf8(output.stderr).unwrap(),
+        "creator_implementation_unrecognized: byte-identity implementation \
+         blob:sg-oid-v1:sha256:d75f818f273203d939df7c41e66897093d7076888a8df56a491332a815cfccd2 \
+         is not recognized by this build; the session may have been recorded by a newer release \
+         or an unreleased source build\n"
+    );
+}
+
 #[test]
 fn creator_report_format_json_default_and_text_output_are_unchanged() {
     let temporary = TempDirectory::new();

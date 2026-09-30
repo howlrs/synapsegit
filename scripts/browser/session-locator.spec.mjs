@@ -34,7 +34,7 @@ test("the English locator retains exact case and labels", async ({ page, app }) 
   const locator = page.locator("[data-creator-session-locator]");
   await expect(locator.getByRole("heading", { name: "Open a session by name", exact: true })).toBeVisible();
   await expect(locator.getByText("The list shows at most 200 sessions. Open an older session by its exact name.", { exact: true })).toBeVisible();
-  await expect(locator.getByLabel("Session name", { exact: true })).toHaveAttribute("pattern", "[a-z][a-z0-9-]{0,63}");
+  await expect(locator.getByLabel("Session name", { exact: true })).toHaveAttribute("pattern", "[a-z][a-z0-9\\-]{0,63}");
   await locator.getByLabel("Session name", { exact: true }).fill("sample");
   await locator.getByRole("button", { name: "Open session", exact: true }).click();
   await page.waitForURL("**/projects/complete/creator-sessions/sample");

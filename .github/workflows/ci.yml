@@ -60,6 +60,8 @@ jobs:
           bash -n scripts/*.sh
           node scripts/compare_creator_reports.mjs --self-test
           node scripts/select_archive_compat_baseline.mjs --self-test
+          node scripts/verify_byte_identity_allowlist.mjs --self-test
+          node scripts/verify_byte_identity_allowlist.mjs
           node scripts/verify_core_fixtures.mjs
           node scripts/verify_local_api.mjs
           node scripts/test_local_api_version.mjs

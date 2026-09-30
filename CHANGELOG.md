@@ -6,6 +6,20 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+### Added
+
+- The documentation check compares the `SECURITY.md` supported row with the
+  `synapse-cli` minor version. From v0.13.2, it also requires the release notes,
+  which double as the bundled archive `README.md`, to keep the rule not to
+  extract an unverified archive, the export-before-update precaution, the
+  license essentials, and a tag-pinned installation guide link, and to omit
+  pre-publication wording. Published release notes are unchanged.
+- CI and the release workflow recompute each listed release's implementation
+  OID from its tagged source and fail when an entry drifts or a published
+  release below the current version is missing. Restore regression fixtures
+  written by the v0.1.0 and v0.11.0 release binaries, and by an unreleased
+  source build, cover both outcomes.
+
 ### Changed
 
 - CI runs for pushes to `main` are no longer cancelled by later merges; each
@@ -21,6 +35,30 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   runner stall.
 - Dependabot groups compatible cargo updates and GitHub Actions updates into
   one monthly PR each, so one CI run and one notices refresh cover them.
+- The English derive and re-review browser tests use the same 120-second
+  timeout as the dedicated derive and re-review tests. They perform the same
+  review, decision, and follow-up session work, and both timed out at the
+  60-second default in the v0.13.0 main CI debug run.
+
+### Fixed
+
+- Localhost session-name, archive-name, and confirmation fields use a slug
+  `pattern` that stays valid under the `v` flag that browsers apply to HTML
+  `pattern`. The unescaped trailing `-` made browsers ignore the attribute, so
+  the Inbox and re-review forms sent invalid names to the server without field
+  guidance. A browser test now checks each field's own pattern validation.
+- `SECURITY.md` names the latest v0.13.x prerelease as the best-effort security
+  target. The v0.13.0 and v0.13.1 files still named v0.12.x.
+- Creator sessions recorded by v0.1.0 through v0.11.0 are readable again, in
+  place and after archive restore. v0.13.1 accepted only the v0.11.1, v0.12.0,
+  and v0.13.0 byte-identity implementation bundles, although every release
+  shares the same adapter source and differs only in its package manifest. The
+  audited allowlist now names every published release through v0.13.1.
+- A Creator session whose comparison evidence is consistent but whose
+  implementation bundle matches no known release, such as one recorded by a
+  newer release or an unreleased source build, is refused with the distinct
+  `creator_implementation_unrecognized` code in the CLI and localhost UI instead
+  of `creator_report_invalid`.
 
 ## [0.13.1] - 2026-09-30
 
