@@ -6,6 +6,15 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ## [Unreleased]
 
+### Added
+
+- The documentation check compares the `SECURITY.md` supported row with the
+  `synapse-cli` minor version. From v0.13.2, it also requires the release notes,
+  which double as the bundled archive `README.md`, to keep the rule not to
+  extract an unverified archive, the export-before-update precaution, the
+  license essentials, and a tag-pinned installation guide link, and to omit
+  pre-publication wording. Published release notes are unchanged.
+
 ### Changed
 
 - CI runs for pushes to `main` are no longer cancelled by later merges; each
@@ -33,6 +42,8 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   `pattern`. The unescaped trailing `-` made browsers ignore the attribute, so
   the Inbox and re-review forms sent invalid names to the server without field
   guidance. A browser test now checks each field's own pattern validation.
+- `SECURITY.md` names the latest v0.13.x prerelease as the best-effort security
+  target. The v0.13.0 and v0.13.1 files still named v0.12.x.
 
 ## [0.13.1] - 2026-09-30
 
