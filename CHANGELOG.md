@@ -26,6 +26,14 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   review, decision, and follow-up session work, and both timed out at the
   60-second default in the v0.13.0 main CI debug run.
 
+### Fixed
+
+- Localhost session-name, archive-name, and confirmation fields use a slug
+  `pattern` that stays valid under the `v` flag that browsers apply to HTML
+  `pattern`. The unescaped trailing `-` made browsers ignore the attribute, so
+  the Inbox and re-review forms sent invalid names to the server without field
+  guidance. A browser test now checks each field's own pattern validation.
+
 ## [0.13.1] - 2026-09-30
 
 ### Changed
