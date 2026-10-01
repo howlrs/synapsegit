@@ -1632,6 +1632,15 @@ async fn creator_multipart_and_decision_complete_the_two_step_transport_workflow
         completed_html.contains("<span class=\"metric__label\">判断</span><strong>採用</strong>")
     );
     assert!(completed_html.contains(">タイムライン</h2>"));
+    assert!(
+        completed_html.contains("<dt>対象</dt><dd>Web transport fixture</dd>"),
+        "{completed_html}"
+    );
+    assert!(completed_html.contains("<dt>作成者</dt><dd>HTTP creator</dd>"));
+    assert!(completed_html.contains("<dt>判断を記録した時刻</dt><dd>20"));
+    assert_eq!(complete["report"]["subject_label"], "Web transport fixture");
+    assert_eq!(complete["report"]["creator_name"], "HTTP creator");
+    assert!(complete["report"]["decision_recorded_at"].is_string());
     assert!(completed_html.contains("<span class=\"badge\">観測</span>"));
     assert_no_application_english(completed_html);
     assert!(!completed_html.contains("Human reviewが必要です"));

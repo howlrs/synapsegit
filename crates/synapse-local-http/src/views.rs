@@ -176,6 +176,9 @@ pub(crate) struct SessionPageView {
     pub(crate) disposition: String,
     pub(crate) decision_outcome: String,
     pub(crate) rationale: String,
+    pub(crate) subject_label: String,
+    pub(crate) creator_name: String,
+    pub(crate) decision_recorded_at: String,
     pub(crate) generation_note: String,
     pub(crate) source: Option<synapse_local_service::CreatorSourceBinding>,
     pub(crate) reuse_source: Option<synapse_local_service::CreatorReuseSourceBinding>,
@@ -244,6 +247,9 @@ impl SessionPageView {
                     disposition: "—".into(),
                     decision_outcome: String::new(),
                     rationale: String::new(),
+                    subject_label: String::new(),
+                    creator_name: String::new(),
+                    decision_recorded_at: String::new(),
                     annotations: Vec::new(),
                     annotations_json: String::from("null"),
                     annotations_unavailable: false,
@@ -331,6 +337,9 @@ impl SessionPageView {
                     disposition: "—".into(),
                     decision_outcome: String::new(),
                     rationale: String::new(),
+                    subject_label: String::new(),
+                    creator_name: String::new(),
+                    decision_recorded_at: String::new(),
                     annotations: Vec::new(),
                     annotations_json: String::from("null"),
                     annotations_unavailable: false,
@@ -425,6 +434,15 @@ impl SessionPageView {
             decision_url: String::new(),
             decision_outcome: m.decision_outcome(&report.disposition).into(),
             rationale: report.rationale.unwrap_or_default(),
+            subject_label: report
+                .subject_label
+                .unwrap_or_else(|| m.session.not_recorded.into()),
+            creator_name: report
+                .creator_name
+                .unwrap_or_else(|| m.session.not_recorded.into()),
+            decision_recorded_at: report
+                .decision_recorded_at
+                .unwrap_or_else(|| m.session.not_recorded.into()),
             generation_note: format_generation_note(m, report.generation_note.as_ref()),
             source: report.source,
             reuse_source: report.reuse_source,

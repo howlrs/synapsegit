@@ -407,11 +407,20 @@ pub struct CreatorReport {
     pub session: String,
     pub project_id: String,
     pub subject_id: String,
+    /// Subject label from the verified base Tree; omitted when absent.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub subject_label: Option<String>,
     pub creator_id: String,
+    /// Self-declared creator display name from the verified base Tree.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub creator_name: Option<String>,
     pub agent_id: String,
     pub decision_ref: String,
     pub proposal_ref: String,
     pub decision_head: String,
+    /// DecisionFeedback `recorded_at`: the recording time only.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub decision_recorded_at: Option<String>,
     pub proposal_head: String,
     pub base_head: String,
     pub base_snapshot: String,

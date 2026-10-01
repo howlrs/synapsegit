@@ -259,12 +259,15 @@ pub fn creator_reuse_source_from_snapshot(
             session: session.into(),
             project_id: ids.project,
             subject_id: ids.subject,
+            subject_label: None,
             creator_id: ids.creator,
+            creator_name: None,
             agent_id: ids.agent,
             decision_ref,
             proposal_ref,
             decision_head,
             proposal_head,
+            decision_recorded_at: None,
             base_head: String::new(),
             base_snapshot: base_snapshot.into(),
             proposal_snapshot: String::new(),
@@ -513,6 +516,37 @@ pub fn creator_reuse_source_display_from_snapshot(
             annotations,
         )
     })
+}
+
+/// Display names from the verified base Tree of a report.  A stored session
+/// without the entry or field yields `None`; a value is never inferred.
+fn report_display_names(
+    repository: &Repository,
+    base_snapshot: &str,
+) -> Result<(Option<String>, Option<String>)> {
+    let tree = read_json(repository, base_snapshot)?;
+    let Some(entries) = tree.get("entries").and_then(JsonValue::as_object) else {
+        return Ok((None, None));
+    };
+    let display = |name: &str, field: &str| -> Result<Option<String>> {
+        let Some(oid) = entries
+            .get(name)
+            .and_then(JsonValue::as_object)
+            .and_then(|entry| entry.get("oid"))
+            .and_then(JsonValue::as_str)
+        else {
+            return Ok(None);
+        };
+        Ok(read_json(repository, oid)?
+            .get("payload")
+            .and_then(|payload| payload.get(field))
+            .and_then(JsonValue::as_str)
+            .map(str::to_owned))
+    };
+    Ok((
+        display("creator.actor.json", "display_name")?,
+        display("subject.json", "label")?,
+    ))
 }
 
 fn source_display_from_base_tree(
@@ -841,8 +875,14 @@ impl<'source> PreparedCreatorReportReader<'source> {
             &read_json(repository, &ai_activity.oid)?,
             &ai_output_blob_oid,
         )?;
+        let feedback = read_json(repository, &feedback_oid)?;
+        let decision_recorded_at = feedback
+            .get("recorded_at")
+            .and_then(JsonValue::as_str)
+            .map(str::to_owned);
+        let (creator_name, subject_label) = report_display_names(repository, &base_snapshot)?;
         let (annotations, annotations_unavailable) = crate::annotations::read_annotations(
-            &read_json(repository, &feedback_oid)?,
+            &feedback,
             &original_blob_oid,
             &current_blob_oid,
             &ai_output_blob_oid,
@@ -946,12 +986,15 @@ impl<'source> PreparedCreatorReportReader<'source> {
                 session: session.to_owned(),
                 project_id: ids.project,
                 subject_id: ids.subject,
+                subject_label,
                 creator_id: ids.creator,
+                creator_name,
                 agent_id: ids.agent,
                 decision_ref,
                 proposal_ref,
                 decision_head,
                 proposal_head,
+                decision_recorded_at,
                 base_head,
                 base_snapshot,
                 proposal_snapshot,

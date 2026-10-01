@@ -374,9 +374,11 @@ base／proposal／decision snapshotを返し、text CLIは前者を`selected`と
 report_session=<session>
 project=<project-entity-id>
 subject=<subject-entity-id>
+subject_label=<quoted-text>             # present when stored
 proposal_attributed_to_agent=<agent-entity-id>
 ai_output_source=caller_supplied
 reviewed_by_human=<creator-entity-id>
+creator_name=<quoted-text>              # present when stored
 selected=<true|false>
 base_head=<commit-oid>
 base_snapshot=<tree-oid>
@@ -385,6 +387,7 @@ decision_snapshot=<tree-oid>
 decision_ref=<ref><TAB><commit-oid>
 proposal_ref=<ref><TAB><commit-oid>
 disposition=<adopt|reject|defer>
+decision_recorded_at=<timestamp>        # present when stored
 rationale=<quoted-text>                 # present when stored
 original=<blob-oid>
 current=<blob-oid>
@@ -621,10 +624,13 @@ verifyしてから一つの完全なdocumentへ組み立て、それを丸ごと
 | `session` | string | caller指定のsession名。 |
 | `project_id` | string | Subject extensionから復元したproject EntityId。 |
 | `subject_id` | string | Subject EntityId。 |
+| `subject_label` | string? | 検証済みbase TreeのSubjectに記録された`--subject`の表示名。記録がない旧sessionでは`null`で、推測しない。 |
 | `agent_id` | string | proposalの記録上のattributed agent EntityId。text出力の`proposal_attributed_to_agent`に対応する。commandやmodelによる生成証明ではない。 |
 | `creator_id` | string | reviewerを表すcreator EntityId。text出力の`reviewed_by_human`に対応する。proposalを選んだという意味ではない。 |
+| `creator_name` | string? | 検証済みbase Treeのcreator Actorに記録された`--creator`の表示名。self-declaredで、本人性の証明ではない。記録がなければ`null`。 |
 | `selected_ai_output` | bool | `disposition`が`adopt`のときだけ`true`。 |
 | `disposition` | string | `"adopt"` \| `"reject"` \| `"defer"`。 |
+| `decision_recorded_at` | string? | Human DecisionFeedbackの`recorded_at`。記録した時刻であり、人が判断した時刻の証明ではない。記録がなければ`null`。 |
 | `rationale` | string? | 記録されたHuman rationale。未記録なら`null`。 |
 | `base_head` | string | base Commit OID。 |
 | `base_snapshot` | string | base Tree OID。 |
