@@ -28,7 +28,12 @@ cargo run -p synapse-cli -- --help
 ```
 
 成功は exit code 0、全 error は現在 exit code 1。error は stderr の先頭に `<code>:` を付ける。
-usage error の場合は usage 全文も stderr に出す。
+usage error の場合は usage 全文も stderr に出す。次の操作がmessageに含まれない主なerror（`creator_session_exists`、
+`creator_session_incomplete`、`creator_session_not_found`、`fsck_failed`、入力fileを開けない`storage_error`）では、
+2行目に`hint: `で始まる案内を1行出す。1行目のcodeとexit codeは変わらない。
+
+`synapse COMMAND --help`、`synapse COMMAND -h`、`synapse help COMMAND`は、そのcommandのusageと短い説明を
+stdoutへ出してexit code 0で終了する。commandは実行しない（`synapse init --help`はrepositoryを作らない）。
 `--version`、`-V`、`version` は `synapse <package-version>` を stdout に出して exit code 0 で終了する。
 
 ## `synapse-present` companion CLI
@@ -707,6 +712,28 @@ verifyしてから一つの完全なdocumentへ組み立て、それを丸ごと
 `timeline`配列そのものは、上記の例が示すように`ordering_time`昇順（同着はOIDをtiebreakerとする）で
 並び、stageは`original_observation`／`current_observation`／`image_import`／`ai_proposal`の順に
 現れる（各sessionでの記録順）。
+
+### `creator-list <repo> [--format text|json]`
+
+repository内の全creator sessionの**未検証の概要**を出力する。各sessionはcurrent headから最大6回の構造化CAS read
+（Commit、Tree、creator Actor、Subject、import Activity、決定済みならDecisionFeedback）で読み、reportの再構築やfsckは
+行わない。localhost dashboardの一覧と同じ値であり、判断権限や検証の根拠にしない。1件を検証するには`creator-report`を使う。
+
+```bash
+synapse creator-list "$HOME/SynapseGit/demo"
+synapse creator-list "$HOME/SynapseGit/demo" --format json
+```
+
+- 既存のrepositoryだけを開く。存在しないpathは`repository_not_found`で、作成しない。
+- 探索はRef 100,000件、session 50,000件まで。超える場合は`resource_limit`。
+- text出力は先頭の`#`行の後、1 sessionを1行で、`session`、`state`（`complete`／`incomplete`）、`disposition`、
+  `recorded_at`、`subject_label`、`creator_name`をTABで区切る。表示名は引用符付きでescapeし、値がなければ`-`。
+  `synapse-local`で判断待ちのsessionは、Refの形から`incomplete`と表示される。
+- `--format json`は`"format": "synapsegit-cli-creator-list-v1"`、`"scope": "private_local"`、`"verified": false`、
+  `sessions`配列（`session`、`state`、`disposition`、`recorded_at`、`recorded_time_basis`、`subject_label`、
+  `creator_name`、`source_session`。値がなければ`null`）を持つdocumentを1件出力する。fieldの追加は`-v1`のまま行う。
+- `recorded_time_basis`は`recorded_at`（DecisionFeedbackの記録時刻）または`authored_at (unverified fallback)`。
+  どちらも制作・判断の実時刻を証明しない。
 
 ### `inbox put <inbox-dir> <slug> <original> <current> <ai-output> --subject <label> --creator <name> [--generation-note-file <path>] [--format text|json]`
 

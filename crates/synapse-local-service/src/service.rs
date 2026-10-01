@@ -27,7 +27,7 @@ use synapse_creator::{
     begin_creator_session_with_reuse_source_existing, creator_report_from_snapshot,
     creator_reuse_source_context_from_binding, creator_reuse_source_display_from_snapshot,
     creator_reuse_source_from_snapshot, decide_creator_session_with_annotations as core_decide,
-    discover_creator_sessions,
+    discover_creator_sessions, read_creator_session_overview,
 };
 use synapse_sqlite::{
     MAX_REF_SNAPSHOT_ENTRIES, MAX_REFLOG_PAGE_ENTRIES, RefArchiveExportLimits, RefSnapshot,
@@ -2359,119 +2359,25 @@ fn enrich_display_session_summaries(
         else {
             continue;
         };
-        let Ok(commit) = read_pending_json(repository, head) else {
-            summary.state = CreatorSessionState::Incomplete;
-            continue;
-        };
-        if summary.state == CreatorSessionState::Complete
-            && commit
-                .get("commit_kind")
-                .and_then(serde_json::Value::as_str)
-                != Some("decision")
-        {
+        // At most six bounded reads; malformed cells stay unavailable and
+        // never grant authority to the overview.
+        let overview = read_creator_session_overview(
+            repository,
+            head,
+            summary.state == CreatorSessionState::Complete,
+        );
+        if overview.incomplete {
             summary.state = CreatorSessionState::Incomplete;
         }
-        let Some(tree_oid) = commit.get("snapshot").and_then(serde_json::Value::as_str) else {
-            summary.state = CreatorSessionState::Incomplete;
-            continue;
-        };
-        let Ok(tree) = read_pending_json(repository, tree_oid) else {
-            summary.state = CreatorSessionState::Incomplete;
-            continue;
-        };
-        let Some(entries) = tree.get("entries").and_then(serde_json::Value::as_object) else {
-            summary.state = CreatorSessionState::Incomplete;
-            continue;
-        };
-
-        // Reads three to five.  A malformed entry merely leaves that display
-        // cell unavailable; it never grants authority to the overview.
-        if let Some(record) = shallow_tree_record(repository, entries, "creator.actor.json") {
-            summary.creator_name = overview_payload_text(&record, "display_name", 300);
-        }
-        if let Some(record) = shallow_tree_record(repository, entries, "subject.json") {
-            summary.subject_label = overview_payload_text(&record, "label", 500);
-        }
-        if let Some(record) = shallow_tree_record(repository, entries, "image-import.activity.json")
-        {
-            summary.source_session = shallow_source_from_activity(&record);
-        }
-
-        // A completed decision has one feedback transition.  This sixth read
-        // is deliberately bounded and does not expose its private rationale.
-        if summary.state == CreatorSessionState::Complete {
-            if let Some(record) = shallow_transition_record(repository, &commit) {
-                summary.disposition =
-                    overview_payload_text(&record, "disposition", 24).and_then(|value| match value
-                        .as_str()
-                    {
-                        "adopted_unchanged" => Some("adopt".into()),
-                        "rejected" => Some("reject".into()),
-                        "deferred" => Some("defer".into()),
-                        _ => None,
-                    });
-                if let Some(recorded_at) = overview_top_level_text(&record, "recorded_at", 64) {
-                    summary.recorded_at = Some(recorded_at);
-                    summary.recorded_time_basis = Some("recorded_at".into());
-                }
-            }
-        }
-        if summary.recorded_at.is_none() {
-            if let Some(authored_at) = overview_top_level_text(&commit, "authored_at", 64) {
-                summary.recorded_at = Some(authored_at);
-                summary.recorded_time_basis = Some("authored_at (unverified fallback)".into());
-            }
-        }
+        summary.creator_name = overview.creator_name;
+        summary.subject_label = overview.subject_label;
+        summary.source_session = overview.source_session;
+        summary.disposition = overview.disposition.map(str::to_owned);
+        summary.recorded_at = overview.recorded_at;
+        summary.recorded_time_basis = overview
+            .recorded_time_basis
+            .map(|basis| basis.as_str().to_owned());
     }
-}
-
-fn shallow_tree_record(
-    repository: &Repository,
-    entries: &serde_json::Map<String, serde_json::Value>,
-    name: &str,
-) -> Option<serde_json::Value> {
-    let oid = entries.get(name)?.get("oid")?.as_str()?;
-    read_pending_json(repository, oid).ok()
-}
-
-fn shallow_transition_record(
-    repository: &Repository,
-    commit: &serde_json::Value,
-) -> Option<serde_json::Value> {
-    let oid = commit
-        .get("transition_refs")?
-        .as_array()?
-        .first()?
-        .as_str()?;
-    read_pending_json(repository, oid).ok().filter(|record| {
-        record
-            .get("record_type")
-            .and_then(serde_json::Value::as_str)
-            == Some("decision_feedback")
-    })
-}
-
-fn overview_payload_text(
-    record: &serde_json::Value,
-    field: &str,
-    max_bytes: usize,
-) -> Option<String> {
-    record
-        .get("payload")?
-        .get(field)?
-        .as_str()
-        .and_then(|value| (!value.is_empty() && value.len() <= max_bytes).then(|| value.to_owned()))
-}
-
-fn overview_top_level_text(
-    record: &serde_json::Value,
-    field: &str,
-    max_bytes: usize,
-) -> Option<String> {
-    record
-        .get(field)?
-        .as_str()
-        .and_then(|value| (!value.is_empty() && value.len() <= max_bytes).then(|| value.to_owned()))
 }
 
 fn sort_ref_shaped_summaries(snapshot: &RefSnapshot, sessions: &mut Vec<CreatorSessionSummary>) {
