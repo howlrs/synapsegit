@@ -12,10 +12,11 @@ container registry.
 | Route | Requirements | Installs | Recommended for |
 |---|---|---|---|
 | GitHub Release archive | Linux x86_64, glibc 2.34+ | `synapse`, `synapse-local`, `synapse-present` | Fastest preview evaluation |
+| GitHub Release archive (releases after v0.13.1) | macOS on Apple Silicon (arm64) | `synapse`, `synapse-local`, `synapse-present` | Creators on a Mac |
 | Tagged source build | Rust 1.88+, supported Unix-like host | The selected binary | Other platforms and source review |
 
-Windows is not currently supported by the archive publication path. macOS and
-Linux ARM64 do not have release-tested prebuilt artifacts yet. The Dockerfile
+Windows is not currently supported by the archive publication path. Linux ARM64
+has no release-tested prebuilt artifact yet; use a tagged source build. The Dockerfile
 in this repository is for a private, one-shot GCP packaging smoke test; it is
 not an end-user SynapseGit image.
 
@@ -34,10 +35,11 @@ and checksum from its fixed release URL:
 ```bash
 curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.13.1/synapsegit-v0.13.1-x86_64-unknown-linux-gnu.tar.gz
 curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.13.1/SHA256SUMS
-sha256sum --check SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
 ```
 
-`SHA256SUMS` detects accidental or malicious byte changes relative to the file
+`SHA256SUMS` lists every archive of the release; `--ignore-missing` checks the
+one you downloaded. It detects accidental or malicious byte changes relative to the file
 published on the same Release. It does not authenticate the project owner by
 itself. Verify the v0.13.1 archive's build provenance with GitHub CLI as well:
 
@@ -85,6 +87,47 @@ archive root, next to this bundle's `README.md`), so you can try the tutorial
 from the extracted archive alone, without cloning the repository. The
 v0.9.0 archive does not include them; use a checkout of the v0.9.0 tag for
 the tutorial instead.
+
+## Install the macOS arm64 release
+
+Releases after v0.13.1 also publish an archive for macOS on Apple Silicon. It is
+built and smoke-tested on macOS 14 by the same tag workflow, with the same
+checksum and build-provenance attestation. Set `TAG` to that release, for
+example `v1.0.0-rc.1`:
+
+```bash
+TAG=vX.Y.Z
+curl -LO "https://github.com/howlrs/synapsegit/releases/download/$TAG/synapsegit-$TAG-aarch64-apple-darwin.tar.gz"
+curl -LO "https://github.com/howlrs/synapsegit/releases/download/$TAG/SHA256SUMS"
+grep "synapsegit-$TAG-aarch64-apple-darwin.tar.gz" SHA256SUMS | shasum -a 256 --check
+gh attestation verify "synapsegit-$TAG-aarch64-apple-darwin.tar.gz" \
+  --repo howlrs/synapsegit \
+  --signer-workflow howlrs/synapsegit/.github/workflows/release.yml \
+  --source-ref "refs/tags/$TAG" \
+  --deny-self-hosted-runners
+```
+
+Stop if either check fails. Do not extract or install an unverified archive.
+Then install the three binaries:
+
+```bash
+tar -xzf "synapsegit-$TAG-aarch64-apple-darwin.tar.gz"
+mkdir -p "$HOME/.local/bin"
+for binary in synapse synapse-local synapse-present; do
+  install -m 0755 "synapsegit-$TAG-aarch64-apple-darwin/$binary" "$HOME/.local/bin/$binary"
+done
+export PATH="$HOME/.local/bin:$PATH"
+synapse --version
+```
+
+The binaries are not signed or notarized by Apple. Files downloaded with `curl`
+carry no quarantine attribute and run directly. If you downloaded the archive
+with a browser and macOS blocks a binary, remove the quarantine attribute from
+the installed binaries only after both checks above passed:
+
+```bash
+xattr -d com.apple.quarantine "$HOME/.local/bin/synapse" "$HOME/.local/bin/synapse-local" "$HOME/.local/bin/synapse-present"
+```
 
 ## Build from a tagged source release
 

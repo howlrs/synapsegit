@@ -9,6 +9,14 @@ formats; see docs/compatibility.md.
 
 ### Added
 
+- Releases publish a macOS arm64 (Apple Silicon) archive next to the Linux
+  x86_64 archive. The tag workflow builds, tests, packages, smoke-tests, and
+  attests each platform. A publish job combines both archives into one
+  `SHA256SUMS`, so the install commands now use
+  `sha256sum --check --ignore-missing SHA256SUMS`. CI runs the same macOS job
+  and assembly on every pull request. The macOS binaries are not signed or
+  notarized; the install guide explains the checks and the quarantine
+  attribute.
 - Release candidates can be tagged as `vX.Y.Z-rc.N` (for example
   `v1.0.0-rc.1`). The release scripts accept them in SemVer order, so a
   candidate sorts before its release. A candidate is published as a

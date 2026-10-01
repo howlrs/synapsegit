@@ -153,6 +153,7 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 | Public repository | Available |
 | v0.13.1 GitHub prerelease | Available after the tag workflow publishes it |
 | Linux x86_64 GNU binary | Available after the tag workflow; glibc 2.34+ |
+| macOS arm64 binary | Published from the release after v0.13.1; built and smoke-tested on macOS 14; not signed or notarized |
 | Source build from fixed tag | Available after the tag workflow; Rust 1.88+ |
 | SHA-256 release checksum | Available after the tag workflow |
 | Build provenance attestation | Generated for the v0.13.1 archive by the tag workflow |

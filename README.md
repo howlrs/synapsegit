@@ -108,7 +108,7 @@ Ubuntu 22.04 and requires glibc 2.34 or newer. Other platforms can use the
 ```bash
 curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.13.1/synapsegit-v0.13.1-x86_64-unknown-linux-gnu.tar.gz
 curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.13.1/SHA256SUMS
-sha256sum --check SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
 ```
 
 Stop if checksum verification fails. Do not extract or install an unverified
