@@ -181,9 +181,11 @@ v1.0に向けた対象利用者、互換性の約束、範囲、リリース条�
    zero-context AI、実Human、axe／keyboard／screen reader理解・accessibility評価を実施する。
 2. 実装済みlocalhost import／review／diagnostics／bounded `fsck`／archive browser controlsの
    実利用者による一連の操作の評価と、browser end-to-end回帰coverageを拡充する。
-   手順とテンプレートは[Creator pilot 評価キット](./evaluation/creator-pilot/v1/)として整備済み
-   （メンテナによるsynthetic素材でのrehearsalは完了）。**実利用者によるcreator benefit評価は
-   参加者の募集・実施を含めて未完了のまま**であり、このキットの整備だけでは完了しない。
+   v0.9.0向けの手順は[Creator pilot 評価キットv1](./evaluation/creator-pilot/v1/)、
+   v1.0の利用モデル（AIエージェント経由のInbox、人による画面での判断、backup）向けの手順は
+   [評価キットv2](./evaluation/creator-pilot/v2/)として整備済み（どちらも合成素材でのrehearsalは完了）。
+   **実利用者によるcreator benefit評価は参加者の募集・実施を含めて未完了のまま**であり、キットの整備だけでは
+   完了しない。v1.0-rcでの3〜5人の評価は[v1.0 release plan](./v1_release_plan.md#リリース条件)の条件である。
 3. 派生セッション公開の必要性を評価し、対応する場合は再利用意味を保持する新しい公開profileを設計する。
 4. fixed-point Observation datasetとpixel-level adapterを別contractとして検証する。
 5. durable admission transactionを含むproduction control planeを実装する。
