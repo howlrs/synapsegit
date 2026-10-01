@@ -54,6 +54,13 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ### Changed
 
+- The localhost session Timeline shows readable stages and time-basis
+  descriptions in Japanese and English, ends with the Human decision row, and
+  keeps the stored codes, exact time, and record OID under collapsed technical
+  details. Recorded times on the session page and the project list are shown
+  in the browser's time zone with the exact stored UTC value in the tooltip,
+  and as UTC to the second without JavaScript. Stored values, API fields, and
+  the CLI text report are unchanged.
 - A complete Creator report now names its Subject label, the self-declared
   creator display name, and the Human DecisionFeedback recording time. They are
   read from the verified base Tree and DecisionFeedback, shown as "not

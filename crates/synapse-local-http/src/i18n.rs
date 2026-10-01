@@ -666,6 +666,29 @@ message_section! {
 }
 
 message_section! {
+    /// Readable Timeline stages, time bases, and dashboard time bases.
+    TimelineText {
+        stage_original: "元の状態を記録", "Original state recorded";
+        stage_current: "現在の状態を記録", "Current state recorded";
+        stage_import: "3つの画像を取り込み", "Three images imported";
+        stage_proposal: "AI提案を記録", "AI proposal recorded";
+        stage_decision: "人の判断を記録", "Human decision recorded";
+        stage_other: "その他の記録", "Other record";
+        basis_capture_instant: "撮影時刻（記録上の値）", "Capture time, as recorded";
+        basis_capture_interval: "撮影期間（記録上の値）", "Capture interval, as recorded";
+        basis_observation_fallback: "記録した時刻（撮影時刻は不明）", "Recording time; the capture time is unknown";
+        basis_valid_instant: "実行時刻（記録上の値）", "Activity time, as recorded";
+        basis_valid_interval: "実行期間（記録上の値）", "Activity interval, as recorded";
+        basis_activity_fallback: "記録した時刻（実行時刻は不明）", "Recording time; the activity time is unknown";
+        basis_decision: "記録した時刻（判断した時刻の証明ではない）", "Recording time, not proof of when the decision was made";
+        summary_recorded: "判断を記録した時刻", "Decision recording time";
+        summary_authored: "Commitの作成時刻（未検証の代替）", "Commit authored time, unverified fallback";
+        summary_pending: "記録順の時刻", "Recording order time";
+        technical_details: "技術的な詳細", "Technical details";
+    }
+}
+
+message_section! {
     /// Display labels for known stored codes.  English keeps the stored code so
     /// the English interface is unchanged; unknown codes are shown as stored.
     Values {
@@ -681,6 +704,7 @@ message_section! {
         incomparable: "比較不能", "incomparable";
         observation: "観測", "observation";
         activity: "活動", "activity";
+        decision: "判断", "decision";
     }
 }
 
@@ -697,6 +721,7 @@ pub(crate) struct Messages {
     pub(crate) presentation: Presentation,
     pub(crate) error: ErrorPage,
     pub(crate) values: Values,
+    pub(crate) timeline: TimelineText,
 }
 
 static JA: Messages = Messages {
@@ -711,6 +736,7 @@ static JA: Messages = Messages {
     presentation: Presentation::JA,
     error: ErrorPage::JA,
     values: Values::JA,
+    timeline: TimelineText::JA,
 };
 
 static EN: Messages = Messages {
@@ -725,6 +751,7 @@ static EN: Messages = Messages {
     presentation: Presentation::EN,
     error: ErrorPage::EN,
     values: Values::EN,
+    timeline: TimelineText::EN,
 };
 
 /// Parameterized and keyed messages. Every method takes both languages, so
@@ -837,6 +864,50 @@ impl Messages {
             "incomparable" => values.incomparable,
             "observation" => values.observation,
             "activity" => values.activity,
+            "decision" => values.decision,
+            _ => code,
+        }
+        .to_owned()
+    }
+
+    /// A readable Timeline stage; an unknown code is shown as stored.
+    pub(crate) fn timeline_stage_label(&self, code: &str) -> String {
+        let text = &self.timeline;
+        match code {
+            "original_observation" => text.stage_original,
+            "current_observation" => text.stage_current,
+            "image_import" => text.stage_import,
+            "ai_proposal" => text.stage_proposal,
+            "human_decision" => text.stage_decision,
+            "other" => text.stage_other,
+            _ => code,
+        }
+        .to_owned()
+    }
+
+    /// A readable Timeline time basis; an unknown code is shown as stored.
+    pub(crate) fn timeline_basis_label(&self, code: &str) -> String {
+        let text = &self.timeline;
+        match code {
+            "observation_capture_instant" => text.basis_capture_instant,
+            "observation_capture_interval" => text.basis_capture_interval,
+            "observation_recorded_at_fallback" => text.basis_observation_fallback,
+            "activity_valid_instant" => text.basis_valid_instant,
+            "activity_valid_interval" => text.basis_valid_interval,
+            "activity_recorded_at_fallback" => text.basis_activity_fallback,
+            "decision_recorded_at" => text.basis_decision,
+            _ => code,
+        }
+        .to_owned()
+    }
+
+    /// A readable dashboard time basis; an unknown value is shown as stored.
+    pub(crate) fn summary_basis_label(&self, code: &str) -> String {
+        let text = &self.timeline;
+        match code {
+            "recorded_at" => text.summary_recorded,
+            "authored_at (unverified fallback)" => text.summary_authored,
+            "recorded ordering time" => text.summary_pending,
             _ => code,
         }
         .to_owned()
@@ -939,6 +1010,7 @@ impl Messages {
             self.presentation.entries(),
             self.error.entries(),
             self.values.entries(),
+            self.timeline.entries(),
         ]
         .concat()
     }

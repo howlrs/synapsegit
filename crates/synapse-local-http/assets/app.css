@@ -720,6 +720,11 @@ tbody tr:hover {
   background: var(--surface);
 }
 
+/* An odd last item spans the row instead of leaving an empty cell. */
+.detail-list > div:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+}
+
 .detail-list dt {
   color: var(--ink-muted);
   font-size: 0.82rem;

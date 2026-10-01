@@ -25,8 +25,9 @@ use crate::templates::{
 };
 use crate::views::{
     ArchiveView, HttpFailure, ProjectCardView, RefView, ReflogView, SessionPageView,
-    SessionSummaryView, archive_checksum_preview, archive_state_label, archive_state_tone,
-    project_state_label, project_state_tone, session_state_label, session_state_tone,
+    SessionSummaryView, TimeView, archive_checksum_preview, archive_state_label,
+    archive_state_tone, project_state_label, project_state_tone, session_state_label,
+    session_state_tone,
 };
 
 pub(crate) const MAX_DECISION_JSON_BYTES: usize = 8 * 1024;
@@ -1227,10 +1228,14 @@ pub(crate) async fn project_page(
             disposition: session
                 .disposition
                 .unwrap_or_else(|| m.project.unavailable_value.into()),
-            recorded_at: session
-                .recorded_at
-                .unwrap_or_else(|| m.project.unavailable_value.into()),
-            recorded_time_basis: session.recorded_time_basis.unwrap_or_else(|| "—".into()),
+            recorded_at: session.recorded_at.as_deref().map_or_else(
+                || TimeView::text(m.project.unavailable_value),
+                TimeView::from_recorded,
+            ),
+            recorded_time_basis: session
+                .recorded_time_basis
+                .as_deref()
+                .map_or_else(|| "—".into(), |basis| m.summary_basis_label(basis)),
             source_session: session.source_session.unwrap_or_else(|| "—".into()),
         })
         .collect::<Vec<_>>();

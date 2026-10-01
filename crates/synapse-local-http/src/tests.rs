@@ -1637,7 +1637,26 @@ async fn creator_multipart_and_decision_complete_the_two_step_transport_workflow
         "{completed_html}"
     );
     assert!(completed_html.contains("<dt>作成者</dt><dd>HTTP creator</dd>"));
-    assert!(completed_html.contains("<dt>判断を記録した時刻</dt><dd>20"));
+    assert!(completed_html.contains("<dt>判断を記録した時刻</dt><dd><time datetime=\"20"));
+    // Readable Timeline: labels instead of codes, the decision as the last
+    // row, and the stored codes and OIDs only inside the technical details.
+    assert!(completed_html.contains("<strong>元の状態を記録</strong>"));
+    assert!(completed_html.contains("<strong>人の判断を記録</strong>"));
+    assert!(completed_html.contains("記録した時刻（撮影時刻は不明）"));
+    assert!(completed_html.contains("<span class=\"badge\">判断</span>"));
+    assert!(completed_html.contains(" UTC</time>"));
+    assert!(completed_html.contains("<summary>技術的な詳細</summary>"));
+    let outside_details = completed_html
+        .split("<details class=\"technical-details\">")
+        .map(|part| part.split("</details>").last().unwrap_or(part))
+        .collect::<String>();
+    for code in [
+        "original_observation",
+        "observation_recorded_at_fallback",
+        "activity_recorded_at_fallback",
+    ] {
+        assert!(!outside_details.contains(code), "{code} outside details");
+    }
     assert_eq!(complete["report"]["subject_label"], "Web transport fixture");
     assert_eq!(complete["report"]["creator_name"], "HTTP creator");
     assert!(complete["report"]["decision_recorded_at"].is_string());
@@ -1664,6 +1683,9 @@ async fn creator_multipart_and_decision_complete_the_two_step_transport_workflow
             .contains("<span class=\"metric__label\">Disposition</span><strong>adopt</strong>")
     );
     assert!(english_html.contains(">Timeline</h2>"));
+    assert!(english_html.contains("<strong>Original state recorded</strong>"));
+    assert!(english_html.contains("Recording time; the capture time is unknown"));
+    assert!(english_html.contains("<summary>Technical details</summary>"));
     assert!(english_html.contains("<span class=\"badge\">observation</span>"));
 }
 
@@ -3032,4 +3054,32 @@ async fn authenticated_reuse_preview_and_begin_support_interrupted_and_deferred_
         .await
         .unwrap();
     assert_eq!(created.status(), StatusCode::CREATED);
+}
+
+#[test]
+fn recorded_times_show_utc_seconds_and_keep_the_exact_value() {
+    use crate::views::TimeView;
+    let view = TimeView::from_recorded("2026-09-30T15:22:45.977791600Z");
+    assert_eq!(view.datetime, "2026-09-30T15:22:45.977Z");
+    assert_eq!(view.text, "2026-09-30 15:22:45 UTC");
+    assert_eq!(view.exact, "2026-09-30T15:22:45.977791600Z");
+    assert_eq!(
+        TimeView::from_recorded("2026-09-30T15:22:45Z").datetime,
+        "2026-09-30T15:22:45Z"
+    );
+    assert_eq!(
+        TimeView::from_recorded("2026-09-30T15:22:45.5Z").datetime,
+        "2026-09-30T15:22:45.500Z"
+    );
+    for value in [
+        "yesterday",
+        "2026-09-30T15:22:45.Z",
+        "2026-09-30T15:22:45+09:00",
+        "2026-09-30 15:22:45Z",
+        "",
+    ] {
+        let view = TimeView::from_recorded(value);
+        assert!(view.datetime.is_empty(), "{value:?}");
+        assert_eq!(view.text, value);
+    }
 }
