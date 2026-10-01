@@ -200,11 +200,15 @@ path family; they do not identify each extension within that family. Keep the
 `-draft` suffix while the application contract remains a Stage 0 draft. Neither
 a revision bump nor the `v1` path promises stable protocol compatibility.
 
-The current contract is `0.6.6-draft`: it adds the optional `subject_label`,
+The current contract is `0.6.7-draft`: it adds the optional `imported_session`
+field to each import-inbox item. It names the session created from the
+candidate under its suggested name, `inbox-<slug>`, and is omitted otherwise.
+A candidate imported under another name is not recognized, and the inbox
+directory is never changed. `0.6.6-draft` added the optional `subject_label`,
 `creator_name`, and `decision_recorded_at` fields to the verified complete
 `CreatorReport`. They are read from the verified base Tree and Human
 DecisionFeedback, omitted when a stored session has none, and never inferred.
-The previous independent revision was `0.6.5-draft`, which added the bounded,
+The revision before that was `0.6.5-draft`, which added the bounded,
 unverified Creator dashboard summary fields to the configured import-inbox
 staging and cancellation routes and confirmed three-Blob reuse for interrupted
 and deferred Creator sessions without restoring old authority.

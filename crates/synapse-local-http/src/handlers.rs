@@ -1380,7 +1380,10 @@ async fn run_dashboard(state: AppState, project_key: String) -> Result<Dashboard
             {
                 let inbox_ready = if service.import_inbox_configured(&project_key) {
                     service.list_import_inbox(&project_key).map_or(0, |list| {
-                        list.items.iter().filter(|item| item.ready).count()
+                        list.items
+                            .iter()
+                            .filter(|item| item.ready && item.imported_session.is_none())
+                            .count()
                     })
                 } else {
                     0

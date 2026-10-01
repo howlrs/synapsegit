@@ -54,3 +54,46 @@ test("manifest-last inbox stages preview bytes before explicit Human Decision", 
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(axe.violations).toEqual([]);
 });
+
+test("an imported candidate stays listed as imported and stops counting as waiting", async ({ page, app }) => {
+  test.setTimeout(120_000);
+  for (const slug of ["first-candidate", "second-candidate"]) {
+    const candidate = path.join(app.inboxRoot, slug);
+    await mkdir(candidate);
+    await copyFile(original, path.join(candidate, "original"));
+    await copyFile(current, path.join(candidate, "current"));
+    await copyFile(output, path.join(candidate, "ai-output"));
+    const sizes = await Promise.all([original, current, output].map(async file => (await stat(file)).size));
+    await writeFile(path.join(candidate, "manifest.json"), JSON.stringify({ version: "synapsegit-import-inbox-v1", original: { name: "original", size: sizes[0] }, current: { name: "current", size: sizes[1] }, ai_output: { name: "ai-output", size: sizes[2] }, metadata: { subject_label: "Script subject", creator_name: "Script creator" } }));
+  }
+  await page.goto(`${app.origin}/projects/pending`);
+  await expect(page.locator("[data-inbox-ready-count]")).toHaveText("2 件");
+
+  await page.goto(`${app.origin}/projects/pending/import`);
+  const rows = page.locator("[data-import-inbox-list] li");
+  await rows.filter({ hasText: "first-candidate" }).getByRole("button", { name: "確認する" }).click();
+  const preview = page.locator("form[data-import-inbox-preview]");
+  await expect(preview.getByLabel("Inboxのセッション名", { exact: true })).toHaveValue("inbox-first-candidate");
+  await preview.getByRole("button", { name: "提案を作成" }).click();
+  await page.waitForURL("**/creator-sessions/inbox-first-candidate");
+
+  await page.goto(`${app.origin}/projects/pending`);
+  await expect(page.locator("[data-inbox-ready-count]")).toHaveText("1 件");
+  await page.goto(`${app.origin}/projects/pending/import`);
+  // The waiting candidate comes first; the imported one keeps a link to its session.
+  await expect(rows.first()).toContainText("second-candidate");
+  const imported = rows.filter({ hasText: "first-candidate" });
+  await expect(imported).toContainText("取り込み済みです（セッション inbox-first-candidate）");
+  await expect(imported.getByRole("link", { name: "セッション inbox-first-candidate を開く" })).toHaveAttribute("href", "/projects/pending/creator-sessions/inbox-first-candidate");
+  await expect(imported.getByRole("button", { name: "別のセッションとして取り込む" })).toBeVisible();
+  expect((await new AxeBuilder({ page }).include("#main").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
+
+  await rows.filter({ hasText: "second-candidate" }).getByRole("button", { name: "確認する" }).click();
+  await preview.getByRole("button", { name: "提案を作成" }).click();
+  await page.waitForURL("**/creator-sessions/inbox-second-candidate");
+  await page.goto(`${app.origin}/projects/pending`);
+  await expect(page.locator("[data-inbox-ready-count]")).toHaveCount(0);
+  await expect(page.locator("[data-inbox-ready-notice]")).toHaveCount(0);
+  await page.goto(`${app.origin}/projects/pending/import`);
+  await expect(page.locator("[data-import-inbox-status]")).toHaveText("取り込み待ちの候補はありません。取り込み済みの候補は下に表示しています。");
+});

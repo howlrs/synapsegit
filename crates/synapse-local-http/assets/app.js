@@ -170,6 +170,10 @@ const MESSAGE_ENTRIES = [
   ["inbox.review", "確認する", "Review"],
   ["inbox.choose", "候補を選んでください。", "Choose a candidate."],
   ["inbox.empty", "書き出しが完了した候補はまだありません。", "No finished candidates yet."],
+  ["inbox.imported", "取り込み済みです（セッション {session}）。別の名前のセッションとして取り込み直すこともできます。", "Already imported as session {session}. You can import it again as a session with another name."],
+  ["inbox.openSession", "セッション {session} を開く", "Open session {session}"],
+  ["inbox.reviewAgain", "別のセッションとして取り込む", "Import as another session"],
+  ["inbox.allImported", "取り込み待ちの候補はありません。取り込み済みの候補は下に表示しています。", "No candidates are waiting. Imported candidates are listed below."],
   ["inbox.proposalInvalid", "提案の応答が不正です。", "The proposal response is invalid."],
   ["presentation.tooLong", "{label}: {bytes} / {limit} UTF-8 bytes。上限を超えています。", "{label}: {bytes} / {limit} UTF-8 bytes. This exceeds the limit."],
   ["presentation.validating", "文章を検証しています…", "Validating the text…"],
@@ -1911,14 +1915,25 @@ function enhanceImportInbox() {
     try {
       const result = await apiJson(endpoint); if (!Array.isArray(result?.items)) throw new TypeError(t("inbox.listInvalid"));
       section.hidden = false; list.replaceChildren();
-      for (const item of result.items) {
+      // Candidates still waiting come first; imported ones stay listed because
+      // the inbox is script-owned and never changed here.
+      const waiting = (item) => item.ready && typeof item.imported_session !== "string";
+      const items = [...result.items.filter(waiting), ...result.items.filter((item) => !waiting(item))];
+      for (const item of items) {
         const row = document.createElement("li"); const title = document.createElement("strong"); title.textContent = item.slug;
-        const detail = document.createElement("p"); detail.className = "field__hint"; detail.textContent = item.ready ? t("inbox.ready") : item.reason ? t("inbox.notReadyReason", { reason: item.reason }) : t("inbox.notReady");
+        const detail = document.createElement("p"); detail.className = "field__hint";
+        const imported = item.ready && typeof item.imported_session === "string" && CREATOR_SESSION_SLUG.test(item.imported_session);
+        detail.textContent = imported ? t("inbox.imported", { session: item.imported_session }) : item.ready ? t("inbox.ready") : item.reason ? t("inbox.notReadyReason", { reason: item.reason }) : t("inbox.notReady");
         row.append(title, detail);
-        if (item.ready) { const button = document.createElement("button"); button.type = "button"; button.textContent = t("inbox.review"); button.addEventListener("click", () => void stage(item.slug, button)); row.append(button); }
+        if (imported) {
+          row.dataset.importedSession = item.imported_session;
+          const link = document.createElement("a"); link.href = `/projects/${encodeURIComponent(project)}/creator-sessions/${encodeURIComponent(item.imported_session)}`; link.textContent = t("inbox.openSession", { session: item.imported_session });
+          row.append(link);
+        }
+        if (item.ready) { const button = document.createElement("button"); button.type = "button"; button.textContent = t(imported ? "inbox.reviewAgain" : "inbox.review"); if (imported) button.dataset.variant = "secondary"; button.addEventListener("click", () => void stage(item.slug, button)); row.append(button); }
         list.append(row);
       }
-      status.textContent = t(result.items.length ? "inbox.choose" : "inbox.empty");
+      status.textContent = t(!result.items.length ? "inbox.empty" : result.items.some(waiting) ? "inbox.choose" : "inbox.allImported");
     } catch (error) {
       if (error instanceof SynapseApiError && error.code === "service_unavailable") return;
       section.hidden = false; status.textContent = publicErrorMessage(error);

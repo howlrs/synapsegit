@@ -140,6 +140,15 @@ formats; see docs/compatibility.md.
 
 ### Fixed
 
+- An import-inbox candidate that was already imported no longer shows as
+  waiting. SynapseGit still leaves the inbox untouched. A candidate counts as
+  imported when a session with its suggested name, `inbox-<slug>`, exists. The
+  Import page lists waiting candidates first and marks imported ones with a
+  link to their session. Importing again as another session stays possible.
+  The Sessions notice and the Import count include only waiting candidates.
+  The import-inbox API items gain an optional `imported_session` (local API
+  `0.6.7-draft`). The AI agent guide says that imported candidates stay in the
+  inbox until the person agrees to remove them.
 - `synapse init --help` no longer creates a repository named `--help`. Every
   command now treats `--help` and `-h` as a help request.
 - Localhost session-name, archive-name, and confirmation fields use a slug
