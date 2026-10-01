@@ -203,12 +203,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          title="SynapseGit $GITHUB_REF_NAME — Stage 0 preview"
+          if [[ "$GITHUB_REF_NAME" == *-rc.* ]]; then
+            title="SynapseGit $GITHUB_REF_NAME — release candidate"
+          fi
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             test "$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
             gh release edit "$GITHUB_REF_NAME" \
               --repo "$GITHUB_REPOSITORY" \
               --verify-tag \
-              --title "SynapseGit $GITHUB_REF_NAME — Stage 0 preview" \
+              --title "$title" \
               --notes-file "docs/releases/$GITHUB_REF_NAME.md" \
               --draft \
               --prerelease \
@@ -217,7 +221,7 @@ jobs:
             gh release create "$GITHUB_REF_NAME" \
               --repo "$GITHUB_REPOSITORY" \
               --verify-tag \
-              --title "SynapseGit $GITHUB_REF_NAME — Stage 0 preview" \
+              --title "$title" \
               --notes-file "docs/releases/$GITHUB_REF_NAME.md" \
               --draft \
               --prerelease \

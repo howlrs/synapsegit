@@ -4,30 +4,39 @@ import { readFileSync } from "node:fs";
 
 const MINIMUM = [0, 11, 1];
 
+// X.Y.Z or X.Y.Z-rc.N, with an optional leading "v". The fourth element is the
+// release-candidate number, or null for a normal release.
 export function parseVersion(version) {
-  const match = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(version);
+  const match = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-rc\.([1-9]\d*))?$/.exec(version);
   if (!match) return null;
-  return match.slice(1).map(Number);
+  return [Number(match[1]), Number(match[2]), Number(match[3]), match[4] === undefined ? null : Number(match[4])];
 }
 
+// A release candidate sorts before its normal release, as in SemVer.
 export function compareVersions(left, right) {
   for (let index = 0; index < 3; index += 1) {
     if (left[index] !== right[index]) return left[index] - right[index];
   }
-  return 0;
+  const [leftCandidate, rightCandidate] = [left[3] ?? null, right[3] ?? null];
+  if (leftCandidate === rightCandidate) return 0;
+  if (leftCandidate === null) return 1;
+  if (rightCandidate === null) return -1;
+  return leftCandidate - rightCandidate;
 }
 
 export function selectMostRecentAnnotatedBaseline(lines, currentVersion) {
   const current = parseVersion(currentVersion);
-  if (!current) throw new Error(`current version is not normal semver: ${currentVersion}`);
+  if (!current) throw new Error(`current version is not a supported release version: ${currentVersion}`);
   const candidates = lines.map((line) => {
     const [tag, objectType, commit, ancestor] = line.split("\t");
     const version = parseVersion(tag);
     return { tag, objectType, commit, ancestor, version };
   }).filter(({ tag, objectType, commit, version, ancestor }) => (
     /^v/.test(tag ?? "") && objectType === "tag" && /^[0-9a-f]{40}$/.test(commit ?? "")
-      && ancestor === "true" && version !== null && compareVersions(version, MINIMUM) >= 0 && compareVersions(version, current) < 0
+      && ancestor === "true" && version !== null && version[3] === null
+      && compareVersions(version, MINIMUM) >= 0 && compareVersions(version, current) < 0
   ));
+  // Release candidates are not baselines: the gate builds normal releases only.
   candidates.sort((left, right) => compareVersions(right.version, left.version));
   const selected = candidates[0];
   return selected ? {
@@ -53,12 +62,22 @@ function selfTest() {
     `v0.13.0\ttag\t${"8".repeat(40)}\tfalse`,
     `0.12.9\ttag\t${"9".repeat(40)}\ttrue`,
   ];
-  assert.deepEqual(selectMostRecentAnnotatedBaseline(lines, "0.13.1"), { tag: "v0.13.0", objectType: "tag", commit: commit13, version: [0, 13, 0] });
-  assert.deepEqual(selectMostRecentAnnotatedBaseline(lines, "0.12.0"), { tag: "v0.11.1", objectType: "tag", commit: commit11, version: [0, 11, 1] });
+  assert.deepEqual(selectMostRecentAnnotatedBaseline(lines, "0.13.1"), { tag: "v0.13.0", objectType: "tag", commit: commit13, version: [0, 13, 0, null] });
+  assert.deepEqual(selectMostRecentAnnotatedBaseline(lines, "0.12.0"), { tag: "v0.11.1", objectType: "tag", commit: commit11, version: [0, 11, 1, null] });
+  const withCandidates = [...lines, `v1.0.0-rc.1\ttag\t${"a".repeat(40)}\ttrue`, `v1.0.0-rc.2\ttag\t${"b".repeat(40)}\ttrue`];
+  // A candidate is never the baseline, for a later candidate or the release.
+  assert.equal(selectMostRecentAnnotatedBaseline(withCandidates, "1.0.0-rc.2").tag, "v0.14.0");
+  assert.equal(selectMostRecentAnnotatedBaseline(withCandidates, "1.0.0").tag, "v0.14.0");
+  assert.equal(selectMostRecentAnnotatedBaseline(withCandidates, "v1.0.1").tag, "v0.14.0");
+  assert.deepEqual(parseVersion("v1.0.0-rc.12"), [1, 0, 0, 12]);
+  for (const invalid of ["v1.0.0-rc", "v1.0.0-rc.0", "v1.0.0rc1", "v1.0.0-beta.1", "v1.0.0-rc.01"]) assert.equal(parseVersion(invalid), null, invalid);
+  assert.ok(compareVersions(parseVersion("1.0.0-rc.2"), parseVersion("1.0.0-rc.10")) < 0);
+  assert.ok(compareVersions(parseVersion("1.0.0-rc.9"), parseVersion("1.0.0")) < 0);
+  assert.ok(compareVersions(parseVersion("0.14.0"), parseVersion("1.0.0-rc.1")) < 0);
   assert.equal(selectMostRecentAnnotatedBaseline([`v0.11.1\tcommit\t${commit11}\ttrue`], "0.13.1"), null);
   assert.equal(selectMostRecentAnnotatedBaseline([`v0.13.1\ttag\t${commit13}\ttrue`, `v0.13.0\ttag\t${commit12}\tfalse`], "0.13.1"), null);
   assert.equal(selectMostRecentAnnotatedBaseline([`0.12.9\ttag\t${commit12}\ttrue`], "0.13.1"), null);
-  assert.throws(() => selectMostRecentAnnotatedBaseline(lines, "0.13"), /normal semver/);
+  assert.throws(() => selectMostRecentAnnotatedBaseline(lines, "0.13"), /supported release version/);
   console.log("archive compatibility baseline selector self-test passed");
 }
 

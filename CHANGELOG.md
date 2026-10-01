@@ -8,6 +8,13 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ### Added
 
+- Release candidates can be tagged as `vX.Y.Z-rc.N` (for example
+  `v1.0.0-rc.1`). The release scripts accept them in SemVer order, so a
+  candidate sorts before its release. A candidate is published as a
+  prerelease titled "release candidate". The archive compatibility gate uses
+  normal releases only as baselines, and the byte-identity allowlist also
+  requires published candidates. `scripts/test_release_version.mjs` checks the
+  tag grammar.
 - The documentation check compares the `SECURITY.md` supported row with the
   `synapse-cli` minor version. From v0.13.2, it also requires the release notes,
   which double as the bundled archive `README.md`, to keep the rule not to

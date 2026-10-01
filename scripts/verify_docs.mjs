@@ -234,17 +234,17 @@ const RELEASE_NOTES_FORBIDDEN = [
 
 function cliVersion() {
   const manifest = fs.readFileSync(path.join(root, "crates", "synapse-cli", "Cargo.toml"), "utf8");
-  const match = /^version\s*=\s*"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"\s*$/mu.exec(manifest);
-  return match ? match.slice(1).map(Number) : null;
+  const match = /^version\s*=\s*"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(?:-rc\.([1-9][0-9]*))?"\s*$/mu.exec(manifest);
+  return match ? [...match.slice(1, 4).map(Number), match[4] === undefined ? null : Number(match[4])] : null;
 }
 
 function checkReleaseMetadata() {
   const version = cliVersion();
   if (!version) {
-    failures.push("crates/synapse-cli/Cargo.toml: missing normal semver package version");
+    failures.push("crates/synapse-cli/Cargo.toml: missing X.Y.Z or X.Y.Z-rc.N package version");
     return;
   }
-  const [major, minor, patch] = version;
+  const [major, minor, patch, candidate] = version;
   const security = fs.readFileSync(path.join(root, "SECURITY.md"), "utf8");
   const supported = [...security.matchAll(/^\|\s*Latest v(\d+)\.(\d+)\.x prerelease\s*\|/gmu)];
   if (supported.length !== 1) {
@@ -257,9 +257,9 @@ function checkReleaseMetadata() {
   }
 
   const since = RELEASE_NOTES_REQUIREMENTS_SINCE;
-  const current = version.findIndex((value, index) => value !== since[index]);
+  const current = version.slice(0, 3).findIndex((value, index) => value !== since[index]);
   if (current >= 0 && version[current] < since[current]) return;
-  const tag = `v${major}.${minor}.${patch}`;
+  const tag = `v${major}.${minor}.${patch}${candidate === null ? "" : `-rc.${candidate}`}`;
   const notesPath = path.join("docs", "releases", `${tag}.md`);
   if (!fs.existsSync(path.join(root, notesPath))) {
     failures.push(`${notesPath}: release notes for the current synapse-cli version are missing`);

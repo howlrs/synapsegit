@@ -212,6 +212,7 @@ node scripts/test_verify_workspace_diagrams.mjs
 node scripts/verify_mermaid.mjs
 node scripts/manage_github_security.mjs --validate
 node scripts/wait_for_main_ci.mjs --self-test
+node scripts/test_release_version.mjs
 git diff --check
 cargo build --release -p synapse-cli -p synapse-local-http --locked
 bash scripts/verify_archive_compatibility.sh target/release/synapse
@@ -297,6 +298,26 @@ binaryを使う。開発時のlocal既定がdebug profileであることは変�
        | curl --fail --silent --show-error --config -
    )
    ```
+
+### Release candidate
+
+v1.0の前に配布するrelease candidateは、`vX.Y.Z-rc.N`（Nは1以上で先頭0なし。例: `v1.0.0-rc.1`）のannotated tagで
+公開する。手順は通常のrelease gateと同じで、次だけが異なる。
+
+- 全crateの`version`を`X.Y.Z-rc.N`にし、release notesを`docs/releases/vX.Y.Z-rc.N.md`に置く。
+  `verify_release_version.sh`はtag、crate version、release notesの一致を確認する。release notesの必須文検査
+  （`verify_docs.mjs`）とtag固定のinstall guide linkも、rcのtag名で適用する。
+- `SECURITY.md`のsupported versionsは、rcの`X.Y`に対応する`Latest vX.Y.x prerelease`とする。
+- versionの順序はSemVerに従い、`v1.0.0-rc.1` < `v1.0.0-rc.2` < `v1.0.0`である。
+- archive互換性gateの基準（`select_archive_compat_baseline.mjs`）には通常のreleaseだけを使い、rcは基準にしない。
+- 公開済みrcのbinaryで作ったsessionを後の版で読めるように、`verify_byte_identity_allowlist.mjs`はrcのtagも
+  allowlistの登録対象にする。
+- tag workflowはrcをdraft prereleaseとして作り、titleを`SynapseGit vX.Y.Z-rc.N — release candidate`にする。
+  checksum、attestation、smokeは通常のreleaseと同じである。
+
+v1.0.0の正式版をprereleaseではない通常のreleaseとして公開する設定（`--prerelease`と`--latest=false`の扱い、
+title）は、[v1.0 release plan](./v1_release_plan.md)のリリース条件に沿ってv1.0の公開準備で変更する。
+それまでは、すべてのtagを従来どおりprereleaseとして公開する。
 
 ## 公開後check
 
