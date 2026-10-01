@@ -149,7 +149,7 @@ async fn pages_negotiate_and_persist_display_language_without_localizing_api_res
         .unwrap();
     let english = std::str::from_utf8(&english).unwrap();
     assert!(english.contains("<html lang=\"en\">"));
-    assert!(english.contains("Start a creator session"));
+    assert!(english.contains("Start from three files"));
 
     let api = app
         .oneshot(request("/api/v1/health").body(Body::empty()).unwrap())
@@ -1212,7 +1212,7 @@ async fn bounded_fsck_is_confirmed_queued_polled_and_reflected_in_project_status
     let page = std::str::from_utf8(&page).unwrap();
     assert!(page.contains("リポジトリ整合性の確認"));
     assert!(page.contains("name=\"confirm_project_key\""));
-    assert!(page.contains("直近のprocess-local結果: 問題なし"));
+    assert!(page.contains("このアプリを起動してからの直近の結果: 問題なし"));
     assert!(!page.contains("アーカイブを書き出す"));
     assert!(!page.contains("アーカイブを復元する"));
 
@@ -2033,7 +2033,7 @@ async fn index_project_and_session_pages_render_with_untrusted_labels_escaped() 
         ("/projects/demo", "セッション"),
         (
             "/projects/demo/creator-sessions/render-session",
-            "Byte identityの証拠",
+            "ファイル内容の一致確認",
         ),
     ] {
         let response = app
@@ -2806,7 +2806,7 @@ async fn index_page_renders_an_empty_archives_state_without_a_configured_root() 
     assert_eq!(page.status(), StatusCode::OK);
     let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
     let page = std::str::from_utf8(&page).unwrap();
-    assert!(page.contains("表示できるarchiveがありません"));
+    assert!(page.contains("表示できるアーカイブがありません"));
 }
 
 /// If the server-owned archive root becomes unreadable after startup (here,
@@ -2831,7 +2831,7 @@ async fn index_page_degrades_the_archives_section_when_the_archive_root_is_unrea
 
     // The archives section renders its inline failure notice instead of any
     // archive card or the empty-root state.
-    assert!(page.contains("Archive listingを読み込めません"));
+    assert!(page.contains("アーカイブの一覧を読み込めません"));
     assert!(!page.contains("aaa-valid"));
     assert!(!page.contains("表示できるarchiveがありません"));
 
@@ -3187,4 +3187,154 @@ async fn ready_inbox_candidates_are_announced_on_the_session_list() {
     let history = page("/projects/demo/history").await;
     assert!(history.contains("Ref snapshot <code>"));
     assert!(!page("/projects/demo").await.contains("Ref snapshot <code>"));
+}
+
+/// Text a reader sees before opening any "Technical details" block: the page
+/// without those blocks, tags, or attribute values.
+fn text_outside_technical_details(html: &str) -> String {
+    const OPEN: &str = "<details class=\"technical-details\">";
+    let mut rest = html;
+    let mut kept = String::new();
+    while let Some(start) = rest.find(OPEN) {
+        kept.push_str(&rest[..start]);
+        let end = rest[start..]
+            .find("</details>")
+            .expect("technical details are closed");
+        rest = &rest[start + end + "</details>".len()..];
+    }
+    kept.push_str(rest);
+    let mut text = String::new();
+    let mut in_tag = false;
+    for character in kept.chars() {
+        match character {
+            '<' => in_tag = true,
+            '>' => {
+                in_tag = false;
+                text.push(' ');
+            }
+            _ if !in_tag => text.push(character),
+            _ => {}
+        }
+    }
+    text
+}
+
+#[tokio::test]
+async fn technical_identifiers_are_collapsed_and_limits_stay_visible() {
+    let (_directory, app, _fixture) = test_app_with_creator("Demo project");
+    let page = |path: String, lang: &'static str| {
+        let app = app.clone();
+        async move {
+            let response = app
+                .oneshot(
+                    request(&path)
+                        .header(header::COOKIE, format!("synapse_local_lang={lang}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{path}");
+            let body = to_bytes(response.into_body(), 4 * 1024 * 1024)
+                .await
+                .unwrap();
+            String::from_utf8(body.to_vec()).unwrap()
+        }
+    };
+    for (lang, limits) in [
+        (
+            "ja",
+            [
+                "ファイルの内容を比べた結果で、見た目の比較ではありません。",
+                "対象と作成者は記録時に入力された表示名で、本人性の証明ではありません。",
+                "理由は記録されたテキストで、その内容が正しいことは確認していません。",
+                "Deferも含め、記録後にこのセッションの判断を変更・再開する機能はありません。",
+            ],
+        ),
+        (
+            "en",
+            [
+                "This compares file contents; it is not a visual comparison.",
+                "The subject and creator are display names entered when recording and do not prove identity.",
+                "The rationale is recorded text; its content has not been checked for correctness.",
+                "A recorded decision cannot be changed or reopened in this session.",
+            ],
+        ),
+    ] {
+        let html = page(
+            "/projects/demo/creator-sessions/render-session".to_owned(),
+            lang,
+        )
+        .await;
+        let visible = text_outside_technical_details(&html);
+        // Every identifier and protocol value is still on the page, but only
+        // inside a closed "Technical details" block.
+        assert!(html.contains("blob:sg-oid-v1:sha256:"), "{lang}");
+        assert!(
+            html.contains("synapsegit.observation.byte-identity"),
+            "{lang}"
+        );
+        assert!(!html.contains("<details class=\"technical-details\" open"));
+        for technical in ["sg-oid-v1", "sha256:", "synapsegit.observation"] {
+            assert!(!visible.contains(technical), "{lang}: {technical}");
+        }
+        // The limits of what a record proves are never collapsed.
+        for limit in limits {
+            assert!(visible.contains(limit), "{lang}: {limit}");
+        }
+
+        let sessions = page("/projects/demo".to_owned(), lang).await;
+        // The list shows shortened heads, such as `commit:sg-oid-v1…`.
+        assert!(sessions.contains("sg-oid-v1"), "{lang}");
+        assert!(
+            !text_outside_technical_details(&sessions).contains("sg-oid-v1"),
+            "{lang}"
+        );
+
+        let import =
+            text_outside_technical_details(&page("/projects/demo/import".to_owned(), lang).await);
+        for statement in match lang {
+            "ja" => [
+                "AI outputはこのアプリが作ったものではありません",
+                "外部へは送信しません。",
+            ],
+            _ => [
+                "This app did not make the AI output",
+                "Nothing is sent elsewhere.",
+            ],
+        } {
+            assert!(import.contains(statement), "{lang}: {statement}");
+        }
+        for jargon in ["staging", "caller-supplied", "process-local"] {
+            assert!(!import.contains(jargon), "{lang}: {jargon}");
+        }
+    }
+}
+
+#[tokio::test]
+async fn incomplete_session_keeps_refs_and_heads_under_technical_details() {
+    let (_directory, app, fixture) = test_app_with_incomplete();
+    let response = app
+        .oneshot(
+            request("/projects/demo/creator-sessions/incomplete-session")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    let body = to_bytes(response.into_body(), 4 * 1024 * 1024)
+        .await
+        .unwrap();
+    let html = std::str::from_utf8(&body).unwrap();
+    let visible = text_outside_technical_details(html);
+    for value in [
+        &fixture.proposal_ref,
+        &fixture.proposal_head,
+        &fixture.decision_ref,
+    ] {
+        assert!(html.contains(value.as_str()));
+        assert!(!visible.contains(value.as_str()), "{value}");
+    }
+    assert!(visible.contains("記録を自動で書き換えたり削除したりはしません。"));
+    assert!(visible.contains("自動再開"));
 }

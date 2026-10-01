@@ -22,7 +22,7 @@ async function details(page, name) {
 async function selectFiles(page) {
   await page.getByLabel("Original画像", { exact: true }).setInputFiles(original);
   await page.getByLabel("Current画像", { exact: true }).setInputFiles(current);
-  await page.getByLabel("AI output（caller-supplied）", { exact: true }).setInputFiles(output);
+  await page.getByLabel("AI output（外部で作成）", { exact: true }).setInputFiles(output);
   await expect(page.locator("[data-creator-preview]:visible")).toHaveCount(3);
 }
 
@@ -120,7 +120,7 @@ test("untrusted filename and MIME do not authorize inline SVG; broken and opaque
   await expect(field(page, "current_image").locator("[data-creator-preview-status]")).toContainText("プレビューを表示できません");
   await expect(preview(page, "current_image")).not.toHaveAttribute("src");
   expect(await page.evaluate(() => window.revokedPreviewUrls.length)).toBe(1);
-  await page.getByLabel("AI output（caller-supplied）", { exact: true }).setInputFiles({ name: "empty.bin", mimeType: "application/octet-stream", buffer: Buffer.alloc(0) });
+  await page.getByLabel("AI output（外部で作成）", { exact: true }).setInputFiles({ name: "empty.bin", mimeType: "application/octet-stream", buffer: Buffer.alloc(0) });
   await expect(field(page, "ai_output").locator("[data-creator-preview-status]")).toContainText("そのまま取り込めます");
   expect(await form(page).evaluate((element) => element.checkValidity())).toBe(true);
   expect(await page.evaluate(() => window.previewInjected)).toBeUndefined();

@@ -71,6 +71,19 @@ formats; see docs/compatibility.md.
 
 ### Changed
 
+- `synapse-local` uses plain words for what a creator reads. For example,
+  "caller-supplied" becomes "made outside this app", "Byte identity evidence"
+  becomes "File-content match check (not a visual comparison)", "staging"
+  becomes "set aside", and "Run read-only fsck" becomes "Check integrity
+  (read-only)". In Japanese, "Proposalを公開" becomes "提案を記録", since it is
+  never published outside. OIDs, Refs, heads, the observation adapter,
+  comparability, and replay readiness move under a closed "Technical details"
+  block on the session, session list, derive, and diagnostics views; expanding
+  it shows the same values. What a record does not prove stays visible: that
+  the AI output was made elsewhere, the limits of the match check, and that a
+  decision cannot be changed. The History page explains that it shows
+  technical information. The glossary maps the screen words to the internal
+  terms. Stored values, the API, error codes, and CLI output are unchanged.
 - A project in `synapse-local` now has four pages instead of one long page:
   Sessions (the default, with the counts, filter, and name locator), Import
   (the three-image form and the import inbox), Maintenance (fsck and archive

@@ -120,11 +120,11 @@ test("attachment and decode failures explain why pins are unavailable", async ({
   for (const project of ["mixed", "broken"]) {
     await page.goto(`${app.origin}/projects/${project}/creator-sessions/sample`);
     await page.getByLabel("ピンの対象画像", { exact: true }).selectOption("current");
-    await expect(page.locator("[data-pin-status]")).toContainText("attachment扱い");
+    await expect(page.locator("[data-pin-status]")).toContainText("この画面で表示できない形式");
     await expect(page.locator("[data-pin-preview]")).toBeHidden();
     if (project === "broken") {
       await page.getByLabel("ピンの対象画像", { exact: true }).selectOption("original");
-      await expect(page.locator("[data-pin-status]")).toContainText("decode失敗");
+      await expect(page.locator("[data-pin-status]")).toContainText("画像を読み取れなかった");
     }
   }
 });

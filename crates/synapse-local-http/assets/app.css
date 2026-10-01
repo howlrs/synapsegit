@@ -443,6 +443,27 @@ pre {
   gap: var(--space-5);
 }
 
+/* Identifiers and protocol values, closed by default (#155). */
+.technical-details {
+  margin-block: var(--space-2);
+  color: var(--ink-muted);
+  font-size: 0.875rem;
+}
+
+.technical-details > summary {
+  cursor: pointer;
+  width: fit-content;
+  font-weight: 650;
+}
+
+.technical-details[open] > summary {
+  margin-bottom: var(--space-2);
+}
+
+.technical-details code {
+  overflow-wrap: anywhere;
+}
+
 /* Project pages: sessions, import, maintenance, and history. */
 .subnav {
   margin-block: 0 var(--space-5);

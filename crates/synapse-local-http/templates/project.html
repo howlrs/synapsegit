@@ -52,7 +52,7 @@
   <div class="empty-state"><h3>{{ m.project.no_sessions_heading }}</h3><p>{{ m.project.no_sessions_help }}</p><p><a class="button" href="/projects/{{ project_key }}/import">{{ m.project.tab_import }}</a></p></div>
   {% else %}
   <div class="table-wrap"><table>
-    <thead><tr><th>{{ m.project.column_session }}</th><th>{{ m.project.column_state }}</th><th>{{ m.project.column_recorded_at }}</th><th>{{ m.project.column_source }}</th><th>head</th></tr></thead>
+    <thead><tr><th>{{ m.project.column_session }}</th><th>{{ m.project.column_state }}</th><th>{{ m.project.column_recorded_at }}</th><th>{{ m.project.column_source }}</th><th>{{ m.timeline.technical_details }}</th></tr></thead>
     <tbody>
       {% for session in sessions %}
       <tr data-creator-session-row data-state="{{ session.state_code }}" data-disposition="{{ session.disposition }}">
@@ -60,7 +60,7 @@
         <td><span class="status-badge" data-tone="{{ session.tone }}">{{ session.state_label }}</span> {{ m.value_label(session.disposition) }}</td>
         <td>{% if session.recorded_at.datetime.is_empty() %}{{ session.recorded_at.text }}{% else %}<time datetime="{{ session.recorded_at.datetime }}" title="{{ session.recorded_at.exact }}" data-local-time>{{ session.recorded_at.text }}</time>{% endif %}<br><span class="muted">{{ session.recorded_time_basis }}</span></td>
         <td>{% if session.source_session == "—" %}—{% else %}<a href="/projects/{{ project_key }}/creator-sessions/{{ session.source_session }}">{{ session.source_session }}</a>{% endif %}</td>
-        <td><code>{{ session.proposal_head }}</code><br><code>{{ session.decision_head }}</code></td>
+        <td><details class="technical-details"><summary>{{ m.project.show_heads }}</summary><code>{{ session.proposal_head }}</code><br><code>{{ session.decision_head }}</code></details></td>
       </tr>
       {% endfor %}
     </tbody>
@@ -315,6 +315,7 @@
 {% endif %}
 
 {% if tab == "history" %}
+<p class="field__hint">{{ m.project.history_intro }}</p>
 <p class="muted">Ref snapshot <code>{{ watermark }}</code></p>
 <div class="split-grid project-detail">
   <section aria-labelledby="refs-heading">

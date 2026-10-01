@@ -21,7 +21,7 @@ test("archive cards support keyboard access, pass axe, and restore an exported p
   await exportForm(page).locator('[name="archive_name"]').fill(archiveName);
   await exportForm(page).locator('[name="confirm_project_key"]').fill("complete");
   await acceptNextDialog(page);
-  await exportForm(page).getByRole("button", { name: "Archiveを作成", exact: true }).click();
+  await exportForm(page).getByRole("button", { name: "アーカイブを作成", exact: true }).click();
   await page.waitForURL("**/#archives-heading");
   await expect(page.getByRole("heading", { name: "アーカイブ", exact: true })).toBeVisible();
   await expect(page.locator("section").filter({ has: page.locator("#archives-heading") })).toContainText(archiveName);
@@ -35,14 +35,14 @@ test("archive cards support keyboard access, pass axe, and restore an exported p
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
 
   const fsckKey = page.locator('form[data-confirm-maintenance="fsck"] [name="confirm_project_key"]');
-  const fsckButton = page.getByRole("button", { name: "読み取り専用で fsck を実行", exact: true });
+  const fsckButton = page.getByRole("button", { name: "整合性を確認する（読み取りのみ）", exact: true });
   const exportName = exportForm(page).locator('[name="archive_name"]');
   const exportKey = exportForm(page).locator('[name="confirm_project_key"]');
-  const exportButton = page.getByRole("button", { name: "Archiveを作成", exact: true });
+  const exportButton = page.getByRole("button", { name: "アーカイブを作成", exact: true });
   const restoreName = restore.locator('[name="archive_name"]');
   const restoreKey = restore.locator('[name="confirm_target_project_key"]');
   const emptyTarget = restore.locator('[name="confirm_empty_target"]');
-  const restoreButton = restore.getByRole("button", { name: "Archiveを復元", exact: true });
+  const restoreButton = restore.getByRole("button", { name: "アーカイブを復元", exact: true });
   await fsckKey.focus();
   await page.keyboard.press("Tab");
   await expect(fsckButton).toBeFocused();
@@ -76,7 +76,7 @@ test("restore refusals preserve the target refs", async ({ page, app }) => {
   await exportForm(page).locator('[name="archive_name"]').fill(archiveName);
   await exportForm(page).locator('[name="confirm_project_key"]').fill("complete");
   await acceptNextDialog(page);
-  await exportForm(page).getByRole("button", { name: "Archiveを作成", exact: true }).click();
+  await exportForm(page).getByRole("button", { name: "アーカイブを作成", exact: true }).click();
   await page.waitForURL("**/#archives-heading");
 
   await page.goto(`${app.origin}/projects/restore/maintenance`);
@@ -84,7 +84,7 @@ test("restore refusals preserve the target refs", async ({ page, app }) => {
   const name = restore.locator('[name="archive_name"]');
   const key = restore.locator('[name="confirm_target_project_key"]');
   const empty = restore.locator('[name="confirm_empty_target"]');
-  const button = restore.getByRole("button", { name: "Archiveを復元", exact: true });
+  const button = restore.getByRole("button", { name: "アーカイブを復元", exact: true });
   const initialRefs = app.refs("restore");
   let requests = 0;
   let dialogs = 0;

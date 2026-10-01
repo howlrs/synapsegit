@@ -144,9 +144,9 @@ backup, or a replacement for `synapse creator-report --format json`. Pending
 and incomplete sessions do not show the control; a failed fresh read does not
 produce a file.
 
-To make a new decision in the browser, open a project, choose **Start a
-creator session**, add Original, Current, and AI output, then select **Create
-proposal**. On the review page, **Adopt**, **Reject**, and **Defer** each
+To make a new decision in the browser, open a project's **Import** page, use
+**Start from three files** to add Original, Current, and AI output, then select
+**Create proposal**. On the review page, **Adopt**, **Reject**, and **Defer** each
 finish that session once recorded. A Defer is not an open review; use the
 separate new-session review action if you want to consider the recorded images
 again.

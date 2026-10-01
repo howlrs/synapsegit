@@ -120,6 +120,29 @@ Status label:
 | Tombstone | implemented schema / closure | target、理由、時刻、replacement / derivative refs を持つ deletion history。delete command 自体ではない |
 | erasure / purge | planned | payload、key、derived copy を実際に利用不能化する operation。current CLI にはない |
 
+## Screen wording (`synapse-local`)
+
+`synapse-local`の画面は、制作者が「何を取り込み、何を判断したか」を読めるように、内部用語を目的と結果の言葉で表示する。
+OID、Ref、head、adapter名、replay readinessなどの値は各画面の「技術的な詳細」（Technical details）に折りたたみ、
+展開すると同じ値を確認・copyできる。記録が証明しないこと（外部で用意したAI output、ファイル内容の一致の限界、
+判断を変更できないこと）は折りたたまない。保存される値、API、error code、CLIの出力は変わらない。
+
+| 画面（日本語） | Screen (English) | 内部用語 | 保つ意味 |
+|---|---|---|---|
+| 外部で作成したAI output／このアプリが作ったものではありません | made outside this app / This app did not make the AI output | caller-supplied AI output | localhost processや特定のmodelが生成した主張ではない |
+| ファイル内容の一致確認（見た目の比較ではありません） | File-content match check (not a visual comparison) | byte identity evidence（Observation／AnalysisResult） | 同じbytesは対象物が不変の証明ではなく、違うbytesは見た目・物理的変化の証明ではない |
+| 確認の結果 | Check result | AnalysisResult `status` | adapterの実行結果。画像の意味的な比較ではない |
+| 比較できた範囲／確認に使った方式／再確認の準備 | Comparability / Method used / Ready to re-check | `comparability`、adapter、`AnalysisReplayReadiness` | 技術的な詳細に表示。`Ready`はexact replayを保証しない |
+| 書き出しが完了した候補 | finished candidates | manifest-last import inbox candidate | scriptが`manifest.json`を最後に書いた候補だけを扱う |
+| 一時保存 | set aside | staging（server-owned private staging） | 確認時に検証したbytesだけを提案へ取り込む |
+| 提案を記録 | record the proposal | Proposal Commitの公開（Ref update） | 外部公開ではない。ローカルRefの更新 |
+| 保存された履歴から確認した | checked against the stored history | current Refs and CAS（storage CAS） | 現在のRefとobjectから再構築・検証した |
+| 確認したデータ数 | Stored items checked | verified objects（fsck） | 整合性を確認したobject数 |
+| 整合性を確認する（読み取りのみ） | Check integrity (read-only) | bounded `fsck` | 履歴や保存データを変更しない |
+| 版の識別子／固定した版 | Version identifiers / pinned version | Ref head、pinned Proposal／Decision head | 派生・再利用の作成時に検証したCommit OID |
+| 最近の変更（reflog） | Recent changes (reflog) | reflog | Ref更新のappend-only履歴 |
+| 確認済みの元ファイル | verified original file | verified raw bytes | 保存されたBlobのbytesそのもの |
+
 関連資料:
 
 - [Core データモデル](./core_model.md)
