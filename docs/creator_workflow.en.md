@@ -127,6 +127,21 @@ are not copied into the new decision. In both interrupted and Defer flows, the
 service refuses to create the new session if the confirmed source head has
 changed. If it cannot read the fixed source record, the UI reports that fact.
 
+### Next stages and several candidates in v1.0
+
+To continue from an adopted result after further work, capture or export the
+new image as Current and create a new session with the normal three-file
+import or `synapse inbox put`. In v1.0 the link to the previous session is not
+recorded; recording it is planned after v1.0
+([#178](https://github.com/howlrs/synapsegit/issues/178)).
+
+When you generate several candidates at once, create one session per
+candidate and decide each one: use "try another candidate" when Original and
+Current stay the same, or one `synapse inbox put` per candidate from an AI
+agent. v1.0 has no single review that chooses among several candidates; a
+side-by-side comparison of candidates is planned after v1.0
+([#179](https://github.com/howlrs/synapsegit/issues/179)).
+
 ## Bring in a script-output candidate through Inbox
 
 Start the local service with `--import-root PROJECT=INBOX` only when you have
