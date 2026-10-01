@@ -3,7 +3,7 @@ import { test, expect } from "./fixtures.mjs";
 
 const pages = [
   ["セッション", "", "セッション"],
-  ["取り込む", "/import", "Creator session を開始"],
+  ["取り込む", "/import", "3つのファイルから始める"],
   ["管理", "/maintenance", "リポジトリ整合性の確認"],
   ["履歴", "/history", "Refs"],
 ];

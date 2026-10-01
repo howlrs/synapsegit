@@ -9,7 +9,7 @@ async function begin(page, app, session) {
   await page.locator('[name="creator_name"]').fill("Pin reviewer");
   await page.locator('[name="subject_label"]').fill("位置付きメモ");
   for (const [name, file] of [["original_image", original], ["current_image", current], ["ai_output", output]]) await page.locator(`[name="${name}"]`).setInputFiles(file);
-  await page.getByRole("button", { name: "Proposalを作成" }).click();
+  await page.getByRole("button", { name: "提案を作成" }).click();
   await page.waitForURL(`**/creator-sessions/${session}`);
   await expect(page.getByRole("button", { name: "中央にピンを追加" })).toBeEnabled();
 }
@@ -120,11 +120,11 @@ test("attachment and decode failures explain why pins are unavailable", async ({
   for (const project of ["mixed", "broken"]) {
     await page.goto(`${app.origin}/projects/${project}/creator-sessions/sample`);
     await page.getByLabel("ピンの対象画像", { exact: true }).selectOption("current");
-    await expect(page.locator("[data-pin-status]")).toContainText("attachment扱い");
+    await expect(page.locator("[data-pin-status]")).toContainText("この画面で表示できない形式");
     await expect(page.locator("[data-pin-preview]")).toBeHidden();
     if (project === "broken") {
       await page.getByLabel("ピンの対象画像", { exact: true }).selectOption("original");
-      await expect(page.locator("[data-pin-status]")).toContainText("decode失敗");
+      await expect(page.locator("[data-pin-status]")).toContainText("画像を読み取れなかった");
     }
   }
 });

@@ -443,6 +443,27 @@ pre {
   gap: var(--space-5);
 }
 
+/* Identifiers and protocol values, closed by default (#155). */
+.technical-details {
+  margin-block: var(--space-2);
+  color: var(--ink-muted);
+  font-size: 0.875rem;
+}
+
+.technical-details > summary {
+  cursor: pointer;
+  width: fit-content;
+  font-weight: 650;
+}
+
+.technical-details[open] > summary {
+  margin-bottom: var(--space-2);
+}
+
+.technical-details code {
+  overflow-wrap: anywhere;
+}
+
 /* Project pages: sessions, import, maintenance, and history. */
 .subnav {
   margin-block: 0 var(--space-5);
@@ -707,13 +728,18 @@ td {
   vertical-align: top;
 }
 
-th {
+thead th {
   color: var(--ink-muted);
   background: color-mix(in srgb, var(--surface-muted) 70%, var(--surface));
   font-size: 0.78rem;
   font-weight: 760;
   letter-spacing: 0.035em;
   text-transform: uppercase;
+}
+
+/* Row headers hold case-sensitive names, such as session names. */
+tbody th {
+  font-weight: 650;
 }
 
 tbody tr:last-child > * {

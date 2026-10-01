@@ -27,7 +27,7 @@ test("English selection persists through import, decision, recorded rationale, a
   await page.goto(`${app.origin}/projects/reviews/import?lang=en`);
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.getByRole("link", { name: "English", exact: true })).toHaveAttribute("aria-current", "page");
-  await expect(page.getByRole("heading", { name: "Start a creator session", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Start from three files", exact: true })).toBeVisible();
 
   await page.locator('[name="session"]').fill("english-review");
   await page.locator('[name="creator_name"]').fill("English browser reviewer");
@@ -169,7 +169,7 @@ archiveTest("English maintenance requires exact keys and an explicit empty-targe
   await page.goto(`${app.origin}/projects/complete/maintenance?lang=en`);
   const fsck = page.locator('form[data-confirm-maintenance="fsck"]');
   const fsckKey = fsck.locator('[name="confirm_project_key"]');
-  const fsckButton = fsck.getByRole("button", { name: "Run read-only fsck", exact: true });
+  const fsckButton = fsck.getByRole("button", { name: "Check integrity (read-only)", exact: true });
   await expect(fsck).toContainText("To confirm, type the project key complete");
   await fsckKey.fill("completex");
   page.once("dialog", (dialog) => dialog.accept());
@@ -180,7 +180,7 @@ archiveTest("English maintenance requires exact keys and an explicit empty-targe
   const reload = page.waitForEvent("framenavigated", { predicate: (frame) => frame === page.mainFrame() });
   await fsckButton.click();
   await reload;
-  await expect(page.getByText("Latest process-local result:", { exact: false })).toBeVisible();
+  await expect(page.getByText("Latest result since this app started:", { exact: false })).toBeVisible();
 
   await exportForm.locator('[name="archive_name"]').fill("english-archive");
   await exportForm.locator('[name="confirm_project_key"]').fill("complete");

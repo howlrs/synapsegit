@@ -60,7 +60,7 @@
 {% if pending %}
 <div class="notice" data-tone="warning">
   <h2>{{ m.session.review_required }}</h2>
-  <p>{{ m.session.source_before }}<code>{{ ai_output_source }}</code>{{ m.session.source_after }}</p>
+  <p>{{ m.session.source_before }}{{ m.value_label(ai_output_source) }}{{ m.session.source_after }}</p>
   <p>{{ m.session.review_instruction }}</p>
 </div>
 {% endif %}
@@ -70,7 +70,7 @@
   <h2 id="source-heading">{{ m.session.derived_source_heading }}</h2>
   <p><a href="/projects/{{ project_key }}/creator-sessions/{{ source.session }}">{{ source.session }}</a>{{ m.common.original_decision_prefix }}{{ m.value_label(source.disposition) }}</p>
   <p>{{ m.session.derived_source_help }}</p>
-  <dl class="detail-list"><div><dt>{{ m.common.pinned_proposal }}</dt><dd><code>{{ source.proposal_head }}</code></dd></div><div><dt>{{ m.common.pinned_decision }}</dt><dd><code>{{ source.decision_head }}</code></dd></div><div><dt>{{ m.session.original_blob }}</dt><dd><code>{{ source.original_blob_oid }}</code></dd></div><div><dt>{{ m.session.current_blob }}</dt><dd><code>{{ source.current_blob_oid }}</code></dd></div></dl>
+  <details class="technical-details"><summary>{{ m.timeline.technical_details }}</summary><dl class="detail-list"><div><dt>{{ m.common.pinned_proposal }}</dt><dd><code>{{ source.proposal_head }}</code></dd></div><div><dt>{{ m.common.pinned_decision }}</dt><dd><code>{{ source.decision_head }}</code></dd></div><div><dt>{{ m.session.original_blob }}</dt><dd><code>{{ source.original_blob_oid }}</code></dd></div><div><dt>{{ m.session.current_blob }}</dt><dd><code>{{ source.current_blob_oid }}</code></dd></div></dl></details>
   <p class="field__hint">{{ m.session.derived_source_hint }}</p>
 </section>
 {% endif %}
@@ -80,7 +80,7 @@
   <h2 id="reuse-source-heading">{{ m.session.reuse_source_heading }}</h2>
   <p><a href="/projects/{{ project_key }}/creator-sessions/{{ source.session }}">{{ m.session.reuse_source_link_prefix }}{{ source.session }}</a>{{ m.session.reuse_source_after }}</p>
   <p>{{ m.session.reuse_source_help }}</p>
-  <dl class="detail-list"><div><dt>{{ m.session.original_proposal }}</dt><dd><code>{{ source.proposal_head }}</code></dd></div><div><dt>{{ m.session.original_decision }}</dt><dd><code>{{ source.decision_head }}</code></dd></div><div><dt>AI output</dt><dd><code>{{ source.ai_output_blob_oid }}</code></dd></div></dl>
+  <details class="technical-details"><summary>{{ m.timeline.technical_details }}</summary><dl class="detail-list"><div><dt>{{ m.session.original_proposal }}</dt><dd><code>{{ source.proposal_head }}</code></dd></div><div><dt>{{ m.session.original_decision }}</dt><dd><code>{{ source.decision_head }}</code></dd></div><div><dt>AI output</dt><dd><code>{{ source.ai_output_blob_oid }}</code></dd></div></dl></details>
 </section>
 {% endif %}
 
@@ -165,7 +165,7 @@
         <strong>{{ image.label }}</strong>
         <p data-synapse-image-status class="muted">{{ m.common.waiting_to_load }}</p>
         <a class="button button--secondary" data-synapse-image-download download="{{ image.download_name }}" hidden>{{ m.common.download_verified }}</a>
-        <code>{{ image.oid }}</code>
+        <details class="technical-details"><summary>{{ m.timeline.technical_details }}</summary><code>{{ image.oid }}</code></details>
       </figcaption>
     </figure>
     {% endfor %}
@@ -196,15 +196,19 @@
   {% if has_comparison %}
   <div class="notice" data-tone="warning">
     <h3>{{ m.value_label(comparison_outcome) }}</h3>
-    <p>{{ comparison_warning }}</p>
     <p>{{ m.session.evidence_limit }}</p>
   </div>
   <dl class="detail-list">
     <div><dt>{{ m.session.evidence_status }}</dt><dd>{{ m.value_label(comparison_status) }}</dd></div>
-    <div><dt>{{ m.session.evidence_comparability }}</dt><dd>{{ m.value_label(comparison_comparability) }}</dd></div>
-    <div><dt>{{ m.session.evidence_adapter }}</dt><dd><code>{{ comparison_adapter }}</code></dd></div>
-    <div><dt>{{ m.session.evidence_replay }}</dt><dd>{{ comparison_replay }}</dd></div>
   </dl>
+  <details class="technical-details"><summary>{{ m.timeline.technical_details }}</summary>
+    <dl class="detail-list">
+      <div><dt>{{ m.session.evidence_comparability }}</dt><dd>{{ m.value_label(comparison_comparability) }}</dd></div>
+      <div><dt>{{ m.session.evidence_adapter }}</dt><dd><code>{{ comparison_adapter }}</code></dd></div>
+      <div><dt>{{ m.session.evidence_replay }}</dt><dd>{{ comparison_replay }}</dd></div>
+      <div><dt>{{ m.session.evidence_recorded_warning }}</dt><dd>{{ comparison_warning }}</dd></div>
+    </dl>
+  </details>
   {% else %}
   <div class="notice"><h3>{{ m.session.no_comparison_heading }}</h3><p>{{ m.session.no_comparison }}</p></div>
   {% endif %}
@@ -220,13 +224,17 @@
     <p>{{ m.session.no_automatic_change }}</p>
   </div>
   <dl class="detail-list" aria-label="{{ m.session.diagnostics_label }}">
-    <div><dt>Proposal Ref</dt><dd><code>{{ diagnostic_proposal_ref }}</code></dd></div>
-    <div><dt>Proposal head</dt><dd><code>{{ diagnostic_proposal_head }}</code></dd></div>
-    <div><dt>Decision Ref</dt><dd><code>{{ diagnostic_decision_ref }}</code></dd></div>
-    <div><dt>Decision head</dt><dd><code>{{ diagnostic_decision_head }}</code></dd></div>
     <div><dt>{{ m.session.automatic_resume }}</dt><dd>{{ m.session.not_supported }}</dd></div>
     <div><dt>{{ m.session.automatic_cleanup }}</dt><dd>{{ m.session.not_supported }}</dd></div>
   </dl>
+  <details class="technical-details"><summary>{{ m.timeline.technical_details }}</summary>
+    <dl class="detail-list">
+      <div><dt>Proposal Ref</dt><dd><code>{{ diagnostic_proposal_ref }}</code></dd></div>
+      <div><dt>Proposal head</dt><dd><code>{{ diagnostic_proposal_head }}</code></dd></div>
+      <div><dt>Decision Ref</dt><dd><code>{{ diagnostic_decision_ref }}</code></dd></div>
+      <div><dt>Decision head</dt><dd><code>{{ diagnostic_decision_head }}</code></dd></div>
+    </dl>
+  </details>
   {% if reuse_available %}<p><a class="button" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/reuse">{{ m.common.review_in_new_session }}</a></p>{% endif %}
 </section>
 {% endif %}

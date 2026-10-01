@@ -132,8 +132,8 @@ session detailを改めて検証・取得し、`{"state":"complete","report":{..
 public presentation bundle、repository backup、`synapse creator-report --format json`の代わりには使いません。
 pending／incompleteには操作を表示せず、再取得した記録の検証に失敗した場合はfileを出力しません。
 
-browserで新しい判断を作る場合は、projectを開いて**Creator session を開始**を選び、
-Original、Current、AI outputを追加して**Proposalを作成**します。review pageの**採用**（Adopt）、
+browserで新しい判断を作る場合は、projectの**取り込む**ページを開いて**3つのファイルから始める**で、
+Original、Current、AI outputを追加して**提案を作成**します。review pageの**採用**（Adopt）、
 **不採用**（Reject）、**保留**（Defer）はいずれも記録するとそのsessionを完了します。Deferはreviewを開いた
 ままにしません。記録済み画像を再度検討する場合は、別sessionで再レビューする操作を使います。
 

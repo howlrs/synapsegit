@@ -16,7 +16,7 @@ async function importProposal(page, app, project, session, generationNote = null
     await page.getByLabel("プロンプト", { exact: true }).fill(generationNote.prompt);
     await page.getByLabel("制作意図", { exact: true }).fill(generationNote.intent);
   }
-  await page.getByRole("button", { name: "Proposalを作成", exact: true }).click();
+  await page.getByRole("button", { name: "提案を作成", exact: true }).click();
   await page.waitForURL(`**/creator-sessions/${session}`);
 }
 

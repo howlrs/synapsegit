@@ -288,10 +288,10 @@ message_section! {
         state_pending: "レビュー待ち", "Awaiting review";
         state_incomplete: "未完了", "Incomplete";
         waiting_to_load: "読み込み待ち", "Waiting to load";
-        download_verified: "検証済みraw bytesをdownload", "Download verified raw bytes";
+        download_verified: "確認済みの元ファイルをダウンロード", "Download the verified original file";
         download_image: "画像をダウンロード", "Download image";
-        pinned_proposal: "固定したProposal", "Pinned Proposal";
-        pinned_decision: "固定したDecision", "Pinned Decision";
+        pinned_proposal: "固定したProposalの版", "Pinned Proposal version";
+        pinned_decision: "固定したDecisionの版", "Pinned Decision version";
         original_decision_prefix: " · 元の判断: ", " · Original decision: ";
         note_tool: "使用ツール", "Tool used";
         note_model: "モデル名", "Model name";
@@ -303,7 +303,7 @@ message_section! {
         field_subject_label: "対象名", "Subject label";
         event_label: "イベント", "event";
         clear_selection: "選択を解除", "Clear selection";
-        create_proposal: "Proposalを作成", "Create proposal";
+        create_proposal: "提案を作成", "Create proposal";
         zoom_fit: "全体を表示", "Fit to view";
         review_in_new_session: "この提案を新しいセッションでレビューする", "Review this proposal in a new session";
         decision_finality: "Deferも含め、記録後にこのセッションの判断を変更・再開する機能はありません。", "Every disposition, including Defer, completes this session. A recorded decision cannot be changed or reopened in this session.";
@@ -323,16 +323,16 @@ message_section! {
         no_projects_after: " を指定してください。", ".";
         completed_sessions: "完了セッション", "Completed sessions";
         archives_heading: "アーカイブ", "Archives";
-        archives_help_listing: "server-owned archive root直下のbounded read-onlyな一覧です。exportと、空のtarget projectへのrestoreは各project画面から行います。", "A bounded, read-only list of the entries directly under the server-owned archive root. Export, and restore into an empty target project, start from each project page.";
-        archives_help_evidence: "各状態はmanifest checksumと構造のみを確認したmanifest-level evidenceであり、object内容の再検証やrestore成功を保証するものではありません。", "Each state is manifest-level evidence from checking only the manifest checksum and structure. It does not re-verify object contents or guarantee a successful restore.";
-        archives_error_heading: "Archive listingを読み込めません", "The archive listing could not be loaded";
-        no_archives_heading: "表示できるarchiveがありません", "No archives to show";
+        archives_help_listing: "起動時に指定したアーカイブの保存先にあるものを一覧します（読み取りのみ）。書き出しと、空のプロジェクトへの復元は、各プロジェクトの「管理」から行います。", "Lists what is in the archive location set at startup (read-only). Export, and restore into an empty project, start from each project's Maintenance page.";
+        archives_help_evidence: "状態は、アーカイブの目録の構造とチェックサムだけを確かめた結果です。中のデータの再確認や、復元の成功を保証するものではありません。", "Each state only checks the structure and checksum of the archive's list of contents. It does not re-check the stored data or guarantee a successful restore.";
+        archives_error_heading: "アーカイブの一覧を読み込めません", "The archive list could not be loaded";
+        no_archives_heading: "表示できるアーカイブがありません", "No archives to show";
         no_archives_before: "サーバー起動時に ", "Start the server with ";
-        no_archives_after: " を指定し、そのディレクトリ直下にexport済みarchiveを配置してください。", " and place exported archives directly inside that directory.";
+        no_archives_after: " を指定し、そのディレクトリ直下に書き出したアーカイブを置いてください。", " and place exported archives directly inside that directory.";
         project_ready: "利用可能", "Available";
         project_empty_restore_target: "空の復元先", "Empty restore target";
         project_unavailable: "利用不可", "Unavailable";
-        archive_staging_or_unknown: "staging または unknown", "staging or unknown";
+        archive_staging_or_unknown: "作成途中または不明", "Being written or unknown";
     }
 }
 
@@ -348,7 +348,7 @@ message_section! {
         inbox_ready_notice: "取り込み待ちの候補があります。「取り込む」で確認してください。", "Candidates are waiting to be imported. Review them under Import.";
         create_public_notes: "公開用の制作ノートを作る", "Create public production notes";
         overview_label: "プロジェクト概要", "Project overview";
-        inbox_eyebrow: "スクリプト出力のInbox", "Manifest-last inbox";
+        inbox_eyebrow: "スクリプトが書き出した候補", "Candidates written by a script";
         inbox_heading: "取り込み待ち", "Waiting to import";
         inbox_session: "Inboxのセッション名", "Inbox session";
         inbox_creator_name: "Inboxの作成者名", "Inbox creator name";
@@ -357,28 +357,28 @@ message_section! {
         inbox_generation_model: "Inboxのモデル名", "Inbox generation model";
         inbox_generation_prompt: "Inboxのプロンプト", "Inbox generation prompt";
         inbox_generation_intent: "Inboxの制作意図", "Inbox generation intent";
-        inbox_help: "確認時に検証・stagingしたbytesだけをproposalへ取り込みます。", "Only the bytes verified and staged when you review a candidate are imported into a proposal.";
+        inbox_help: "候補を確認すると、その時点の3ファイルを確かめて一時保存し、その内容だけを提案として取り込みます。", "When you review a candidate, its three files are checked and set aside, and only those exact contents are imported as a proposal.";
         inbox_review_heading: "取り込み内容を確認", "Review the import";
-        inbox_warning: "AI outputと生成メモはcaller-suppliedです。明示的な判断を行うまでDecisionは記録されません。", "The AI output and generation note are caller-supplied. No Decision is recorded until you make one explicitly.";
+        inbox_warning: "AI outputと生成メモは外部で用意されたものです。このアプリが作ったものではありません。あなたが判断するまで、判断は記録されません。", "The AI output and generation note were prepared outside this app; this app did not make them. No decision is recorded until you make one.";
         back_to_list: "一覧へ戻る", "Back to the list";
-        upload_eyebrow: "Proposalだけを作る取り込み", "Proposal-only import";
-        upload_heading: "Creator session を開始", "Start a creator session";
+        upload_eyebrow: "提案の作成まで（判断は次の画面）", "Creates the proposal; you decide on the next page";
+        upload_heading: "3つのファイルから始める", "Start from three files";
         session_label: "新しいセッション名", "Session";
         original_image: "Original画像", "Original image";
         current_image: "Current画像", "Current image";
-        ai_output_file: "AI output（caller-supplied）", "AI output (caller-supplied)";
-        upload_help: "3ファイルをローカルでstagingし、AI proposalを公開してHuman reviewへ進めます。", "Stage three files locally, publish the AI proposal, and continue to Human review.";
-        upload_warning_heading: "AI output は caller-supplied です", "The AI output is caller-supplied";
-        upload_warning: "この画面やlocalhost processがAI出力を生成したという意味ではありません。判断前に必ず3つの内容とbyte identity evidenceを確認してください。", "This does not mean that this page or the localhost process generated the AI output. Before deciding, always check all three files and the byte identity evidence.";
-        upload_busy: "ファイルを取り込み、proposalを公開しています…", "Importing the files and publishing the proposal…";
-        upload_success: "Proposalを公開しました。レビュー画面へ移動します。", "Proposal published. Opening the review page.";
+        ai_output_file: "AI output（外部で作成）", "AI output (made outside this app)";
+        upload_help: "3つのファイルをこのコンピューター内に取り込んで提案を記録し、人のレビューへ進みます。外部へは送信しません。", "Imports the three files on this computer, records the proposal, and continues to human review. Nothing is sent elsewhere.";
+        upload_warning_heading: "AI outputはこのアプリが作ったものではありません", "This app did not make the AI output";
+        upload_warning: "外部のツールやAIで作ったファイルを、そのまま記録します。判断の前に、3つの画像と、ファイル内容の一致確認を必ず見てください。", "The file you made with another tool or AI is recorded as it is. Before deciding, always check all three images and the file-content match check.";
+        upload_busy: "ファイルを取り込み、提案を記録しています…", "Importing the files and recording the proposal…";
+        upload_success: "提案を記録しました。レビュー画面へ移動します。", "Proposal recorded. Opening the review page.";
         session_hint: "小文字英数字とハイフン、1–64文字。新しい名前で作成します。", "Lowercase letters, digits, and hyphens; 1–64 characters. Use a new name.";
         creator_name_hint: "UTF-8で300 bytes以内。", "Up to 300 UTF-8 bytes.";
         subject_hint: "UTF-8で500 bytes以内。", "Up to 500 UTF-8 bytes.";
         preview_note: "ローカルプレビューです。ファイルを選ぶだけでは送信・保存されません。Original／Current／AI outputの取り違えがないか確認してください。", "Local preview only. Choosing a file does not send or save it. Check that Original, Current, and AI output are not mixed up.";
-        raw_bytes_hint: "raw bytes、64 MiB以内。", "Raw bytes, up to 64 MiB.";
-        js_write_hint: "安全なwriteには、このページのJavaScriptとprocess-local tokenが必要です。", "Safe writes require this page's JavaScript and the process-local token.";
-        upload_noscript: "JavaScriptが無効なため、この画面はread-onlyです。安全なuploadにはprocess-local tokenを付けるJavaScriptが必要です。", "JavaScript is disabled, so this page is read-only. Safe uploads need JavaScript to attach the process-local token.";
+        raw_bytes_hint: "ファイルはそのまま保存します。64 MiB以内。", "Saved exactly as the file is; up to 64 MiB.";
+        js_write_hint: "安全に保存するため、このページのJavaScriptが必要です。", "Saving safely needs this page's JavaScript.";
+        upload_noscript: "JavaScriptが無効なため、この画面からは取り込めません。表示だけできます。", "JavaScript is disabled, so you cannot import from this page. You can still read it.";
         sessions_heading: "セッション", "Sessions";
         sessions_help: "レビュー待ちを優先し、履歴の更新が新しい順に最大200件を表示します。概要は未検証です。取得できない項目は推測せず、セッションを開いて詳細を検証・確認できます。記録日時は制作時刻を証明するものではありません。", "Shows up to 200 sessions: those awaiting review first, then by most recent history update. Summaries are unverified. Items that cannot be read are not guessed; open a session to verify its details. Recorded times do not prove when the work was made.";
         locator_heading: "名前でセッションを開く", "Open a session by name";
@@ -391,7 +391,7 @@ message_section! {
         filter_label: "状態・判断で絞り込む", "Filter by state or decision";
         filter_all: "すべて", "All";
         no_sessions_heading: "セッションはまだありません", "No sessions yet";
-        no_sessions_help: "「取り込む」で3ファイルを取り込むと、最初のproposalとHuman reviewを開始できます。", "Import three files under Import to start the first proposal and Human review.";
+        no_sessions_help: "「取り込む」で3つのファイルを取り込むと、最初の提案とレビューを始められます。", "Import three files under Import to start the first proposal and review.";
         column_session: "セッション／内容", "Session / content";
         column_state: "状態・判断", "State / decision";
         column_recorded_at: "記録日時", "Recorded at";
@@ -401,15 +401,15 @@ message_section! {
         maintenance_heading: "メンテナンス", "Maintenance";
         fsck_heading: "リポジトリ整合性の確認", "Check repository integrity";
         fsck_help: "現在の履歴と保存データの整合性を、上限を設けて読み取り専用で確認します。", "Checks the consistency of the current history and stored data, read-only and within fixed limits.";
-        last_fsck_prefix: "直近のprocess-local結果: ", "Latest process-local result: ";
+        last_fsck_prefix: "このアプリを起動してからの直近の結果: ", "Latest result since this app started: ";
         fsck_clean: "問題なし", "clean";
         fsck_issues_found: "問題あり", "issues found";
-        fsck_verified_objects: "検証したobject: ", "Verified objects: ";
+        fsck_verified_objects: "確認したデータ: ", "Stored items checked: ";
         fsck_issues: " · 問題: ", " · Issues: ";
         fsck_busy: "整合性の確認を開始しています…", "Starting the integrity check…";
         confirm_key_before: "確認のため project key ", "To confirm, type the project key ";
         confirm_key_after: " を入力", "";
-        fsck_submit: "読み取り専用で fsck を実行", "Run read-only fsck";
+        fsck_submit: "整合性を確認する（読み取りのみ）", "Check integrity (read-only)";
         fsck_hint: "処理はバックグラウンドで実行します。履歴や保存データを変更しません。", "It runs in the background and does not change history or stored data.";
         fsck_noscript: "JavaScriptが無効なため、メンテナンス操作は開始できません。", "JavaScript is disabled, so maintenance operations cannot be started.";
         export_heading: "アーカイブを書き出す", "Export an archive";
@@ -420,7 +420,7 @@ message_section! {
         archive_name: "アーカイブ名", "Archive name";
         archive_name_hint: "小文字英数字とハイフン、1–64文字。新しい名前で作成します。", "Lowercase letters, digits, and hyphens; 1–64 characters. Use a new name.";
         confirm_value_hint: "操作対象を確認するため、表示された値をそのまま入力してください。", "Type the value shown exactly, to confirm the target.";
-        export_submit: "Archiveを作成", "Create archive";
+        export_submit: "アーカイブを作成", "Create archive";
         export_hint: "処理はバックグラウンドで実行し、成功後にアーカイブ一覧へ移動します。", "It runs in the background and opens the archive list when it succeeds.";
         export_noscript: "JavaScriptが無効なため、アーカイブの書き出しは開始できません。", "JavaScript is disabled, so an archive export cannot be started.";
         restore_heading: "アーカイブを復元する", "Restore an archive";
@@ -434,13 +434,15 @@ message_section! {
         restore_confirm_before: "確認のため復元先の project key ", "To confirm, type the restore target's project key ";
         restore_confirm_after: " を入力", "";
         restore_empty_check: "このプロジェクトに既存の履歴がないことを確認しました。", "I have confirmed that this project has no existing history.";
-        restore_submit: "Archiveを復元", "Restore archive";
+        restore_submit: "アーカイブを復元", "Restore archive";
         restore_hint: "失敗時や結果不明の場合は、ファイルの一部がコピー済みの可能性があります。自動では再試行しません。再試行する場合は同じアーカイブを使ってください。", "If the restore fails or its outcome is unknown, some files may already have been copied. It is not retried automatically. To retry, use the same archive.";
         restore_success_link: "復元した履歴を確認", "View the restored history";
         restore_unavailable_heading: "このプロジェクトは復元先にできません", "This project cannot be a restore target";
         restore_unavailable: "既存の履歴があります。復元用には別の空のプロジェクトを初期化・登録してから開いてください。", "It already has history. For a restore, initialize and register a separate empty project, then open that project.";
         restore_noscript: "JavaScriptが無効なため、アーカイブの復元は開始できません。", "JavaScript is disabled, so an archive restore cannot be started.";
-        reflog_heading: "最近の Reflog", "Recent reflog";
+        reflog_heading: "最近の変更（reflog）", "Recent changes (reflog)";
+        history_intro: "確認や調査のための技術情報です。記録の名前付きの版（Ref）と、最近の変更（reflog）を表示します。制作の流れは各セッションのタイムラインで確認できます。", "Technical information for checking and investigation: the named record versions (Refs) and recent changes (reflog). Each session's Timeline shows the creative steps.";
+        show_heads: "版の識別子", "Version identifiers";
     }
 }
 
@@ -448,7 +450,7 @@ message_section! {
     /// Optional caller-declared generation note fields.
     Note {
         summary: "提案の生成メモ（任意）", "Proposal generation note (optional)";
-        help: "このAI outputについて利用者が申告するprivateなメモです。実行ログ・モデルの実行証明ではありません。通常のCore archiveには含まれます。入力内容と上のAI outputを確認してからProposalを作成してください。", "A private note that you declare about this AI output. It is not an execution log or proof that a model ran. It is included in normal Core archives. Check what you entered and the AI output above before creating the Proposal.";
+        help: "このAI outputについてあなたが書き残す非公開のメモです。実行の記録や、モデルが動いた証明ではありません。通常のアーカイブには含まれます。入力内容と上のAI outputを確認してから提案を作成してください。", "A private note you write about this AI output. It is not an execution log or proof that a model ran. It is included in normal archives. Check what you entered and the AI output above before creating the proposal.";
         short_label_tool: "使用ツール", "Tool used";
         short_label_model: "モデル", "Model";
     }
@@ -465,16 +467,17 @@ message_section! {
         not_recorded: "記録なし", "Not recorded";
         metric_disposition: "判断", "Disposition";
         metric_ai_selected: "AI outputの選択", "AI output selected";
-        metric_verified_objects: "検証したobject数", "Verified objects";
+        metric_verified_objects: "確認したデータ数", "Stored items checked";
         decision_eyebrow: "人の判断", "Human Decision";
         gate_eyebrow: "人の判断", "Human gate";
-        original_blob: "OriginalのBlob", "Original Blob";
-        current_blob: "CurrentのBlob", "Current Blob";
-        evidence_heading: "Byte identityの証拠", "Byte identity evidence";
-        evidence_status: "状態", "Status";
-        evidence_comparability: "比較可能性", "Comparability";
-        evidence_adapter: "使用したadapter", "Adapter";
-        evidence_replay: "再実行の準備", "Replay ready";
+        original_blob: "Originalの識別子", "Original identifier";
+        current_blob: "Currentの識別子", "Current identifier";
+        evidence_heading: "ファイル内容の一致確認", "File-content match check";
+        evidence_status: "確認の結果", "Check result";
+        evidence_comparability: "比較できた範囲（comparability）", "Comparability";
+        evidence_adapter: "確認に使った方式（adapter）", "Method used (adapter)";
+        evidence_replay: "再確認の準備（replay）", "Ready to re-check (replay)";
+        evidence_recorded_warning: "確認方式が記録した注意（英語）", "Caveat recorded by the method";
         diagnostics_label: "Creatorセッションの診断", "Creator session diagnostics";
         automatic_resume: "自動再開", "Automatic resume";
         automatic_cleanup: "自動クリーンアップ", "Automatic cleanup";
@@ -485,24 +488,24 @@ message_section! {
         recorded_decision: "記録した判断", "Recorded decision";
         recorded_rationale: "記録された理由", "Recorded rationale";
         no_rationale: "理由は記録されていません。", "No rationale was recorded.";
-        recorded_hint: "現在のRefsとCASから検証した記録です。理由は記録されたテキストであり、その内容の正しさを検証したものではありません。", "This record was verified from the current Refs and CAS. The rationale is recorded text; its content has not been checked for correctness.";
+        recorded_hint: "保存された履歴から確認した記録です。理由は記録されたテキストで、その内容が正しいことは確認していません。", "This record was checked against the stored history. The rationale is recorded text; its content has not been checked for correctness.";
         private_report_heading: "記録を保存", "Save this record";
         private_report_noscript: "記録を保存するにはJavaScriptを有効にしてください。", "Enable JavaScript to save this record.";
-        private_report_help: "理由、生成メモ、ピン、内部識別子を含む場合がある非公開の記録を、ご自身で保管するために保存できます。画像やrepository全体は含まれないため、backupや公開・共有用のファイルではありません。", "Save a private record for your own keeping. It can include rationale, generation notes, pins, and internal identifiers. It contains neither images nor the whole repository, so it is not a backup or a file for publishing or sharing.";
+        private_report_help: "理由、生成メモ、ピン、内部の識別子を含む非公開の記録を、ご自身で保管するために保存できます。画像やプロジェクト全体は含まれないため、バックアップや公開・共有用のファイルではありません。", "Save a private record for your own keeping. It can include rationale, generation notes, pins, and internal identifiers. It contains neither images nor the whole project, so it is not a backup or a file for publishing or sharing.";
         private_report_download: "非公開の記録を保存（JSON）", "Save private record (JSON)";
-        review_required: "Human reviewが必要です", "Human review required";
-        source_before: "AI output sourceは ", "AI output source: ";
-        source_after: " です。これはcaller-supplied inputであり、このlocalhost processや特定のmodelが生成したという主張ではありません。", ". This is caller-supplied input, not a claim that this localhost process or any particular model generated it.";
-        review_instruction: "3つのbytesとevidenceを確認してから、adopt・reject・deferのいずれかを選んでください。", "Check the three files and the evidence, then choose adopt, reject, or defer.";
+        review_required: "人のレビューが必要です", "Human review required";
+        source_before: "AI outputの出どころ: ", "Where the AI output came from: ";
+        source_after: "。このアプリや特定のAIモデルが作ったことを示すものではありません。", ". It was prepared outside this app; this does not show that this app or any particular AI model made it.";
+        review_instruction: "3つの画像とファイル内容の一致確認を見てから、採用・不採用・保留のいずれかを選んでください。", "Check the three images and the file-content match check, then choose adopt, reject, or defer.";
         derived_source_heading: "再利用した参照画像の派生元", "Source of the reused reference images";
-        derived_source_help: "元のOriginal／Currentのexactなbytesを参照として再利用しました。新しい撮影・観測ではありません。元のAI outputをCurrentへ昇格していません。表示名の一致は同一人物・同一の物理Subjectの証明ではありません。", "The exact Original and Current bytes of the source were reused as references. They are not a new capture or observation. The source's AI output was not promoted to Current. Matching display names do not prove the same person or the same physical subject.";
-        derived_source_hint: "派生元リンクは現在のRefsを表示します。この記録は上の固定したheadsへの対応を保持します。", "The source link shows the current Refs. This record keeps its binding to the pinned heads above.";
+        derived_source_help: "元のOriginal／Currentとまったく同じファイルを参照として再利用しました。新しく撮影・観測したものではありません。元のAI outputをCurrentに置き換えてはいません。表示名が同じでも、同じ人・同じ対象物であることの証明にはなりません。", "The exact Original and Current files of the source were reused as references. They are not a new capture or observation. The source's AI output did not replace Current. Matching display names do not prove the same person or the same physical subject.";
+        derived_source_hint: "派生元のリンク先は現在の記録を表示します。このセッションは、技術的な詳細にある固定した版との対応を保っています。", "The source link shows the current record. This session keeps its link to the pinned versions under Technical details.";
         reuse_source_heading: "記録済みの提案を引き継ぎました", "A recorded proposal was carried over";
         reuse_source_link_prefix: "元のセッション ", "Original session ";
         reuse_source_after: " の3つの画像を確認用に使っています。", ": its three images are used for this review.";
         reuse_source_help: "新しい生成や元の判断の変更ではありません。元の理由とメモは参照用で、新しい判断にはコピーされません。", "This is not a new generation and does not change the original decision. The original rationale and notes are for reference only and are not copied into the new decision.";
-        original_proposal: "元のProposal", "Original Proposal";
-        original_decision: "元のDecision", "Original Decision";
+        original_proposal: "元のProposalの版", "Original Proposal version";
+        original_decision: "元のDecisionの版", "Original Decision version";
         reference_heading: "元の記録（参照のみ）", "Original record (reference only)";
         reference_deferred: "元の保留した提案の情報です。新しいセッションのメモ、ピン、理由にはコピーされません。", "Information from the original deferred proposal. It is not copied into this session's notes, pins, or rationale.";
         reference_interrupted: "元の中断した提案の情報です。新しいセッションのメモ、ピン、理由にはコピーされません。", "Information from the original interrupted proposal. It is not copied into this session's notes, pins, or rationale.";
@@ -511,10 +514,10 @@ message_section! {
         reference_defer_heading: "元のDefer理由", "Original Defer rationale";
         reference_pins_heading: "元の画像上の判断メモ", "Original image pins";
         note_heading: "提案の生成メモ", "Proposal generation note";
-        note_hint: "利用者申告のprivateメモです。モデルの実行・実作者の証明ではありません。通常のCore archiveには含まれます。", "A private note declared by the user. It does not prove that a model ran or who the author is. It is included in normal Core archives.";
+        note_hint: "利用者が書き残した非公開のメモです。モデルが動いたことや、作者が誰かの証明ではありません。通常のアーカイブには含まれます。", "A private note written by the user. It does not prove that a model ran or who the author is. It is included in normal archives.";
         no_note: "生成メモなし", "No generation note";
         images_heading: "画像と出力", "Images and output";
-        images_help: "画像は現在の検証済みセッションからroleを解決し、認証付きfetchで読み込みます。", "Each image role is resolved from the currently verified session and loaded with an authenticated fetch.";
+        images_help: "画像は、確認済みのこのセッションの記録から読み込みます。", "The images are loaded from this session's verified record.";
         compare_open: "画像を拡大して比較", "Compare images at full size";
         compare_title: "画像を見比べる", "Compare images";
         compare_close: "閉じる", "Close";
@@ -533,26 +536,26 @@ message_section! {
         overlay_viewport: "重ねた比較画像の表示領域", "Overlaid comparison viewport";
         overlay_canvas: "比較画像 A を下、画像 B を上に重ねた表示", "Comparison image A below, with image B overlaid on top";
         pins_heading: "画像上の判断メモ", "Image pins";
-        pins_help: "Humanが記すprivateなピンです。Adopt／Reject／DeferはProposal全体への判断です。ピンごとの部分採用や画像分析を表しません。通常のCore archiveには含まれます。", "Private pins written by the Human reviewer. Adopt, Reject, and Defer apply to the whole Proposal; pins do not mean partial adoption or image analysis. They are included in normal Core archives.";
-        pins_unavailable: "注釈は未知の形式または不正な画像対応のため利用できません。判断来歴本体の検証とは別の表示結果です。", "Pins are unavailable because of an unknown format or an invalid image binding. This is separate from verifying the decision history itself.";
+        pins_help: "レビューする人が画像に付ける非公開のメモです。採用・不採用・保留は提案全体への判断で、ピンは部分的な採用や画像解析を表しません。通常のアーカイブには含まれます。", "Private notes that the reviewer pins to an image. Adopt, Reject, and Defer apply to the whole proposal; pins do not mean partial adoption or image analysis. They are included in normal archives.";
+        pins_unavailable: "ピンの形式が不明か、画像との対応が正しくないため、表示できません。判断の記録そのものの確認とは別の問題です。", "Pins cannot be shown because their format is unknown or their image link is invalid. This is separate from checking the decision record itself.";
         pin_target: "ピンの対象画像", "Pin target image";
         pin_zoom: "ピン画像の表示倍率", "Pin image zoom";
         pin_viewport: "ピン画像の表示領域", "Pin image viewport";
         pin_image_alt: "判断メモの対象画像", "Image for the pins";
         pin_add: "中央にピンを追加", "Add a pin at the center";
-        pin_help: "画像をクリック／タップして追加できます。ピンはドラッグまたは矢印キーで移動（Shiftで細かく移動）、Deleteで削除できます。一覧の座標でも移動できます。左上が(0, 0)、右下が(1000000, 1000000)です。最大10件、各メモ200 UTF-8 bytes以内。", "Click or tap the image to add a pin. Move a pin by dragging it or with the arrow keys (hold Shift for fine steps), and remove it with Delete. You can also move it with the coordinates in the list. The top left is (0, 0) and the bottom right is (1000000, 1000000). Up to 10 pins, each note up to 200 UTF-8 bytes.";
+        pin_help: "画像をクリック／タップして追加できます。ピンはドラッグまたは矢印キーで移動（Shiftで細かく移動）、Deleteで削除できます。一覧の座標でも移動できます。左上が(0, 0)、右下が(1000000, 1000000)です。最大10件、各メモは200バイト（UTF-8）以内。", "Click or tap the image to add a pin. Move a pin by dragging it or with the arrow keys (hold Shift for fine steps), and remove it with Delete. You can also move it with the coordinates in the list. The top left is (0, 0) and the bottom right is (1000000, 1000000). Up to 10 pins, each note up to 200 UTF-8 bytes.";
         no_pins: "記録されたピンなし", "No pins recorded";
-        evidence_limit: "同じbytesでも物理的なsubjectが変化していないとは証明できず、異なるbytesでも視覚的・物理的変化を証明するものではありません。", "Identical bytes do not prove that the physical subject is unchanged, and different bytes do not prove a visual or physical change.";
-        no_comparison_heading: "比較情報なし", "No comparison information";
-        no_comparison: "この履歴からbyte identity evidenceは復元できません。", "Byte identity evidence cannot be reconstructed from this history.";
+        evidence_limit: "ファイルの内容を比べた結果で、見た目の比較ではありません。同じ内容でも対象物が変わっていないことの証明にはならず、内容が違っても見た目や対象物が変わったことの証明にはなりません。", "This compares file contents; it is not a visual comparison. Identical files do not prove that the physical subject is unchanged, and different files do not prove a visual or physical change.";
+        no_comparison_heading: "一致確認の情報なし", "No match-check information";
+        no_comparison: "この記録からは、ファイル内容の一致確認を再現できません。", "The file-content match check cannot be reconstructed from this record.";
         incomplete_heading: "セッションは未完了です", "This session is incomplete";
         cannot_resume_reuse: "このセッションの判断は再開できません。記録済みの3画像を引き継いで、新しいセッションでレビューできます。", "This session's decision cannot be resumed. You can carry over its three recorded images and review them in a new session.";
         cannot_resume_no_reuse: "このセッションの判断は再開できません。記録済みの画像を引き継いだレビューは現在利用できません。", "This session's decision cannot be resumed. A review that carries over the recorded images is not available now.";
-        no_automatic_change: "履歴を自動で書き換えたり削除したりはしません。問題が疑われる場合はfsckを実行してください。", "History is never rewritten or deleted automatically. If you suspect a problem, run fsck.";
+        no_automatic_change: "記録を自動で書き換えたり削除したりはしません。問題が疑われる場合は、プロジェクトの「管理」で整合性を確認してください。", "Records are never rewritten or deleted automatically. If you suspect a problem, check integrity on the project's Maintenance page.";
         not_supported: "サポートされません", "Not supported";
         decision_heading: "判断を記録", "Record a decision";
-        decision_busy: "Human decisionを検証して公開しています…", "Verifying and publishing the Human decision…";
-        decision_success: "Decisionを公開しました。ページを再読み込みします。", "Decision published. Reloading the page.";
+        decision_busy: "判断を確認して記録しています…", "Checking and recording the decision…";
+        decision_success: "判断を記録しました。ページを再読み込みします。", "Decision recorded. Reloading the page.";
         rationale_label: "理由（任意）", "Rationale (optional)";
         rationale_placeholder: "この判断の理由や、後から確認したい点", "Why you made this decision, or what to check later";
         rationale_hint: "UTF-8で5000 bytes以内。記録後、このセッションで読み返せます。", "Up to 5000 UTF-8 bytes. You can read it again in this session after it is recorded.";
@@ -562,24 +565,24 @@ message_section! {
         reject_help: "AI outputを採用しない判断を記録します。", "Record a decision not to adopt the AI output.";
         defer_heading: "保留", "Defer";
         defer_help: "AI outputの採用を保留する判断を記録します。", "Record a decision to defer adopting the AI output.";
-        decision_js_hint: "Decision writeには、このページのJavaScriptとprocess-local tokenが必要です。", "Writing a Decision requires this page's JavaScript and the process-local token.";
-        decision_noscript: "JavaScriptが無効なため、この画面ではDecisionを送信できません。3つのevidenceはread-onlyで確認できます。", "JavaScript is disabled, so a Decision cannot be submitted from this page. The three pieces of evidence remain readable.";
+        decision_js_hint: "判断を安全に記録するため、このページのJavaScriptが必要です。", "Recording a decision safely needs this page's JavaScript.";
+        decision_noscript: "JavaScriptが無効なため、この画面からは判断を記録できません。3つの画像と確認結果は表示できます。", "JavaScript is disabled, so a decision cannot be recorded from this page. The three images and the check results remain readable.";
         derived_heading: "このセッションから派生したセッション", "Sessions derived from this session";
-        derived_hint: "未検証の参照一覧です。派生先を開くと、現在のRefsとCASから詳細を検証します。", "An unverified list of references. Opening a derived session verifies its details from the current Refs and CAS.";
-        pending_description: "このprocess内でHuman reviewを待っています。", "Waiting for Human review in this process.";
+        derived_hint: "未確認の一覧です。派生先を開くと、保存された履歴から詳細を確認します。", "An unverified list. Opening a derived session checks its details against the stored history.";
+        pending_description: "このアプリの起動中、人のレビューを待っています。", "Waiting for human review while this app is running.";
         interrupted_description: "判断前に中断されたセッションです。記録済みの画像を新しいセッションで確認できます。", "This session was interrupted before a decision. Its recorded images can be reviewed in a new session.";
-        unverifiable_description: "現在の記録を確認できません。fsckを実行して状態を確認してください。", "The current record cannot be verified. Run fsck to check its state.";
+        unverifiable_description: "現在の記録を確認できません。プロジェクトの「管理」で整合性を確認してください。", "The current record cannot be verified. Check integrity on the project's Maintenance page.";
         interrupted_diagnostic: "判断前に中断された記録です。記録済みの3画像を確認し、新しいセッションでレビューできます。", "This record was interrupted before a decision. You can check its three recorded images and review them in a new session.";
-        complete_description: "現在のRefsとCASから検証済みレポートを再構築しました。", "A verified report was rebuilt from the current Refs and CAS.";
+        complete_description: "保存された履歴から確認したレポートです。", "A report checked against the stored history.";
         outcome_adopt: "AI outputを変更せず採用しました。", "The AI output was adopted without changes.";
         outcome_reject: "AI outputを採用しない判断を記録しました。", "A decision not to adopt the AI output was recorded.";
         outcome_defer: "AI outputの採用を保留する判断を記録しました。", "A decision to defer adopting the AI output was recorded.";
-        outcome_unknown: "検証済みレポートのDispositionを確認してください。", "Check the Disposition in the verified report.";
+        outcome_unknown: "確認済みレポートの判断を見てください。", "Check the decision in the verified report.";
         yes: "はい", "Yes";
         no: "いいえ", "No";
         original_alt: "取り込まれたoriginal画像", "Imported original image";
         current_alt: "取り込まれたcurrent画像", "Imported current image";
-        ai_output_alt: "caller supplied AI output", "Caller-supplied AI output";
+        ai_output_alt: "外部で作成したAI output", "AI output made outside this app";
     }
 }
 
@@ -590,20 +593,20 @@ message_section! {
         heading: "この記録から次の案を試す", "Try a next candidate from this record";
         intro: "完了した記録の参照画像を引き継ぎ、新しい候補を1点取り込みます。", "Carry over the reference images of a completed record and import one new candidate.";
         source_heading: "派生元と再利用する参照画像", "Source and reused reference images";
-        source_help: "元のOriginal／Currentのexactなbytesを再利用します。Adopt済みでも元のAI outputをCurrentへ昇格しません。新しく撮影・観測した現況ではなく、過去の参照画像です。", "The exact Original and Current bytes of the source are reused. Even after Adopt, the source's AI output is not promoted to Current. These are past reference images, not a new capture or observation of the current state.";
+        source_help: "元のOriginal／Currentとまったく同じファイルを再利用します。採用済みでも、元のAI outputをCurrentに置き換えません。新しく撮影・観測した現況ではなく、過去の参照画像です。", "The exact Original and Current files of the source are reused. Even after Adopt, the source's AI output does not replace Current. These are past reference images, not a new capture or observation of the current state.";
         original_label: "Original（記録済み参照）", "Original (recorded reference)";
         original_alt: "派生元のOriginal参照画像", "Original reference image from the source";
         current_label: "Current（記録済み参照）", "Current (recorded reference)";
         current_alt: "派生元のCurrent参照画像", "Current reference image from the source";
-        new_session_help: "表示用の名前を確認・編集してください。新しいsession-local identityを作成します。同名でも同一人物・同一の物理Subjectとは推定しません。元の生成メモや判断メモは引き継ぎません。", "Check and edit the display names. A new session-local identity is created. The same name is not treated as the same person or the same physical subject. The source's generation note and decision notes are not carried over.";
-        busy: "派生元を再検証し、新しいproposalを作成しています…", "Re-verifying the source and creating a new proposal…";
-        success: "新しいProposalを作成しました。", "Created a new Proposal.";
+        new_session_help: "表示名を確認・編集してください。このセッションだけの表示名として記録します。同じ名前でも、同じ人・同じ対象物とは見なしません。元の生成メモや画像上の判断メモ（ピン）は引き継ぎません。", "Check and edit the display names. They are recorded for this session only. The same name is not taken to mean the same person or the same physical subject. The source's generation note and image pins are not carried over.";
+        busy: "派生元を確認し直し、新しい提案を作成しています…", "Re-checking the source and creating a new proposal…";
+        success: "新しい提案を作成しました。", "Created a new proposal.";
         session_hint: "未使用の小文字英数字・ハイフン、1〜64文字。", "An unused name of lowercase letters, digits, and hyphens; 1–64 characters.";
         preview_note: "新しい候補は必ず自分で選択してください。選ぶだけでは送信・保存されません。", "Always choose the new candidate yourself. Choosing a file does not send or save it.";
-        file_label: "新しいAI output（caller-supplied）", "New AI output (caller-supplied)";
+        file_label: "新しいAI output（外部で作成）", "New AI output (made outside this app)";
         preview_alt: "新しい候補のローカルプレビュー", "Local preview of the new candidate";
         clear_label: "新しいAI outputの選択を解除", "Clear the new AI output selection";
-        submit: "参照画像を引き継いでProposalを作成", "Create a proposal with the reference images";
+        submit: "参照画像を引き継いで提案を作成", "Create a proposal with the reference images";
         submit_hint: "派生元が確認後に変わった場合は作成を拒否します。元の判断は編集・再開しません。", "If the source changes after this check, creation is refused. The original decision is not edited or reopened.";
         noscript: "JavaScriptを有効にすると、安全な取り込みフォームを利用できます。", "Enable JavaScript to use the safe import form.";
     }
@@ -623,7 +626,7 @@ message_section! {
         deferred_rationale_prefix: "元のDefer理由（参照のみ）: ", "Original Defer rationale (reference only): ";
         note_heading: "元の生成メモ（参照のみ）", "Original generation note (reference only)";
         pins_heading: "元の画像上の判断メモ（参照のみ）", "Original image pins (reference only)";
-        submit_hint: "確認後に元のheadsが変わった場合は作成を拒否します。", "If the original heads change after this check, creation is refused.";
+        submit_hint: "確認した後に元の記録が変わった場合は、作成しません。", "If the original record changes after this check, creation is refused.";
     }
 }
 
@@ -631,10 +634,10 @@ message_section! {
     /// Author-supplied public presentation sidecar form.
     Presentation {
         page_title: "公開用の制作ノート", "Public production notes";
-        intro: "自分で入力した公開用文章から、既存CLIで使う説明文ファイルを作成します。すべての文章はauthor-suppliedです。", "Create a description file for the existing CLI from public text that you enter yourself. All text is author-supplied.";
+        intro: "自分で入力した公開用の文章から、既存のコマンドで使う説明文ファイルを作ります。文章はすべてあなたが入力したものです。", "Create a description file for the existing command from public text that you enter yourself. All of the text is yours.";
         input_heading: "公開用の文章を入力", "Enter the public text";
         derived_unsupported: "参照画像を再利用した派生セッションは、現在の公開形式に未対応です。通常の3画像取り込みで作成したセッションを選択してください。", "Derived sessions that reuse reference images are not supported by the current publication format. Choose a session created by a normal three-image import.";
-        private_not_copied: "保存済みのprivateな理由・プロンプト・生成メモ・画像上の判断メモは自動転記しません。入力内容は下書きとして保存されません。", "Stored private rationales, prompts, generation notes, and image pins are never copied in automatically. What you enter is not saved as a draft.";
+        private_not_copied: "保存済みの非公開の理由・プロンプト・生成メモ・画像上の判断メモは、自動では転記しません。入力内容は下書きとして保存されません。", "Stored private rationales, prompts, generation notes, and image pins are never copied in automatically. What you enter is not saved as a draft.";
         no_sessions: "このプロジェクトには完了したセッションがありません。先に通常のHuman Decisionを完了してください。", "This project has no completed sessions. Complete a normal Human Decision first.";
         session_label: "完了したセッション", "Completed session";
         session_placeholder: "選択してください", "Choose a session";
@@ -650,7 +653,7 @@ message_section! {
         check_submit: "入力した文章を確認", "Check the entered text";
         noscript: "説明文の確認とダウンロードにはJavaScriptが必要です。", "Checking and downloading the description file requires JavaScript.";
         preview_heading: "公開用文章の確認", "Review the public text";
-        preview_help: "自分で入力した文章のみの確認です。最終bundleの検証済みプレビューではありません。", "This shows only the text you entered. It is not a verified preview of the final bundle.";
+        preview_help: "自分で入力した文章だけの確認です。最終的な公開用のファイル一式（bundle）を確認したプレビューではありません。", "This shows only the text you entered. It is not a verified preview of the final publication bundle.";
         download: "説明文ファイルを書き出す", "Export the description file";
         next_heading: "次の手順：bundleを生成・検証する", "Next: generate and verify the bundle";
         next_help: "ダウンロードはpresentation.tomlの作成だけです。画像・thumbnailを含めず、Coreの記録を書き換えません。外部への公開・共有も行いません。", "The download only creates presentation.toml. It contains no images or thumbnails, does not rewrite Core records, and does not publish or share anything externally.";
@@ -688,7 +691,7 @@ message_section! {
         basis_activity_fallback: "記録した時刻（実行時刻は不明）", "Recording time; the activity time is unknown";
         basis_decision: "記録した時刻（判断した時刻の証明ではない）", "Recording time, not proof of when the decision was made";
         summary_recorded: "判断を記録した時刻", "Decision recording time";
-        summary_authored: "Commitの作成時刻（未検証の代替）", "Commit authored time, unverified fallback";
+        summary_authored: "記録の作成時刻（未確認の代替）", "Record creation time, unverified fallback";
         summary_pending: "記録順の時刻", "Recording order time";
         technical_details: "技術的な詳細", "Technical details";
     }
@@ -711,6 +714,7 @@ message_section! {
         observation: "観測", "observation";
         activity: "活動", "activity";
         decision: "判断", "decision";
+        caller_supplied: "外部で用意したもの", "caller_supplied";
     }
 }
 
@@ -875,6 +879,7 @@ impl Messages {
             "observation" => values.observation,
             "activity" => values.activity,
             "decision" => values.decision,
+            "caller_supplied" => values.caller_supplied,
             _ => code,
         }
         .to_owned()

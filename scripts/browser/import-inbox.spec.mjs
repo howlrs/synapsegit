@@ -40,7 +40,7 @@ test("manifest-last inbox stages preview bytes before explicit Human Decision", 
   await preview.getByLabel("Inboxのセッション名", { exact: true }).fill("inbox-review");
   await preview.getByLabel("Inboxの作成者名", { exact: true }).fill("Edited creator");
   await preview.locator('[name="inbox_generation_prompt"]').fill("p".repeat(8192));
-  await preview.getByRole("button", { name: "Proposalを作成" }).click();
+  await preview.getByRole("button", { name: "提案を作成" }).click();
   await page.waitForURL("**/creator-sessions/inbox-review");
   await page.getByLabel("理由（任意）", { exact: true }).fill("Inbox bytes reviewed.");
   page.once("dialog", dialog => dialog.accept());
