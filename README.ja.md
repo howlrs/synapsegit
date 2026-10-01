@@ -7,98 +7,53 @@
 ![Linux x86_64](https://img.shields.io/badge/binary-Linux%20x86__64-555)
 [![License: source-available](https://img.shields.io/badge/license-source--available-blue)](./LICENSE)
 
-**人と AI が関わる創作の経緯と判断を、ローカルに残す provenance 基盤。**
+**AIが何を提案し、あなたが何を決めたかを、手元に記録する。**
 
-SynapseGit は、素材ファイル、観測、AI に帰属させた提案、人の判断を、検証可能な
-content-addressed history として記録する実験的な Git-like system です。複数の tool、
-人、AI、場合によっては物理的な対象をまたぐ創作について、完成ファイルだけでは分からない
-「何を意図し、何を観測し、何を退け、何を採用したか」を後から辿れるようにします。
+SynapseGitは、元の状態（Original）、今の状態（Current）、AIが作った案（AI output）、
+それに対するあなたの判断（採用・不採用・保留）を、検証できる履歴としてあなたのコンピューターに記録します。
+コマンドの操作はAIエージェントに任せられますが、判断はあなたが行います。後から、あなた自身や作業を
+引き継ぐ人が、何が提案され、何を選び、なぜそうしたかを確かめられます。
 
-Evidence、Analysis、Claim、Human Decision は意図的に分離します。draft profile の
-OID が確認するのは byte identity であり、作者性、真実、著作権、許可、物理的変化を
-証明するものではありません。
+SynapseGitは、証拠、AIの提案、人の判断を分けて扱います。記録の識別子はファイルの内容が変わっていない
+ことを確かめるもので、作者性、真実、著作権、許可、物理的な変化を証明するものではありません。
 
 ![ローカルの壁画保全repositoryを表示するSynapseGit Localのproject一覧](./docs/assets/synapse-local/overview-hero.png)
 
-_実装済みの`synapse-local` project overviewです。`127.0.0.1`だけで配信され、
-hosted serviceやmulti-user serviceではありません。_
+_実際の`synapse-local`の画面です。`127.0.0.1`だけで配信され、hosted serviceやmulti-user serviceでは
+ありません。_
 
-## 見えなくなりがちな判断を残す
+## 解決すること
 
-完成fileだけでは、その結果を選ぶまでの判断が見えなくなります。
+完成したファイルだけでは、どう決めたかが分かりません。
 
-- どれがoriginal referenceだったのか
-- 提案前に何をcurrent stateとして観測したのか
-- どのoutputをAI workflowへ帰属させたのか
-- 人は採用、却下、延期のどれを選んだのか
-- 後からexact bytesと履歴を検証できるか
+- どれが元の参照で、手を加える前はどんな状態だったか
+- どの出力がAIによるもので、AIに何を頼んだか
+- 人はそれを採用したのか、採用しなかったのか、保留したのか。その理由は何か
 
-SynapseGitは、これらの役割を分離します。immutable objectを保存し、検査された履歴を
-通じてnamed Refを進め、最後に生成されたfileを自動採用せず、Human Decisionを独立した
-eventとして記録します。
+SynapseGitは、それぞれを独立した記録として残し、最後に作られたファイルを自動で採用したことにはしません。
 
-| Input／Observation | Proposal | Human Decision | 検証できる結果 |
+| 入力 | 提案 | 人の判断 | 確かめられる結果 |
 |---|---|---|---|
-| OriginalとCurrent file | caller-suppliedなAI帰属output | `adopt`、`reject`、`defer` | report、timeline、integrity check、archive、local presentation |
+| OriginalとCurrentのファイル | あなたが用意したAI output | `adopt`、`reject`、`defer` | report、timeline、整合性の確認、backup、ローカルの閲覧用bundle |
 
-## 完成例を見て試す
+## 1つの例
 
-画像付きの[15分 壁画チュートリアル](./docs/tutorial/README.ja.md)には、すぐ使える3枚の
-synthetic画像、exact command、確認すべきreport field、実際のlocalhost UI、
-troubleshooting、local publication bundle生成までを収録しています。
+画像付きの[15分 壁画チュートリアル](./docs/tutorial/README.ja.md)では、3枚の合成画像を使い、
+実行するコマンド、実際のlocalhostの画面、困ったときの対処を順に確認できます。
 
-| Original | Current | AI-attributed proposal |
+| Original | Current | AI proposal |
 |---|---|---|
-| ![syntheticなoriginal海岸壁画](./docs/tutorial/assets/mural-original.png) | ![保存上の変化が見えるsyntheticなcurrent壁画](./docs/tutorial/assets/mural-current.png) | ![syntheticな抑制的処置提案](./docs/tutorial/assets/mural-ai-proposal.png) |
+| ![海辺の壁画の合成original画像](./docs/tutorial/assets/mural-original.png) | ![保全上の問題が見える合成current画像](./docs/tutorial/assets/mural-current.png) | ![控えめな処置案の合成画像](./docs/tutorial/assets/mural-ai-proposal.png) |
 
-`synapse`のinstall後は、1 commandでも実行できます。
+画像は生成したfixtureであり、実在の作品や処置の証拠ではありません。
 
-```bash
-scripts/run_mural_tutorial.sh "$HOME/SynapseGit/mural-tutorial" adopt
-```
+## 始める
 
-working directoryをsource checkoutのrepository rootに置いて実行するほか、
-v0.13.1のrelease archiveを展開したdirectory内に置いても実行できます(runnerとsample画像も
-archiveに同梱されます。archive rootの`TUTORIAL.md`を参照してください)。v0.9.0のarchiveには
-runnerとsample画像は含まれません。
+### 1. installする
 
-sample画像は生成したnon-sensitive fixtureで、実在作品や処置のevidenceではありません。
-tutorialでは実際にSynapseGitへ投入しています。掲載screenはmockupではなく、実装済み
-applicationのcaptureです。
-
-## 目的から選ぶ
-
-| やりたいこと | 最初に読むもの |
-|---|---|
-| 5分で考え方を知る | [仕組み](#仕組み) |
-| 画像付きの一連のflowを試す | [15分 壁画チュートリアル](./docs/tutorial/README.ja.md) |
-| AIエージェントにCLIを任せ、判断は自分でする | [AIエージェント向けガイド](./docs/ai_agent_guide.ja.md) |
-| preview binaryをinstallする | [Installation](./docs/install.md) |
-| 自分の3画像を使う | [3分で試す](#3分で試す) |
-| browserでrepositoryを見る | [Local application runbook](./deploy/local/README.md) |
-| 共有前にlocal read-only viewを作る | [`synapse-present` guide](./docs/cli_reference.md#synapse-present-companion-cli) |
-| Rust境界／protocolを評価する | [Documentation index](./docs/README.md) |
-
-## 現在このpreviewを活用できる人
-
-tag workflow向けに準備したv0.13.1 preview の主な対象は次の利用者です。
-
-- local CLIを扱えるtechnical creator
-- creative provenance、human-in-the-loop AI、content-addressed historyを
-  評価する研究者・tool builder
-- Core protocol、storage、application boundaryを検討するRust開発者
-
-将来設計では、画家、建築家、施工・修復担当、デザイナー、作品の後任管理者も対象に
-しています。ただしcapture tool、pixel-level比較、general-purposeなcreator UI、production
-cloud serviceは未実装です。
-
-## 3分で試す
-
-tagged binaryの利用にRust toolchainは不要です。Ubuntu 22.04でbuildしたLinux x86_64
-GNU向けで、glibc 2.34以降を必要とします。それ以外のplatformでは
-[tagged sourceからのinstall](./docs/install.md#tagged-sourceからbuildする)を利用してください。
-
-### 1. previewをinstallする
+配布archiveはRust toolchainなしで使えます。v0.13.1のarchiveはLinux x86_64（glibc 2.34以降）用です。
+v0.13.1より後のreleaseは、Apple SiliconのmacOS用も含みます。他のplatformでは
+[tagged sourceからbuild](./docs/install.md#build-from-a-tagged-source-release)できます。
 
 ```bash
 curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.13.1/synapsegit-v0.13.1-x86_64-unknown-linux-gnu.tar.gz
@@ -106,181 +61,65 @@ curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.13.1/SHA256SU
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
-checksum検証が失敗した場合はここで中止し、archiveを展開・installしないでください。
-[install guide](./docs/install.md#install-the-linux-x86-64-release)にはbuild provenanceの
-検証手順もあります。
+確認に失敗したら、そこで止めてください。build provenanceの確認、macOSの手順、3つのbinaryの置き場所は
+[installation guide](./docs/install.md)にあります。
+
+### 2. AIエージェントに準備を任せ、判断は自分でする
+
+AIエージェントに[AIエージェント向けガイド](./docs/ai_agent_guide.ja.md)を渡します（release archiveにも
+`AI_AGENT_GUIDE.ja.md`として入っています）。そのうえで、例えば次のように頼みます。
+
+> 先にSynapseGitのAIエージェント向けガイドを読んで。この候補を`synapse inbox put`でInboxへ置き、
+> `synapse-local`を起動してURLを教えて。判断は私がするので、代わりに選ばないで。
+
+URLを開き、プロジェクトの「取り込む」ページで候補を確認して提案を作成し、画像を見比べてから、
+採用・不採用・保留を選びます。その後、エージェントは`synapse creator-list`と
+`synapse creator-report --format json`で結果を読み、`synapse export`でbackupを作れます。
+
+### 3. コマンドから直接記録する
 
 ```bash
-tar -xzf synapsegit-v0.13.1-x86_64-unknown-linux-gnu.tar.gz
-
-mkdir -p "$HOME/.local/bin"
-install -m 0755 synapsegit-v0.13.1-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
-install -m 0755 synapsegit-v0.13.1-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
-install -m 0755 synapsegit-v0.13.1-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
-export PATH="$HOME/.local/bin:$PATH"
-
-synapse --version
-synapse-local --version
-synapse-present --version
-```
-
-### 2. localの判断を一つ記録する
-
-original、current、任意のtoolからexportしたcandidateの3画像を用意します。3番目のfileは
-caller-suppliedなAI帰属outputとして記録されます。SynapseGit自身はAI modelを呼び出しません。
-
-```bash
-mkdir -p "$HOME/SynapseGit"
-
 synapse init "$HOME/SynapseGit/demo"
 synapse creator-run "$HOME/SynapseGit/demo" session-1 \
-  /path/to/original.png \
-  /path/to/current.png \
-  /path/to/candidate.png \
-  --subject "My creative work" \
-  --creator "Your name" \
-  --decision defer \
-  --rationale "Review this candidate later."
-
+  /path/to/original.png /path/to/current.png /path/to/candidate.png \
+  --subject "制作中の作品" --creator "あなたの名前" \
+  --decision defer --rationale "この候補は後で見直す。"
 synapse creator-report "$HOME/SynapseGit/demo" session-1
 ```
 
-`--decision`には`adopt`、`reject`、`defer`を指定できます。Pilotは3 fileをopaque Blobとして
-保存し、provenanceと人の判断を記録し、repositoryを検査して、originalとcurrentのprimary
-Blob bytesが同一かをreportします。pixelやEXIFは解析しません。
+ブラウザで見るには、`synapse-local --project "demo=$HOME/SynapseGit/demo"`を実行し、表示された
+`http://127.0.0.1:...`のURLを開きます。各コマンドは`--help`で使い方を表示します。
 
-### 3. local画面で確認する
+## 今できること
 
-```bash
-synapse-local \
-  --project "demo=$HOME/SynapseGit/demo" \
-  --label "demo=My first SynapseGit project"
-```
-
-processが表示した正確な`http://127.0.0.1:...`を開きます。上記でinstallしたv0.13.1のUIでは、
-boundedな三file import、same-process Human review、creator Ref／headと安全な推奨actionを示す
-read-only diagnostics、project keyの明示確認を必要とするserver-boundedなbackground `fsck`を
-利用できます。`--archive-root`を設定すると、認証付きの確認付きbounded no-replace archive export
-APIと確認付きbounded empty-target archive restore APIも利用でき、v0.8.0はproject画面にarchive
-controlを提供します。restoreは
-表示中のRefsとreflogが空の登録済みprojectだけに固定され、一覧で確認したslug、target project keyの完全入力、
-empty-target checkbox、browser確認を必要とし、queue/poll完了後もcreator-report一致確認とhistory再読込linkを表示します。
-v0.8.1で追加したpending／complete sessionのread-only画像比較ビューも利用できます。
-表示可能な2画像を選び、左右（狭い画面では上下）に並べて全体表示・100%・200%で確認できます。同じdecoded寸法の画像は、共通の左上原点で重ね、画像 B の不透明度を0〜100%で調整できます。
-目視確認用であり、位置合わせ・差分解析は行いません。
-v0.8.0の取り込みフォームでは、選択した画像のローカルプレビュー、ファイルサイズ、UTF-8バイト数を確認し、
-取り違えたファイルを解除してからProposalを作成できます。ファイルを選ぶだけでは送信しません。
-v0.8.0では判断ごとの説明と確認メッセージ、理由のUTF-8バイト数表示を提供し、完了画面で記録された理由を読み返せます。
-Deferも判断の記録を完了します。同じセッションの判断を変更・再開する機能はありません。
-`--import-root PROJECT=INBOX`を設定すると、scriptがmanifestを最後に書いた候補の画像を確認し、保持した同じbytesから新しいProposalを作れます。検証済みの中断Proposalや完了Deferも、記録済みの3画像を別sessionへ引き継いで新しいHuman reviewへ進めます。元の判断は変わりません。
-プロジェクトは「セッション」（最初に開くページ）、「取り込む」、「管理」、「履歴」の4ページに分かれています。セッション一覧には最大200件の未検証の概要、状態／判断の絞り込み、派生先へのリンクがあります。完全な検証は詳細画面または`fsck`で行います。
-diagnosticsとmaintenanceはsessionの
-resume、cleanup、history書換えを行いません。
-[local application runbook](./deploy/local/README.md)、[install guide](./docs/install.md)、
-[source Quickstart](./docs/quickstart.md)を参照してください。
-
-### 制作メモを残し、次の案を試す
-
-v0.8.0で導入した次の機能はv0.13.1 release binaryにも含まれます。
-操作の流れと入力上限は[制作メモと次の案のガイド](docs/creator_workflow.md)を参照してください。
-
-| 操作 | 利用できる機能 |
+| できること | 場所 |
 |---|---|
-| 生成方法を記録する | 任意のprivateなツール／モデル・プロンプト・制作意図を候補画像に束縛して保存。利用者申告でありモデル実行の証明ではない |
-| 判断を説明する | 最大10個のprivateな画像ピンをAdopt／Reject／Deferと理由に併せて保存。部分採用は行わない |
-| 次の候補を試す | 同じprojectの完了記録からOriginal／Currentを再利用し、新しい候補1点で別のHuman reviewを行う |
-| 公開用文章を準備する | 通常取り込みの完了セッションに公開用文章を新たに入力し、`presentation.toml`を出力。bundle生成は別途CLIで行う |
+| Original、Current、AI outputと、あなたの判断と理由を記録する | ブラウザの「取り込む」ページ、`synapse creator-run` |
+| AIエージェントに判断させずに候補をInboxへ置いてもらい、ブラウザで判断する | `synapse inbox put`と「取り込む」ページ |
+| 2枚の画像を並べて、または重ねて、全体表示・100%・200%で見比べる | セッションの画面 |
+| 任意の生成メモと、画像上のピンを付ける | 取り込みのformとセッションの画面 |
+| 過去の判断を、日時とタイムラインで読み返す | セッションの画面、`creator-list`、`creator-report`（textまたはJSON） |
+| 記録から次の案を試す。保留や中断した提案を新しいセッションで改めて判断する | セッションの画面 |
+| 整合性を確認し、backupを作り、復元する | 「管理」ページ、`fsck`、`export`、`restore` |
+| 非公開のメモを含まない、ローカルの閲覧用bundleを作る | `synapse-present`と公開用の制作ノート |
+| 日本語または英語の画面で使う | headerの言語切り替え |
 
-通常のCore archiveはprivateメモ・ピン・固定した派生元履歴を保持します。public bundleには
-privateメモを転記しません。Currentの再利用は新しい観測ではなく、採用済みAI outputもCurrentへ昇格しません。
-**凍結済み公開形式v1は派生セッションの説明文フォーム出力とbundle生成を拒否します。**
-completeな派生を含む全件exportも対象です。同じprojectの通常セッションは`--session`で選択できます。
-既存v1 bundleの検証は継続できます。[公開用文章の手順](docs/presentation_sidecar.md)も参照してください。
+## しないこと
 
-## 現在動くもの
+- **AIモデルを実行しません。** AI outputはあなたが用意したファイルです。SynapseGitはそれを外部で用意された
+  もの（caller-supplied）として記録し、どのモデルが作ったかを主張しません。
+- **画像ではなく、ファイルの内容を比べます。** 一致確認はbytesが同じかどうかを示します。同じ内容でも
+  対象物が変わっていないことの証明にはならず、内容が違っても見た目や物理的な変化の証明にはなりません。
+  位置合わせや差分解析はありません。
+- **記録した判断は、そのセッションでは変えられません。** 同じ画像を新しいセッションで改めて判断でき、
+  元の記録は残ります。
+- **ローカルで1人が使うものです。** `synapse-local`は`127.0.0.1`だけで動きます。hosted serviceや
+  multi-user serviceはなく、何もuploadしません。
+- **platform:** Linux x86_64と、v0.13.1より後のreleaseではmacOS arm64。Windowsには対応しません。
+  Linux ARM64はsourceからbuildします。
 
-| 能力 | 現在のrepository状態 |
-|---|---|
-| `adopt`、`reject`、`defer`を含む3-file creator Pilot | boundedなlocal CLI flowとして実装済み |
-| 人／AI帰属provenanceと比較情報を含むreport | 実装済み。AI outputはcaller-supplied。`creator-report --format json`はlocal tooling向けにversion付きprivate-local JSON documentを一つ出力する。`creator-list`は全sessionの未検証の概要を出力し、各commandは`--help`に応答する。`--format text`と省略時は従来のline-oriented text reportを維持する。`creator-run --generation-note-file`はboundedなprivate・user-declared生成メモを記録できるが、model実行や作者性を証明しない |
-| original／current比較 | primary Blobのbyte identityのみ。comparabilityは常にpartial。v0.8.0のlocalhost UIには2画像の目視確認用の全体表示／100%／200%拡大を追加。位置合わせ・差分解析は行わない |
-| local browser UI | tagged v0.13.1 archiveは日本語・英語のapplication label、accessible name、client message、画像代替textを提供する。headerの明示選択をbrowserごとに保持して最優先し、次に対応する`Accept-Language`、最後に日本語を使う。利用者入力・保存済みtext、API identifier、error codeは変更しない。complete Creator sessionでは、**非公開の記録を保存（JSON）**を使える。操作時に既存の認証付きdetail endpointを改めて読み、検証済みの非公開JSONを保存する。pending／incompleteには表示せず、public bundle、backup、CLI JSONとは別である。 project dashboardは最大200件の未検証概要を表示するが、JavaScriptを有効にすると**名前でセッションを開く**で一覧外の完全一致sessionを直接開ける。名前は大文字小文字を区別するstrict slugで、検索や一覧の拡張ではない。read表示、boundedな三file import／same-process `adopt`・`reject`・`defer`、read-only incomplete-session diagnostics、確認付きbackground `fsck`も実装済み。project dashboardは最大200件のsession概要を、review待ち、最近のRef更新の順に表示し、state／dispositionで絞り込める。これらは未検証の概要値で、完全な検証はsession詳細画面で行う。派生元session画面には、未検証の派生先への移動用hintも表示する。任意の`--archive-root`起動flag指定時のみ、boundedなread-only archive listing表示（`GET /archives`）に加え、tagged v0.8.0は認証付きの確認付きbounded archive export API（`POST /archive-exports`）とempty-target restore API（`POST /archive-restores`）を含む。v0.8.0はproject画面にarchive controlを追加。restore先は表示中の空の登録済みprojectに固定され、一覧のslug、target key完全入力、checkbox、browser確認、job polling、report一致確認表示を必要とする |
-| script出力のInboxと再レビュー | 任意の`--import-root`でmanifest-last候補を確認し、明示的に新規Proposalを作成。`synapse inbox put`は、repositoryを開かず判断も記録せずに、CLIやAIエージェントからこの候補を書き出す。検証済みの中断／Deferから3画像を別sessionへ引き継いで判断し直せるが、元のDecisionは固定。凍結済み公開v1はこれらの再利用sessionを拒否 |
-| 取り込み前の確認（v0.8.0） | ローカル画像プレビュー、サイズ表示、選択解除、UTF-8バイト上限の即時表示、送信中の入力固定。プレビューできないファイルも既存の制限内で取り込み可能 |
-| 判断と振り返り（v0.8.0） | adopt／reject／deferの結果説明と確認、理由のバイト数表示、送信中の入力固定、完了画面の理由表示。同じセッションの判断変更・再開は不可 |
-| generic regular-file artifact building block | tagged v0.13.1のsource／workspace libraryにbounded deterministic mapper／checkout、sequential Proposal／Decision、host-authenticated one-shot approval、SQLite journal統合済みrestart／reconciliation境界、固定v1 public-safe contract、別local public projectionを収録。配布する3 binaryはこれらをHTTP、CLI、browser UIから提供せず、model invocation、multi-process control plane、production serviceも提供しない |
-| content-addressed object、typed closure、Ref CAS、reflog | 実装済み、repository test対象 |
-| `fsck`、checksum付きdirectory export、verified restore | local repository formatで実装済み |
-| 人とAI向けのread-only履歴presentation | v0.13.1に収録。canonical JSON、Markdown、JavaScriptなしHTML、manifest、checksum、Synapse／GitHub target layoutをdeterministicなlocal bundleとして生成し、upload／network accessは行わない |
-| public multi-user service | architectureのみ。未実装 |
-| pixel registration、視覚的／物理的な差分解析 | 未実装 |
-
-「実装済み」は、このrepositoryのtestで検証される範囲を意味します。
-generic-artifactのrowはtagged v0.13.1 sourceに収録したlibrary／schema surfaceを表し、
-transport統合のtest完了や配布binaryの機能を意味しません。どちらもreal-user認証、
-network transport、production運用、一般利用者向けapplicationの完成を意味しません。
-
-tagged v0.13.1のsource／workspace libraryには、sibling applicationがgenericな
-regular-file reviewを実装するための評価用building blockもあります。
-`synapse-artifact`はregular-file manifest全体を検証し、Refを
-進めずにnested site Treeへdeterministicに変換します。trusted workflowはprofile-owned repositoryを
-初期化し、canonical Decisionのexact headごとにactive Proposalを最大一つpublishします。
-completed Decisionで選ばれたsiteは次のProposalのverified accepted baseとなり、attemptごとにfreshな
-deterministic Ref／immutable identityを持つため、過去のProposal historyは保持されます。
-
-same-process pending authorityは引き続きnon-serializableかつone-shotです。
-`decide_artifact_proposal`には、embedding hostがreviewerをauthenticateしserver-owned project ACLを
-確認した後にだけ発行するopaque／expiringな`ArtifactDecisionApproval`も必要です。approvalはexactな
-actor／session、security epoch、Proposal／expected Decision head、disposition、rationaleの有無とbytesへ
-束縛され、Decision object／Ref mutationより前にburnされます。browser fieldや`ReviewId`から復元しません。
-v1 workflowが扱うのはcaller-supplied AI-attributed bytesだけで、verified executionを表現できません。
-SynapseGit自身はmodelを呼びません。
-
-固定された
-[`synapsegit.generic-artifact` v1 contract](./spec/application/generic-artifact/v1/README.md)の
-opaque `ReviewId`はlookup locatorであり、authorityではありません。別SQLite journalと明示的な
-orchestration境界は、Proposal CAS前にprivate intentを登録し、exact publication確認後だけpublic-safeな
-locatorを確定します。Decision CAS前にはexact intentを保存し、live Ref／reflog reconciliationとboundedな
-selected-site checkoutの後だけterminal outcomeをcommitします。exact retryはidempotentです。restart後は
-trusted configとjournal factsをimmutable object／一貫したlive Ref stateへ照合してfresh application authorityを
-構築します。credential、admitted handle、approval、registration、permitはserialize／restoreせず、reviewerは
-再authenticationと新しいapprovalが必要です。final publicationは引き続き`HumanDecisionRuntime`のfull
-validationとCASを通ります。
-
-このbindingはuntamperedなtrusted local configurationとjournal storageを前提としており、元のProposalが
-特定のprocess runtime capability intersectionを通過したことのcryptographic evidenceではありません。
-Core Ref／reflogとjournalのSQLite transactionは別なので、cross-database atomicityを主張せず、crash windowを
-bounded reconciliationで解決します。Rust trusted workflow valueはgetter-onlyなprocess valueで、browserから
-authorityとして渡すtransport DTOではありません。
-
-これらのcapabilityはtagged v0.13.1のsource／workspace libraryに収録しています。配布する
-3 binary（`synapse`、`synapse-local`、`synapse-present`）はこれらをHTTP、CLI、browser UIから
-提供しません。background serviceによる自動resume、model invocation、generic browser editor、
-durable identity／ACL storage、multi-process linearizability、production利用、配布許可も提供しません。
-配布するv0.13.1 Creator Pilotとlocalhost UIは引き続き画像専用で、そのpending review
-authorityはsame-processかつrestart後にresumeできません。
-
-tagged v0.13.1の`synapse-local` binaryにはbrowser import／review、専用diagnostics、bounded browser
-`fsck`が含まれます。review authorityとmaintenance job stateはprocess-localで、restart後に
-再開できません。
-
-v0.13.1 archiveには別binaryの`synapse-present`もあります。既存CASを変更せず、checkpoint済みで最大
-512 MiBのRef SQLiteをprivate temporary copyへ取り込み、copy時とcopy後sourceのSHA-256一致を要求します。
-SQLiteにはsource databaseを直接openさせません。sidecarまたはcopy中に変化するsourceは
-`read_only_source_busy`で拒否します。
-最大100 creator sessionsからGitHub-readyなlocal viewを生成できますが、GitHubへのupload／publish／
-通信は行いません。private rationale、internal Actor ID、
-repository path、raw assetは除外し、raw asset renderingは未実装です。public noteは別の
-author-supplied textとして扱います。詳しくは[CLI reference](./docs/cli_reference.md#synapse-present-companion-cli)を参照してください。
-
-さらにtagged v0.13.1のsource／workspace libraryには、versioned generic-artifact projection／
-local bundle APIも収録しています。このAPIは配布binary、HTTP、CLI、browser UIからは提供しません。
-complete projectionは上記bounded Decision checkoutからのみ構築し、pending／incomplete projectionは
-repository／authority identifierを含みません。canonical JSON、escaped Markdown、script-free HTML、
-manifest、checksums、local Synapse／GitHub layoutをGit／network accessなしで生成します。remote
-Synapse／GitHub adapter、Git import／provenance、identity mapping、GitHub App、hosted serviceは今後の
-実装作業である。[#17](https://github.com/howlrs/synapsegit/issues/17)の設計範囲は完了したが、このreleaseで
-これらのremote surfaceを提供するものではない。
+配布binaryではなく、Rust libraryとしてだけある機能もあります。実装者は
+[実装の境界とlibraryだけの機能](./docs/implementation_boundaries.md)を参照してください。
 
 ## 仕組み
 
@@ -295,76 +134,40 @@ flowchart LR
     C --> V["Read-only publication bundle\nJSON / Markdown / static HTML"]
 ```
 
-最小のmental modelは次の5段階です。
+1. **観測**: 元の状態と今の状態のファイルを、そのまま残す。
+2. **提案**: 出力をAIによるものとして記録する。どう作られたかは主張しない。
+3. **判断**: 人が採用・不採用・保留を選ぶ。
+4. **確認**: 識別子、履歴、repositoryの整合性を確かめる。
+5. **提示**: 非公開のメモを含まない、ローカルの閲覧用bundleを作る。
 
-1. **Observe** — original／currentのexact bytesを保持
-2. **Propose** — 生成方法を証明したと主張せず、outputをAI帰属として記録
-3. **Decide** — Humanが採用、却下、延期を明示
-4. **Verify** — ID、graph relation、Ref history、repository integrityを検査
-5. **Present** — authorityを変更せず、redactedなlocal read-only bundleを導出
-
-normative draftとJSON Schemaは[`spec/core/v0.1`](./spec/core/v0.1/README.md)にあります。
-canonicalization、OID、schema validation、repository integrity、Ref update、現在のlocal
-application route、archive verificationはRustが担当します。componentの詳細は
-[runtime architecture](./docs/runtime_architecture.md)を参照してください。
+詳しくは[Core Protocol](./spec/core/v0.1/README.md)と[runtime architecture](./docs/runtime_architecture.md)を
+参照してください。
 
 ## ドキュメント
 
 | 目的 | 最初に読む資料 |
 |---|---|
-| 画像付きfirst-use tutorialを完走する | [15分 壁画チュートリアル](./docs/tutorial/README.ja.md) |
-| Releaseをinstallする、tagからbuildする | [Installation](./docs/install.md) |
-| sourceで完全なdemoを動かす | [Core Quickstart](./docs/quickstart.md) |
-| creatorとAI-assisted use caseを知る | [使用ガイド](./docs/usage_guide.md) |
-| 制作メモ・画像上の判断・次の候補を記録する | [Creator操作ガイド](./docs/creator_workflow.md) |
-| loopback-only applicationを起動する | [Local application runbook](./deploy/local/README.md) |
-| commandとerrorを調べる | [CLI reference](./docs/cli_reference.md) |
-| read-only local publication bundleを生成する | [CLI reference](./docs/cli_reference.md#synapse-present-companion-cli) |
-| publicationの理解度を評価する | [complete／incomplete-only固定コーパス](./docs/evaluation/publication-comprehension/v1/) |
-| generic regular-file contractをembedする | [Generic artifact v1](./spec/application/generic-artifact/v1/README.md) |
-| 成熟度と次の作業を確認する | [Project status](./docs/project_status.md) |
-| v1.0の範囲・互換性の約束・リリース条件を確認する | [v1.0 release plan](./docs/v1_release_plan.md) |
-| trust、privacy、security boundaryを確認する | [Security model](./docs/security_model.md) |
-| protocolを実装する | [Core Protocol v0.1](./spec/core/v0.1/README.md) |
-| releaseと配布方針を確認する | [Distribution guide](./docs/distribution.md) |
-| 利用・Fork・contribution条件を確認する | [License](./LICENSE) / [日本語概要](./docs/license_ja.md) |
-| 全資料から探す | [Documentation index](./docs/README.md) |
+| 画像付きの例を試す | [15分 壁画チュートリアル](./docs/tutorial/README.ja.md) |
+| releaseをinstallする、tagからbuildする | [Installation](./docs/install.md) |
+| AIエージェントにコマンドを任せる | [AIエージェント向けガイド](./docs/ai_agent_guide.ja.md) |
+| 生成メモ、画像の比較、次の案を試す | [Creator操作ガイド](./docs/creator_workflow.md) |
+| 公開用の文章とローカルのbundleを用意する | [公開用の制作ノート](./docs/presentation_sidecar.md) |
+| プライバシーと信頼の限界を知る | [Security model](./docs/security_model.md) |
+| コマンドとerrorを調べる | [CLI reference](./docs/cli_reference.md) |
+| loopbackだけで動く画面を運用する | [Local application runbook](./deploy/local/README.md) |
+| 何が互換のまま保たれるかを知る | [互換性方針](./docs/compatibility.md) |
+| v1.0の範囲とリリース条件を見る | [v1.0 release plan](./docs/v1_release_plan.md) |
+| Rust libraryを組み込む | [実装の境界](./docs/implementation_boundaries.md) / [Generic artifact v1](./spec/application/generic-artifact/v1/README.md) |
+| すべての資料を見る | [ドキュメント一覧](./docs/README.md) |
 
-## 配布状況
+## リリースと互換性
 
-- [`v0.13.1`](https://github.com/howlrs/synapsegit/releases/tag/v0.13.1)はprereleaseであり、
-  production releaseではありません。
-- 検証済みprebuilt artifactはLinux x86_64 GNU向けです。それ以外の対応可能なUnix-like
-  environmentではtagged source buildを利用します。
-- Stage 0ではcrates.ioとGHCRを配布channelにしません。
-- Release assetにはSHA-256 checksumがあります。v0.13.1 archiveにはGitHub
-  build-provenance attestationも付与します。
-- v1.0.0から、object、OID、archive formatはv1.xの間凍結され、公開済みの全版のrepositoryとarchiveを読み続けます。[互換性方針（英語）](./docs/compatibility.md)を参照してください。
-
-評価前に[changelog](./CHANGELOG.md)と
-[v0.13.1 release notes](./docs/releases/v0.13.1.md)を確認してください。
-
-タグごとのrelease notes（`main`上のfile）:
-
-| Tag | Release notes |
-|-----|---------------|
-| `v0.13.1` | [docs/releases/v0.13.1.md](./docs/releases/v0.13.1.md) |
-| `v0.13.0` | [docs/releases/v0.13.0.md](./docs/releases/v0.13.0.md) |
-| `v0.12.0` | [docs/releases/v0.12.0.md](./docs/releases/v0.12.0.md) |
-| `v0.11.1` | [docs/releases/v0.11.1.md](./docs/releases/v0.11.1.md) |
-| `v0.11.0` | [docs/releases/v0.11.0.md](./docs/releases/v0.11.0.md) |
-| `v0.10.0` | [docs/releases/v0.10.0.md](./docs/releases/v0.10.0.md) |
-| `v0.9.0` | [docs/releases/v0.9.0.md](./docs/releases/v0.9.0.md) |
-| `v0.8.1` | [docs/releases/v0.8.1.md](./docs/releases/v0.8.1.md) |
-| `v0.8.0` | [docs/releases/v0.8.0.md](./docs/releases/v0.8.0.md) |
-| `v0.7.0` | [docs/releases/v0.7.0.md](./docs/releases/v0.7.0.md) |
-| `v0.6.0` | [docs/releases/v0.6.0.md](./docs/releases/v0.6.0.md) |
-| `v0.5.1` | [docs/releases/v0.5.1.md](./docs/releases/v0.5.1.md) |
-| `v0.5.0` | [docs/releases/v0.5.0.md](./docs/releases/v0.5.0.md) |
-| `v0.4.0` | [docs/releases/v0.4.0.md](./docs/releases/v0.4.0.md) |
-| `v0.3.0` | [docs/releases/v0.3.0.md](./docs/releases/v0.3.0.md) |
-| `v0.2.0` | [docs/releases/v0.2.0.md](./docs/releases/v0.2.0.md) |
-| `v0.1.0` | [docs/releases/v0.1.0.md](./docs/releases/v0.1.0.md) |
+- SynapseGitはStage 0 previewです。各releaseはGitHubで公開し、SHA-256 checksumとbuild provenance
+  attestationを付けます。crates.ioやcontainer registryでは配布しません。
+- v1.0.0から、object、識別子、archiveの形式はv1.xの間固定され、公開したすべての版のrepositoryと
+  archiveを読めます。[互換性方針](./docs/compatibility.md)を参照してください。
+- 各releaseの変更は[CHANGELOG](./CHANGELOG.md)と[v0.13.1 release notes](./docs/releases/v0.13.1.md)に
+  あります。重要なデータで試す前に読んでください。
 
 ## Security、support、license
 

@@ -89,6 +89,9 @@ Japanese document. Continue from the tutorial with these focused guides:
    loopback-only `synapse-local` boundary.
 4. [AI agent guide](./ai_agent_guide.md): rules and the CLI flow for an AI
    agent that prepares candidates while the person decides in the browser.
+5. [Implementation boundaries](./implementation_boundaries.en.md): for
+   implementers, the boundaries of the packaged binaries and the features that
+   exist only as Rust workspace libraries.
 
 These documents are focused English paths, rather than translations of every
 technical document. Links from English documents identify Japanese-only
@@ -102,7 +105,7 @@ Japanese or mixed-language technical references unless a link says otherwise.
 | 目的 | 最初に読む資料 | 次に読む資料 |
 |---|---|---|
 | 生成sample画像と実画面で最初のDecisionを記録する | [15分 壁画チュートリアル](./tutorial/README.ja.md) | [English tutorial](./tutorial/README.md) |
-| Releaseをinstallし3分で試す | [Installation](./install.md) | [root README](../README.md#try-it-in-three-minutes) |
+| Releaseをinstallして始める | [Installation](./install.md) | [root README](../README.ja.md#始める) |
 | v0.13.1の変更と配布境界を確認する | [Release notes](./releases/v0.13.1.md) | [Project status](./project_status.md) |
 | sourceからCore全体を動かす | [Quickstart](./quickstart.md) | [使用ガイド](./usage_guide.md) |
 | native localhost UIを起動する | [Localhost application runbook](../deploy/local/README.md) | [Localhost application architecture](./localhost_application_architecture.md) |

@@ -87,6 +87,16 @@ formats; see docs/compatibility.md.
   Adopt decision") instead of the stored code. Japanese buttons say "提案を作成".
   Session names in the list keep their case. Stored values, the API, error
   codes, and CLI output are unchanged.
+- The README (en/ja) is reorganized around what a creator needs: the problem,
+  one example, getting started (install, the AI-agent flow, or the CLI), a
+  short table of what works now, and what SynapseGit does not do. The
+  version-by-version feature history is left to this changelog and the
+  release notes. The library-only generic-artifact details and the packaged
+  binary boundaries move unchanged to
+  `docs/implementation_boundaries.en.md` and `docs/implementation_boundaries.md`.
+  Both READMEs have the same headings. The limits stay: caller-supplied AI
+  output, what a file-content match does not prove, loopback only, the
+  source-available license, and the Stage 0 status.
 - A project in `synapse-local` now has four pages instead of one long page:
   Sessions (the default, with the counts, filter, and name locator), Import
   (the three-image form and the import inbox), Maintenance (fsck and archive
