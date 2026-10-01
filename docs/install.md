@@ -247,7 +247,7 @@ need the recorded data.
 - [Read the v0.13.1 release notes](./releases/v0.13.1.md)
 - [Complete the illustrated 15-minute mural tutorial](./tutorial/README.md)
 - [画像付き15分 壁画チュートリアルを実行する](./tutorial/README.ja.md)
-- [Run the three-minute Pilot](../README.md#try-it-in-three-minutes)
+- [Get started from the README](../README.md#get-started)
 - [Run the full source Quickstart](./quickstart.md)
 - [Read the localhost application runbook](../deploy/local/README.md)
 - [Review the security model](./security_model.md)

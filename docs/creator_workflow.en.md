@@ -8,7 +8,7 @@ three images, keep optional private notes, make a Human Decision, and begin a
 fresh review when another candidate is needed.
 
 Install the release from the [installation guide](./install.md), then use the
-[English README startup command](../README.md#3-inspect-it-locally) to start
+[English README startup command](../README.md#3-or-record-directly-from-the-command-line) to start
 `synapse-local`. The [local application runbook (Japanese)](../deploy/local/README.md)
 is an optional detailed reference. The browser interface is single-user and
 serves only IPv4 loopback. The security limits are summarized in the

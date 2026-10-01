@@ -7,103 +7,58 @@
 ![Linux x86_64](https://img.shields.io/badge/binary-Linux%20x86__64-555)
 [![License: source-available](https://img.shields.io/badge/license-source--available-blue)](./LICENSE)
 
-**Local-first provenance and decision history for creative work with humans and AI.**
+**Keep a local record of what an AI proposed and what you decided.**
 
-SynapseGit is an experimental Git-like system that records source files,
-observations, AI-attributed proposals, and human decisions as verifiable,
-content-addressed history. It is designed for creative work that crosses tools,
-people, AI systems, and sometimes physical objects—where a final file alone
-does not explain what was intended, observed, rejected, or approved.
+SynapseGit records the original, the current state, an AI-made candidate, and
+your decision about it (adopt, reject, or defer) as verifiable history on your
+own computer. You can let an AI agent run the commands; the decision stays
+yours. Later you, or someone you hand the work to, can see what was proposed,
+what you chose, and why.
 
-SynapseGit deliberately separates evidence, analysis, claims, and decisions.
-An object identifier can verify byte identity under the draft profile; it does
-not prove authorship, truth, copyright, permission, or physical change.
+SynapseGit keeps evidence, AI proposals, and human decisions apart. Its
+identifiers verify that file contents are unchanged; they do not prove
+authorship, truth, copyright, permission, or physical change.
 
 ![SynapseGit Local project overview showing a local mural conservation repository](./docs/assets/synapse-local/overview-hero.png)
 
-_The actual `synapse-local` project overview, served only from `127.0.0.1`.
-It is not a hosted or multi-user service._
+_The actual `synapse-local` page, served only from `127.0.0.1`. It is not a
+hosted or multi-user service._
 
-## The problem it makes visible
+## The problem it solves
 
-A final creative file usually hides the decision that produced it:
+A final file rarely shows how it was decided:
 
-- Which state was the original reference?
-- What was observed before the proposed change?
-- Which output was attributed to an AI workflow?
-- Did a person adopt it, reject it, or postpone the decision?
-- Can another person verify the exact bytes and history later?
+- Which state was the original reference, and what did it look like before?
+- Which output came from an AI, and what was it asked to do?
+- Did a person adopt it, reject it, or set it aside, and why?
 
-SynapseGit keeps those roles separate. It stores immutable objects, advances
-named Refs through checked history, and records the Human Decision as its own
-event instead of treating the latest generated file as automatically accepted.
+SynapseGit records each of these as its own step instead of treating the latest
+generated file as accepted.
 
-| Input and observation | Proposal | Human Decision | Verifiable result |
+| Input | Proposal | Human Decision | Result you can check |
 |---|---|---|---|
-| Original and current files | Caller-supplied AI-attributed output | `adopt`, `reject`, or `defer` | Report, timeline, integrity check, archive, and local presentation |
+| Original and current files | An AI output you supply | `adopt`, `reject`, or `defer` | Report, timeline, integrity check, backup, and a local read-only view |
 
-## See one complete example
+## One example
 
-The illustrated [15-minute mural tutorial](./docs/tutorial/README.md) includes
-three ready-to-use synthetic images, exact commands, expected report fields,
-the actual localhost UI, troubleshooting, and a local publication-bundle step.
+The illustrated [15-minute mural tutorial](./docs/tutorial/README.md) walks
+through three synthetic images with exact commands, the real localhost pages,
+and troubleshooting.
 
-| Original | Current | AI-attributed proposal |
+| Original | Current | AI proposal |
 |---|---|---|
 | ![Synthetic original coastal mural](./docs/tutorial/assets/mural-original.png) | ![Synthetic current mural with visible conservation issues](./docs/tutorial/assets/mural-current.png) | ![Synthetic restrained treatment proposal](./docs/tutorial/assets/mural-ai-proposal.png) |
 
-You can also run the sample in one command after installing `synapse`:
+The images are generated fixtures, not evidence of a real artwork or treatment.
 
-```bash
-scripts/run_mural_tutorial.sh "$HOME/SynapseGit/mural-tutorial" adopt
-```
+## Get started
 
-Run that with the working directory at a source checkout's repository root,
-or with the working directory inside the extracted v0.13.1 release archive
-directory (the runner and sample images are bundled there too; see
-`TUTORIAL.md` at the archive root). The v0.9.0 archive does not include the
-runner or sample images.
+### 1. Install
 
-The sample images are generated, non-sensitive fixtures. They are not evidence
-of a real artwork or treatment. The tutorial actually runs them through
-SynapseGit; its screenshots are captures of the implemented application, not
-UI mockups.
-
-## Choose your path
-
-| I want to… | Start here |
-|---|---|
-| Understand the idea in five minutes | Continue with [How it works](#how-it-works) |
-| Try a complete visual example | [15-minute mural tutorial](./docs/tutorial/README.md) |
-| Let an AI agent run the CLI while I decide | [AI agent guide](./docs/ai_agent_guide.md) |
-| Install the three preview binaries | [Installation](./docs/install.md) |
-| Use my own three images | [Three-minute Pilot](#try-it-in-three-minutes) |
-| Inspect a repository in the browser | [Local application runbook (Japanese)](./deploy/local/README.md) |
-| Generate a shareable local read-only view | [`synapse-present` guide (Japanese)](./docs/cli_reference.md#synapse-present-companion-cli) |
-| Evaluate or embed the Rust boundaries | [Documentation index (English path and Japanese index)](./docs/README.md#english-reader-path) |
-
-## Who can use this preview
-
-The v0.13.1 preview prepared for the tag workflow is most useful to:
-
-- technical creators who are comfortable with a local command-line workflow;
-- researchers and tool builders evaluating creative provenance,
-  human-in-the-loop AI, or content-addressed history; and
-- Rust developers exploring the Core protocol, storage, or application
-  boundaries.
-
-The longer-term design also targets painters, architects, construction and
-conservation teams, designers, and future stewards of a work. Capture tooling,
-pixel-level comparison, a general-purpose creator UI, and a production cloud
-service are not implemented yet.
-
-## Try it in three minutes
-
-The tagged binary needs no Rust toolchain. It is built for Linux x86_64 GNU on
-Ubuntu 22.04 and requires glibc 2.34 or newer. Other platforms can use the
-[source installation](./docs/install.md#build-from-a-tagged-source-release).
-
-### 1. Install the preview
+The prebuilt archive needs no Rust toolchain. The v0.13.1 archive is for
+Linux x86_64 (glibc 2.34 or newer). Releases after v0.13.1 also include macOS
+on Apple Silicon. Other platforms can
+[build from a tagged source](./docs/install.md#build-from-a-tagged-source-release).
 
 ```bash
 curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.13.1/synapsegit-v0.13.1-x86_64-unknown-linux-gnu.tar.gz
@@ -111,222 +66,71 @@ curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.13.1/SHA256SU
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
-Stop if checksum verification fails. Do not extract or install an unverified
-archive; the [installation guide](./docs/install.md#install-the-linux-x86-64-release)
-also shows build-provenance verification.
+Stop if the check fails. The [installation guide](./docs/install.md) shows the
+build-provenance check, the macOS steps, and where to put the three binaries.
+
+### 2. Let your AI agent prepare, and decide yourself
+
+Give your AI agent the [AI agent guide](./docs/ai_agent_guide.md) (it is also
+bundled in the release archive as `AI_AGENT_GUIDE.md`). Then ask, for example:
+
+> Read the SynapseGit AI agent guide first. Put this candidate in the inbox
+> with `synapse inbox put`, start `synapse-local`, and give me the URL. I will
+> decide, so do not choose for me.
+
+Open the URL, go to the project's **Import** page, review the candidate,
+create the proposal, compare the images, and choose Adopt, Reject, or Defer.
+The agent can then read the result with `synapse creator-list` and
+`synapse creator-report --format json`, and make a backup with
+`synapse export`.
+
+### 3. Or record directly from the command line
 
 ```bash
-tar -xzf synapsegit-v0.13.1-x86_64-unknown-linux-gnu.tar.gz
-
-mkdir -p "$HOME/.local/bin"
-install -m 0755 synapsegit-v0.13.1-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
-install -m 0755 synapsegit-v0.13.1-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
-install -m 0755 synapsegit-v0.13.1-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
-export PATH="$HOME/.local/bin:$PATH"
-
-synapse --version
-synapse-local --version
-synapse-present --version
-```
-
-### 2. Record one local decision
-
-Choose three local image files: an original, the current state, and a candidate
-output exported from any tool. The third file is recorded as caller-supplied
-AI-attributed output; SynapseGit does not invoke an AI model.
-
-```bash
-mkdir -p "$HOME/SynapseGit"
-
 synapse init "$HOME/SynapseGit/demo"
 synapse creator-run "$HOME/SynapseGit/demo" session-1 \
-  /path/to/original.png \
-  /path/to/current.png \
-  /path/to/candidate.png \
-  --subject "My creative work" \
-  --creator "Your name" \
-  --decision defer \
-  --rationale "Review this candidate later."
-
+  /path/to/original.png /path/to/current.png /path/to/candidate.png \
+  --subject "My creative work" --creator "Your name" \
+  --decision defer --rationale "Review this candidate later."
 synapse creator-report "$HOME/SynapseGit/demo" session-1
 ```
 
-Use `adopt`, `reject`, or `defer` for `--decision`. The Pilot stores the three
-files as opaque blobs, records provenance and the human disposition, checks the
-repository, and reports whether the original and current blob bytes are
-identical. It does not inspect pixels or EXIF data.
+To look at it in the browser, run
+`synapse-local --project "demo=$HOME/SynapseGit/demo"` and open the printed
+`http://127.0.0.1:...` URL. Every command explains itself with `--help`.
 
-### 3. Inspect it locally
+## What you can do now
 
-```bash
-synapse-local \
-  --project "demo=$HOME/SynapseGit/demo" \
-  --label "demo=My first SynapseGit project"
-```
-
-Open the exact `http://127.0.0.1:...` URL printed by the process. The v0.13.1
-binary supports bounded three-file import, same-process Human review, read-only
-incomplete-session diagnostics, and an explicitly confirmed, server-bounded
-background `fsck` with pollable results. With `--archive-root` configured, it
-also exposes the authenticated confirmed bounded no-replace archive export API
-and the confirmed bounded empty-target archive restore API. It also provides
-project-page archive controls: restore is limited to the open registered
-project when its displayed Refs and reflog are empty, requires a listed archive
-slug, exact typed project key, explicit empty-target checkbox, and browser
-confirmation, then keeps the report-equivalence warning and history reload
-link visible after the queued job succeeds.
-It also provides a read-only image comparison dialog to pending and
-completed sessions. Choose two displayable images, inspect them side by side
-(stacked on narrow screens), or overlay matching decoded dimensions in one
-shared scroll area. The upper image opacity accepts each integer from 0% to
-100% and preserves its source transparency. Switch between fit, 100%, and
-200% views. This is manual visual inspection, without registration or
-difference analysis.
-The import form also previews selected raster files locally, shows
-file sizes and UTF-8 byte counts, and lets you clear a mistaken file selection
-before creating the Proposal. Selecting files alone sends no upload.
-The decision form explains each review choice before confirmation, counts
-rationale UTF-8 bytes as you type, and shows the recorded reason on the completed
-session page. Defer records a completed decision; it does not enable reopening
-that session for another review.
-A project has four pages: Sessions (the default), Import, Maintenance, and
-History. With `--import-root PROJECT=INBOX`, the Import page can preview a script's
-manifest-last three-image candidate and begin a new Proposal from the retained
-bytes after confirmation. A verified interrupted Proposal or completed Defer
-can also supply its recorded images to a new session with a fresh Human review.
-The old session and decision remain fixed. The project dashboard shows up to
-200 unverified summaries with state filters and derived-session links; open a
-detail page or run `fsck` for verification.
-Diagnostics and maintenance do not resume, clean up, or rewrite a creator
-session. See the
-[local application runbook (Japanese)](./deploy/local/README.md), the
-[installation guide](./docs/install.md), or the
-[source Quickstart (Japanese)](./docs/quickstart.md).
-
-### Record, review, and try another candidate
-
-The v0.8.0 Creator additions remain included in the v0.13.1 release binaries. See the [Creator workflow guide](docs/creator_workflow.en.md)
-for the complete sequence and input limits.
-
-| Step | Available behavior |
+| You can | Where |
 |---|---|
-| Record generation context | Optional private, user-declared tool/model, prompt, and intent, bound to the exact candidate; no model execution is verified |
-| Explain a Human Decision | Up to ten private image pins saved with the overall Adopt/Reject/Defer decision and rationale; no partial adoption |
-| Try another candidate | Reuse a complete session's exact Original/Current bytes in the same project, supply one fresh candidate, and perform a new Human review |
-| Prepare public text | Enter fresh author-supplied text for a complete, non-derived session and download `presentation.toml`; bundle export remains a separate CLI operation |
+| Record an original, a current state, an AI output, and your decision with a reason | Browser Import page or `synapse creator-run` |
+| Let an AI agent place candidates in an inbox without deciding, then decide in the browser | `synapse inbox put` and the Import page |
+| Compare two images side by side or overlaid, at fit, 100%, or 200% | Session page |
+| Add an optional generation note and pins on the images | Import form and session page |
+| Read past decisions with times and a timeline | Session pages, `creator-list`, `creator-report` (text or JSON) |
+| Try another candidate from a record, or review a deferred or interrupted one again in a new session | Session page |
+| Check integrity, back up, and restore | Maintenance page, `fsck`, `export`, `restore` |
+| Make a local read-only view without private notes | `synapse-present` and the public-text form |
+| Use the pages in Japanese or English | Language switch in the header |
 
-Normal Core archives retain private notes, pins, and fixed source lineage. Public bundles
-exclude those private notes. Reusing Current is not a new observation, and Adopt never
-promotes the previous AI output to Current. **Frozen publication v1 refuses derived sessions**
-in both the public-text form and bundle export, including all-session export containing a
-complete derived session. Select a non-derived session with `--session`; existing v1 bundles
-remain verifiable. See the [public-text workflow](docs/presentation_sidecar.en.md).
+## What it does not do
 
-## What works now
+- **It does not run AI models.** The AI output is a file you supply; SynapseGit
+  records it as caller-supplied and does not claim which model, if any, made it.
+- **It compares file contents, not pictures.** A match check shows whether the
+  bytes are the same. Identical files do not prove the subject is unchanged,
+  and different files do not prove a visual or physical change. There is no
+  pixel registration or difference analysis.
+- **A recorded decision is final for that session.** You can review the same
+  images again in a new session; the earlier record stays.
+- **It is local and single-user.** `synapse-local` serves only `127.0.0.1`.
+  There is no hosted or multi-user service, and nothing is uploaded.
+- **Platforms:** Linux x86_64 and, from releases after v0.13.1, macOS arm64.
+  Windows is not supported; Linux ARM64 needs a source build.
 
-| Capability | Current repository status |
-|---|---|
-| Three-file creator Pilot with `adopt`, `reject`, and `defer` | Implemented as a bounded local CLI flow |
-| Human/AI-attributed provenance and a comparison-aware report | Implemented; AI output remains caller-supplied. `creator-report --format json` adds one versioned private-local JSON document for local tooling; `--format text` and the default retain the line-oriented text report. `creator-list` prints an unverified overview of every session, and each command answers `--help`. `creator-run --generation-note-file` can record bounded private, user-declared generation context without proving model execution or authorship |
-| Original/current comparison | Primary blob byte identity only; always partial comparability. The localhost UI also offers manual two-image viewing with fit/100%/200% zoom; no registration or difference analysis |
-| Local browser interface | The tagged v0.13.1 archive provides Japanese and English application labels, accessible names, client messages, and image alternatives. A header choice takes priority and persists per browser, then a supported `Accept-Language` preference is used, with Japanese as the fallback. User-supplied and stored text, API identifiers, and error codes are unchanged. A completed Creator session offers **Save private record (JSON)**, which downloads a freshly checked private native JSON response from its existing authenticated detail endpoint; pending or incomplete sessions have no download control, and it is separate from public bundles, backups, and CLI JSON. The dashboard shows at most 200 unverified summaries, and **Open a session by name** directly opens an older exact case-sensitive strict-slug session with JavaScript; it does not search or expand the list. It also provides read views, bounded three-file import, same-process `adopt` / `reject` / `defer`, read-only incomplete-session diagnostics, confirmed background `fsck`, and project-page archive controls. The project dashboard shows at most 200 session summaries, prioritizing live reviews and then recent Ref updates, filterable by state or disposition. These are explicitly unverified overview values; full verification remains on session detail pages. Source-session pages also offer unverified derived-child navigation hints. Behind `--archive-root`, it provides a bounded read-only archive listing (`GET /archives`) plus authenticated confirmed bounded archive export and empty-target restore APIs (`POST /archive-exports`, `POST /archive-restores`). Restore fixes the target to the open registered empty project and requires a listed slug, typed key, checkbox, confirmation, queued polling, and a visible creator-report equivalence reminder |
-| Script-output Inbox and fresh review | Optional `--import-root` stages manifest-last image candidates for explicit Proposal creation. `synapse inbox put` writes such a candidate from the CLI or an AI agent without opening a repository or recording a decision. Verified interrupted or deferred sessions can start a new review using the recorded images, while the source Decision remains fixed. Frozen publication v1 refuses reused-session output |
-| Import preparation | Local raster previews, file sizes and selection clearing, UTF-8 byte-limit feedback, and fixed inputs while an upload is pending. Files that cannot be previewed remain importable under the existing limits |
-| Decision review | Described adopt/reject/defer outcomes and confirmation, live rationale byte counts, fixed inputs during submission, and escaped recorded-rationale display on completed sessions. No same-session decision changes or reopening |
-| Generic regular-file artifact building blocks | Tagged v0.13.1 source/workspace libraries include a bounded deterministic mapper and checkout, sequential Proposal/Decision workflow, host-authenticated one-shot approval, a SQLite journal-integrated restart/reconciliation boundary, a frozen v1 public-safe contract, and a separate local public projection. The packaged three binaries do not expose these capabilities through HTTP, CLI, or browser UI; no model invocation, multi-process control plane, or production service is provided |
-| Content-addressed objects, typed closure, Ref CAS, and reflog | Implemented and covered by repository tests |
-| `fsck`, checksum-bound directory export, and verified restore | Implemented for the local repository format |
-| Read-only history presentation for people and AI | Included in v0.13.1 as a deterministic local bundle: canonical JSON, Markdown, no-JavaScript HTML, manifest, checksums, and Synapse/GitHub target layouts; no upload or network access |
-| Public multi-user service | Architecture only; not implemented |
-| Pixel registration or visual/physical difference analysis | Not implemented |
-
-“Implemented” means covered by this repository's tests. The generic-artifact
-row describes library and schema surfaces included in the tagged v0.13.1
-source, not a tested transport integration or a packaged binary feature.
-Neither label means that real-user authentication, network transport,
-production operations, or a general creator-facing application is ready.
-
-The tagged v0.13.1 source/workspace libraries include evaluation-only building
-blocks for sibling applications implementing generic regular-file review.
-`synapse-artifact` validates a complete regular-file manifest and
-deterministically maps it to a nested site Tree without advancing a Ref. Its
-trusted workflow initializes a profile-owned repository, publishes at most one
-active Proposal from each exact canonical Decision head, and records one
-`adopted_unchanged`, `rejected`, or `deferred` Decision through
-`synapse-application` and Core. A completed Decision can become the verified
-accepted base for the next Proposal; each attempt has a fresh deterministic Ref
-and immutable identity, while prior Proposal history remains reachable.
-
-The same-process pending authority remains non-serializable and one-shot.
-After a restart, a verified interrupted proposal can be reviewed in a new session using its recorded three images; a Defer can use the same fresh-review path. The original session is never resumed or changed.
-`decide_artifact_proposal` additionally requires an opaque, expiring
-`ArtifactDecisionApproval` issued only after the embedding host authenticates
-the reviewer and checks a server-owned project ACL. The approval is bound to
-the exact actor/session, security epoch, Proposal and expected Decision heads,
-disposition, rationale presence and bytes, and is burned before Decision object
-or Ref mutation. It is not reconstructed from browser fields or a `ReviewId`.
-The v1 workflow still records caller-supplied AI-attributed bytes only and
-cannot represent verified execution; SynapseGit invokes no model.
-
-The frozen
-[`synapsegit.generic-artifact` v1 contract](./spec/application/generic-artifact/v1/README.md)
-uses an opaque `ReviewId` as a lookup locator, not as authority. A separate
-SQLite journal and explicit orchestration boundary register a private Proposal
-intent before Proposal CAS, finalize the public-safe locator only after exact
-publication verification, persist an exact Decision intent before Decision
-CAS, and commit a terminal outcome only after live Ref/reflog reconciliation
-and bounded selected-site checkout. Exact retries are idempotent. After a
-restart, trusted configuration plus journal facts are checked against immutable
-objects and one consistent live Ref state before fresh application authority is
-constructed. Credentials, admitted handles, approvals, registrations, and
-permits are never serialized or restored; the reviewer must authenticate again
-and obtain a new approval, and final publication still passes through ordinary
-`HumanDecisionRuntime` validation and CAS.
-
-The binding assumes untampered trusted local configuration and journal storage;
-it is not cryptographic evidence that the original Proposal passed a particular
-process runtime capability intersection. Core Ref/reflog and journal SQLite
-transactions are separate, so crash windows are resolved by explicit bounded
-reconciliation rather than by claiming cross-database atomicity. Rust trusted
-workflow values are getter-only process values, not browser-supplied authority.
-
-These capabilities are included in the tagged v0.13.1 source/workspace
-libraries. They are not exposed by any of the three packaged binaries
-(`synapse`, `synapse-local`, or `synapse-present`), including through HTTP,
-CLI, or browser UI. They also do not provide a background service that resumes
-work automatically, model invocation, a generic browser editor, durable
-identity or ACL storage, multi-process linearizability, production use, or a
-distribution permission. The packaged v0.13.1 Creator Pilot and localhost UI
-remain image-specific; their pending review authority is still same-process
-and non-resumable.
-
-The tagged v0.13.1 `synapse-local` binary includes browser import/review,
-dedicated diagnostics, and bounded browser `fsck`. Review authority and
-maintenance job state are process-local and cannot be resumed after restart.
-
-The v0.13.1 archive also provides the separate `synapse-present` companion. It reads
-the existing CAS without mutation and copies checkpointed Ref SQLite (up to
-512 MiB) into a private temporary file, requiring the copy-time and post-copy
-source SHA-256 to match; SQLite never opens the source database directly.
-Sidecars or a changing source fail with
-`read_only_source_busy`. It discovers at most 100 creator sessions and can
-prepare a local GitHub-ready view, but it does not upload, publish, or contact
-GitHub. Private
-rationale, internal Actor IDs, repository paths, and raw assets stay omitted;
-raw-asset rendering is not implemented, and a public note is separate
-author-supplied text. See the [CLI reference (Japanese)](./docs/cli_reference.md).
-
-Separately, the tagged v0.13.1 source/workspace libraries include a versioned
-generic-artifact projection and local bundle API. This API is not exposed by
-the packaged binaries, HTTP, CLI, or browser UI. A complete projection is
-built only through the bounded Decision checkout above; pending/incomplete
-projections carry no repository or authority identifiers. Canonical JSON,
-escaped Markdown, script-free HTML, manifest, checksums, and local
-Synapse/GitHub layouts are generated without Git or network access. Remote
-Synapse/GitHub adapters, Git import and provenance, identity mapping, a GitHub
-App, and a hosted service remain future implementation work. The design scope
-of [#17](https://github.com/howlrs/synapsegit/issues/17) is resolved without
-making any of those remote surfaces available in this release.
+Some workspace features exist only as Rust libraries, not in the packaged
+binaries. Implementers can read
+[Implementation boundaries and library-only features](./docs/implementation_boundaries.en.md).
 
 ## How it works
 
@@ -341,84 +145,45 @@ flowchart LR
     C --> V["Read-only publication bundle\nJSON / Markdown / static HTML"]
 ```
 
-The smallest useful mental model is:
+1. **Observe**: keep the exact original and current files.
+2. **Propose**: record an output as AI-attributed without claiming how it was
+   made.
+3. **Decide**: a person adopts, rejects, or defers.
+4. **Verify**: check identifiers, history, and repository integrity.
+5. **Present**: derive a local read-only view without private notes.
 
-1. **Observe** — retain the exact original and current bytes.
-2. **Propose** — record an output as AI-attributed without claiming how it was
-   generated.
-3. **Decide** — a Human explicitly adopts, rejects, or defers.
-4. **Verify** — inspect IDs, graph relations, Ref history, and repository
-   integrity.
-5. **Present** — derive a local, redacted read-only bundle without changing the
-   authority.
-
-The normative draft and its JSON Schemas live under
-[`spec/core/v0.1`](./spec/core/v0.1/README.md). Rust owns canonicalization,
-object IDs, schema validation, repository integrity, Ref updates, the current
-local application routes, and archive verification. Read the
-[runtime architecture (Japanese)](./docs/runtime_architecture.md) for component details.
+The [Core Protocol](./spec/core/v0.1/README.md) and the
+[runtime architecture (Japanese)](./docs/runtime_architecture.md) describe the
+details.
 
 ## Documentation
 
 | Goal | Start here |
 |---|---|
-| Complete the illustrated first-use tutorial | [15-minute mural tutorial](./docs/tutorial/README.md) |
+| Try the illustrated example | [15-minute mural tutorial](./docs/tutorial/README.md) |
 | Install a release or build from a tag | [Installation](./docs/install.md) |
-| Run the complete source demo | [Core Quickstart (Japanese)](./docs/quickstart.md) |
-| Understand creator and AI-assisted use cases | [Usage guide (Japanese)](./docs/usage_guide.md) |
+| Let an AI agent run the commands | [AI agent guide](./docs/ai_agent_guide.md) |
 | Record notes, review images, and try another candidate | [Creator workflow](./docs/creator_workflow.en.md) |
-| Run the loopback-only application | [Local application runbook (Japanese)](./deploy/local/README.md) |
+| Prepare public text and a local bundle | [Public-text workflow](./docs/presentation_sidecar.en.md) |
+| Understand privacy and trust limits | [Privacy and trust summary](./docs/security_model.en.md) |
 | Look up commands and errors | [CLI reference (Japanese)](./docs/cli_reference.md) |
-| Generate a read-only local publication bundle | [CLI reference (Japanese)](./docs/cli_reference.md#synapse-present-companion-cli) |
-| Evaluate publication comprehension | [Frozen complete and incomplete-only corpus](./docs/evaluation/publication-comprehension/v1/) |
-| Embed the generic regular-file contract | [Generic artifact v1](./spec/application/generic-artifact/v1/README.md) |
-| Build or extend a generic-artifact public projection | [Generic publication profile](./spec/application/generic-artifact-publication/v1/README.md) / [integration roadmap](./docs/generic_artifact_publication_roadmap.md) |
-| Evaluate current maturity and next work | [Project status (Japanese)](./docs/project_status.md) |
-| See the v1.0 scope, compatibility promise, and release criteria | [v1.0 release plan (Japanese)](./docs/v1_release_plan.md) |
-| Review trust, privacy, and security limits | [Privacy and trust summary](./docs/security_model.en.md) |
-| Implement the protocol | [Core Protocol v0.1](./spec/core/v0.1/README.md) |
-| Understand releases and distribution | [Distribution guide (Japanese)](./docs/distribution.md) |
-| Review use, Fork, and contribution terms | [License](./LICENSE) / [Japanese summary](./docs/license_ja.md) |
-| Browse everything | [Documentation index (English path and Japanese index)](./docs/README.md#english-reader-path) |
+| Run the loopback-only application | [Local application runbook (Japanese)](./deploy/local/README.md) |
+| See what stays compatible | [Compatibility policy](./docs/compatibility.md) |
+| See the v1.0 scope and release criteria | [v1.0 release plan (Japanese)](./docs/v1_release_plan.md) |
+| Embed the Rust libraries | [Implementation boundaries](./docs/implementation_boundaries.en.md) / [Generic artifact v1](./spec/application/generic-artifact/v1/README.md) |
+| Browse everything | [Documentation index](./docs/README.md#english-reader-path) |
 
-## Distribution status
+## Releases and compatibility
 
-- `v0.13.1` is prepared for the prerelease tag workflow. Its archive and
-  attestation become available after that workflow publishes them.
-- The supported prebuilt artifact is Linux x86_64 GNU. Tagged source builds are
-  the current path for other supported Unix-like environments.
-- crates.io and GHCR are intentionally not distribution channels for Stage 0.
-- Release assets have SHA-256 checksums. The v0.13.1 archive also receives a
-  GitHub build-provenance attestation.
-- From v1.0.0, the object, OID, and archive formats are frozen for v1.x, and
-  every published release's repositories and archives stay readable. See the
-  [compatibility policy](./docs/compatibility.md).
-
-See the [changelog](./CHANGELOG.md) and the
-[v0.13.1 release notes](./docs/releases/v0.13.1.md) before evaluating the
-preview with important data.
-
-Per-tag release notes on `main`:
-
-| Tag | Release notes |
-|-----|---------------|
-| `v0.13.1` | [docs/releases/v0.13.1.md](./docs/releases/v0.13.1.md) |
-| `v0.13.0` | [docs/releases/v0.13.0.md](./docs/releases/v0.13.0.md) |
-| `v0.12.0` | [docs/releases/v0.12.0.md](./docs/releases/v0.12.0.md) |
-| `v0.11.1` | [docs/releases/v0.11.1.md](./docs/releases/v0.11.1.md) |
-| `v0.11.0` | [docs/releases/v0.11.0.md](./docs/releases/v0.11.0.md) |
-| `v0.10.0` | [docs/releases/v0.10.0.md](./docs/releases/v0.10.0.md) |
-| `v0.9.0` | [docs/releases/v0.9.0.md](./docs/releases/v0.9.0.md) |
-| `v0.8.1` | [docs/releases/v0.8.1.md](./docs/releases/v0.8.1.md) |
-| `v0.8.0` | [docs/releases/v0.8.0.md](./docs/releases/v0.8.0.md) |
-| `v0.7.0` | [docs/releases/v0.7.0.md](./docs/releases/v0.7.0.md) |
-| `v0.6.0` | [docs/releases/v0.6.0.md](./docs/releases/v0.6.0.md) |
-| `v0.5.1` | [docs/releases/v0.5.1.md](./docs/releases/v0.5.1.md) |
-| `v0.5.0` | [docs/releases/v0.5.0.md](./docs/releases/v0.5.0.md) |
-| `v0.4.0` | [docs/releases/v0.4.0.md](./docs/releases/v0.4.0.md) |
-| `v0.3.0` | [docs/releases/v0.3.0.md](./docs/releases/v0.3.0.md) |
-| `v0.2.0` | [docs/releases/v0.2.0.md](./docs/releases/v0.2.0.md) |
-| `v0.1.0` | [docs/releases/v0.1.0.md](./docs/releases/v0.1.0.md) |
+- SynapseGit is a Stage 0 preview. Each release is published on GitHub with
+  SHA-256 checksums and a build-provenance attestation; crates.io and container
+  registries are not used.
+- From v1.0.0, the object, identifier, and archive formats are frozen for
+  v1.x, and repositories and archives from every published release stay
+  readable. See the [compatibility policy](./docs/compatibility.md).
+- What changed in each release is in the [changelog](./CHANGELOG.md) and the
+  [v0.13.1 release notes](./docs/releases/v0.13.1.md). Read them before using
+  the preview with important data.
 
 ## Security, support, and license
 
