@@ -32,6 +32,15 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ### Changed
 
+- A complete Creator report now names its Subject label, the self-declared
+  creator display name, and the Human DecisionFeedback recording time. They are
+  read from the verified base Tree and DecisionFeedback, shown as "not
+  recorded" or omitted when a stored session has none, and never inferred.
+  `creator-report` prints `subject_label`, `creator_name`, and
+  `decision_recorded_at` lines when present, and its JSON document adds the
+  three nullable fields under the existing `-v1` additive rule. The localhost
+  session page shows them above the decision, and the complete session detail
+  API adds them as optional fields in localhost contract `0.6.6-draft`.
 - CI runs for pushes to `main` are no longer cancelled by later merges; each
   main commit keeps its own result. The release workflow now waits for a
   successful main CI run of the tagged commit, including the browser suite,

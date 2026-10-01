@@ -218,12 +218,21 @@ pub struct CreatorReport {
     pub session: String,
     pub project_id: String,
     pub subject_id: String,
+    /// The `--subject` label stored in the verified base Tree, or `None` when
+    /// the stored session has none.
+    pub subject_label: Option<String>,
     pub creator_id: String,
+    /// The self-declared `--creator` display name stored in the verified base
+    /// Tree, or `None`.  It is not identity evidence.
+    pub creator_name: Option<String>,
     pub agent_id: String,
     pub decision_ref: String,
     pub proposal_ref: String,
     pub decision_head: String,
     pub proposal_head: String,
+    /// `recorded_at` of the Human DecisionFeedback.  It is the recording time,
+    /// not proof of when the person decided.
+    pub decision_recorded_at: Option<String>,
     pub base_head: String,
     pub base_snapshot: String,
     pub proposal_snapshot: String,

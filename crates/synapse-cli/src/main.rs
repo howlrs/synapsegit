@@ -534,9 +534,15 @@ fn print_creator_report(report: &CreatorReport) {
     println!("report_session={}", report.session);
     println!("project={}", report.project_id);
     println!("subject={}", report.subject_id);
+    if let Some(label) = &report.subject_label {
+        println!("subject_label={label:?}");
+    }
     println!("proposal_attributed_to_agent={}", report.agent_id);
     println!("ai_output_source=caller_supplied");
     println!("reviewed_by_human={}", report.creator_id);
+    if let Some(name) = &report.creator_name {
+        println!("creator_name={name:?}");
+    }
     println!("selected={}", report.selected_ai_output);
     println!("base_head={}", report.base_head);
     println!("base_snapshot={}", report.base_snapshot);
@@ -551,6 +557,9 @@ fn print_creator_report(report: &CreatorReport) {
         report.proposal_ref, report.proposal_head
     );
     println!("disposition={}", report.disposition.as_cli_str());
+    if let Some(recorded_at) = &report.decision_recorded_at {
+        println!("decision_recorded_at={recorded_at}");
+    }
     if let Some(source) = &report.source {
         println!("reused_reference_source={source:?}");
     }

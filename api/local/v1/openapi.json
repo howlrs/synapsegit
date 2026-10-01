@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "SynapseGit localhost application API",
-    "version": "0.6.5-draft",
+    "version": "0.6.6-draft",
     "description": "Single-user, loopback-only application contract. A configured per-project import inbox accepts only manifest-last candidates, stages verified bytes in this process, and creates a later Human-review proposal from those staged bytes. Confirmed reuse creates a new review from an interrupted or deferred proposal without restoring prior authority. This is not the public Core protocol."
   },
   "servers": [
@@ -1879,8 +1879,20 @@
           "subject_id": {
             "type": "string"
           },
+          "subject_label": {
+            "type": "string",
+            "maxLength": 500,
+            "x-synapse-max-utf8-bytes": 500,
+            "description": "Subject label from the verified base Tree. Omitted when the stored session has none; never inferred."
+          },
           "creator_id": {
             "type": "string"
+          },
+          "creator_name": {
+            "type": "string",
+            "maxLength": 300,
+            "x-synapse-max-utf8-bytes": 300,
+            "description": "Self-declared creator display name from the verified base Tree. Not identity evidence. Omitted when the stored session has none."
           },
           "agent_id": {
             "type": "string"
@@ -1893,6 +1905,10 @@
           },
           "decision_head": {
             "$ref": "#/components/schemas/CommitOid"
+          },
+          "decision_recorded_at": {
+            "type": "string",
+            "description": "recorded_at of the verified Human DecisionFeedback. It is the recording time, not proof of when the person decided. Omitted when absent."
           },
           "proposal_head": {
             "$ref": "#/components/schemas/CommitOid"

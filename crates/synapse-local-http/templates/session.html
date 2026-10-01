@@ -14,6 +14,12 @@
 </header>
 
 {% if complete %}
+<dl class="detail-list" data-session-identity>
+  <div><dt>{{ m.session.identity_subject }}</dt><dd>{{ subject_label }}</dd></div>
+  <div><dt>{{ m.session.identity_creator }}</dt><dd>{{ creator_name }}</dd></div>
+  <div><dt>{{ m.session.identity_recorded_at }}</dt><dd>{{ decision_recorded_at }}</dd></div>
+</dl>
+<p class="field__hint">{{ m.session.identity_hint }}</p>
 <p><a class="button" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/derive">{{ m.session.try_next }}</a></p>
 {% if reuse_available %}<p><a class="button button--secondary" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/reuse">{{ m.session.rereview_deferred }}</a></p>{% endif %}
 <section class="metric-grid" aria-label="{{ m.session.result_label }}">

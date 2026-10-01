@@ -452,6 +452,11 @@ message_section! {
     /// Creator session review, decision, evidence, pins, and diagnostics.
     Session {
         eyebrow: "Creatorセッション", "Creator session";
+        identity_subject: "対象", "Subject";
+        identity_creator: "作成者", "Creator";
+        identity_recorded_at: "判断を記録した時刻", "Decision recorded at";
+        identity_hint: "対象と作成者は記録時に入力された表示名で、本人性の証明ではありません。記録した時刻は、判断した時刻の証明ではありません。", "The subject and creator are display names entered when recording and do not prove identity. The recording time does not prove when the decision was made.";
+        not_recorded: "記録なし", "Not recorded";
         metric_disposition: "判断", "Disposition";
         metric_ai_selected: "AI outputの選択", "AI output selected";
         metric_verified_objects: "検証したobject数", "Verified objects";

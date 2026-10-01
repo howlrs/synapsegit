@@ -1538,3 +1538,55 @@ fn inbox_put_refuses_a_missing_inbox_directory_and_prints_help() {
     let usage = run(&["--help"]);
     assert!(String::from_utf8_lossy(&usage.stdout).contains("synapse inbox put"));
 }
+
+#[test]
+fn creator_report_names_the_subject_creator_and_decision_time() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    for (name, bytes) in [
+        ("original.bin", b"original".as_slice()),
+        ("current.bin", b"current"),
+        ("candidate.bin", b"candidate"),
+    ] {
+        fs::write(temp.join(name), bytes).unwrap();
+    }
+    assert_success(&run(&["init", repository.to_str().unwrap()]));
+    assert_success(&run_owned(vec![
+        "creator-run".into(),
+        repository.to_str().unwrap().into(),
+        "named".into(),
+        temp.join("original.bin").to_str().unwrap().into(),
+        temp.join("current.bin").to_str().unwrap().into(),
+        temp.join("candidate.bin").to_str().unwrap().into(),
+        "--subject".into(),
+        "North \"wall\" mural".into(),
+        "--creator".into(),
+        "Aki".into(),
+        "--decision".into(),
+        "defer".into(),
+    ]));
+    let text = run(&["creator-report", repository.to_str().unwrap(), "named"]);
+    assert_success(&text);
+    let text = String::from_utf8(text.stdout).unwrap();
+    assert!(
+        text.contains("\nsubject_label=\"North \\\"wall\\\" mural\"\n"),
+        "{text}"
+    );
+    assert!(text.contains("\ncreator_name=\"Aki\"\n"));
+    assert!(text.contains("\ndecision_recorded_at=20"));
+    let json = json_stdout(&run(&[
+        "creator-report",
+        repository.to_str().unwrap(),
+        "named",
+        "--format",
+        "json",
+    ]));
+    assert_eq!(json["subject_label"], "North \"wall\" mural");
+    assert_eq!(json["creator_name"], "Aki");
+    assert!(
+        json["decision_recorded_at"]
+            .as_str()
+            .unwrap()
+            .ends_with('Z')
+    );
+}
