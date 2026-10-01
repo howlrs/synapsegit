@@ -1,0 +1,1 @@
+{"asserted_by":"urn:uuid:1e35fae8-25c6-4cef-83a9-036de9c14cf7","entity_id":"urn:uuid:1e35fae8-25c6-4cef-83a9-036de9c14cf7","extensions":{},"object_type":"record","origin":"self_declared","payload":{"actor_kind":"human","display_name":"Release fixture creator"},"record_type":"actor","recorded_at":"2026-10-01T01:26:57.106607900Z","schema_version":"0.1.0","source_refs":[]}

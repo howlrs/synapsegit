@@ -79,6 +79,7 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 - 英語tutorialから続けるCreator workflow／public-text／privacy/trustのfocused documentation path、および実制作Pilot用の日本語開始前チェックリストと振り返りテンプレート
 - GitHub projectionとGit identity/importは設計済みで、GitHubをobject／Ref／reflogのauthorityにしない。Git importer、GitHub App、remote publish、hosted serviceは未実装
 - Linux x86_64 GNU向けv0.13.1 prerelease archive、checksum、build attestation
+- v1.xでの読み取り互換とv1形式の凍結（`sg-oid-v1`、Core record schema、archive profile、Inbox manifest v1、CLI JSON）。公開済み全17版が書いたrepositoryとarchiveをfixtureとして固定し、CIで読み取り・restoreを検査する（[互換性方針](./compatibility.md)）
 - 既存repository向け操作は未作成・不完全なrepositoryを拒否。新規作成は`synapse init`／`creator-run`、または空directoryを登録した`synapse-local`で可能
 - tracked Bash fence、Cargo direct-dependency図、OpenAPI revision registry、archive／generation browser flow、publication HTMLのrelease gate
 
@@ -143,7 +144,6 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 - raw asset／safe derived thumbnail publication
 - 固定コーパスを使った実Human／zero-context AI理解評価と実accessibility評価
 - SurrealDB adapterとbenchmark decision
-- stable protocol/OID/archive compatibility commitment
 
 ## 配布上の現在地
 

@@ -5,3 +5,7 @@ docs/evaluation/publication-comprehension/v1/bundles/** -text
 # Creator archive fixtures written by released or source-built binaries are
 # manifest-checksummed byte artifacts. Preserve their exact bytes as well.
 crates/synapse-cli/tests/fixtures/creator-archives/** -text
+
+# Release read-compatibility fixtures are each release's own repository and
+# archive bytes. Preserve them exactly as well.
+crates/synapse-cli/tests/fixtures/releases/** -text

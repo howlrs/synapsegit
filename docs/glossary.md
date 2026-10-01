@@ -17,7 +17,7 @@ Status label:
 | ManifestTree / Tree | implemented | single path segment から Blob / Record / child Tree への mapping。snapshot の root になる |
 | Commit | implemented | parent sequence、snapshot Tree、transition / declaration refs を束ねる immutable object |
 | OID | implemented / draft | `<family>:sg-oid-v1:sha256:<digest>`。object family と canonical content identity を示す |
-| `sg-oid-v1` | protocol draft | Stage 0 の OID profile。第二の独立 production implementation gate 前で、まだ freeze 済みではない |
+| `sg-oid-v1` | protocol frozen | Core の OID profile。SynapseGit v1.x で凍結し、変更は新しい profile 識別子で行う（[互換性方針](./compatibility.md)） |
 | Synapse Canonical JSON | implemented / protocol | strict input domain、UTF-16 key order、integer-only number、exact string preservation 等を定める structured identity encoding |
 | content-addressed storage | implemented | OID を pathname key に immutable object を保存する ObjectStore。本書では「storage CAS」と呼ぶ |
 | compare-and-swap | implemented | current Ref head が expected head と一致した場合だけupdateする操作。本書では「Ref CAS」と呼ぶ。SQLite実装は同じtransactionで追加Ref preconditionも検査できる |

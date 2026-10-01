@@ -1,6 +1,6 @@
 # SynapseGit Core Protocol v0.1
 
-Status: Stage 0 draft
+Status: Normative; frozen as the v1 formats for SynapseGit v1.x (see the [compatibility policy](../../../docs/compatibility.md))
 
 This directory turns the architectural decisions in
 [`docs/core_concept.md`](../../../docs/core_concept.md) into testable protocol
@@ -140,9 +140,14 @@ values, typed Manifest entries, first-parent direction, OID mismatch, and
 beyond a current Node.js runtime. `--print-golden` prints candidate values for
 review but never changes the committed fixture.
 
-This is a draft profile. Implementations may experiment against it, but OID
-values are not declared permanently frozen until the Stage 0 inter-language
-test has at least two independent implementations.
+`sg-oid-v1`, the concrete record schemas, and the local directory archive
+profile are frozen for SynapseGit v1.x. The freeze rests on two checks: the
+Rust implementation and the independent JavaScript verifier agree on every
+golden fixture's OID, canonical length, and canonical SHA-256, and CI reads
+repositories and archives written by every published release. A second
+independent production implementation remains Stage 1 research and is not a
+condition of the freeze. A change to a frozen format gets a new identifier;
+see the [compatibility policy](../../../docs/compatibility.md).
 
 ## Implementation conformance status
 
@@ -161,7 +166,7 @@ test has at least two independent implementations.
 | Narrow Human Decision admission | `HumanDecisionRuntime` integration and race tests | implemented library boundary for one trusted direct human and `decision/*`; supported dispositions only, proposal precondition and trusted decision/base target CAS are atomic |
 | Rebuildable query projection | 3 unit + 19 integration `SqliteProjectionStore` tests | SQLite schema v2 baseline implemented for current reachability, bounded shared Tombstone resolution, closure diagnostics, Subject timeline, Observation dependencies, and typed AnalysisResult lineage; non-authoritative and explicit-refresh only |
 | SurrealDB / complete projection comparison | none | adapter, complete eight-query parity, and benchmark decision pending |
-| Second independent production implementation | none | freeze gate pending |
+| Second independent production implementation | none | Stage 1 research; not a condition of the v1 freeze |
 
 The initial application profile authenticates before project lookup, resolves
 only an exact server-owned project map, and keeps the untrusted request plane to

@@ -1767,3 +1767,87 @@ fn common_errors_add_one_hint_line_after_the_stable_code() {
     assert!(stderr.starts_with("creator_session_exists: "));
     assert!(stderr.contains("\nhint: choose a new session name"));
 }
+
+fn copy_directory(source: &Path, destination: &Path) {
+    fs::create_dir_all(destination).unwrap();
+    for entry in fs::read_dir(source).unwrap() {
+        let entry = entry.unwrap();
+        let target = destination.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            copy_directory(&entry.path(), &target);
+        } else {
+            fs::copy(entry.path(), &target).unwrap();
+        }
+    }
+}
+
+/// Every published release's repository and archive stays readable (#165).
+/// The fixtures were written by each release's own `synapse` binary.
+#[test]
+fn every_published_release_repository_and_archive_stays_readable() {
+    let temporary = TempDirectory::new();
+    let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/releases");
+    let mut tags: Vec<String> = fs::read_dir(&root)
+        .unwrap()
+        .map(|entry| entry.unwrap())
+        .filter(|entry| entry.file_type().unwrap().is_dir())
+        .map(|entry| entry.file_name().into_string().unwrap())
+        .collect();
+    tags.sort();
+    assert!(tags.len() >= 17, "{tags:?}");
+    for tag in &tags {
+        // Git cannot store the empty `cas/tmp` directory every repository has.
+        let repository = temporary.join(format!("{tag}-repository"));
+        copy_directory(&root.join(tag).join("repository"), &repository);
+        fs::create_dir_all(repository.join("cas/tmp")).unwrap();
+        let repository = repository.to_str().unwrap();
+        assert_success(&run(&["fsck", repository]));
+        let from_repository = json_stdout(&run(&[
+            "creator-report",
+            repository,
+            "release-fixture",
+            "--format",
+            "json",
+        ]));
+        assert_eq!(from_repository["disposition"], "defer", "{tag}");
+        assert_eq!(
+            from_repository["rationale"], "Private fixture rationale.",
+            "{tag}"
+        );
+        assert_eq!(
+            from_repository["subject_label"], "Release fixture subject",
+            "{tag}"
+        );
+        assert_eq!(
+            from_repository["creator_name"], "Release fixture creator",
+            "{tag}"
+        );
+        assert_eq!(
+            from_repository["comparison"]["availability"], "present",
+            "{tag}"
+        );
+        let note = &from_repository["generation_note"];
+        assert!(
+            note["availability"] == "absent"
+                || (note["availability"] == "present" && note["tool"] == "Fixture tool"),
+            "{tag}: {note}"
+        );
+        let list = json_stdout(&run(&["creator-list", repository, "--format", "json"]));
+        assert_eq!(list["sessions"][0]["session"], "release-fixture", "{tag}");
+        assert_eq!(list["sessions"][0]["state"], "complete", "{tag}");
+
+        let restored = temporary.join(format!("{tag}-restored"));
+        let restored = restored.to_str().unwrap();
+        let archive = root.join(tag).join("archive");
+        assert_success(&run(&["restore", archive.to_str().unwrap(), restored]));
+        assert_success(&run(&["fsck", restored]));
+        let from_archive = json_stdout(&run(&[
+            "creator-report",
+            restored,
+            "release-fixture",
+            "--format",
+            "json",
+        ]));
+        assert_eq!(from_archive, from_repository, "{tag}");
+    }
+}

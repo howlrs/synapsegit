@@ -1,0 +1,190 @@
+{
+  "format": "synapsegit-core-archive-v0.1",
+  "objects": [
+    {
+      "oid": "blob:sg-oid-v1:sha256:1d06cfee3ab089738d028073cbe000cf255599b3b875368c11af1f1aff29aad8",
+      "path": "objects/00000000",
+      "byte_length": 116,
+      "sha256": "1d06cfee3ab089738d028073cbe000cf255599b3b875368c11af1f1aff29aad8"
+    },
+    {
+      "oid": "blob:sg-oid-v1:sha256:4462b25966010f34a19d3fb23a95d124ac9d6b88d839e0889a850747805c2916",
+      "path": "objects/00000001",
+      "byte_length": 24,
+      "sha256": "4462b25966010f34a19d3fb23a95d124ac9d6b88d839e0889a850747805c2916"
+    },
+    {
+      "oid": "blob:sg-oid-v1:sha256:631d4f5b4801f9f75bcb5d7fb4a98cbd5cdfd8d418f56798249661c7b151dc89",
+      "path": "objects/00000002",
+      "byte_length": 25,
+      "sha256": "631d4f5b4801f9f75bcb5d7fb4a98cbd5cdfd8d418f56798249661c7b151dc89"
+    },
+    {
+      "oid": "blob:sg-oid-v1:sha256:889e9bbbd06d3b0c7076f903110baa6d31edf98debb653c788164760b3f5ba19",
+      "path": "objects/00000003",
+      "byte_length": 22009,
+      "sha256": "889e9bbbd06d3b0c7076f903110baa6d31edf98debb653c788164760b3f5ba19"
+    },
+    {
+      "oid": "blob:sg-oid-v1:sha256:e4539a7465a7edcd87f6b34dc0d97367e0cb0d88b9bb5c9e28d07af02a5ff3e0",
+      "path": "objects/00000004",
+      "byte_length": 26,
+      "sha256": "e4539a7465a7edcd87f6b34dc0d97367e0cb0d88b9bb5c9e28d07af02a5ff3e0"
+    },
+    {
+      "oid": "commit:sg-oid-v1:sha256:2cd5a23dd0693c472b4a95ccbe645e62addb6e5e6a4dddeffdf0b1ed39a52daa",
+      "path": "objects/00000005",
+      "byte_length": 592,
+      "sha256": "086f48db6d4358b34ad95a20ed5c141778d5fbee02d84fd031212fa25a58b4fd"
+    },
+    {
+      "oid": "commit:sg-oid-v1:sha256:5040c681094d1ee628330a31cc00ddd207e0df059c1f8b5ceae7b0cc5166ba88",
+      "path": "objects/00000006",
+      "byte_length": 634,
+      "sha256": "60f3065bb74d1d816666bbd857f247233f5f5b4f3a90f121ed6ae2db8d8bff26"
+    },
+    {
+      "oid": "commit:sg-oid-v1:sha256:ac963f800eefb2e69b34ccfb99eacbf3bcf764d0e045732cc76d6ad2263370ee",
+      "path": "objects/00000007",
+      "byte_length": 581,
+      "sha256": "bd7470ab6c21d45f894f07ca543b258c55ad1531ed211697bd504a36b1fc9675"
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:155457bddb5c405a692f611263d2c136362685611f2d730557a4bdc442b510c8",
+      "path": "objects/00000008",
+      "byte_length": 372,
+      "sha256": "b471f61baf3ac36788fc9ceaa38f37f227693970b0fa36bd204c4c1a166c51ec"
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:1c20f5f98d1b8de4ae18d3747456a141b97b5551f11f0010a6584f4f361c44c8",
+      "path": "objects/00000009",
+      "byte_length": 1236,
+      "sha256": "c5412ac3c5e97945007f98651b04cb2d911d40ced94d5e07fb8a752fd1277418"
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:29ccb37b1c2898948764dca31c4f9e50a377c9853de52b7428db2a037b758f3e",
+      "path": "objects/00000010",
+      "byte_length": 625,
+      "sha256": "01617419426e1a6a8acd2639cccef16876ec6a114aa8e09c036529816afe0e26"
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:48bf2c5b7c26b4802c412240205128047c8bc717c4c35a6997c56fddc8d2e150",
+      "path": "objects/00000011",
+      "byte_length": 1478,
+      "sha256": "9f492b976200223cc2dac22dd076216f86d4b154b27eef51c86f1d4ba243615b"
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:5bdbe25c65cef91fac996b75f2983322453abd56c99463043c1cfb67eb92d11a",
+      "path": "objects/00000012",
+      "byte_length": 510,
+      "sha256": "2286af6407c17fbcf5374fd43eeee56e9aa4152e5fcc23f3e41205ab40f4c52e"
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:5d60424cad5e239f12585b0e50bb5b89597a5d5d28afbe462f9cc79dc743c7bd",
+      "path": "objects/00000013",
+      "byte_length": 661,
+      "sha256": "f78fb0fa3e0ba6fbc0e4a88f337f1b67289bb69ba1695cf575b2ca4528fbae00"
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:7533baebf0d4585375e950859b106ce2cbd4b0404d6dc8e25a8434a38527d053",
+      "path": "objects/00000014",
+      "byte_length": 963,
+      "sha256": "a93a9a60ded222c8fd4ba70724da2512ae6b903f94a0205f48e61e321beddf55"
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:b6bb0ef4fb4fb912a8664b69fb867dd860bbfdf8aa72c651a672b79de9aa304b",
+      "path": "objects/00000015",
+      "byte_length": 2241,
+      "sha256": "c37ca3d92b4d15fa255ff814f55b46f8d6601f7f5f42f888a69b9332a93f44cd"
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:c4470a12b60421bb07cd5c95dad3be7893046223cc38748cd4ed17e59843e59c",
+      "path": "objects/00000016",
+      "byte_length": 1024,
+      "sha256": "6881df731db484ec9912010a1b6494fada7923ed60451fdc74d8ea961b9ba716"
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:d83692316e37d350e657e95d8087117c3dbbcd7890add87a923e70b614fcc4be",
+      "path": "objects/00000017",
+      "byte_length": 963,
+      "sha256": "db3a1bfdae5080b96b9bda82bb0b861a4dd452b704843bb00d0e846ad769893c"
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:e647696e537f39c77dbe3c9c0c3d6d42321c098c02f2f447e1036f11fd36227a",
+      "path": "objects/00000018",
+      "byte_length": 527,
+      "sha256": "106441b3f08124bb6e76b001a19259c27a890c9027cca043a9b4be95de4baf08"
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:e9b9128c06c9072fcf434a9a76d194d700169b9ad4955453ae7df3dfcb1cc1be",
+      "path": "objects/00000019",
+      "byte_length": 1832,
+      "sha256": "b486c4796f1797b016b8f68878a4239becf2ad2ade9920cc996a35d911605009"
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:f37b1d88008fe36692ea16ada66d8071a5b7920986acdff64b22f144e4084666",
+      "path": "objects/00000020",
+      "byte_length": 869,
+      "sha256": "d5bc15400fa31447fe403e630e8d8241717417b195a7d8683abb35c5a96ac523"
+    },
+    {
+      "oid": "record:sg-oid-v1:sha256:fed5e0050cb07577a3edfbf7e815bc7a480df7953e1b2f289f9c150e5e39927c",
+      "path": "objects/00000021",
+      "byte_length": 1078,
+      "sha256": "d939beacf73b05ec495d3e9f8008ea7e7daa03ab6fe635237728a8b34d853135"
+    },
+    {
+      "oid": "tree:sg-oid-v1:sha256:563b3cb8baf1e29f1020da53fb82961af6860e0ee4e14abbe12ebca431694ae9",
+      "path": "objects/00000022",
+      "byte_length": 2236,
+      "sha256": "b915e19dca9aaf689759fd68b6a254996cf1e1722d195f91e3f2ef276d33813b"
+    },
+    {
+      "oid": "tree:sg-oid-v1:sha256:b7fe6cc2ba82d51e0a1848febbc767db8a72ee9541be764a305de93e0168d394",
+      "path": "objects/00000023",
+      "byte_length": 2656,
+      "sha256": "3132f633714681c0428803a7383be83a5d21d5540bd1f79abd4cd8dd6d8f835e"
+    }
+  ],
+  "refs": [
+    {
+      "name": "decision/creator/release-fixture",
+      "head": "commit:sg-oid-v1:sha256:ac963f800eefb2e69b34ccfb99eacbf3bcf764d0e045732cc76d6ad2263370ee",
+      "updated_event_id": 3
+    },
+    {
+      "name": "proposal/creator-agent/release-fixture",
+      "head": "commit:sg-oid-v1:sha256:5040c681094d1ee628330a31cc00ddd207e0df059c1f8b5ceae7b0cc5166ba88",
+      "updated_event_id": 2
+    }
+  ],
+  "reflog": [
+    {
+      "id": 1,
+      "ref_name": "decision/creator/release-fixture",
+      "old_head": null,
+      "new_head": "commit:sg-oid-v1:sha256:2cd5a23dd0693c472b4a95ccbe645e62addb6e5e6a4dddeffdf0b1ed39a52daa",
+      "occurred_at_unix_nanos": 1790818016671104300,
+      "actor": "urn:uuid:97edb8c8-fead-4f45-a08d-40071c2ad763",
+      "message": "initialize creator session"
+    },
+    {
+      "id": 2,
+      "ref_name": "proposal/creator-agent/release-fixture",
+      "old_head": null,
+      "new_head": "commit:sg-oid-v1:sha256:5040c681094d1ee628330a31cc00ddd207e0df059c1f8b5ceae7b0cc5166ba88",
+      "occurred_at_unix_nanos": 1790818016750556600,
+      "actor": "urn:uuid:81c0d22c-60a3-4ed4-9f0f-d7eec751d8d3",
+      "message": "creator Pilot AI proposal"
+    },
+    {
+      "id": 3,
+      "ref_name": "decision/creator/release-fixture",
+      "old_head": "commit:sg-oid-v1:sha256:2cd5a23dd0693c472b4a95ccbe645e62addb6e5e6a4dddeffdf0b1ed39a52daa",
+      "new_head": "commit:sg-oid-v1:sha256:ac963f800eefb2e69b34ccfb99eacbf3bcf764d0e045732cc76d6ad2263370ee",
+      "occurred_at_unix_nanos": 1790818016778291600,
+      "actor": "urn:uuid:97edb8c8-fead-4f45-a08d-40071c2ad763",
+      "message": "creator Pilot human decision"
+    }
+  ]
+}
