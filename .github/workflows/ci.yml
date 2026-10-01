@@ -114,7 +114,7 @@ jobs:
             cd "$work"
             tar -xzf "dist/synapsegit-$tag-$target.tar.gz"
             bundle="synapsegit-$tag-$target"
-            for file in TUTORIAL.md scripts/run_mural_tutorial.sh \
+            for file in TUTORIAL.md AI_AGENT_GUIDE.md AI_AGENT_GUIDE.ja.md scripts/run_mural_tutorial.sh \
               docs/tutorial/assets/mural-original.png \
               docs/tutorial/assets/mural-current.png \
               docs/tutorial/assets/mural-ai-proposal.png; do

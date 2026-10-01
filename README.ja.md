@@ -72,6 +72,7 @@ applicationのcaptureです。
 |---|---|
 | 5分で考え方を知る | [仕組み](#仕組み) |
 | 画像付きの一連のflowを試す | [15分 壁画チュートリアル](./docs/tutorial/README.ja.md) |
+| AIエージェントにCLIを任せ、判断は自分でする | [AIエージェント向けガイド](./docs/ai_agent_guide.ja.md) |
 | preview binaryをinstallする | [Installation](./docs/install.md) |
 | 自分の3画像を使う | [3分で試す](#3分で試す) |
 | browserでrepositoryを見る | [Local application runbook](./deploy/local/README.md) |

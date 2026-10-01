@@ -149,7 +149,7 @@ jobs:
           unpacked="$(mktemp -d)"
           trap 'rm -rf "$unpacked"' EXIT
           tar -xzf "dist/$bundle.tar.gz" -C "$unpacked"
-          for file in LICENSE THIRD_PARTY_NOTICES.md SECURITY.md CHANGELOG.md; do
+          for file in LICENSE THIRD_PARTY_NOTICES.md SECURITY.md CHANGELOG.md AI_AGENT_GUIDE.md AI_AGENT_GUIDE.ja.md; do
             test -s "$unpacked/$bundle/$file"
           done
           version="${GITHUB_REF_NAME#v}"

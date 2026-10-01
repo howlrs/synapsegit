@@ -19,6 +19,11 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   release below the current version is missing. Restore regression fixtures
   written by the v0.1.0 and v0.11.0 release binaries, and by an unreleased
   source build, cover both outcomes.
+- The AI agent guide (`docs/ai_agent_guide.md`, Japanese
+  `docs/ai_agent_guide.ja.md`) gives the rules and CLI flow for an AI agent
+  that prepares candidates with `synapse inbox put` while the person decides
+  in `synapse-local`. Release archives include it as `AI_AGENT_GUIDE.md` and
+  `AI_AGENT_GUIDE.ja.md`, and a browser test runs the guide's flow.
 - `synapse creator-list REPO [--format text|json]` prints an unverified
   overview of every creator session: name, state, disposition, recorded
   time, Subject label, and creator name. Each session takes at most six

@@ -87,7 +87,7 @@ async function appFixture({ archives = false, inbox = false }, use) {
         await start();
       };
       await start();
-      await use({ get origin() { return origin; }, refs, addHistory, restart, inboxRoot });
+      await use({ get origin() { return origin; }, refs, addHistory, restart, inboxRoot, cli, projectPath });
     } finally {
       if (server && server.exitCode === null) {
         const stopped = new Promise((resolve) => server.once("exit", resolve));
