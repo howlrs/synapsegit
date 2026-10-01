@@ -95,13 +95,13 @@ AI経由のCLI操作:
 - [#169](https://github.com/howlrs/synapsegit/issues/169) v1.0の利用モデルに合う評価キットv2を作り、v1.0-rcで実利用者Pilotを行う
 - [#164](https://github.com/howlrs/synapsegit/issues/164) READMEを「できること・始め方」中心に再構成する
 
-v1形式の凍結前に方針を決める設計（実装はv1.x以降でもよい）:
+v1形式の凍結前に方針を決める設計（決定済み）:
 
-- [#161](https://github.com/howlrs/synapsegit/issues/161) 採用した結果を次の制作段階の起点として記録するか
-- [#162](https://github.com/howlrs/synapsegit/issues/162) 1回のreviewで複数のAI候補から1つを選べるようにするか
+- [#161](https://github.com/howlrs/synapsegit/issues/161) 段階の連鎖はv1.0では記録しない。v1.x以降に、新たに取り込んだCurrentと前のsessionとのつながりをCreator extensionで記録する（[#178](https://github.com/howlrs/synapsegit/issues/178)）。
+- [#162](https://github.com/howlrs/synapsegit/issues/162) 複数候補のreviewはv1.0では提供しない。v1.x以降に、記録を変えずに同じ派生元の候補を並べて比較する表示から始める（[#179](https://github.com/howlrs/synapsegit/issues/179)）。
 
-[#161](https://github.com/howlrs/synapsegit/issues/161)、[#162](https://github.com/howlrs/synapsegit/issues/162)、[#166](https://github.com/howlrs/synapsegit/issues/166)は、Core schemaやCLIの互換性に関わり得るため、いずれもv1形式の凍結前に方針を決める。
-[#161](https://github.com/howlrs/synapsegit/issues/161)と[#162](https://github.com/howlrs/synapsegit/issues/162)をv1.0に含めない場合は、凍結したv1形式を壊さずに、新しいrecord種別やextensionとして後から追加できることを確認してから決める。
+[#161](https://github.com/howlrs/synapsegit/issues/161)、[#162](https://github.com/howlrs/synapsegit/issues/162)、[#166](https://github.com/howlrs/synapsegit/issues/166)は、Core schemaやCLIの互換性に関わり得るため、いずれもv1形式の凍結前に方針を決めた。
+[#161](https://github.com/howlrs/synapsegit/issues/161)と[#162](https://github.com/howlrs/synapsegit/issues/162)の将来の実装は、Core Record／Commit／ManifestTreeの名前空間付き`extensions`（派生元、再利用元、生成メモ、判断ピンと同じ方法）か表示だけで行うため、凍結したv1形式と既存のOIDを変えない。
 
 ### 入れば良い（リリース条件にしない）
 
@@ -117,6 +117,8 @@ AIエージェントはCLIでこれらの操作を代わりに行えるため、
 
 - [#160](https://github.com/howlrs/synapsegit/issues/160) restart後も同じsessionのまま判断を続ける。AIエージェントがInboxへ候補を置く流れでは、人がlocalhost UIで確認するまでProposalを作らないため、v1.0では既存の再レビュー経路で足りる。
 - [#163](https://github.com/howlrs/synapsegit/issues/163) 派生sessionの公開。新しい公開profileは、凍結した公開bundle v1と並べて後から追加できる。
+- [#178](https://github.com/howlrs/synapsegit/issues/178) 次の制作段階のつながりの記録と表示（[#161](https://github.com/howlrs/synapsegit/issues/161)の決定）。
+- [#179](https://github.com/howlrs/synapsegit/issues/179) 同じ派生元の複数候補を並べて比較する画面（[#162](https://github.com/howlrs/synapsegit/issues/162)の決定）。
 
 ## リリース条件
 
