@@ -182,11 +182,11 @@ test("pending review: import, compare and explicitly defer from the review form"
   await openComparison(page);
   await dialog(page).getByLabel("表示倍率", { exact: true }).selectOption("2");
   await page.keyboard.press("Escape");
-  await page.getByLabel("Rationale（任意）").fill("Need another visual inspection.");
+  await page.getByLabel("理由（任意）").fill("Need another visual inspection.");
   page.once("dialog", (confirmation) => confirmation.accept());
-  await page.getByRole("button", { name: "Defer", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Timeline", exact: true })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Defer", exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "保留", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "タイムライン", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "保留", exact: true })).toHaveCount(0);
   await openComparison(page);
 });
 
@@ -233,7 +233,7 @@ test("without JavaScript, comparison stays hidden and history remains readable",
     await page.goto(`${app.origin}/projects/complete/creator-sessions/sample`);
     await expect(opener(page)).not.toBeVisible();
     await expect(dialog(page)).not.toBeVisible();
-    await expect(page.getByRole("heading", { name: "Timeline", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "タイムライン", exact: true })).toBeVisible();
   } finally {
     await context.close();
   }

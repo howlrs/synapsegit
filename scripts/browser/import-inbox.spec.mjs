@@ -16,7 +16,7 @@ test("manifest-last inbox stages preview bytes before explicit Human Decision", 
   const section = page.locator("[data-import-inbox]");
   await expect(section).toBeVisible();
   await expect(page.locator('[name="session"]')).toHaveCount(1);
-  await expect(page.getByLabel("Session", { exact: true })).toHaveCount(1);
+  await expect(page.getByLabel("新しいセッション名", { exact: true })).toHaveCount(1);
   await page.getByRole("button", { name: "確認する" }).focus();
   await page.keyboard.press("Enter");
   await expect(page.locator("form[data-import-inbox-preview]")).toBeVisible();
@@ -37,15 +37,15 @@ test("manifest-last inbox stages preview bytes before explicit Human Decision", 
   await expect(page.locator("form[data-import-inbox-preview]")).toBeVisible();
   await writeFile(path.join(candidate, "original"), "changed after staging");
   const preview = page.locator("form[data-import-inbox-preview]");
-  await preview.getByLabel("Inbox session", { exact: true }).fill("inbox-review");
-  await preview.getByLabel("Inbox creator name", { exact: true }).fill("Edited creator");
+  await preview.getByLabel("Inboxのセッション名", { exact: true }).fill("inbox-review");
+  await preview.getByLabel("Inboxの作成者名", { exact: true }).fill("Edited creator");
   await preview.locator('[name="inbox_generation_prompt"]').fill("p".repeat(8192));
   await preview.getByRole("button", { name: "Proposalを作成" }).click();
   await page.waitForURL("**/creator-sessions/inbox-review");
-  await page.getByLabel("Rationale（任意）", { exact: true }).fill("Inbox bytes reviewed.");
+  await page.getByLabel("理由（任意）", { exact: true }).fill("Inbox bytes reviewed.");
   page.once("dialog", dialog => dialog.accept());
   const navigation = page.waitForEvent("framenavigated", { predicate: (frame) => frame === page.mainFrame() });
-  await page.getByRole("button", { name: "Defer", exact: true }).click();
+  await page.getByRole("button", { name: "保留", exact: true }).click();
   await navigation;
   await page.waitForLoadState("domcontentloaded");
   await expect(page.getByRole("heading", { name: "記録した判断", exact: true })).toBeVisible();

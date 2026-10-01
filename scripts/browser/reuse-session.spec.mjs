@@ -47,7 +47,7 @@ test("import, restart, then reuse the interrupted proposal and record a new deci
   await page.waitForURL("**/creator-sessions/restart-reused");
   expect(await page.locator("img[data-synapse-image]").evaluateAll(images => images.map(image => image.dataset.oid))).toEqual(sourceOids);
   await expect(page.locator("[data-creator-reuse-source]")).toContainText("restart-source");
-  await decide(page, "Adopt");
+  await decide(page, "採用");
   await expect(page.getByRole("heading", { name: "記録した判断", exact: true })).toBeVisible();
 });
 
@@ -66,8 +66,8 @@ test("Defer re-review reuses all images, shows the old reason only as reference,
   await page.getByLabel("ピンの対象画像", { exact: true }).selectOption("ai_output");
   await page.getByRole("button", { name: "中央にピンを追加", exact: true }).click();
   await page.getByLabel("ピン 1 のメモ", { exact: true }).fill(pinNote);
-  await page.getByLabel("Rationale（任意）", { exact: true }).fill("クライアント確認後に決める");
-  await decide(page, "Defer");
+  await page.getByLabel("理由（任意）", { exact: true }).fill("クライアント確認後に決める");
+  await decide(page, "保留");
   await expect(page.locator("[data-generation-note]")).toContainText(generationNote.prompt);
   await expect(page.locator("[data-pin-list]")).toContainText(pinNote);
   await page.setViewportSize({ width: 390, height: 844 });
@@ -75,7 +75,7 @@ test("Defer re-review reuses all images, shows the old reason only as reference,
   await expect(page.getByText("元のDefer理由（参照のみ）: クライアント確認後に決める", { exact: true })).toBeVisible();
   for (const value of Object.values(generationNote)) await expect(page.getByText(value, { exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "元の画像上の判断メモ（参照のみ）", exact: true }).locator("..")).toContainText(pinNote);
-  await expect(page.getByText("ai_output · (500000, 500000) · 輪郭を再確認", { exact: true })).toBeVisible();
+  await expect(page.getByText("AI output · (500000, 500000) · 輪郭を再確認", { exact: true })).toBeVisible();
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.locator('[name="session"]').fill("deferred-rereview");
@@ -86,11 +86,11 @@ test("Defer re-review reuses all images, shows the old reason only as reference,
   await expect(page.locator("[data-creator-reuse-reference]")).toContainText("クライアント確認後に決める");
   for (const value of Object.values(generationNote)) await expect(page.locator("[data-creator-reuse-reference]")).toContainText(value);
   await expect(page.locator("[data-creator-reuse-reference]")).toContainText(pinNote);
-  await expect(page.locator("[data-creator-reuse-reference]")).toContainText("ai_output · (500000, 500000)");
+  await expect(page.locator("[data-creator-reuse-reference]")).toContainText("AI output · (500000, 500000)");
   await expect(page.getByText("生成メモなし", { exact: true })).toBeVisible();
   await expect(page.locator("[data-creator-pins]")).toHaveAttribute("data-annotations", "null");
-  await expect(page.getByLabel("Rationale（任意）", { exact: true })).toHaveValue("");
-  await decide(page, "Adopt");
+  await expect(page.getByLabel("理由（任意）", { exact: true })).toHaveValue("");
+  await decide(page, "採用");
   await expect(page.getByRole("heading", { name: "記録した判断", exact: true })).toBeVisible();
   await page.goto(`${app.origin}/projects/reviews/creator-sessions/deferred-source`);
   const sourceMain = page.locator("main");

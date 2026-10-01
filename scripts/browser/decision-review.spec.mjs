@@ -13,7 +13,7 @@ async function begin(page, app, session) {
   await page.waitForURL(`**/creator-sessions/${session}`);
 }
 
-const rationale = (page) => page.getByLabel("Rationale（任意）", { exact: true });
+const rationale = (page) => page.getByLabel("理由（任意）", { exact: true });
 const recorded = (page) => page.locator("[data-decision-rationale]");
 
 async function recordAndReload(page, action) {
@@ -26,9 +26,9 @@ async function recordAndReload(page, action) {
 }
 
 for (const [button, disposition, outcome] of [
-  ["Adopt", "adopt", "AI outputを変更せず採用"],
-  ["Reject", "reject", "AI outputを採用しない"],
-  ["Defer", "defer", "AI outputの採用を保留"],
+  ["採用", "adopt", "AI outputを変更せず採用"],
+  ["不採用", "reject", "AI outputを採用しない"],
+  ["保留", "defer", "AI outputの採用を保留"],
 ]) {
   test(`${button}: explicit outcome and recorded rationale survive a fresh page load`, async ({ page, app }) => {
     const session = `review-${disposition}`;
@@ -62,7 +62,7 @@ test("cancel keeps rationale and records no decision; keyboard retry remains exp
   let posts = 0;
   page.on("request", (request) => { if (request.method() === "POST") posts += 1; });
   await rationale(page).fill("比較をやり直すため戻ります。");
-  const choice = page.getByRole("button", { name: "Defer", exact: true });
+  const choice = page.getByRole("button", { name: "保留", exact: true });
   page.once("dialog", (dialog) => dialog.dismiss());
   await choice.focus();
   await page.keyboard.press("Enter");
@@ -87,7 +87,7 @@ test("UTF-8 limit blocks before confirmation and failed submission preserves the
   await rationale(page).fill("あ".repeat(1667));
   await expect(counter).toContainText("5001 / 5000 bytes");
   await expect(rationale(page)).toHaveAttribute("aria-invalid", "true");
-  await page.getByRole("button", { name: "Adopt", exact: true }).click();
+  await page.getByRole("button", { name: "採用", exact: true }).click();
   expect(confirms).toBe(0);
   let release;
   const gate = new Promise((resolve) => { release = resolve; });
@@ -100,10 +100,10 @@ test("UTF-8 limit blocks before confirmation and failed submission preserves the
   await rationale(page).fill("あ".repeat(1666) + "ab");
   await expect(counter).toHaveText("5000 / 5000 bytes");
   await expect(rationale(page)).toHaveAttribute("aria-invalid", "false");
-  await page.getByRole("button", { name: "Adopt", exact: true }).click();
+  await page.getByRole("button", { name: "採用", exact: true }).click();
   try {
     await expect(rationale(page)).toBeDisabled();
-    for (const name of ["Adopt", "Reject", "Defer"]) await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
+    for (const name of ["採用", "不採用", "保留"]) await expect(page.getByRole("button", { name, exact: true })).toBeDisabled();
   } finally { release(); }
   await expect(page.locator("[data-synapse-status]")).toContainText("Temporary review failure");
   await expect(rationale(page)).toBeEnabled();
@@ -111,7 +111,7 @@ test("UTF-8 limit blocks before confirmation and failed submission preserves the
   expect(confirms).toBe(1);
   expect(posts).toBe(1);
   await page.unroute("**/creator-sessions/review-limit/decisions");
-  await recordAndReload(page, () => page.getByRole("button", { name: "Adopt", exact: true }).click());
+  await recordAndReload(page, () => page.getByRole("button", { name: "採用", exact: true }).click());
   await expect(recorded(page)).toHaveText("あ".repeat(1666) + "ab");
   expect(confirms).toBe(2);
 });
@@ -119,7 +119,7 @@ test("UTF-8 limit blocks before confirmation and failed submission preserves the
 test("empty rationale has an explicit completed state and completed summary works without JavaScript", async ({ page, app, browser }) => {
   await begin(page, app, "review-empty");
   page.once("dialog", (dialog) => dialog.accept());
-  await recordAndReload(page, () => page.getByRole("button", { name: "Reject", exact: true }).click());
+  await recordAndReload(page, () => page.getByRole("button", { name: "不採用", exact: true }).click());
   await expect(recorded(page)).toHaveText("理由は記録されていません。");
   const context = await browser.newContext({ javaScriptEnabled: false });
   try {
@@ -134,12 +134,12 @@ test("empty rationale has an explicit completed state and completed summary work
 test("review choices and long recorded rationale remain accessible on a narrow screen", async ({ page, app }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await begin(page, app, "review-mobile");
-  await expect(page.getByRole("button", { name: "Adopt", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "採用", exact: true })).toBeVisible();
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await rationale(page).fill("LongWord".repeat(200) + "\n記録した理由");
   page.once("dialog", (dialog) => dialog.accept());
-  await recordAndReload(page, () => page.getByRole("button", { name: "Adopt", exact: true }).click());
+  await recordAndReload(page, () => page.getByRole("button", { name: "採用", exact: true }).click());
   await expect(recorded(page)).toContainText("記録した理由");
   expect(await recorded(page).evaluate((element) => getComputedStyle(element).whiteSpace)).toBe("pre-wrap");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);

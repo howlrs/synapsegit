@@ -23,7 +23,7 @@ test("archive cards support keyboard access, pass axe, and restore an exported p
   await acceptNextDialog(page);
   await exportForm(page).getByRole("button", { name: "Archiveを作成", exact: true }).click();
   await page.waitForURL("**/#archives-heading");
-  await expect(page.getByRole("heading", { name: "Archives", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "アーカイブ", exact: true })).toBeVisible();
   await expect(page.locator("section").filter({ has: page.locator("#archives-heading") })).toContainText(archiveName);
 
   await page.goto(`${app.origin}/projects/restore`);

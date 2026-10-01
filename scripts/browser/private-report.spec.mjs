@@ -69,10 +69,10 @@ test("the saved JSON retains a private generation note, pin, and rationale", asy
   await page.waitForURL(`**/creator-sessions/${session}`);
   await page.getByRole("button", { name: "中央にピンを追加", exact: true }).click();
   await page.getByLabel("ピン 1 のメモ", { exact: true }).fill(pin);
-  await page.getByLabel("Rationale（任意）", { exact: true }).fill(rationale);
+  await page.getByLabel("理由（任意）", { exact: true }).fill(rationale);
   page.once("dialog", dialog => dialog.accept());
   const navigation = page.waitForEvent("framenavigated", { predicate: frame => frame === page.mainFrame() });
-  await page.getByRole("button", { name: "Defer", exact: true }).click();
+  await page.getByRole("button", { name: "保留", exact: true }).click();
   await navigation;
   const downloaded = page.waitForEvent("download");
   await page.getByRole("button", { name: "非公開の記録を保存（JSON）", exact: true }).click();

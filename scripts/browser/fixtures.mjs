@@ -19,6 +19,8 @@ const assets = path.join(root, "docs/tutorial/assets");
 export const original = path.join(assets, "mural-original.png");
 export const current = path.join(assets, "mural-current.png");
 export const output = path.join(assets, "mural-ai-proposal.png");
+// Japanese decision button labels, keyed by the English disposition name used in test titles.
+export const decisionButton = Object.freeze({ Adopt: "採用", Reject: "不採用", Defer: "保留" });
 const mismatchedOutput = path.join(root, "docs/assets/synapse-local/image-comparison.png");
 
 async function appFixture({ archives = false, inbox = false }, use) {

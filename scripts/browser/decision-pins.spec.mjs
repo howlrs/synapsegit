@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { isolatedTest as test, expect, original, current, output } from "./fixtures.mjs";
+import { isolatedTest as test, expect, decisionButton, original, current, output } from "./fixtures.mjs";
 
 test.use({ hasTouch: true });
 
@@ -27,18 +27,18 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     await page.keyboard.press("Shift+ArrowUp");
     await expect(page.getByLabel("ピン 1 X座標", { exact: true })).toHaveValue("510000");
     await expect(page.getByLabel("ピン 1 Y座標", { exact: true })).toHaveValue("499000");
-    await page.getByLabel("Rationale（任意）", { exact: true }).fill("Proposal全体を判断");
+    await page.getByLabel("理由（任意）", { exact: true }).fill("Proposal全体を判断");
     const request = page.waitForRequest(req => req.url().endsWith("/decisions") && req.method() === "POST");
     page.once("dialog", dialog => dialog.accept());
     const navigation = page.waitForEvent("framenavigated", { predicate: frame => frame === page.mainFrame() });
-    await page.getByRole("button", { name: disposition, exact: true }).click();
+    await page.getByRole("button", { name: decisionButton[disposition], exact: true }).click();
     const payload = (await request).postDataJSON();
     expect(payload.annotations.pins[0]).toMatchObject({ role: "ai_output", x: 510000, y: 499000, note });
     expect(payload.annotations.pins[0].blob_oid).toMatch(/^blob:sg-oid-v1:sha256:/u);
     await navigation;
     // The frame-navigation event precedes the new document becoming ready.
     // Wait for the completed view before starting another navigation.
-    await expect(page.getByRole("heading", { name: "Timeline", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "タイムライン", exact: true })).toBeVisible();
     await page.reload();
     const stored = JSON.parse(await page.locator("[data-creator-pins]").getAttribute("data-annotations"));
     expect(stored).toEqual(payload.annotations);
@@ -93,23 +93,23 @@ test("pin and JSON limits prevent submission, cancellation and failure preserve 
   await begin(page, app, "pins-limit");
   await page.getByRole("button", { name: "中央にピンを追加" }).click();
   await page.getByLabel("ピン 1 のメモ", { exact: true }).fill("あ".repeat(67));
-  await expect(page.getByRole("button", { name: "Adopt", exact: true })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "採用", exact: true })).toBeDisabled();
   await page.getByLabel("ピン 1 のメモ", { exact: true }).fill("a".repeat(200));
   for (let index = 2; index <= 10; index += 1) {
     await page.getByRole("button", { name: "中央にピンを追加" }).click();
     await page.getByLabel(`ピン ${index} のメモ`, { exact: true }).fill("a".repeat(200));
   }
   await expect(page.getByRole("button", { name: "中央にピンを追加" })).toBeDisabled();
-  await page.getByLabel("Rationale（任意）", { exact: true }).fill('"'.repeat(3400));
+  await page.getByLabel("理由（任意）", { exact: true }).fill('"'.repeat(3400));
   await expect(page.locator("[data-decision-json-count]")).toContainText("残り -");
-  await expect(page.getByRole("button", { name: "Adopt", exact: true })).toBeDisabled();
-  await page.getByLabel("Rationale（任意）", { exact: true }).fill("判断理由");
+  await expect(page.getByRole("button", { name: "採用", exact: true })).toBeDisabled();
+  await page.getByLabel("理由（任意）", { exact: true }).fill("判断理由");
   page.once("dialog", dialog => dialog.dismiss());
-  await page.getByRole("button", { name: "Defer", exact: true }).click();
+  await page.getByRole("button", { name: "保留", exact: true }).click();
   await expect(page.locator("[data-synapse-status]")).toHaveText("Decisionは送信されませんでした。");
   await page.route("**/creator-sessions/pins-limit/decisions", route => route.fulfill({ status: 503, contentType: "application/problem+json", body: JSON.stringify({ title: "Temporary", detail: "Temporary failure", code: "internal_error" }) }));
   page.once("dialog", dialog => dialog.accept());
-  await page.getByRole("button", { name: "Defer", exact: true }).click();
+  await page.getByRole("button", { name: "保留", exact: true }).click();
   await expect(page.locator("[data-synapse-status]")).toContainText("Temporary failure");
   await expect(page.getByLabel("ピン 10 のメモ", { exact: true })).toHaveValue("a".repeat(200));
   await expect(page.getByLabel("ピン 10 のメモ", { exact: true })).toBeEnabled();

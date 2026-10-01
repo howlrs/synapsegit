@@ -59,6 +59,14 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   newer release or an unreleased source build, is refused with the distinct
   `creator_implementation_unrecognized` code in the CLI and localhost UI instead
   of `creator_report_invalid`.
+- The Japanese localhost interface no longer shows application-supplied
+  English field labels, headings, buttons, filter options, and accessible
+  names, such as Creator name, Subject label, Disposition, Timeline, and the
+  Adopt, Reject, and Defer buttons. Known stored codes such as `adopt`,
+  `different`, and `observation` are shown as Japanese labels. The English
+  interface, stored values, API fields, and data attributes are unchanged. The
+  image roles and protocol terms that the Japanese interface already uses as
+  glossary terms stay in English and are listed in the localhost architecture.
 
 ## [0.13.1] - 2026-09-30
 
