@@ -1795,9 +1795,24 @@ export function enhancePrivateReportDownload(root = document) {
   });
 }
 
+// Recorded times arrive as UTC text so pages stay readable without
+// JavaScript. Show them in the browser's time zone; the title keeps the exact
+// stored value.
+function localizeRecordedTimes() {
+  const format = new Intl.DateTimeFormat(document.documentElement.lang || undefined, {
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", timeZoneName: "short",
+  });
+  for (const element of document.querySelectorAll("time[data-local-time]")) {
+    const date = new Date(element.dateTime);
+    if (!Number.isNaN(date.getTime())) element.textContent = format.format(date);
+  }
+}
+
 function start() {
   document.documentElement.classList.add("has-js");
   preserveLanguageSwitchQuery();
+  localizeRecordedTimes();
   enhancePresentationForm();
   enhanceCreatorPins();
   enhanceApiForms();

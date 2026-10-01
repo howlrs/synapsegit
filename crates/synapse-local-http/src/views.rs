@@ -178,7 +178,7 @@ pub(crate) struct SessionPageView {
     pub(crate) rationale: String,
     pub(crate) subject_label: String,
     pub(crate) creator_name: String,
-    pub(crate) decision_recorded_at: String,
+    pub(crate) decision_recorded_at: TimeView,
     pub(crate) generation_note: String,
     pub(crate) source: Option<synapse_local_service::CreatorSourceBinding>,
     pub(crate) reuse_source: Option<synapse_local_service::CreatorReuseSourceBinding>,
@@ -249,7 +249,7 @@ impl SessionPageView {
                     rationale: String::new(),
                     subject_label: String::new(),
                     creator_name: String::new(),
-                    decision_recorded_at: String::new(),
+                    decision_recorded_at: TimeView::default(),
                     annotations: Vec::new(),
                     annotations_json: String::from("null"),
                     annotations_unavailable: false,
@@ -339,7 +339,7 @@ impl SessionPageView {
                     rationale: String::new(),
                     subject_label: String::new(),
                     creator_name: String::new(),
-                    decision_recorded_at: String::new(),
+                    decision_recorded_at: TimeView::default(),
                     annotations: Vec::new(),
                     annotations_json: String::from("null"),
                     annotations_unavailable: false,
@@ -382,17 +382,30 @@ impl SessionPageView {
             &report.current_blob_oid,
             &report.ai_output_blob_oid,
         );
-        let timeline = report
+        let mut timeline: Vec<TimelineView> = report
             .timeline
             .into_iter()
             .map(|entry| TimelineView {
-                oid: entry.oid,
-                stage: entry.stage,
+                stage_label: m.timeline_stage_label(&entry.stage),
+                stage_code: entry.stage,
                 kind: entry.kind,
-                ordering_time: entry.ordering_time,
-                time_basis: entry.time_basis,
+                time: TimeView::from_recorded(&entry.ordering_time),
+                basis_label: m.timeline_basis_label(&entry.time_basis),
+                basis_code: entry.time_basis,
+                oid: entry.oid,
             })
             .collect();
+        if let Some(recorded_at) = &report.decision_recorded_at {
+            timeline.push(TimelineView {
+                stage_label: m.timeline_stage_label("human_decision"),
+                stage_code: "human_decision".into(),
+                kind: "decision".into(),
+                time: TimeView::from_recorded(recorded_at),
+                basis_label: m.timeline_basis_label("decision_recorded_at"),
+                basis_code: "decision_recorded_at".into(),
+                oid: String::new(),
+            });
+        }
         let (
             has_comparison,
             comparison_outcome,
@@ -440,9 +453,10 @@ impl SessionPageView {
             creator_name: report
                 .creator_name
                 .unwrap_or_else(|| m.session.not_recorded.into()),
-            decision_recorded_at: report
-                .decision_recorded_at
-                .unwrap_or_else(|| m.session.not_recorded.into()),
+            decision_recorded_at: report.decision_recorded_at.as_deref().map_or_else(
+                || TimeView::text(m.session.not_recorded),
+                TimeView::from_recorded,
+            ),
             generation_note: format_generation_note(m, report.generation_note.as_ref()),
             source: report.source,
             reuse_source: report.reuse_source,
@@ -569,7 +583,7 @@ pub(crate) struct SessionSummaryView {
     pub(crate) decision_head: String,
     pub(crate) subject_label: String,
     pub(crate) disposition: String,
-    pub(crate) recorded_at: String,
+    pub(crate) recorded_at: TimeView,
     pub(crate) recorded_time_basis: String,
     pub(crate) source_session: String,
     pub(crate) creator_name: String,
@@ -584,11 +598,72 @@ pub(crate) struct ImageView {
 }
 
 pub(crate) struct TimelineView {
-    pub(crate) oid: String,
-    pub(crate) stage: String,
+    pub(crate) stage_label: String,
+    pub(crate) stage_code: String,
     pub(crate) kind: String,
-    pub(crate) ordering_time: String,
-    pub(crate) time_basis: String,
+    pub(crate) time: TimeView,
+    pub(crate) basis_label: String,
+    pub(crate) basis_code: String,
+    /// Empty for the decision row, whose feedback OID the report omits.
+    pub(crate) oid: String,
+}
+
+/// A recorded timestamp prepared for display.
+///
+/// Without JavaScript the text is the UTC value to the second; the page script
+/// rewrites `<time data-local-time>` into the browser's time zone.  `exact`
+/// keeps the stored value, and `datetime` is empty when the value is not an
+/// RFC 3339 UTC timestamp, in which case the text is shown as stored.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct TimeView {
+    pub(crate) datetime: String,
+    pub(crate) text: String,
+    pub(crate) exact: String,
+}
+
+impl TimeView {
+    pub(crate) fn from_recorded(value: &str) -> Self {
+        let bytes = value.as_bytes();
+        let fraction = value
+            .get(19..value.len().saturating_sub(1))
+            .unwrap_or_default();
+        let valid = value.len() >= 20
+            && value.ends_with('Z')
+            && bytes[..19]
+                .iter()
+                .enumerate()
+                .all(|(index, byte)| match index {
+                    4 | 7 => *byte == b'-',
+                    10 => *byte == b'T',
+                    13 | 16 => *byte == b':',
+                    _ => byte.is_ascii_digit(),
+                })
+            && (fraction.is_empty()
+                || (fraction.len() > 1
+                    && fraction.starts_with('.')
+                    && fraction[1..].bytes().all(|byte| byte.is_ascii_digit())));
+        if !valid {
+            return Self::text(value);
+        }
+        let millis = if fraction.is_empty() {
+            String::new()
+        } else {
+            format!(".{:0<3}", &fraction[1..fraction.len().min(4)])
+        };
+        Self {
+            datetime: format!("{}{millis}Z", &value[..19]),
+            text: format!("{} {} UTC", &value[..10], &value[11..19]),
+            exact: value.to_owned(),
+        }
+    }
+
+    pub(crate) fn text(value: &str) -> Self {
+        Self {
+            datetime: String::new(),
+            text: value.to_owned(),
+            exact: value.to_owned(),
+        }
+    }
 }
 
 fn format_generation_note(

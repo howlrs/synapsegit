@@ -152,7 +152,7 @@
       <tr data-creator-session-row data-state="{{ session.state_code }}" data-disposition="{{ session.disposition }}">
         <th scope="row"><a href="/projects/{{ project_key }}/creator-sessions/{{ session.session }}">{{ session.session }}</a><br><span class="muted">{{ session.subject_label }}</span><br><span class="muted">{{ session.creator_name }}</span></th>
         <td><span class="status-badge" data-tone="{{ session.tone }}">{{ session.state_label }}</span> {{ m.value_label(session.disposition) }}</td>
-        <td>{{ session.recorded_at }}<br><span class="muted">{{ session.recorded_time_basis }}</span></td>
+        <td>{% if session.recorded_at.datetime.is_empty() %}{{ session.recorded_at.text }}{% else %}<time datetime="{{ session.recorded_at.datetime }}" title="{{ session.recorded_at.exact }}" data-local-time>{{ session.recorded_at.text }}</time>{% endif %}<br><span class="muted">{{ session.recorded_time_basis }}</span></td>
         <td>{% if session.source_session == "—" %}—{% else %}<a href="/projects/{{ project_key }}/creator-sessions/{{ session.source_session }}">{{ session.source_session }}</a>{% endif %}</td>
         <td><code>{{ session.proposal_head }}</code><br><code>{{ session.decision_head }}</code></td>
       </tr>

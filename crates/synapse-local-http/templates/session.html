@@ -17,7 +17,7 @@
 <dl class="detail-list" data-session-identity>
   <div><dt>{{ m.session.identity_subject }}</dt><dd>{{ subject_label }}</dd></div>
   <div><dt>{{ m.session.identity_creator }}</dt><dd>{{ creator_name }}</dd></div>
-  <div><dt>{{ m.session.identity_recorded_at }}</dt><dd>{{ decision_recorded_at }}</dd></div>
+  <div><dt>{{ m.session.identity_recorded_at }}</dt><dd>{% if decision_recorded_at.datetime.is_empty() %}{{ decision_recorded_at.text }}{% else %}<time datetime="{{ decision_recorded_at.datetime }}" title="{{ decision_recorded_at.exact }}" data-local-time>{{ decision_recorded_at.text }}</time>{% endif %}</dd></div>
 </dl>
 <p class="field__hint">{{ m.session.identity_hint }}</p>
 <p><a class="button" href="/projects/{{ project_key }}/creator-sessions/{{ session }}/derive">{{ m.session.try_next }}</a></p>
@@ -284,7 +284,7 @@
   <div class="section-heading"><h2 id="timeline-heading">{{ m.session.timeline_heading }}</h2><span class="badge">{{ m.count_events(timeline.len()) }}</span></div>
   <ol class="timeline">
     {% for entry in timeline %}
-    <li class="timeline__item"><div class="timeline__marker" aria-hidden="true"></div><div><p><strong>{{ entry.stage }}</strong> <span class="badge">{{ m.value_label(entry.kind) }}</span></p><p>{{ entry.ordering_time }}</p><p class="muted">{{ entry.time_basis }} · <code>{{ entry.oid }}</code></p></div></li>
+    <li class="timeline__item"><div class="timeline__marker" aria-hidden="true"></div><div><p><strong>{{ entry.stage_label }}</strong> <span class="badge">{{ m.value_label(entry.kind) }}</span></p><p>{% if entry.time.datetime.is_empty() %}{{ entry.time.text }}{% else %}<time datetime="{{ entry.time.datetime }}" title="{{ entry.time.exact }}" data-local-time>{{ entry.time.text }}</time>{% endif %}</p><p class="muted">{{ entry.basis_label }}</p>{% if !entry.oid.is_empty() %}<details class="technical-details"><summary>{{ m.timeline.technical_details }}</summary><p class="muted"><code>{{ entry.stage_code }}</code> · <code>{{ entry.basis_code }}</code> · <code>{{ entry.time.exact }}</code> · <code>{{ entry.oid }}</code></p></details>{% endif %}</div></li>
     {% endfor %}
   </ol>
 </section>

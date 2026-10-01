@@ -452,10 +452,19 @@ codes always keep the code. User-supplied text is never translated.
 The Japanese interface intentionally keeps these glossary terms in English:
 the image roles Original, Current, and AI output; the protocol terms Ref,
 Refs, Ref snapshot, Blob, Proposal, Decision, head, reflog, and fsck; the
-`caller-supplied` qualifier; the product name; and command-line flags. Timeline
-stage and time-basis codes remain as recorded until
-[#151](https://github.com/howlrs/synapsegit/issues/151) replaces them with
-readable descriptions.
+`caller-supplied` qualifier; the product name; and command-line flags.
+
+Timeline rows show a readable stage and time-basis description in both
+languages, such as "recording time; the capture time is unknown". A complete
+session ends with the Human decision row at its DecisionFeedback recording
+time. The stored stage and time-basis codes, the exact stored time, and the
+record OID stay available under each row's collapsed technical details.
+Recorded times are rendered as `<time>` elements whose text is the UTC value
+to the second, so pages stay readable without JavaScript. The page script
+then shows them in the browser's time zone, and the `title` keeps the exact
+stored value. Display formatting never changes stored values, API fields, or
+the CLI text report, and the descriptions keep stating that a recording time
+does not prove when work was done or decided.
 
 ## Two-step creator workflow
 
