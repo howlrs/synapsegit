@@ -173,7 +173,7 @@ v0.8.0の取り込みフォームでは、選択した画像のローカルプ�
 v0.8.0では判断ごとの説明と確認メッセージ、理由のUTF-8バイト数表示を提供し、完了画面で記録された理由を読み返せます。
 Deferも判断の記録を完了します。同じセッションの判断を変更・再開する機能はありません。
 `--import-root PROJECT=INBOX`を設定すると、scriptがmanifestを最後に書いた候補の画像を確認し、保持した同じbytesから新しいProposalを作れます。検証済みの中断Proposalや完了Deferも、記録済みの3画像を別sessionへ引き継いで新しいHuman reviewへ進めます。元の判断は変わりません。
-プロジェクト画面には最大200件の未検証の概要、状態／判断の絞り込み、派生先へのリンクがあります。完全な検証は詳細画面または`fsck`で行います。
+プロジェクトは「セッション」（最初に開くページ）、「取り込む」、「管理」、「履歴」の4ページに分かれています。セッション一覧には最大200件の未検証の概要、状態／判断の絞り込み、派生先へのリンクがあります。完全な検証は詳細画面または`fsck`で行います。
 diagnosticsとmaintenanceはsessionの
 resume、cleanup、history書換えを行いません。
 [local application runbook](./deploy/local/README.md)、[install guide](./docs/install.md)、

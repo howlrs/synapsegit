@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { isolatedTest as test, expect, original, current, output } from "./fixtures.mjs";
 
 async function begin(page, app, session) {
-  await page.goto(`${app.origin}/projects/reviews`);
+  await page.goto(`${app.origin}/projects/reviews/import`);
   await page.locator('[name="session"]').fill(session);
   await page.locator('[name="creator_name"]').fill("Browser reviewer");
   await page.locator('[name="subject_label"]').fill("Review summary fixture");

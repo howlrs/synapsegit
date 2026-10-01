@@ -25,7 +25,7 @@ test("the AI agent guide flow keeps the decision with the person", async ({ page
     expect(before.sessions).toEqual([]);
 
     // Step 5: the person reviews the candidate and decides in the browser.
-    await page.goto(`${app.origin}/projects/pending`);
+    await page.goto(`${app.origin}/projects/pending/import`);
     await expect(page.locator("[data-import-inbox]")).toBeVisible();
     await page.getByRole("button", { name: "確認する" }).click();
     const preview = page.locator("form[data-import-inbox-preview]");

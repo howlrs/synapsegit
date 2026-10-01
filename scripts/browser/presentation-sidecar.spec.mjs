@@ -8,7 +8,7 @@ const api = (page, route) => page.evaluate(async route => {
 }, route);
 
 test("fresh public text previews and downloads without private source text or Core writes", async ({ page, app }) => {
-  await page.goto(`${app.origin}/projects/reviews`);
+  await page.goto(`${app.origin}/projects/reviews/import`);
   await page.locator('[name="session"]').fill("public-source");
   await page.locator('[name="creator_name"]').fill("PRIVATE_CREATOR_CANARY");
   await page.locator('[name="subject_label"]').fill("PRIVATE_SUBJECT_CANARY");

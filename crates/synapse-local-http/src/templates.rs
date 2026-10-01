@@ -37,6 +37,10 @@ pub(crate) struct ProjectTemplate<'a> {
     pub(crate) token: &'a str,
     pub(crate) project_key: &'a str,
     pub(crate) project_label: &'a str,
+    /// One of `sessions`, `import`, `maintenance`, or `history`.
+    pub(crate) tab: &'static str,
+    /// Ready import-inbox candidates, shown on the Import link.
+    pub(crate) inbox_ready: usize,
     pub(crate) watermark: &'a str,
     pub(crate) complete_sessions: usize,
     pub(crate) pending_sessions: usize,

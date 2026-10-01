@@ -189,7 +189,8 @@ The decision form explains each review choice before confirmation, counts
 rationale UTF-8 bytes as you type, and shows the recorded reason on the completed
 session page. Defer records a completed decision; it does not enable reopening
 that session for another review.
-With `--import-root PROJECT=INBOX`, the project page can preview a script's
+A project has four pages: Sessions (the default), Import, Maintenance, and
+History. With `--import-root PROJECT=INBOX`, the Import page can preview a script's
 manifest-last three-image candidate and begin a new Proposal from the retained
 bytes after confirmation. A verified interrupted Proposal or completed Defer
 can also supply its recorded images to a new session with a fresh Human review.

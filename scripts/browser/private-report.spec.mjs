@@ -56,7 +56,7 @@ test("the saved JSON retains a private generation note, pin, and rationale", asy
   const note = "PRIVATE_NOTE_CANARY";
   const pin = "PRIVATE_PIN_CANARY";
   const rationale = "PRIVATE_RATIONALE_CANARY";
-  await page.goto(`${app.origin}/projects/reviews`);
+  await page.goto(`${app.origin}/projects/reviews/import`);
   await page.locator('[name="session"]').fill(session);
   await page.locator('[name="creator_name"]').fill("Private report reviewer");
   await page.locator('[name="subject_label"]').fill("Private report fixture");
@@ -105,7 +105,7 @@ test("a malformed, non-complete, or unavailable response shows an error and star
 });
 
 test("pending sessions do not offer a private report save action", async ({ page, app }) => {
-  await page.goto(`${app.origin}/projects/reviews`);
+  await page.goto(`${app.origin}/projects/reviews/import`);
   await page.locator('[name="session"]').fill("private-report-pending");
   await page.locator('[name="creator_name"]').fill("Private report reviewer");
   await page.locator('[name="subject_label"]').fill("Pending fixture");

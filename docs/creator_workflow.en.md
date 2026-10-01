@@ -16,7 +16,7 @@ serves only IPv4 loopback. The security limits are summarized in the
 
 ## Record a proposal and optional generation notes
 
-On a project page, create a new session with a session name, display name,
+On a project's **Import** page, create a new session with a session name, display name,
 and exactly three files: Original, Current, and an AI-attributed output. The
 output is a file you supply. SynapseGit does not call a model or verify that a
 model generated it. Selecting a file does not upload it.

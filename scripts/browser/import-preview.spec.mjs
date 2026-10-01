@@ -8,7 +8,7 @@ const preview = (page, name) => field(page, name).locator("[data-creator-preview
 const summary = (page) => page.locator("[data-creator-file-summary]");
 
 async function visit(page, app) {
-  await page.goto(`${app.origin}/projects/pending`);
+  await page.goto(`${app.origin}/projects/pending/import`);
   await expect(form(page)).toBeVisible();
   await expect(page.locator("[data-creator-preview-note]")).toBeVisible();
 }

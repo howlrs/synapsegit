@@ -443,6 +443,41 @@ pre {
   gap: var(--space-5);
 }
 
+/* Project pages: sessions, import, maintenance, and history. */
+.subnav {
+  margin-block: 0 var(--space-5);
+  border-bottom: 1px solid var(--line);
+}
+
+.subnav ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subnav a {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 3px solid transparent;
+  color: var(--ink-muted);
+  font-weight: 680;
+  text-decoration: none;
+}
+
+.subnav a:hover {
+  color: var(--ink);
+}
+
+.subnav a[aria-current="page"] {
+  border-bottom-color: var(--accent);
+  color: var(--ink);
+}
+
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
@@ -451,6 +486,11 @@ pre {
   border: 1px solid var(--line);
   border-radius: var(--radius);
   background: var(--line);
+}
+
+/* The session counts stay on one row, even at phone width. */
+.metric-grid--three {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .metric {

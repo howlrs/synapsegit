@@ -4,7 +4,7 @@ import { isolatedTest as test, expect, decisionButton, original, current, output
 test.use({ hasTouch: true });
 
 async function begin(page, app, session) {
-  await page.goto(`${app.origin}/projects/reviews`);
+  await page.goto(`${app.origin}/projects/reviews/import`);
   await page.locator('[name="session"]').fill(session);
   await page.locator('[name="creator_name"]').fill("Pin reviewer");
   await page.locator('[name="subject_label"]').fill("位置付きメモ");

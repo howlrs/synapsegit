@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { archiveTest, isolatedTest as test, expect, original, current, output } from "./fixtures.mjs";
 
 async function beginEnglishReview(page, app, session) {
-  await page.goto(`${app.origin}/projects/reviews?lang=en`);
+  await page.goto(`${app.origin}/projects/reviews/import?lang=en`);
   await page.locator('[name="session"]').fill(session);
   await page.locator('[name="creator_name"]').fill("English browser reviewer");
   await page.locator('[name="subject_label"]').fill("English review fixture");
@@ -24,7 +24,7 @@ async function acceptDecision(page, choice) {
 
 test("English selection persists through import, decision, recorded rationale, and a narrow layout", async ({ page, app }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto(`${app.origin}/projects/reviews?lang=en`);
+  await page.goto(`${app.origin}/projects/reviews/import?lang=en`);
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
   await expect(page.getByRole("link", { name: "English", exact: true })).toHaveAttribute("aria-current", "page");
   await expect(page.getByRole("heading", { name: "Start a creator session", exact: true })).toBeVisible();
@@ -166,7 +166,7 @@ test("English re-review creates a separate session from a deferred record", asyn
 
 archiveTest("English maintenance requires exact keys and an explicit empty-target acknowledgement", async ({ page, app }) => {
   const exportForm = page.locator('form[data-confirm-maintenance="archive-export"]');
-  await page.goto(`${app.origin}/projects/complete?lang=en`);
+  await page.goto(`${app.origin}/projects/complete/maintenance?lang=en`);
   const fsck = page.locator('form[data-confirm-maintenance="fsck"]');
   const fsckKey = fsck.locator('[name="confirm_project_key"]');
   const fsckButton = fsck.getByRole("button", { name: "Run read-only fsck", exact: true });
@@ -187,7 +187,7 @@ archiveTest("English maintenance requires exact keys and an explicit empty-targe
   page.once("dialog", (dialog) => dialog.accept());
   await exportForm.getByRole("button", { name: "Create archive", exact: true }).click();
   await page.waitForURL("**/#archives-heading");
-  await page.goto(`${app.origin}/projects/restore?lang=en`);
+  await page.goto(`${app.origin}/projects/restore/maintenance?lang=en`);
   const restore = page.locator('form[data-archive-restore="true"]');
   const name = restore.locator('[name="archive_name"]');
   const key = restore.locator('[name="confirm_target_project_key"]');

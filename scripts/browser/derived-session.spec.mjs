@@ -5,7 +5,7 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
   test(`derive from ${disposition} with one fresh candidate and unchanged reference bytes`, async ({ page, app }) => {
     test.setTimeout(120_000);
     const source = `source-${disposition.toLowerCase()}`;
-    await page.goto(`${app.origin}/projects/reviews`);
+    await page.goto(`${app.origin}/projects/reviews/import`);
     await page.locator('[name="session"]').fill(source);
     await page.locator('[name="creator_name"]').fill("元の表示名");
     await page.locator('[name="subject_label"]').fill("元の作品名");

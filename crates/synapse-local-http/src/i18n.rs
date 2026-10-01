@@ -340,6 +340,12 @@ message_section! {
     /// Project dashboard, import forms, session list, and maintenance.
     Project {
         local_available: "ローカル・利用可能", "Local · available";
+        subnav_label: "プロジェクト内のページ", "Project pages";
+        tab_sessions: "セッション", "Sessions";
+        tab_import: "取り込む", "Import";
+        tab_maintenance: "管理", "Maintenance";
+        tab_history: "履歴", "History";
+        inbox_ready_notice: "取り込み待ちの候補があります。「取り込む」で確認してください。", "Candidates are waiting to be imported. Review them under Import.";
         create_public_notes: "公開用の制作ノートを作る", "Create public production notes";
         overview_label: "プロジェクト概要", "Project overview";
         inbox_eyebrow: "スクリプト出力のInbox", "Manifest-last inbox";
@@ -385,7 +391,7 @@ message_section! {
         filter_label: "状態・判断で絞り込む", "Filter by state or decision";
         filter_all: "すべて", "All";
         no_sessions_heading: "セッションはまだありません", "No sessions yet";
-        no_sessions_help: "上のフォームから3ファイルを取り込み、最初のproposalとHuman reviewを開始できます。", "Import three files with the form above to start the first proposal and Human review.";
+        no_sessions_help: "「取り込む」で3ファイルを取り込むと、最初のproposalとHuman reviewを開始できます。", "Import three files under Import to start the first proposal and Human review.";
         column_session: "セッション／内容", "Session / content";
         column_state: "状態・判断", "State / decision";
         column_recorded_at: "記録日時", "Recorded at";
@@ -782,6 +788,10 @@ impl Messages {
 
     pub(crate) fn count_sessions(&self, count: impl Borrow<usize>) -> String {
         self.count(*count.borrow(), "session", "sessions")
+    }
+
+    pub(crate) fn count_candidates(&self, count: impl Borrow<usize>) -> String {
+        self.count(*count.borrow(), "candidate", "candidates")
     }
 
     pub(crate) fn count_events(&self, count: impl Borrow<usize>) -> String {

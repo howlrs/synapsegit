@@ -113,7 +113,7 @@ synapse creator-report "$REPO" inbox-north-wall-2 --format json
 ```
 
 `creator-list` is an unverified overview (`"verified": false`). Use it to
-find the session. The project page suggests `inbox-<slug>` as the session
+find the session. The project's Import page suggests `inbox-<slug>` as the session
 name, but the person can change it. `creator-report` rebuilds the verified
 record of one session. A session that is still waiting for review is listed
 as `incomplete`.
@@ -126,7 +126,7 @@ Stop `synapse-local`, then export a checksum-bound archive to a new directory:
 synapse export "$REPO" "$HOME/SynapseGit/backup-north-wall-2"
 ```
 
-The person can also export from the project page while `synapse-local` runs.
+The person can also export from the project's Maintenance page while `synapse-local` runs.
 
 ## Output and errors
 
