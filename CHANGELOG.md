@@ -19,6 +19,16 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   release below the current version is missing. Restore regression fixtures
   written by the v0.1.0 and v0.11.0 release binaries, and by an unreleased
   source build, cover both outcomes.
+- `synapse creator-list REPO [--format text|json]` prints an unverified
+  overview of every creator session: name, state, disposition, recorded
+  time, Subject label, and creator name. Each session takes at most six
+  bounded reads, the same values as the localhost dashboard, which now uses
+  the shared `synapse_creator::read_creator_session_overview`. `--format json`
+  prints a `synapsegit-cli-creator-list-v1` document.
+- Every `synapse` command prints its own usage and description for
+  `--help`, `-h`, or `synapse help COMMAND` without running. Common errors
+  whose next step is not in the message add one `hint:` line after the
+  unchanged `<code>:` line.
 - `synapse inbox put` writes one candidate for the `synapse-local` import
   inbox without opening a repository, creating a Proposal, or recording a
   decision. It copies the three files under fixed names, records their sizes
@@ -61,6 +71,8 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ### Fixed
 
+- `synapse init --help` no longer creates a repository named `--help`. Every
+  command now treats `--help` and `-h` as a help request.
 - Localhost session-name, archive-name, and confirmation fields use a slug
   `pattern` that stays valid under the `v` flag that browsers apply to HTML
   `pattern`. The unescaped trailing `-` made browsers ignore the attribute, so

@@ -29,6 +29,7 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 - primary Blob OIDだけを比較する保守的なbyte-identity Analysis
 - timeline、decision、evidence、replay prerequisiteを検査するcreator report
 - `creator-report --format json`によるversion付きprivate-local JSON document。`--format text`と省略時は従来のtext reportを維持する
+- `creator-list`による全sessionの未検証の概要（text／`synapsegit-cli-creator-list-v1` JSON）、commandごとの`--help`、主なerrorでの`hint:`行
 - complete Creator sessionの**非公開の記録を保存（JSON）**。操作時に既存の認証付きsession detailを改めて検証して取得し、`{"state":"complete","report":{...}}`を非公開JSONとして保存する。pending／incompleteには表示せず、再取得した記録の検証に失敗した場合は保存しない。理由、`generation_note`、annotation／pin、internal ID、source lineageを含み得るため、public bundleやrepository backupとは別であり、CLI JSON documentと交換可能ではない
 - `creator-run --generation-note-file`によるprivate・user-declared生成メモの記録。通常archive／local reportには残るが、public bundleへは出力しない
 - project、session、evidence、画像を読むloopback-only localhost UI

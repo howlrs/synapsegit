@@ -1590,3 +1590,180 @@ fn creator_report_names_the_subject_creator_and_decision_time() {
             .ends_with('Z')
     );
 }
+
+fn creator_run_session(temp: &TempDirectory, repository: &Path, session: &str, decision: &str) {
+    for (name, bytes) in [
+        ("original.bin", b"original".as_slice()),
+        ("current.bin", b"current"),
+        ("candidate.bin", b"candidate"),
+    ] {
+        fs::write(temp.join(name), bytes).unwrap();
+    }
+    assert_success(&run_owned(vec![
+        "creator-run".into(),
+        repository.to_str().unwrap().into(),
+        session.into(),
+        temp.join("original.bin").to_str().unwrap().into(),
+        temp.join("current.bin").to_str().unwrap().into(),
+        temp.join("candidate.bin").to_str().unwrap().into(),
+        "--subject".into(),
+        format!("Subject {session}"),
+        "--creator".into(),
+        "Aki".into(),
+        "--decision".into(),
+        decision.into(),
+    ]));
+}
+
+#[test]
+fn creator_list_prints_an_unverified_overview_in_text_and_json() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    assert_success(&run(&["init", repository.to_str().unwrap()]));
+    let empty = run(&["creator-list", repository.to_str().unwrap()]);
+    assert_success(&empty);
+    let empty = String::from_utf8(empty.stdout).unwrap();
+    assert_eq!(empty.lines().count(), 1, "{empty}");
+    assert!(empty.starts_with("# session\tstate\t"));
+
+    creator_run_session(&temp, &repository, "first", "adopt");
+    creator_run_session(&temp, &repository, "second", "defer");
+    let text = run(&["creator-list", repository.to_str().unwrap()]);
+    assert_success(&text);
+    let text = String::from_utf8(text.stdout).unwrap();
+    let rows: Vec<Vec<&str>> = text
+        .lines()
+        .skip(1)
+        .map(|line| line.split('\t').collect())
+        .collect();
+    assert_eq!(rows.len(), 2, "{text}");
+    assert_eq!(rows[0][..3], ["first", "complete", "adopt"]);
+    assert_eq!(rows[1][..3], ["second", "complete", "defer"]);
+    assert!(rows[0][3].ends_with('Z'));
+    assert_eq!(rows[0][4], "\"Subject first\"");
+    assert_eq!(rows[0][5], "\"Aki\"");
+
+    let json = json_stdout(&run(&[
+        "creator-list",
+        repository.to_str().unwrap(),
+        "--format",
+        "json",
+    ]));
+    assert_eq!(json["format"], "synapsegit-cli-creator-list-v1");
+    assert_eq!(json["verified"], false);
+    assert_eq!(json["sessions"][1]["session"], "second");
+    assert_eq!(json["sessions"][1]["disposition"], "defer");
+    assert_eq!(json["sessions"][1]["recorded_time_basis"], "recorded_at");
+    assert_eq!(json["sessions"][0]["subject_label"], "Subject first");
+
+    let missing = temp.join("missing");
+    let output = run(&["creator-list", missing.to_str().unwrap()]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).starts_with("repository_not_found: "));
+    assert!(!missing.exists());
+}
+
+#[test]
+fn every_command_has_its_own_help_and_help_never_runs_the_command() {
+    let temp = TempDirectory::new();
+    for command in [
+        "init",
+        "put-blob",
+        "put-record",
+        "build-tree",
+        "commit",
+        "put-object",
+        "update-ref",
+        "refs",
+        "fsck",
+        "export",
+        "restore",
+        "creator-run",
+        "creator-report",
+        "creator-list",
+        "inbox",
+    ] {
+        for arguments in [
+            vec![command, "--help"],
+            vec![command, "-h"],
+            vec!["help", command],
+        ] {
+            let output = Command::new(env!("CARGO_BIN_EXE_synapse"))
+                .args(&arguments)
+                .current_dir(&temp.0)
+                .output()
+                .unwrap();
+            assert_success(&output);
+            let stdout = String::from_utf8(output.stdout).unwrap();
+            assert!(stdout.starts_with("Usage:\n"), "{arguments:?}: {stdout}");
+            assert!(
+                stdout.contains(&format!("synapse {command}")),
+                "{arguments:?}"
+            );
+        }
+    }
+    // `init --help` used to create a repository named `--help`.
+    assert!(fs::read_dir(&temp.0).unwrap().next().is_none());
+    let unknown = run(&["help", "nothing"]);
+    assert_eq!(unknown.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&unknown.stderr).starts_with("usage_error: "));
+}
+
+#[test]
+fn common_errors_add_one_hint_line_after_the_stable_code() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    assert_success(&run(&["init", repository.to_str().unwrap()]));
+    creator_run_session(&temp, &repository, "exists", "reject");
+
+    let not_found = run(&["creator-report", repository.to_str().unwrap(), "nope"]);
+    assert_eq!(not_found.status.code(), Some(1));
+    let stderr = String::from_utf8(not_found.stderr).unwrap();
+    let lines: Vec<_> = stderr.lines().collect();
+    assert!(
+        lines[0].starts_with("creator_session_not_found: "),
+        "{stderr}"
+    );
+    assert_eq!(
+        lines[1],
+        "hint: list the sessions with `synapse creator-list REPO`"
+    );
+
+    let missing_input = temp.join("missing.png");
+    let output = run(&[
+        "creator-run",
+        repository.to_str().unwrap(),
+        "new-session",
+        missing_input.to_str().unwrap(),
+        temp.join("current.bin").to_str().unwrap(),
+        temp.join("candidate.bin").to_str().unwrap(),
+        "--subject",
+        "Subject",
+        "--creator",
+        "Aki",
+        "--decision",
+        "defer",
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.starts_with("storage_error: "), "{stderr}");
+    assert!(stderr.contains("\nhint: check that each input path exists"));
+
+    let exists = run_owned(vec![
+        "creator-run".into(),
+        repository.to_str().unwrap().into(),
+        "exists".into(),
+        temp.join("original.bin").to_str().unwrap().into(),
+        temp.join("current.bin").to_str().unwrap().into(),
+        temp.join("candidate.bin").to_str().unwrap().into(),
+        "--subject".into(),
+        "Subject".into(),
+        "--creator".into(),
+        "Aki".into(),
+        "--decision".into(),
+        "defer".into(),
+    ]);
+    let stderr = String::from_utf8(exists.stderr).unwrap();
+    assert!(stderr.starts_with("creator_session_exists: "));
+    assert!(stderr.contains("\nhint: choose a new session name"));
+}

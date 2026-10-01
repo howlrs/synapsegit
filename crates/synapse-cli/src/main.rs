@@ -12,8 +12,8 @@ use synapse_canonical::{DEFAULT_MAX_STRUCTURED_BYTES, ObjectKind};
 use synapse_core::{Repository, RepositoryError};
 use synapse_creator::{
     CreatorDisposition, CreatorError, CreatorGenerationNote, CreatorReport, CreatorRunOptions,
-    ImportInboxCandidate, creator_report, put_import_inbox_candidate,
-    run_creator_session_with_note,
+    CreatorSessionState, ImportInboxCandidate, creator_report, discover_creator_sessions,
+    put_import_inbox_candidate, read_creator_session_overview, run_creator_session_with_note,
 };
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
 
@@ -37,6 +37,7 @@ Usage:
   synapse restore <archive-dir> <repo>
   synapse creator-run <repo> <session> <original> <current> <ai-output> --subject <label> --creator <name> --decision <adopt|reject|defer> [--rationale <text>] [--generation-note-file <path>]
   synapse creator-report <repo> <session> [--format text|json]
+  synapse creator-list <repo> [--format text|json]
   synapse inbox put <inbox-dir> <slug> <original> <current> <ai-output> --subject <label> --creator <name> [--generation-note-file <path>] [--format text|json]
 
 creator-report --format json prints one private, LOCAL-only JSON document to
@@ -53,6 +54,12 @@ creator-run --generation-note-file accepts a UTF-8 JSON object with optional
 user-declared note; it is not execution or authorship evidence and is never
 included in public bundles. Each field is limited to 300, 300, 8192, and 2048
 UTF-8 bytes respectively, with a 16 KiB serialized-note limit.
+
+Run `synapse COMMAND --help` or `synapse help COMMAND` for one command.
+
+creator-list prints an unverified overview of every creator session, read
+with at most six bounded reads per session. Use creator-report for the
+verified record of one session.
 
 inbox put writes one candidate for the synapse-local import inbox. It needs no
 repository, records no decision, and creates no Proposal: a person reviews the
@@ -113,6 +120,30 @@ impl CliError {
                 "creator_report_unavailable_after_commit"
             }
             Self::FsckFailed => "fsck_failed",
+        }
+    }
+
+    /// One line of advice for errors whose next step is not in the message.
+    fn hint(&self) -> Option<&'static str> {
+        if let Self::Creator(CreatorError::Io { operation, .. }) = self {
+            if operation.contains("input") {
+                return Some("check that each input path exists and names a readable regular file");
+            }
+        }
+        match self.code() {
+            "creator_session_exists" => Some(
+                "choose a new session name; inspect the existing one with `synapse creator-report REPO SESSION`",
+            ),
+            "creator_session_incomplete" => Some(
+                "an earlier attempt left partial history, which is never resumed or rewritten; choose a new session name, or open the session in synapse-local to diagnose it",
+            ),
+            "creator_session_not_found" => {
+                Some("list the sessions with `synapse creator-list REPO`")
+            }
+            "fsck_failed" => Some(
+                "history is never rewritten automatically; review the listed issues and keep a verified archive",
+            ),
+            _ => None,
         }
     }
 
@@ -181,6 +212,9 @@ fn main() -> ExitCode {
         Err(error) => {
             let show_usage = error.code() == "usage_error";
             eprintln!("{}: {error}", error.code());
+            if let Some(hint) = error.hint() {
+                eprintln!("hint: {hint}");
+            }
             if show_usage {
                 eprintln!("\n{USAGE}");
             }
@@ -193,6 +227,20 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
     let Some(command) = args.first().map(String::as_str) else {
         return Err(CliError::Usage("a command is required".into()));
     };
+    if command != "inbox" && matches!(args.get(1).map(String::as_str), Some("--help" | "-h")) {
+        if let Some(help) = command_help(command) {
+            print!("{help}");
+            return Ok(());
+        }
+    }
+    if command == "help" {
+        if let Some(topic) = args.get(1) {
+            let help = command_help(topic)
+                .ok_or_else(|| CliError::Usage(format!("unknown command {topic:?}")))?;
+            print!("{help}");
+            return Ok(());
+        }
+    }
     match command {
         "init" => {
             require_len(&args, 2)?;
@@ -244,6 +292,7 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
         "creator-run" => creator_run(&args)?,
         "creator-report" => creator_report_command(&args)?,
         "inbox" => inbox_command(&args)?,
+        "creator-list" => creator_list_command(&args)?,
         "help" | "--help" | "-h" => println!("{USAGE}"),
         "version" | "--version" | "-V" => println!("{VERSION}"),
         other => return Err(CliError::Usage(format!("unknown command {other:?}"))),
@@ -349,6 +398,151 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
     );
     println!("disposition={}", receipt.disposition.as_cli_str());
     print_creator_report(&report);
+    Ok(())
+}
+
+/// Usage and a short description for one command, or `None` when unknown.
+fn command_help(command: &str) -> Option<String> {
+    if command == "inbox" {
+        return Some(INBOX_USAGE.to_owned());
+    }
+    let prefix = format!("  synapse {command} ");
+    let lines: Vec<&str> = USAGE
+        .lines()
+        .filter(|line| line.starts_with(&prefix))
+        .collect();
+    if lines.is_empty() {
+        return None;
+    }
+    let description = match command {
+        "init" => {
+            "Create an empty repository at <repo>, or succeed when it is already complete. A nonempty directory that is not a repository is refused."
+        }
+        "put-blob" => {
+            "Store a file as one Blob and print its OID. --claimed refuses a different OID."
+        }
+        "put-record" | "build-tree" | "commit" | "put-object" => {
+            "Store one strict structured object and print its OID. --claimed refuses a different OID. This is a low-level trusted-operator command."
+        }
+        "update-ref" => {
+            "Compare-and-swap one Ref from <expected-oid> (or - to create) to <new-oid> and append a reflog entry. This is a low-level trusted-operator command."
+        }
+        "refs" => "Print the current Refs as <name><TAB><commit-oid>.",
+        "fsck" => {
+            "Check stored objects and the closure of the current Refs. Exits 1 with fsck_failed when an issue is found."
+        }
+        "export" => {
+            "Write a checksum-bound directory archive to a new <archive-dir>. An existing destination is never replaced."
+        }
+        "restore" => "Verify an archive and restore it into an empty <repo>.",
+        "creator-run" => {
+            "Import three files and record the Human Decision in one run. The decision is recorded as made by a person: an AI agent must not choose it, and should place candidates with `synapse inbox put` for a person to decide in synapse-local. --generation-note-file accepts a UTF-8 JSON object with optional tool, model, prompt, and intent strings (300, 300, 8192, and 2048 UTF-8 bytes, 16 KiB in total)."
+        }
+        "creator-report" => {
+            "Rebuild and print the verified report of one creator session. --format json prints one private, local-only document tagged \"format\": \"synapsegit-cli-creator-report-v1\"; it may contain rationale, generation notes, pins, and internal identifiers, so do not share it."
+        }
+        "creator-list" => {
+            "Print an unverified overview of every creator session: name, state, disposition, recorded time, Subject label, and creator name, read with at most six bounded reads per session. A review waiting in a running synapse-local is shown as incomplete. Use creator-report for the verified record. --format json prints one document tagged \"format\": \"synapsegit-cli-creator-list-v1\"."
+        }
+        _ => "",
+    };
+    Some(format!("Usage:\n{}\n\n{description}\n", lines.join("\n")))
+}
+
+const CREATOR_LIST_FORMAT: &str = "synapsegit-cli-creator-list-v1";
+const CREATOR_LIST_MAX_REFS: usize = 100_000;
+const CREATOR_LIST_MAX_SESSIONS: usize = 50_000;
+
+fn creator_list_command(args: &[String]) -> Result<(), CliError> {
+    let format = match args.len() {
+        2 => CreatorReportFormat::Text,
+        4 if args[2] == "--format" => match args[3].as_str() {
+            "text" => CreatorReportFormat::Text,
+            "json" => CreatorReportFormat::Json,
+            other => {
+                return Err(CliError::Usage(format!(
+                    "--format must be text or json, got {other:?}"
+                )));
+            }
+        },
+        _ => {
+            return Err(CliError::Usage(
+                "creator-list requires <repo> and accepts only --format text|json".into(),
+            ));
+        }
+    };
+    let repository = Repository::open_existing(&args[1])?;
+    let snapshot = repository
+        .refs()
+        .snapshot_limited(CREATOR_LIST_MAX_REFS)
+        .map_err(RepositoryError::from)?;
+    let sessions = discover_creator_sessions(&repository, &snapshot, CREATOR_LIST_MAX_SESSIONS)?;
+    let rows: Vec<_> = sessions
+        .into_iter()
+        .map(|session| {
+            let complete = session.state == CreatorSessionState::Complete;
+            let overview = session
+                .decision_head
+                .as_deref()
+                .or(session.proposal_head.as_deref())
+                .map(|head| read_creator_session_overview(&repository, head, complete))
+                .unwrap_or_default();
+            let state = if complete && !overview.incomplete {
+                "complete"
+            } else {
+                "incomplete"
+            };
+            (session.session, state, overview)
+        })
+        .collect();
+    match format {
+        CreatorReportFormat::Text => {
+            println!(
+                "# session\tstate\tdisposition\trecorded_at\tsubject_label\tcreator_name (unverified overview; run creator-report for the verified record)"
+            );
+            for (session, state, overview) in &rows {
+                let quoted = |value: &Option<String>| {
+                    value
+                        .as_ref()
+                        .map_or_else(|| "-".to_owned(), |value| format!("{value:?}"))
+                };
+                println!(
+                    "{session}\t{state}\t{}\t{}\t{}\t{}",
+                    overview.disposition.unwrap_or("-"),
+                    overview.recorded_at.as_deref().unwrap_or("-"),
+                    quoted(&overview.subject_label),
+                    quoted(&overview.creator_name),
+                );
+            }
+        }
+        CreatorReportFormat::Json => {
+            let sessions: Vec<_> = rows
+                .iter()
+                .map(|(session, state, overview)| {
+                    serde_json::json!({
+                        "session": session,
+                        "state": state,
+                        "disposition": overview.disposition,
+                        "recorded_at": overview.recorded_at,
+                        "recorded_time_basis": overview.recorded_time_basis.map(|basis| basis.as_str()),
+                        "subject_label": overview.subject_label,
+                        "creator_name": overview.creator_name,
+                        "source_session": overview.source_session,
+                    })
+                })
+                .collect();
+            let document = serde_json::json!({
+                "format": CREATOR_LIST_FORMAT,
+                "scope": "private_local",
+                "verified": false,
+                "sessions": sessions,
+            });
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&document).expect("serializable creator list")
+            );
+        }
+    }
     Ok(())
 }
 
