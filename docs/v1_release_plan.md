@@ -110,6 +110,7 @@ v1形式の凍結前に方針を決める設計（決定済み）:
 - [#153](https://github.com/howlrs/synapsegit/issues/153) 200件を超えるsessionの検索とページ送り
 - [#154](https://github.com/howlrs/synapsegit/issues/154) 公開bundleの生成とpreviewをlocalhost UIで完結させる
 - [#156](https://github.com/howlrs/synapsegit/issues/156) session名とarchive名の既定値の提案
+- [#183](https://github.com/howlrs/synapsegit/issues/183) macOSの`/tmp`など、OSが用意したsymlinkを含む絶対パスでの公開用bundle書き出し（#158で発見。home配下なら回避できる）
 
 AIエージェントはCLIでこれらの操作を代わりに行えるため、v1.0の利用モデルでは必須にしない。
 

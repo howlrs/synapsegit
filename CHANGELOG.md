@@ -54,6 +54,13 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
 
 ### Changed
 
+- A project in `synapse-local` now has four pages instead of one long page:
+  Sessions (the default, with the counts, filter, and name locator), Import
+  (the three-image form and the import inbox), Maintenance (fsck and archive
+  export and restore), and History (Refs, recent changes, and the Ref
+  snapshot). A shared navigation marks the current page. The Import link
+  shows how many inbox candidates are ready, and the Sessions page points to
+  them.
 - The localhost session Timeline shows readable stages and time-basis
   descriptions in Japanese and English, ends with the Human decision row, and
   keeps the stored codes, exact time, and record OID under collapsed technical

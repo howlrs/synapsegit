@@ -1150,6 +1150,41 @@ pub(crate) async fn project_page(
     locale: Locale,
     Path(project_key): Path<String>,
 ) -> Response {
+    project_tab_page(state, locale, project_key, "sessions").await
+}
+
+pub(crate) async fn project_import_page(
+    State(state): State<AppState>,
+    locale: Locale,
+    Path(project_key): Path<String>,
+) -> Response {
+    project_tab_page(state, locale, project_key, "import").await
+}
+
+pub(crate) async fn project_maintenance_page(
+    State(state): State<AppState>,
+    locale: Locale,
+    Path(project_key): Path<String>,
+) -> Response {
+    project_tab_page(state, locale, project_key, "maintenance").await
+}
+
+pub(crate) async fn project_history_page(
+    State(state): State<AppState>,
+    locale: Locale,
+    Path(project_key): Path<String>,
+) -> Response {
+    project_tab_page(state, locale, project_key, "history").await
+}
+
+/// One project page: the session list, import, maintenance, or history.
+/// Every page reads the same consistent dashboard snapshot.
+async fn project_tab_page(
+    state: AppState,
+    locale: Locale,
+    project_key: String,
+    tab: &'static str,
+) -> Response {
     let m = locale.messages();
     let key = project_key.clone();
     let dashboard = match run_dashboard(state.clone(), project_key).await {
@@ -1275,6 +1310,8 @@ pub(crate) async fn project_page(
             token: state.security.token(),
             project_key: &key,
             project_label: &project_label,
+            tab,
+            inbox_ready: dashboard.inbox_ready,
             watermark: &watermark,
             complete_sessions: dashboard.status.creator_session_counts.complete,
             pending_sessions: dashboard.status.creator_session_counts.pending_review,
@@ -1300,6 +1337,9 @@ struct Dashboard {
     refs: synapse_local_service::RefList,
     reflog: synapse_local_service::ReflogPage,
     sessions: synapse_local_service::CreatorSessionList,
+    /// Ready import-inbox candidates; zero when no inbox is configured or the
+    /// listing is unavailable, which never fails the page.
+    inbox_ready: usize,
 }
 
 fn short_oid(value: Option<&str>) -> String {
@@ -1338,11 +1378,19 @@ async fn run_dashboard(state: AppState, project_key: String) -> Result<Dashboard
                 && reflog.snapshot.watermark == *watermark
                 && sessions.snapshot.watermark == *watermark
             {
+                let inbox_ready = if service.import_inbox_configured(&project_key) {
+                    service.list_import_inbox(&project_key).map_or(0, |list| {
+                        list.items.iter().filter(|item| item.ready).count()
+                    })
+                } else {
+                    0
+                };
                 return Ok(Some(Dashboard {
                     status,
                     refs,
                     reflog,
                     sessions,
+                    inbox_ready,
                 }));
             }
         }

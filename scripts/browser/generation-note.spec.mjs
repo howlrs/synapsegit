@@ -3,7 +3,7 @@ import { isolatedTest as test, expect, decisionButton, original, current, output
 
 for (const disposition of ["Adopt", "Reject", "Defer"]) {
   test(`generation note survives ${disposition} and reload`, async ({ page, app }) => {
-    await page.goto(`${app.origin}/projects/reviews`);
+    await page.goto(`${app.origin}/projects/reviews/import`);
     if (disposition === "Adopt") {
       await page.getByText("提案の生成メモ（任意）", { exact: true }).click();
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);

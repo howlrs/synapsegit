@@ -128,7 +128,7 @@ async fn pages_negotiate_and_persist_display_language_without_localizing_api_res
     let english = app
         .clone()
         .oneshot(
-            request("/projects/demo")
+            request("/projects/demo/import")
                 .header(header::COOKIE, "synapse_local_lang=en")
                 .body(Body::empty())
                 .unwrap(),
@@ -165,7 +165,11 @@ async fn import_inbox_page_is_rendered_only_for_configured_projects() {
     let (_directory, app) = test_app();
     let page = app
         .clone()
-        .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+        .oneshot(
+            request("/projects/demo/import")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(page.status(), StatusCode::OK);
@@ -192,7 +196,11 @@ async fn import_inbox_page_is_rendered_only_for_configured_projects() {
     let (_directory, app) = test_app_with_import_root();
     let page = app
         .clone()
-        .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+        .oneshot(
+            request("/projects/demo/import")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(page.status(), StatusCode::OK);
@@ -201,8 +209,22 @@ async fn import_inbox_page_is_rendered_only_for_configured_projects() {
     assert!(page.contains("data-import-inbox"));
     assert!(page.contains("<span>Inboxのセッション名</span>"));
     assert!(page.contains(">新しいセッション名</label>"));
-    assert!(page.contains("<option value=\"adopt\">採用</option>"));
     assert_no_application_english(page);
+
+    // The session list is the default project page; its filter is translated.
+    let sessions = app
+        .clone()
+        .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let sessions = to_bytes(sessions.into_body(), 2 * 1024 * 1024)
+        .await
+        .unwrap();
+    let sessions = std::str::from_utf8(&sessions).unwrap();
+    assert!(sessions.contains("<option value=\"adopt\">採用</option>"));
+    assert!(sessions.contains("aria-current=\"page\">セッション</a>"));
+    assert!(!sessions.contains("data-import-inbox"));
+    assert_no_application_english(sessions);
 
     let configured = app
         .oneshot(
@@ -1179,7 +1201,11 @@ async fn bounded_fsck_is_confirmed_queued_polled_and_reflected_in_project_status
 
     let page = app
         .clone()
-        .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+        .oneshot(
+            request("/projects/demo/maintenance")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     let page = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
@@ -1292,7 +1318,11 @@ async fn archive_export_is_confirmed_queued_polled_and_no_replace() {
     assert_eq!(status["project"]["capabilities"]["archive_restore"], true);
 
     let page = app
-        .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+        .oneshot(
+            request("/projects/demo/maintenance")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(page.status(), StatusCode::OK);
@@ -1312,7 +1342,11 @@ async fn archive_restore_card_requires_an_empty_consistent_dashboard_target() {
     let (directory, app, archive_root) = test_app_with_archive_root();
     let page = app
         .clone()
-        .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+        .oneshot(
+            request("/projects/demo/maintenance")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(page.status(), StatusCode::OK);
@@ -1349,7 +1383,11 @@ async fn archive_restore_card_requires_an_empty_consistent_dashboard_target() {
     .unwrap();
 
     let page = app
-        .oneshot(request("/projects/demo").body(Body::empty()).unwrap())
+        .oneshot(
+            request("/projects/demo/maintenance")
+                .body(Body::empty())
+                .unwrap(),
+        )
         .await
         .unwrap();
     assert_eq!(page.status(), StatusCode::OK);
@@ -3082,4 +3120,71 @@ fn recorded_times_show_utc_seconds_and_keep_the_exact_value() {
         assert!(view.datetime.is_empty(), "{value:?}");
         assert_eq!(view.text, value);
     }
+}
+
+#[tokio::test]
+async fn ready_inbox_candidates_are_announced_on_the_session_list() {
+    let (directory, app) = test_app_with_import_root();
+    let page = |path: &'static str| {
+        let app = app.clone();
+        async move {
+            let response = app
+                .oneshot(request(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{path}");
+            let body = to_bytes(response.into_body(), 2 * 1024 * 1024)
+                .await
+                .unwrap();
+            String::from_utf8(body.to_vec()).unwrap()
+        }
+    };
+    let before = page("/projects/demo").await;
+    assert!(!before.contains("data-inbox-ready-count"));
+    assert!(!before.contains("data-inbox-ready-notice"));
+
+    for name in ["original", "current", "output"] {
+        fs::write(directory.0.join(name), name.as_bytes()).unwrap();
+    }
+    synapse_creator::put_import_inbox_candidate(&synapse_creator::ImportInboxCandidate {
+        inbox_root: &directory.0.join("inbox"),
+        slug: "agent-candidate",
+        original: &directory.0.join("original"),
+        current: &directory.0.join("current"),
+        ai_output: &directory.0.join("output"),
+        subject_label: "Agent subject",
+        creator_name: "Agent",
+        generation_note: None,
+    })
+    .unwrap();
+    let after = page("/projects/demo").await;
+    assert!(after.contains("<span class=\"badge\" data-inbox-ready-count>1 件</span>"));
+    assert!(after.contains("data-inbox-ready-notice><a href=\"/projects/demo/import\">"));
+
+    // Every project page shares the navigation and marks only its own link.
+    for (path, current) in [
+        ("/projects/demo/import", "取り込む"),
+        ("/projects/demo/maintenance", "管理"),
+        ("/projects/demo/history", "履歴"),
+    ] {
+        let html = page(path).await;
+        let subnav = html
+            .split("<nav class=\"subnav\"")
+            .nth(1)
+            .and_then(|rest| rest.split("</nav>").next())
+            .unwrap();
+        assert!(
+            subnav.contains(&format!("aria-current=\"page\">{current}")),
+            "{path}"
+        );
+        assert_eq!(subnav.matches("aria-current=\"page\"").count(), 1, "{path}");
+        // The breadcrumb ends at the page, under a link back to the session list.
+        assert!(
+            html.contains(&format!("<li><a href=\"/projects/demo\">Demo project</a></li><li aria-current=\"page\">{current}</li>")),
+            "{path}"
+        );
+    }
+    let history = page("/projects/demo/history").await;
+    assert!(history.contains("Ref snapshot <code>"));
+    assert!(!page("/projects/demo").await.contains("Ref snapshot <code>"));
 }

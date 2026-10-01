@@ -170,7 +170,7 @@ test("mobile, dark and reduced motion: visible controls, modal focus and automat
 });
 
 test("pending review: import, compare and explicitly defer from the review form", async ({ page, app }) => {
-  await page.goto(`${app.origin}/projects/pending`);
+  await page.goto(`${app.origin}/projects/pending/import`);
   await page.locator('[name="session"]').fill("browser-review");
   await page.locator('[name="creator_name"]').fill("Browser reviewer");
   await page.locator('[name="subject_label"]').fill("Mural review");

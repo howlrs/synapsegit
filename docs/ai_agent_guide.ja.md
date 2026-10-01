@@ -99,7 +99,7 @@ synapse creator-list "$REPO" --format json
 synapse creator-report "$REPO" inbox-north-wall-2 --format json
 ```
 
-`creator-list`は未検証の概要（`"verified": false`）で、sessionを探すために使います。project画面は
+`creator-list`は未検証の概要（`"verified": false`）で、sessionを探すために使います。プロジェクトの「取り込む」ページは
 session名として`inbox-<slug>`を提案しますが、人が変更できます。`creator-report`は1つのsessionの
 検証済みの記録を再構築します。レビュー待ちのsessionは`incomplete`として一覧に出ます。
 
@@ -111,7 +111,7 @@ session名として`inbox-<slug>`を提案しますが、人が変更できま�
 synapse export "$REPO" "$HOME/SynapseGit/backup-north-wall-2"
 ```
 
-`synapse-local`の起動中は、人がproject画面から書き出すこともできます。
+`synapse-local`の起動中は、人がプロジェクトの「管理」ページから書き出すこともできます。
 
 ## 出力とerror
 

@@ -2,13 +2,12 @@
 
 {% block content %}
 <nav class="breadcrumbs" aria-label="{{ m.common.breadcrumb }}">
-  <ol><li><a href="/">{{ m.common.nav_projects }}</a></li><li aria-current="page">{{ project_label }}</li></ol>
+  <ol><li><a href="/">{{ m.common.nav_projects }}</a></li>{% if tab == "sessions" %}<li aria-current="page">{{ project_label }}</li>{% else %}<li><a href="/projects/{{ project_key }}">{{ project_label }}</a></li><li aria-current="page">{% if tab == "import" %}{{ m.project.tab_import }}{% else if tab == "maintenance" %}{{ m.project.tab_maintenance }}{% else %}{{ m.project.tab_history }}{% endif %}</li>{% endif %}</ol>
 </nav>
 <header class="page-header">
   <div class="page-header__intro">
     <p class="eyebrow">{{ project_key }}</p>
     <h1>{{ project_label }}</h1>
-    <p class="muted">Ref snapshot <code>{{ watermark }}</code></p>
   </div>
   <div class="actions">
     <span class="status-badge" data-tone="success">{{ m.project.local_available }}</span>
@@ -16,13 +15,62 @@
   </div>
 </header>
 
-<section class="metric-grid" aria-label="{{ m.project.overview_label }}">
-  <article class="metric"><span class="metric__label">Refs</span><strong>{{ refs.len() }}</strong></article>
+<nav class="subnav" aria-label="{{ m.project.subnav_label }}">
+  <ul>
+    <li><a href="/projects/{{ project_key }}"{% if tab == "sessions" %} aria-current="page"{% endif %}>{{ m.project.tab_sessions }}</a></li>
+    <li><a href="/projects/{{ project_key }}/import"{% if tab == "import" %} aria-current="page"{% endif %}>{{ m.project.tab_import }}{% if inbox_ready > 0 %} <span class="badge" data-inbox-ready-count>{{ m.count_candidates(inbox_ready) }}</span>{% endif %}</a></li>
+    <li><a href="/projects/{{ project_key }}/maintenance"{% if tab == "maintenance" %} aria-current="page"{% endif %}>{{ m.project.tab_maintenance }}</a></li>
+    <li><a href="/projects/{{ project_key }}/history"{% if tab == "history" %} aria-current="page"{% endif %}>{{ m.project.tab_history }}</a></li>
+  </ul>
+</nav>
+
+{% if tab == "sessions" %}
+{% if inbox_ready > 0 %}<p class="notice" data-tone="info" data-inbox-ready-notice><a href="/projects/{{ project_key }}/import">{{ m.project.inbox_ready_notice }}</a></p>{% endif %}
+<section class="metric-grid metric-grid--three" aria-label="{{ m.project.overview_label }}">
   <article class="metric"><span class="metric__label">{{ m.common.state_complete }}</span><strong>{{ complete_sessions }}</strong></article>
   <article class="metric"><span class="metric__label">{{ m.common.state_pending }}</span><strong>{{ pending_sessions }}</strong></article>
   <article class="metric"><span class="metric__label">{{ m.common.state_incomplete }}</span><strong>{{ incomplete_sessions }}</strong></article>
 </section>
 
+<section class="project-sessions" aria-labelledby="sessions-heading" data-creator-session-list>
+  <div class="section-heading"><h2 id="sessions-heading">{{ m.project.sessions_heading }}</h2><span class="badge" data-creator-session-count>{{ m.count_sessions(sessions.len()) }}</span></div>
+  <p class="field__hint">{{ m.project.sessions_help }}</p>
+  <section class="card" hidden data-creator-session-locator data-session-base="/projects/{{ project_key }}/creator-sessions/" aria-labelledby="session-locator-heading">
+    <h3 id="session-locator-heading">{{ m.project.locator_heading }}</h3>
+    <p class="field__hint">{{ m.project.locator_help }}</p>
+    <form data-creator-session-locator-form>
+      <label class="field" for="session-locator-name"><span>{{ m.project.locator_label }}</span>
+        <input id="session-locator-name" name="session_name" required maxlength="64" pattern="[a-z][a-z0-9\-]{0,63}" autocomplete="off" aria-describedby="session-locator-hint" data-invalid-message="{{ m.project.locator_invalid }}">
+      </label>
+      <p id="session-locator-hint" class="field__hint">{{ m.project.locator_hint }}</p>
+      <div class="actions"><button type="submit">{{ m.project.locator_submit }}</button></div>
+    </form>
+  </section>
+  <noscript><p class="field__hint">{{ m.project.locator_noscript }}</p></noscript>
+  <label class="field"><span>{{ m.project.filter_label }}</span><select data-creator-session-filter><option value="all">{{ m.project.filter_all }}</option><option value="pending">{{ m.common.state_pending }}</option><option value="complete">{{ m.common.state_complete }}</option><option value="adopt">{{ m.session.adopt_heading }}</option><option value="reject">{{ m.session.reject_heading }}</option><option value="defer">{{ m.session.defer_heading }}</option><option value="incomplete">{{ m.common.state_incomplete }}</option></select></label>
+  {% if sessions.is_empty() %}
+  <div class="empty-state"><h3>{{ m.project.no_sessions_heading }}</h3><p>{{ m.project.no_sessions_help }}</p><p><a class="button" href="/projects/{{ project_key }}/import">{{ m.project.tab_import }}</a></p></div>
+  {% else %}
+  <div class="table-wrap"><table>
+    <thead><tr><th>{{ m.project.column_session }}</th><th>{{ m.project.column_state }}</th><th>{{ m.project.column_recorded_at }}</th><th>{{ m.project.column_source }}</th><th>head</th></tr></thead>
+    <tbody>
+      {% for session in sessions %}
+      <tr data-creator-session-row data-state="{{ session.state_code }}" data-disposition="{{ session.disposition }}">
+        <th scope="row"><a href="/projects/{{ project_key }}/creator-sessions/{{ session.session }}">{{ session.session }}</a><br><span class="muted">{{ session.subject_label }}</span><br><span class="muted">{{ session.creator_name }}</span></th>
+        <td><span class="status-badge" data-tone="{{ session.tone }}">{{ session.state_label }}</span> {{ m.value_label(session.disposition) }}</td>
+        <td>{% if session.recorded_at.datetime.is_empty() %}{{ session.recorded_at.text }}{% else %}<time datetime="{{ session.recorded_at.datetime }}" title="{{ session.recorded_at.exact }}" data-local-time>{{ session.recorded_at.text }}</time>{% endif %}<br><span class="muted">{{ session.recorded_time_basis }}</span></td>
+        <td>{% if session.source_session == "—" %}—{% else %}<a href="/projects/{{ project_key }}/creator-sessions/{{ session.source_session }}">{{ session.source_session }}</a>{% endif %}</td>
+        <td><code>{{ session.proposal_head }}</code><br><code>{{ session.decision_head }}</code></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table></div>
+  {% endif %}
+</section>
+
+{% endif %}
+
+{% if tab == "import" %}
 {% if import_inbox_supported %}
 <section class="card" hidden data-import-inbox data-project-key="{{ project_key }}" aria-labelledby="import-inbox-heading">
   <div class="card__header"><div><p class="eyebrow">{{ m.project.inbox_eyebrow }}</p><h2 id="import-inbox-heading">{{ m.project.inbox_heading }}</h2><p class="muted">{{ m.project.inbox_help }}</p></div></div>
@@ -126,42 +174,9 @@
   <noscript><div class="notice" data-tone="warning"><p>{{ m.project.upload_noscript }}</p></div></noscript>
 </section>
 
-<section class="project-sessions" aria-labelledby="sessions-heading" data-creator-session-list>
-  <div class="section-heading"><h2 id="sessions-heading">{{ m.project.sessions_heading }}</h2><span class="badge" data-creator-session-count>{{ m.count_sessions(sessions.len()) }}</span></div>
-  <p class="field__hint">{{ m.project.sessions_help }}</p>
-  <section class="card" hidden data-creator-session-locator data-session-base="/projects/{{ project_key }}/creator-sessions/" aria-labelledby="session-locator-heading">
-    <h3 id="session-locator-heading">{{ m.project.locator_heading }}</h3>
-    <p class="field__hint">{{ m.project.locator_help }}</p>
-    <form data-creator-session-locator-form>
-      <label class="field" for="session-locator-name"><span>{{ m.project.locator_label }}</span>
-        <input id="session-locator-name" name="session_name" required maxlength="64" pattern="[a-z][a-z0-9\-]{0,63}" autocomplete="off" aria-describedby="session-locator-hint" data-invalid-message="{{ m.project.locator_invalid }}">
-      </label>
-      <p id="session-locator-hint" class="field__hint">{{ m.project.locator_hint }}</p>
-      <div class="actions"><button type="submit">{{ m.project.locator_submit }}</button></div>
-    </form>
-  </section>
-  <noscript><p class="field__hint">{{ m.project.locator_noscript }}</p></noscript>
-  <label class="field"><span>{{ m.project.filter_label }}</span><select data-creator-session-filter><option value="all">{{ m.project.filter_all }}</option><option value="pending">{{ m.common.state_pending }}</option><option value="complete">{{ m.common.state_complete }}</option><option value="adopt">{{ m.session.adopt_heading }}</option><option value="reject">{{ m.session.reject_heading }}</option><option value="defer">{{ m.session.defer_heading }}</option><option value="incomplete">{{ m.common.state_incomplete }}</option></select></label>
-  {% if sessions.is_empty() %}
-  <div class="empty-state"><h3>{{ m.project.no_sessions_heading }}</h3><p>{{ m.project.no_sessions_help }}</p></div>
-  {% else %}
-  <div class="table-wrap"><table>
-    <thead><tr><th>{{ m.project.column_session }}</th><th>{{ m.project.column_state }}</th><th>{{ m.project.column_recorded_at }}</th><th>{{ m.project.column_source }}</th><th>head</th></tr></thead>
-    <tbody>
-      {% for session in sessions %}
-      <tr data-creator-session-row data-state="{{ session.state_code }}" data-disposition="{{ session.disposition }}">
-        <th scope="row"><a href="/projects/{{ project_key }}/creator-sessions/{{ session.session }}">{{ session.session }}</a><br><span class="muted">{{ session.subject_label }}</span><br><span class="muted">{{ session.creator_name }}</span></th>
-        <td><span class="status-badge" data-tone="{{ session.tone }}">{{ session.state_label }}</span> {{ m.value_label(session.disposition) }}</td>
-        <td>{% if session.recorded_at.datetime.is_empty() %}{{ session.recorded_at.text }}{% else %}<time datetime="{{ session.recorded_at.datetime }}" title="{{ session.recorded_at.exact }}" data-local-time>{{ session.recorded_at.text }}</time>{% endif %}<br><span class="muted">{{ session.recorded_time_basis }}</span></td>
-        <td>{% if session.source_session == "—" %}—{% else %}<a href="/projects/{{ project_key }}/creator-sessions/{{ session.source_session }}">{{ session.source_session }}</a>{% endif %}</td>
-        <td><code>{{ session.proposal_head }}</code><br><code>{{ session.decision_head }}</code></td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table></div>
-  {% endif %}
-</section>
+{% endif %}
 
+{% if tab == "maintenance" %}
 <section aria-labelledby="maintenance-heading">
   <div class="section-heading"><h2 id="maintenance-heading">{{ m.project.maintenance_heading }}</h2></div>
 {% if fsck_supported %}
@@ -297,6 +312,10 @@
 
 </section>
 
+{% endif %}
+
+{% if tab == "history" %}
+<p class="muted">Ref snapshot <code>{{ watermark }}</code></p>
 <div class="split-grid project-detail">
   <section aria-labelledby="refs-heading">
     <div class="section-heading"><h2 id="refs-heading">Refs</h2><span class="badge">{{ refs.len() }}</span></div>
@@ -315,4 +334,5 @@
     </ol>
   </section>
 </div>
+{% endif %}
 {% endblock %}

@@ -2,7 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { isolatedTest as test, expect, original, current, output } from "./fixtures.mjs";
 
 async function importProposal(page, app, project, session, generationNote = null) {
-  await page.goto(`${app.origin}/projects/${project}`);
+  await page.goto(`${app.origin}/projects/${project}/import`);
   await page.locator('[name="session"]').fill(session);
   await page.locator('[name="creator_name"]').fill("再利用テスト");
   await page.locator('[name="subject_label"]').fill("再利用する作品");

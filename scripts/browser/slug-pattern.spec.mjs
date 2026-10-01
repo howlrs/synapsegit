@@ -31,7 +31,9 @@ archiveTest("every slug field rejects invalid names through browser pattern vali
   const covered = new Set();
   for (const path of [
     "/projects/complete",
-    "/projects/restore",
+    "/projects/complete/import",
+    "/projects/complete/maintenance",
+    "/projects/restore/maintenance",
     "/projects/complete/creator-sessions/sample/derive",
     "/projects/complete/creator-sessions/sample/reuse",
   ]) {
@@ -72,7 +74,7 @@ archiveTest("every slug field rejects invalid names through browser pattern vali
 
 inboxTest("the inbox session field rejects invalid names through browser pattern validation", async ({ page, app }) => {
   const errors = collectPatternErrors(page);
-  await page.goto(`${app.origin}/projects/pending`);
+  await page.goto(`${app.origin}/projects/pending/import`);
   const inbox = (await slugInputs(page)).filter(({ name }) => name === "inbox_session");
   expect(inbox).toEqual([{ name: "inbox_session", pattern: SLUG_PATTERN, mismatch: EXPECTED_MISMATCH }]);
   expect(errors).toEqual([]);

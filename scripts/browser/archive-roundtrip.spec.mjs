@@ -13,7 +13,7 @@ async function acceptNextDialog(page) {
 test("archive cards support keyboard access, pass axe, and restore an exported project", async ({ page, app }) => {
   const sourceRefs = app.refs("complete");
 
-  await page.goto(`${app.origin}/projects/complete`);
+  await page.goto(`${app.origin}/projects/complete/maintenance`);
   for (const heading of ["リポジトリ整合性の確認", "アーカイブを書き出す"]) {
     await expect(page.getByRole("heading", { name: heading, exact: true })).toBeVisible();
   }
@@ -26,7 +26,7 @@ test("archive cards support keyboard access, pass axe, and restore an exported p
   await expect(page.getByRole("heading", { name: "アーカイブ", exact: true })).toBeVisible();
   await expect(page.locator("section").filter({ has: page.locator("#archives-heading") })).toContainText(archiveName);
 
-  await page.goto(`${app.origin}/projects/restore`);
+  await page.goto(`${app.origin}/projects/restore/maintenance`);
   const restore = restoreForm(page);
   await expect(restore).toBeVisible();
   for (const heading of ["リポジトリ整合性の確認", "アーカイブを書き出す", "アーカイブを復元する"]) {
@@ -72,14 +72,14 @@ test("archive cards support keyboard access, pass axe, and restore an exported p
 });
 
 test("restore refusals preserve the target refs", async ({ page, app }) => {
-  await page.goto(`${app.origin}/projects/complete`);
+  await page.goto(`${app.origin}/projects/complete/maintenance`);
   await exportForm(page).locator('[name="archive_name"]').fill(archiveName);
   await exportForm(page).locator('[name="confirm_project_key"]').fill("complete");
   await acceptNextDialog(page);
   await exportForm(page).getByRole("button", { name: "Archiveを作成", exact: true }).click();
   await page.waitForURL("**/#archives-heading");
 
-  await page.goto(`${app.origin}/projects/restore`);
+  await page.goto(`${app.origin}/projects/restore/maintenance`);
   const restore = restoreForm(page);
   const name = restore.locator('[name="archive_name"]');
   const key = restore.locator('[name="confirm_target_project_key"]');

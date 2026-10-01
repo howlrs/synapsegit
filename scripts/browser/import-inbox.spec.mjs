@@ -12,7 +12,7 @@ test("manifest-last inbox stages preview bytes before explicit Human Decision", 
   await copyFile(output, path.join(candidate, "ai-output"));
   const sizes = await Promise.all([original, current, output].map(async file => (await stat(file)).size));
   await writeFile(path.join(candidate, "manifest.json"), JSON.stringify({ version: "synapsegit-import-inbox-v1", original: { name: "original", size: sizes[0] }, current: { name: "current", size: sizes[1] }, ai_output: { name: "ai-output", size: sizes[2] }, metadata: { subject_label: "Script subject", creator_name: "Script creator", generation_note: { tool: "script", model: "test", prompt: "private", intent: "review" } } }));
-  await page.goto(`${app.origin}/projects/pending`);
+  await page.goto(`${app.origin}/projects/pending/import`);
   const section = page.locator("[data-import-inbox]");
   await expect(section).toBeVisible();
   await expect(page.locator('[name="session"]')).toHaveCount(1);

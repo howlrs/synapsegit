@@ -18,7 +18,8 @@ use crate::handlers::{
     api_presentation_sidecar, api_project_reflog, api_project_refs, api_project_status,
     api_projects, api_stage_import_inbox, api_staged_import_image, api_start_archive_export,
     api_start_archive_restore, api_start_fsck, derive_page, index_page, method_not_allowed,
-    not_found, presentation_page, project_page, reuse_page, session_page,
+    not_found, presentation_page, project_history_page, project_import_page,
+    project_maintenance_page, project_page, reuse_page, session_page,
 };
 use crate::i18n::negotiate_page_language;
 use crate::security::{SecurityPolicy, enforce_local_request};
@@ -107,6 +108,12 @@ pub(crate) fn build_with_identity(
     let router = Router::new()
         .route("/", get(index_page))
         .route("/projects/{project_key}", get(project_page))
+        .route("/projects/{project_key}/import", get(project_import_page))
+        .route(
+            "/projects/{project_key}/maintenance",
+            get(project_maintenance_page),
+        )
+        .route("/projects/{project_key}/history", get(project_history_page))
         .route(
             "/projects/{project_key}/presentation",
             get(presentation_page),
