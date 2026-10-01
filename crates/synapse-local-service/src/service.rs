@@ -603,6 +603,7 @@ impl LocalService {
                     slug,
                     ready: false,
                     reason: Some("The inbox candidate must be a regular directory.".to_owned()),
+                    imported_session: None,
                 });
                 continue;
             }
@@ -615,15 +616,45 @@ impl LocalService {
                     slug,
                     ready: true,
                     reason: None,
+                    imported_session: None,
                 }),
                 Err(error) => items.push(ImportInboxItem {
                     slug,
                     ready: false,
                     reason: Some(error.detail().to_owned()),
+                    imported_session: None,
                 }),
             }
         }
         items.sort_by(|a, b| a.slug.cmp(&b.slug));
+        if items.iter().any(|item| item.ready) {
+            // The inbox is script-owned and stays untouched, so an imported
+            // candidate is recognized by the session created under its
+            // suggested name. Without a readable repository, nothing is marked.
+            let sessions = self
+                .open_repository(project_key)
+                .and_then(|repository| capture_snapshot(&repository))
+                .map(|snapshot| {
+                    snapshot
+                        .refs
+                        .iter()
+                        .filter_map(|reference| {
+                            reference
+                                .name
+                                .strip_prefix("proposal/creator-agent/")
+                                .or_else(|| reference.name.strip_prefix("decision/creator/"))
+                                .map(str::to_owned)
+                        })
+                        .collect::<std::collections::BTreeSet<_>>()
+                })
+                .unwrap_or_default();
+            for item in items.iter_mut().filter(|item| item.ready) {
+                let session = format!("inbox-{}", item.slug);
+                if sessions.contains(&session) {
+                    item.imported_session = Some(session);
+                }
+            }
+        }
         Ok(ImportInboxList { items })
     }
 

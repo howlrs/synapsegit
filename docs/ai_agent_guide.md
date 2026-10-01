@@ -118,6 +118,11 @@ name, but the person can change it. `creator-report` rebuilds the verified
 record of one session. A session that is still waiting for review is listed
 as `incomplete`.
 
+SynapseGit never changes the inbox, so an imported candidate stays there. The
+Import page marks it as imported when a session with the suggested name
+exists, and stops counting it as waiting. Delete a candidate directory only
+after the person confirms that it is no longer needed.
+
 ### 7. Back up
 
 Stop `synapse-local`, then export a checksum-bound archive to a new directory:

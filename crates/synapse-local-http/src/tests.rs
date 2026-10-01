@@ -3189,6 +3189,30 @@ async fn ready_inbox_candidates_are_announced_on_the_session_list() {
     let history = page("/projects/demo/history").await;
     assert!(history.contains("Ref snapshot <code>"));
     assert!(!page("/projects/demo").await.contains("Ref snapshot <code>"));
+
+    // Once the candidate is imported under its suggested name, it no longer
+    // counts as waiting, although the inbox directory is unchanged.
+    run_creator_session(&CreatorRunOptions {
+        repository: directory.0.join("repository"),
+        session: "inbox-agent-candidate".into(),
+        original_image: directory.0.join("original"),
+        current_image: directory.0.join("current"),
+        ai_output: directory.0.join("output"),
+        subject_label: "Agent subject".into(),
+        creator_name: "Agent".into(),
+        disposition: CreatorDisposition::Adopt,
+        rationale: None,
+    })
+    .unwrap();
+    assert!(
+        directory
+            .0
+            .join("inbox/agent-candidate/manifest.json")
+            .exists()
+    );
+    let imported = page("/projects/demo").await;
+    assert!(!imported.contains("data-inbox-ready-count"));
+    assert!(!imported.contains("data-inbox-ready-notice"));
 }
 
 /// Text a reader sees before opening any "Technical details" block: the page

@@ -69,6 +69,7 @@ fn a_candidate_written_by_the_shared_producer_is_ready_and_stages_its_bytes() {
     assert_eq!(items.len(), 1);
     assert_eq!(items[0].slug, "from-cli");
     assert!(items[0].ready, "{:?}", items[0].reason);
+    assert_eq!(items[0].imported_session, None);
     let staged = service.stage_import_inbox("project", "from-cli").unwrap();
     assert_eq!(staged.subject_label, "Subject");
     assert_eq!(staged.creator_name, "Creator");
@@ -86,6 +87,30 @@ fn a_candidate_written_by_the_shared_producer_is_ready_and_stages_its_bytes() {
             bytes
         );
     }
+
+    // Importing under the suggested name marks the candidate; the inbox
+    // directory itself stays as the script wrote it.
+    let suggested = staged.session.clone();
+    assert_eq!(suggested, "inbox-from-cli");
+    let pending = service
+        .begin_staged_import_inbox(
+            "project",
+            "test-instance",
+            &staged.stage_id,
+            synapse_local_service::BeginStagedImportInboxRequest {
+                session: suggested.clone(),
+                subject_label: staged.subject_label.clone(),
+                creator_name: staged.creator_name.clone(),
+                generation_note: staged.generation_note.clone(),
+            },
+        )
+        .unwrap();
+    let items = service.list_import_inbox("project").unwrap().items;
+    assert!(items[0].ready);
+    assert_eq!(items[0].imported_session.as_deref(), Some("inbox-from-cli"));
+    let json = serde_json::to_value(&items[0]).unwrap();
+    assert_eq!(json["imported_session"], "inbox-from-cli");
+    drop(pending);
 }
 
 #[test]

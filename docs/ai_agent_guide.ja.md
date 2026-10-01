@@ -103,6 +103,10 @@ synapse creator-report "$REPO" inbox-north-wall-2 --format json
 session名として`inbox-<slug>`を提案しますが、人が変更できます。`creator-report`は1つのsessionの
 検証済みの記録を再構築します。レビュー待ちのsessionは`incomplete`として一覧に出ます。
 
+SynapseGitはInboxを変更しないため、取り込んだ候補はInboxに残ります。「取り込む」ページは、提案した名前の
+sessionがあれば取り込み済みと表示し、取り込み待ちの件数から外します。候補のdirectoryは、不要になったことを
+人に確認してから削除してください。
+
 ### 7. backupする
 
 `synapse-local`を停止してから、新しいdirectoryへchecksum付きのarchiveを書き出します。

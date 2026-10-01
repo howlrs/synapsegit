@@ -357,7 +357,7 @@ message_section! {
         inbox_generation_model: "Inboxのモデル名", "Inbox generation model";
         inbox_generation_prompt: "Inboxのプロンプト", "Inbox generation prompt";
         inbox_generation_intent: "Inboxの制作意図", "Inbox generation intent";
-        inbox_help: "候補を確認すると、その時点の3ファイルを確かめて一時保存し、その内容だけを提案として取り込みます。", "When you review a candidate, its three files are checked and set aside, and only those exact contents are imported as a proposal.";
+        inbox_help: "候補を確認すると、その時点の3ファイルを確かめて一時保存し、その内容だけを提案として取り込みます。取り込み済みかどうかは、提案された名前（inbox-候補名）のセッションがあるかで判断します。名前を変えて取り込んだ候補は、取り込み待ちのまま表示されます。", "When you review a candidate, its three files are checked and set aside, and only those exact contents are imported as a proposal. A candidate counts as imported when a session with its suggested name (inbox-<candidate name>) exists; one imported under another name still shows as waiting.";
         inbox_review_heading: "取り込み内容を確認", "Review the import";
         inbox_warning: "AI outputと生成メモは外部で用意されたものです。このアプリが作ったものではありません。あなたが判断するまで、判断は記録されません。", "The AI output and generation note were prepared outside this app; this app did not make them. No decision is recorded until you make one.";
         back_to_list: "一覧へ戻る", "Back to the list";

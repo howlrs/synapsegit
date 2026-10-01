@@ -306,6 +306,11 @@ pub struct ImportInboxItem {
     pub slug: String,
     pub ready: bool,
     pub reason: Option<String>,
+    /// The project session created from this candidate under its suggested
+    /// name, `inbox-<slug>`. A candidate imported under another name is not
+    /// recognized. The inbox itself is never changed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub imported_session: Option<String>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
