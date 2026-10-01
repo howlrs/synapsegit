@@ -303,7 +303,7 @@ message_section! {
         field_subject_label: "対象名", "Subject label";
         event_label: "イベント", "event";
         clear_selection: "選択を解除", "Clear selection";
-        create_proposal: "Proposalを作成", "Create proposal";
+        create_proposal: "提案を作成", "Create proposal";
         zoom_fit: "全体を表示", "Fit to view";
         review_in_new_session: "この提案を新しいセッションでレビューする", "Review this proposal in a new session";
         decision_finality: "Deferも含め、記録後にこのセッションの判断を変更・再開する機能はありません。", "Every disposition, including Defer, completes this session. A recorded decision cannot be changed or reopened in this session.";
@@ -477,6 +477,7 @@ message_section! {
         evidence_comparability: "比較できた範囲（comparability）", "Comparability";
         evidence_adapter: "確認に使った方式（adapter）", "Method used (adapter)";
         evidence_replay: "再確認の準備（replay）", "Ready to re-check (replay)";
+        evidence_recorded_warning: "確認方式が記録した注意（英語）", "Caveat recorded by the method";
         diagnostics_label: "Creatorセッションの診断", "Creator session diagnostics";
         automatic_resume: "自動再開", "Automatic resume";
         automatic_cleanup: "自動クリーンアップ", "Automatic cleanup";
@@ -494,7 +495,7 @@ message_section! {
         private_report_download: "非公開の記録を保存（JSON）", "Save private record (JSON)";
         review_required: "人のレビューが必要です", "Human review required";
         source_before: "AI outputの出どころ: ", "Where the AI output came from: ";
-        source_after: " 。外部で用意されたもので、このアプリや特定のAIモデルが作ったことを示すものではありません。", ". It was prepared outside this app; this does not show that this app or any particular AI model made it.";
+        source_after: "。このアプリや特定のAIモデルが作ったことを示すものではありません。", ". It was prepared outside this app; this does not show that this app or any particular AI model made it.";
         review_instruction: "3つの画像とファイル内容の一致確認を見てから、採用・不採用・保留のいずれかを選んでください。", "Check the three images and the file-content match check, then choose adopt, reject, or defer.";
         derived_source_heading: "再利用した参照画像の派生元", "Source of the reused reference images";
         derived_source_help: "元のOriginal／Currentとまったく同じファイルを参照として再利用しました。新しく撮影・観測したものではありません。元のAI outputをCurrentに置き換えてはいません。表示名が同じでも、同じ人・同じ対象物であることの証明にはなりません。", "The exact Original and Current files of the source were reused as references. They are not a new capture or observation. The source's AI output did not replace Current. Matching display names do not prove the same person or the same physical subject.";
@@ -713,6 +714,7 @@ message_section! {
         observation: "観測", "observation";
         activity: "活動", "activity";
         decision: "判断", "decision";
+        caller_supplied: "外部で用意したもの", "caller_supplied";
     }
 }
 
@@ -877,6 +879,7 @@ impl Messages {
             "observation" => values.observation,
             "activity" => values.activity,
             "decision" => values.decision,
+            "caller_supplied" => values.caller_supplied,
             _ => code,
         }
         .to_owned()

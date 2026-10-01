@@ -20,10 +20,10 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     const prompt = "PRIVATE_GENERATION_CANARY 日本語\n<script>window.noteInjected = true</script>";
     await page.getByLabel("プロンプト", { exact: true }).fill(prompt);
     await page.getByLabel("制作意図", { exact: true }).fill("配色の検討\n判断理由とは別");
-    await page.getByRole("button", { name: "Proposalを作成" }).click();
+    await page.getByRole("button", { name: "提案を作成" }).click();
     await page.waitForURL(`**/creator-sessions/${session}`);
     await expect(page.locator("[data-generation-note]")).toContainText(prompt);
-    await expect(page.getByText("モデルの実行・実作者の証明ではありません。", { exact: false })).toBeVisible();
+    await expect(page.getByText("モデルが動いたことや、作者が誰かの証明ではありません。", { exact: false })).toBeVisible();
     page.once("dialog", dialog => dialog.accept());
     const navigation = page.waitForEvent("framenavigated", { predicate: frame => frame === page.mainFrame() });
     await page.getByRole("button", { name: decisionButton[disposition], exact: true }).click();

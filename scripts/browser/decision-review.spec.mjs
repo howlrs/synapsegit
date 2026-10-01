@@ -9,7 +9,7 @@ async function begin(page, app, session) {
   await page.locator('[name="original_image"]').setInputFiles(original);
   await page.locator('[name="current_image"]').setInputFiles(current);
   await page.locator('[name="ai_output"]').setInputFiles(output);
-  await page.getByRole("button", { name: "Proposalを作成" }).click();
+  await page.getByRole("button", { name: "提案を作成" }).click();
   await page.waitForURL(`**/creator-sessions/${session}`);
 }
 

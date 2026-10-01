@@ -60,7 +60,7 @@
 {% if pending %}
 <div class="notice" data-tone="warning">
   <h2>{{ m.session.review_required }}</h2>
-  <p>{{ m.session.source_before }}<code>{{ ai_output_source }}</code>{{ m.session.source_after }}</p>
+  <p>{{ m.session.source_before }}{{ m.value_label(ai_output_source) }}{{ m.session.source_after }}</p>
   <p>{{ m.session.review_instruction }}</p>
 </div>
 {% endif %}
@@ -196,7 +196,6 @@
   {% if has_comparison %}
   <div class="notice" data-tone="warning">
     <h3>{{ m.value_label(comparison_outcome) }}</h3>
-    <p>{{ comparison_warning }}</p>
     <p>{{ m.session.evidence_limit }}</p>
   </div>
   <dl class="detail-list">
@@ -207,6 +206,7 @@
       <div><dt>{{ m.session.evidence_comparability }}</dt><dd>{{ m.value_label(comparison_comparability) }}</dd></div>
       <div><dt>{{ m.session.evidence_adapter }}</dt><dd><code>{{ comparison_adapter }}</code></dd></div>
       <div><dt>{{ m.session.evidence_replay }}</dt><dd>{{ comparison_replay }}</dd></div>
+      <div><dt>{{ m.session.evidence_recorded_warning }}</dt><dd>{{ comparison_warning }}</dd></div>
     </dl>
   </details>
   {% else %}

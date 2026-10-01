@@ -75,7 +75,7 @@ test("Japanese byte limits and oversized files block submission before a request
   await creator.fill("あ".repeat(101));
   await expect(page.locator('[data-creator-text-count="creator_name"]')).toContainText("303 / 300 bytes");
   await expect(creator).toHaveAttribute("aria-invalid", "true");
-  await page.getByRole("button", { name: "Proposalを作成" }).click();
+  await page.getByRole("button", { name: "提案を作成" }).click();
   await expect(creator).toBeFocused();
   expect(requests).toEqual([]);
   await creator.fill("あ".repeat(100));
@@ -95,7 +95,7 @@ test("Japanese byte limits and oversized files block submission before a request
   });
   await expect(field(page, "original_image").locator("[data-creator-preview-status]")).toContainText("64 MiB以内");
   await expect(preview(page, "original_image")).not.toHaveAttribute("src");
-  await page.getByRole("button", { name: "Proposalを作成" }).click();
+  await page.getByRole("button", { name: "提案を作成" }).click();
   await expect(fileInput).toBeFocused();
   expect(requests).toEqual([]);
   await fileInput.setInputFiles(original);
@@ -124,7 +124,7 @@ test("untrusted filename and MIME do not authorize inline SVG; broken and opaque
   await expect(field(page, "ai_output").locator("[data-creator-preview-status]")).toContainText("そのまま取り込めます");
   expect(await form(page).evaluate((element) => element.checkValidity())).toBe(true);
   expect(await page.evaluate(() => window.previewInjected)).toBeUndefined();
-  await page.getByRole("button", { name: "Proposalを作成" }).click();
+  await page.getByRole("button", { name: "提案を作成" }).click();
   await page.waitForURL("**/creator-sessions/opaque-preview");
   await expect(page.getByRole("button", { name: "保留", exact: true })).toBeVisible();
 });
@@ -143,7 +143,7 @@ test("upload locks the selected content while pending, then preserves it when th
     });
   });
   try {
-    await page.getByRole("button", { name: "Proposalを作成" }).click();
+    await page.getByRole("button", { name: "提案を作成" }).click();
     await requested;
     for (const control of await form(page).locator("input, button").all()) await expect(control).toBeDisabled();
     await expect(page.locator("[data-creator-preview]:visible")).toHaveCount(3);

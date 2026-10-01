@@ -83,7 +83,10 @@ formats; see docs/compatibility.md.
   the AI output was made elsewhere, the limits of the match check, and that a
   decision cannot be changed. The History page explains that it shows
   technical information. The glossary maps the screen words to the internal
-  terms. Stored values, the API, error codes, and CLI output are unchanged.
+  terms. The decision confirmation names the button you chose ("Record the
+  Adopt decision") instead of the stored code. Japanese buttons say "提案を作成".
+  Session names in the list keep their case. Stored values, the API, error
+  codes, and CLI output are unchanged.
 - A project in `synapse-local` now has four pages instead of one long page:
   Sessions (the default, with the counts, filter, and name locator), Import
   (the three-image form and the import inbox), Maintenance (fsck and archive

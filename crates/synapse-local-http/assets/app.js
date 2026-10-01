@@ -136,9 +136,9 @@ const MESSAGE_ENTRIES = [
   ["decision.receiptInvalid", "記録済みcreator receiptが不正です。", "The committed creator receipt is invalid."],
   ["decision.committedWithoutReport", "Decisionは {head} で記録されました。完全なレポートは取得できません。下の永続receiptを確認し、保管してください。", "Decision committed at {head}. The full report is unavailable; inspect and retain the durable receipt below."],
   ["decision.thisSession", "このセッション", "this session"],
-  ["decision.targetWithProject", "Project “{project}” / Creator session “{session}”", "project “{project}” / creator session “{session}”"],
-  ["decision.target", "Creator session “{session}”", "creator session “{session}”"],
-  ["decision.confirmPublish", "{target} に {disposition} decisionを公開します。", "Publish the {disposition} decision for {target}."],
+  ["decision.targetWithProject", "プロジェクト「{project}」のセッション「{session}」", "project “{project}”, session “{session}”"],
+  ["decision.target", "セッション「{session}」", "session “{session}”"],
+  ["decision.confirmPublish", "{target}に、「{disposition}」の判断を記録します。", "Record the {disposition} decision for {target}."],
   ["decision.finality", "Deferも含め、記録後にこのセッションの判断を変更・再開する機能はありません。", "Every disposition, including Defer, completes this session. A recorded decision cannot be changed or reopened in this session."],
   ["decision.confirmContinue", "この操作を続けますか？", "Continue with this operation?"],
   ["decision.notSent", "Decisionは送信されませんでした。", "The Decision was not sent."],
@@ -1317,7 +1317,8 @@ export async function submitEnhancedForm(event) {
   }
 
   if (event.submitter?.name === "disposition") {
-    const disposition = event.submitter.value;
+    // The button's own label (for example 採用 or Adopt), not the stored code.
+    const disposition = event.submitter.textContent.trim() || event.submitter.value;
     const session = form.dataset.confirmSession || t("decision.thisSession");
     const project = form.dataset.confirmProject;
     const summary = event.submitter.dataset.decisionSummary;

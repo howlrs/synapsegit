@@ -65,7 +65,7 @@ test("the saved JSON retains a private generation note, pin, and rationale", asy
   }
   await page.locator("details summary").click();
   await page.locator('[name="generation_prompt"]').fill(note);
-  await page.getByRole("button", { name: "Proposalを作成", exact: true }).click();
+  await page.getByRole("button", { name: "提案を作成", exact: true }).click();
   await page.waitForURL(`**/creator-sessions/${session}`);
   await page.getByRole("button", { name: "中央にピンを追加", exact: true }).click();
   await page.getByLabel("ピン 1 のメモ", { exact: true }).fill(pin);
@@ -112,7 +112,7 @@ test("pending sessions do not offer a private report save action", async ({ page
   for (const [name, file] of [["original_image", original], ["current_image", current], ["ai_output", output]]) {
     await page.locator(`[name="${name}"]`).setInputFiles(file);
   }
-  await page.getByRole("button", { name: "Proposalを作成", exact: true }).click();
+  await page.getByRole("button", { name: "提案を作成", exact: true }).click();
   await page.waitForURL("**/creator-sessions/private-report-pending");
   await expect(page.locator("[data-private-report]")).toHaveCount(0);
   await app.restart();

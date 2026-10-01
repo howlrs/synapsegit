@@ -12,7 +12,7 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     for (const [name, file] of [["original_image", original], ["current_image", current], ["ai_output", output]]) await page.locator(`[name="${name}"]`).setInputFiles(file);
     await page.getByText("提案の生成メモ（任意）", { exact: true }).click();
     await page.getByLabel("プロンプト", { exact: true }).fill("OLD_SOURCE_PRIVATE_NOTE");
-    await page.getByRole("button", { name: "Proposalを作成", exact: true }).click();
+    await page.getByRole("button", { name: "提案を作成", exact: true }).click();
     await page.waitForURL(`**/creator-sessions/${source}`);
     const oids = await page.locator("img[data-synapse-image]").evaluateAll(images => images.map(image => image.dataset.oid));
     await page.getByLabel("理由（任意）", { exact: true }).fill("OLD_SOURCE_RATIONALE");
@@ -22,7 +22,7 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     await navigation;
     await page.getByRole("link", { name: "この記録から次の案を試す", exact: true }).click();
     await expect(page.getByRole("heading", { name: "派生元と再利用する参照画像", exact: true })).toBeVisible();
-    await expect(page.getByText("Adopt済みでも元のAI outputをCurrentへ昇格しません。", { exact: false })).toBeVisible();
+    await expect(page.getByText("採用済みでも、元のAI outputをCurrentに置き換えません。", { exact: false })).toBeVisible();
     for (const image of await page.locator("img[data-synapse-image]").all()) {
       await expect(image).toHaveAttribute("src", /^blob:/u);
       await expect.poll(() => image.evaluate(node => node.complete && node.naturalWidth > 0)).toBe(true);
@@ -43,7 +43,7 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
       await page.setViewportSize({ width: 375, height: 900 });
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     }
-    const button = page.getByRole("button", { name: "参照画像を引き継いでProposalを作成", exact: true });
+    const button = page.getByRole("button", { name: "参照画像を引き継いで提案を作成", exact: true });
     await button.focus();
     await page.keyboard.press("Enter");
     await page.waitForURL(`**/creator-sessions/${next}`);

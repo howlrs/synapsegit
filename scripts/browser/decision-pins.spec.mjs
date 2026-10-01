@@ -9,7 +9,7 @@ async function begin(page, app, session) {
   await page.locator('[name="creator_name"]').fill("Pin reviewer");
   await page.locator('[name="subject_label"]').fill("位置付きメモ");
   for (const [name, file] of [["original_image", original], ["current_image", current], ["ai_output", output]]) await page.locator(`[name="${name}"]`).setInputFiles(file);
-  await page.getByRole("button", { name: "Proposalを作成" }).click();
+  await page.getByRole("button", { name: "提案を作成" }).click();
   await page.waitForURL(`**/creator-sessions/${session}`);
   await expect(page.getByRole("button", { name: "中央にピンを追加" })).toBeEnabled();
 }

@@ -31,7 +31,7 @@ test("the AI agent guide flow keeps the decision with the person", async ({ page
     const preview = page.locator("form[data-import-inbox-preview]");
     await expect(preview).toBeVisible();
     await expect(preview.getByLabel("Inboxのセッション名", { exact: true })).toHaveValue("inbox-guide-smoke");
-    await preview.getByRole("button", { name: "Proposalを作成" }).click();
+    await preview.getByRole("button", { name: "提案を作成" }).click();
     await page.waitForURL("**/creator-sessions/inbox-guide-smoke");
     page.once("dialog", dialog => dialog.accept());
     const navigation = page.waitForEvent("framenavigated", { predicate: (frame) => frame === page.mainFrame() });

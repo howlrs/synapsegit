@@ -90,7 +90,7 @@ synapse-local --project "work=$REPO" --import-root "work=$INBOX"
 ```
 
 processが表示する`http://127.0.0.1:...`のURLをそのまま人に伝えます。projectを開き、**取り込み待ち**の
-候補を確認してProposalを作成し、採用・不採用・保留から選ぶよう伝えます。判断のbuttonを自分で押しません。
+候補を確認して提案を作成し、採用・不採用・保留から選ぶよう伝えます。判断のbuttonを自分で押しません。
 
 ### 6. 人が判断した後に結果を読む
 

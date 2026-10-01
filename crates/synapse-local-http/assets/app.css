@@ -728,13 +728,18 @@ td {
   vertical-align: top;
 }
 
-th {
+thead th {
   color: var(--ink-muted);
   background: color-mix(in srgb, var(--surface-muted) 70%, var(--surface));
   font-size: 0.78rem;
   font-weight: 760;
   letter-spacing: 0.035em;
   text-transform: uppercase;
+}
+
+/* Row headers hold case-sensitive names, such as session names. */
+tbody th {
+  font-weight: 650;
 }
 
 tbody tr:last-child > * {

@@ -1577,7 +1577,9 @@ async fn creator_multipart_and_decision_complete_the_two_step_transport_workflow
         3
     );
     assert!(pending_html.contains("download=\"web-review-current.bin\" hidden"));
-    assert!(pending_html.contains("caller_supplied"));
+    assert!(pending_html.contains(
+        "AI outputの出どころ: 外部で用意したもの。このアプリや特定のAIモデルが作ったことを示すものではありません。"
+    ));
     assert!(pending_html.contains("aria-controls=\"image-comparison\" hidden"));
     assert!(pending_html.contains("data-synapse-compare-zoom"));
     assert_eq!(pending_html.matches("data-synapse-compare-pane").count(), 2);

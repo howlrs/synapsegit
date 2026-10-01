@@ -15,7 +15,7 @@ test("fresh public text previews and downloads without private source text or Co
   for (const [name, file] of [["original_image", original], ["current_image", current], ["ai_output", output]]) await page.locator(`[name="${name}"]`).setInputFiles(file);
   await page.getByText("提案の生成メモ（任意）", { exact: true }).click();
   await page.locator('[name="generation_prompt"]').fill("PRIVATE_PROMPT_CANARY");
-  await page.getByRole("button", { name: "Proposalを作成", exact: true }).click();
+  await page.getByRole("button", { name: "提案を作成", exact: true }).click();
   await page.waitForURL("**/creator-sessions/public-source");
   await page.getByLabel("理由（任意）", { exact: true }).fill("PRIVATE_RATIONALE_CANARY");
   page.once("dialog", dialog => dialog.accept());
