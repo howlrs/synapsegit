@@ -213,6 +213,8 @@ node scripts/verify_mermaid.mjs
 node scripts/manage_github_security.mjs --validate
 node scripts/wait_for_main_ci.mjs --self-test
 node scripts/test_release_version.mjs
+node scripts/verify_release_fixtures.mjs --self-test
+node scripts/verify_release_fixtures.mjs
 git diff --check
 cargo build --release -p synapse-cli -p synapse-local-http --locked
 bash scripts/verify_archive_compatibility.sh target/release/synapse
@@ -225,12 +227,19 @@ SYNAPSEGIT_BROWSER_PROFILE=release npm --prefix scripts/browser test
 the current `synapse-cli` version. It always tests the pinned v0.11.1 source
 baseline and also tests the latest eligible local annotated ancestor release
 below that version when distinct. It preserves old native JSON fields while
-allowing additive current fields, then verifies both archive round trips. This
-is a regression baseline, not a general stable compatibility promise. Local
+allowing additive current fields, then verifies both archive round trips. The
+read-compatibility promise itself is checked by the release fixtures below and
+described in the [compatibility policy](./compatibility.md). Local
 runs default to `CARGO_NET_OFFLINE=true` and require cached old-source
 dependencies. Controlled CI or release jobs can set `CARGO_NET_OFFLINE=false`;
 the archived old Cargo build may then download dependencies. Local `git archive`
 selection itself does not fetch or download commits.
+
+`verify_release_fixtures.mjs` requires a repository and archive fixture, written by
+the release's own binary, for every annotated release tag below the current version.
+After each release, download and verify its archive and run
+`scripts/generate_release_fixture.sh` (see
+`crates/synapse-cli/tests/fixtures/releases/README.md`) before the next version bump.
 
 `verify_byte_identity_allowlist.mjs` recomputes the byte-identity implementation
 OID of every listed release tag from its tagged source and requires every local

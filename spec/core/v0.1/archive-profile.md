@@ -1,6 +1,6 @@
 # SynapseGit Core local directory archive profile v0.1
 
-Status: **Stage 0 normative draft for the current Rust local archive implementation**<br>
+Status: **Normative; frozen for SynapseGit v1.x** (current Rust local archive implementation)<br>
 Format identifier: `synapsegit-core-archive-v0.1`
 
 この profile は `synapse-core` が現在 export / restore する directory layout と validation rule を定義する。

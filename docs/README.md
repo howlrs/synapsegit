@@ -126,6 +126,7 @@ Japanese or mixed-language technical references unless a link says otherwise.
 | AIエージェントにCLIを操作させる | [AIエージェント向けガイド](./ai_agent_guide.ja.md) | [English](./ai_agent_guide.md) |
 | 成熟度と次の作業を確認する | [Project status](./project_status.md) | [Stage 0 execution plan](./stage0_execution_plan.md) |
 | v1.0の範囲・互換性の約束・リリース条件を確認する | [v1.0 release plan](./v1_release_plan.md) | [Project status](./project_status.md) |
+| 形式の互換性と凍結を確認する | [Compatibility policy](./compatibility.md) | [Core Protocol v0.1](../spec/core/v0.1/README.md) |
 | GitHub Releaseと公開導線を運用する | [Distribution guide](./distribution.md) | [Security policy](../SECURITY.md) |
 | GitHub本体のmerge／security設定を監査する | [GitHub security baseline](../deploy/github/README.md) | [Security policy](../SECURITY.md) |
 | 利用・Fork・contribution条件を確認する | [License](../LICENSE) | [日本語概要](./license_ja.md) / [Third-party notices](../THIRD_PARTY_NOTICES.md) |

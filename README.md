@@ -390,8 +390,9 @@ local application routes, and archive verification. Read the
 - crates.io and GHCR are intentionally not distribution channels for Stage 0.
 - Release assets have SHA-256 checksums. The v0.13.1 archive also receives a
   GitHub build-provenance attestation.
-- The object, archive, and OID formats remain draft and may change before a
-  stable release.
+- From v1.0.0, the object, OID, and archive formats are frozen for v1.x, and
+  every published release's repositories and archives stay readable. See the
+  [compatibility policy](./docs/compatibility.md).
 
 See the [changelog](./CHANGELOG.md) and the
 [v0.13.1 release notes](./docs/releases/v0.13.1.md) before evaluating the

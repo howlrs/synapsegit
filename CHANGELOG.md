@@ -2,7 +2,8 @@
 
 All notable user-visible changes are recorded here. SynapseGit uses semantic
 version tags for release identification, but the Core protocol, OID profile,
-and archive format remain Stage 0 drafts until explicitly declared stable.
+and archive format remain Stage 0 drafts until v1.0.0 freezes them as the v1
+formats; see docs/compatibility.md.
 
 ## [Unreleased]
 
@@ -15,6 +16,14 @@ and archive format remain Stage 0 drafts until explicitly declared stable.
   normal releases only as baselines, and the byte-identity allowlist also
   requires published candidates. `scripts/test_release_version.mjs` checks the
   tag grammar.
+- The v1 formats are frozen for v1.x: `sg-oid-v1`, the Core record schemas,
+  the directory archive profile, the import inbox manifest v1, and the CLI JSON
+  documents (additive fields only). `docs/compatibility.md` states the promise
+  and the change procedure. Repositories and archives written by each of the 17
+  published releases are kept as fixtures, and a CLI test reads and restores
+  every one of them. `scripts/verify_release_fixtures.mjs` requires a fixture
+  for each new release, and `scripts/generate_release_fixture.sh` records it
+  from the verified release archive.
 - The documentation check compares the `SECURITY.md` supported row with the
   `synapse-cli` minor version. From v0.13.2, it also requires the release notes,
   which double as the bundled archive `README.md`, to keep the rule not to

@@ -55,7 +55,7 @@ v1.xは次の二つを約束する。
 OID凍結の根拠は、Rust実装と独立したJavaScript verifierがすべてのgolden fixtureでOID、canonical length、
 canonical SHA-256について一致すること、および全公開版の読み取り互換testとする。
 Core Protocol READMEが定める「第二の独立production実装」は、OID凍結の条件から外し、Stage 1の研究課題として残す。
-仕様・文書への反映と、全公開版の読み取り互換testは[#165](https://github.com/howlrs/synapsegit/issues/165)で行う。
+仕様・文書への反映と、全公開版の読み取り互換testは[#165](https://github.com/howlrs/synapsegit/issues/165)で行い、[互換性方針](./compatibility.md)にまとめた。
 
 ## 対応platform
 

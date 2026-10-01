@@ -1,5 +1,7 @@
 # Import inbox manifest v1
 
+Status: Frozen for SynapseGit v1.x; see the [compatibility policy](../../../../docs/compatibility.md).
+
 An inbox producer writes `original`, `current`, and `ai-output` in a directory
 named by an ASCII slug, then writes `manifest.json` last. The manifest uses
 `synapsegit-import-inbox-v1` and is validated against

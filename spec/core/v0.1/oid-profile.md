@@ -1,6 +1,6 @@
 # Synapse Core OID Profile v0.1
 
-Status: Stage 0 normative draft<br>
+Status: Normative; frozen for SynapseGit v1.x<br>
 Protocol index: [SynapseGit Core Protocol v0.1](./README.md)
 
 ## 1. Goals

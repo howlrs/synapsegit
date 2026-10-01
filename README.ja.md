@@ -339,7 +339,7 @@ application route、archive verificationはRustが担当します。componentの
 - Stage 0ではcrates.ioとGHCRを配布channelにしません。
 - Release assetにはSHA-256 checksumがあります。v0.13.1 archiveにはGitHub
   build-provenance attestationも付与します。
-- object、archive、OID formatはdraftで、stable releaseまでに変わる可能性があります。
+- v1.0.0から、object、OID、archive formatはv1.xの間凍結され、公開済みの全版のrepositoryとarchiveを読み続けます。[互換性方針（英語）](./docs/compatibility.md)を参照してください。
 
 評価前に[changelog](./CHANGELOG.md)と
 [v0.13.1 release notes](./docs/releases/v0.13.1.md)を確認してください。

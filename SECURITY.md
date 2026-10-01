@@ -11,6 +11,9 @@ public, multi-user, or production deployment.
 | Older prereleases | Upgrade may be required before a fix is provided |
 | Unreleased `main` builds | Not a supported distribution |
 
+Data-format compatibility is described separately in the
+[compatibility policy](./docs/compatibility.md).
+
 There is no guaranteed response or remediation SLA. The maintainer will use
 the private advisory thread to communicate triage status as capacity permits.
 
