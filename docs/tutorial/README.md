@@ -225,6 +225,9 @@ bundle, read the English [privacy and trust summary](../security_model.en.md).
 
 ## Next step
 
+To let an AI agent run the CLI while you make the decisions, give it the
+[AI agent guide](../ai_agent_guide.md).
+
 If you want to check whether SynapseGit fits your own creative work, try the
 [Creator pilot evaluation kit](../evaluation/creator-pilot/v1/) (Japanese,
 with an English summary). It reuses this same tutorial to walk through

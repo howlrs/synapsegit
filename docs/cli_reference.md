@@ -11,6 +11,8 @@ bounded session timeline and byte-identity lineage, but the CLI has no general p
 The separate `synapse-present` companion reads completed creator history and generates a local, derived publication
 bundle. It does not change any `synapse` command or turn the Core archive command into a presentation export.
 
+AIエージェントからCLIを使う場合の規則と手順は、[AIエージェント向けガイド](ai_agent_guide.ja.md)にまとめている。
+
 Status: **implemented at Core v0.1 / Stage 0 draft**
 
 ## Build and help

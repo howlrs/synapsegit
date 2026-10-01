@@ -87,6 +87,8 @@ Japanese document. Continue from the tutorial with these focused guides:
 3. [Privacy and trust summary](./security_model.en.md): what remains private
    in a repository and archive, what a public bundle excludes, and the
    loopback-only `synapse-local` boundary.
+4. [AI agent guide](./ai_agent_guide.md): rules and the CLI flow for an AI
+   agent that prepares candidates while the person decides in the browser.
 
 These documents are focused English paths, rather than translations of every
 technical document. Links from English documents identify Japanese-only
@@ -121,6 +123,7 @@ Japanese or mixed-language technical references unless a link says otherwise.
 | GCP本番構成とAWS移植構成を設計・実装する | [Cloud service architecture](./cloud_service_architecture.md) | [Security model](./security_model.md) |
 | private GCP CLI smoke deploymentを再現する | [GCP CLI smoke deployment](../deploy/gcp/README.md) | [Cloud service architecture](./cloud_service_architecture.md) |
 | 実装へ参加する | [Contributing](../CONTRIBUTING.md) | [Stage 0 execution plan](./stage0_execution_plan.md) |
+| AIエージェントにCLIを操作させる | [AIエージェント向けガイド](./ai_agent_guide.ja.md) | [English](./ai_agent_guide.md) |
 | 成熟度と次の作業を確認する | [Project status](./project_status.md) | [Stage 0 execution plan](./stage0_execution_plan.md) |
 | v1.0の範囲・互換性の約束・リリース条件を確認する | [v1.0 release plan](./v1_release_plan.md) | [Project status](./project_status.md) |
 | GitHub Releaseと公開導線を運用する | [Distribution guide](./distribution.md) | [Security policy](../SECURITY.md) |

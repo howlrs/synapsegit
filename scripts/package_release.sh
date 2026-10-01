@@ -76,6 +76,13 @@ install -m 0644 SECURITY.md "$bundle_directory/SECURITY.md"
 install -m 0644 CHANGELOG.md "$bundle_directory/CHANGELOG.md"
 install -m 0644 LICENSE "$bundle_directory/LICENSE"
 install -m 0644 THIRD_PARTY_NOTICES.md "$bundle_directory/THIRD_PARTY_NOTICES.md"
+# The archive renames the AI agent guides; keep their language links valid.
+for guide in ai_agent_guide.md ai_agent_guide.ja.md; do
+  bundled="$bundle_directory/$(printf '%s' "$guide" | sed 's/^ai_agent_guide/AI_AGENT_GUIDE/')"
+  sed -e 's|(\./ai_agent_guide\.md)|(./AI_AGENT_GUIDE.md)|g' \
+    -e 's|(\./ai_agent_guide\.ja\.md)|(./AI_AGENT_GUIDE.ja.md)|g' "docs/$guide" > "$bundled"
+  chmod 0644 "$bundled"
+done
 
 mkdir -p "$bundle_directory/scripts" "$bundle_directory/docs/tutorial/assets"
 install -m 0755 "$tutorial_runner" "$bundle_directory/$tutorial_runner"

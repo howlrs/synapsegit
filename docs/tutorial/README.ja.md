@@ -202,6 +202,9 @@ sessionはcreate-onlyです。同じrepository内で`mural-treatment-01`を再�
 
 ## 次のステップ
 
+AIエージェントにCLIの操作を任せ、判断だけを自分で行う場合は、
+[AIエージェント向けガイド](../ai_agent_guide.ja.md)を渡してください。
+
 SynapseGitが自分の制作に合うかを確かめたい場合は、
 [Creator pilot 評価キット](../evaluation/creator-pilot/v1/)を試してください。
 このtutorialと同じ素材を使い、最初の制作記録に対する理解度確認と観察記録の手順を

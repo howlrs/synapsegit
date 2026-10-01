@@ -75,6 +75,7 @@ UI mockups.
 |---|---|
 | Understand the idea in five minutes | Continue with [How it works](#how-it-works) |
 | Try a complete visual example | [15-minute mural tutorial](./docs/tutorial/README.md) |
+| Let an AI agent run the CLI while I decide | [AI agent guide](./docs/ai_agent_guide.md) |
 | Install the three preview binaries | [Installation](./docs/install.md) |
 | Use my own three images | [Three-minute Pilot](#try-it-in-three-minutes) |
 | Inspect a repository in the browser | [Local application runbook (Japanese)](./deploy/local/README.md) |
