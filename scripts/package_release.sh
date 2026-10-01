@@ -102,6 +102,24 @@ if ! grep -q "/blob/$tag/" "$bundled_guide"; then
   exit 1
 fi
 
+# Reproducible archives need GNU tar. macOS provides it as gtar.
+gnu_tar=""
+for candidate in tar gtar; do
+  if command -v "$candidate" >/dev/null 2>&1 && "$candidate" --version 2>/dev/null | grep -q 'GNU tar'; then
+    gnu_tar="$candidate"
+    break
+  fi
+done
+if [[ -z "$gnu_tar" ]]; then
+  echo "release_error: GNU tar is required; on macOS install gnu-tar to provide gtar" >&2
+  exit 1
+fi
+if command -v sha256sum >/dev/null 2>&1; then
+  sha256=(sha256sum)
+else
+  sha256=(shasum -a 256)
+fi
+
 source_date_epoch="${SOURCE_DATE_EPOCH:-$(git log -1 --format=%ct)}"
 if [[ ! "$source_date_epoch" =~ ^[0-9]+$ ]]; then
   echo "release_error: SOURCE_DATE_EPOCH must be an integer" >&2
@@ -110,14 +128,14 @@ fi
 
 (
   cd "$output_directory"
-  tar \
+  "$gnu_tar" \
     --sort=name \
     --mtime="@$source_date_epoch" \
     --owner=0 \
     --group=0 \
     --numeric-owner \
     -cf - "$bundle" | gzip -n > "$bundle.tar.gz"
-  sha256sum "$bundle.tar.gz" > SHA256SUMS
+  "${sha256[@]}" "$bundle.tar.gz" > SHA256SUMS
 )
 
 printf 'packaged %s (%s)\n' "$archive" "$version"

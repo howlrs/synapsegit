@@ -31,7 +31,9 @@ impl TempDirectory {
             std::process::id()
         ));
         fs::create_dir(&path).unwrap();
-        Self(path)
+        // macOS places the temporary directory under the `/var` symlink, and
+        // publication refuses symlinked parents, so tests use the real path.
+        Self(path.canonicalize().unwrap())
     }
 
     fn join(&self, path: impl AsRef<Path>) -> PathBuf {

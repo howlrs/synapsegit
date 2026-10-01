@@ -40,14 +40,22 @@ jobs:
           node scripts/wait_for_main_ci.mjs --self-test
           node scripts/wait_for_main_ci.mjs --repo "$GITHUB_REPOSITORY" --sha "$GITHUB_SHA"
 
-  release-linux-x86-64:
-    name: Verify, build, and publish Linux x86_64
+  build:
+    name: Verify, build, and package ${{ matrix.target }}
     needs: main-ci
-    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - runner: macos-14
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.runner }}
     env:
       CARGO_TERM_COLOR: always
       RUST_TOOLCHAIN: 1.88.0
-      TARGET: x86_64-unknown-linux-gnu
+      TARGET: ${{ matrix.target }}
     steps:
       - name: Check out the tagged source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -74,8 +82,12 @@ jobs:
         run: |
           rustup toolchain install "$RUST_TOOLCHAIN" --profile minimal --component clippy,rustfmt
           rustup default "$RUST_TOOLCHAIN"
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            command -v gtar >/dev/null || brew install gnu-tar
+          fi
 
       - name: Verify the tagged source
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: |
           cargo fmt --all -- --check
           cargo test --workspace --all-targets --locked
@@ -85,6 +97,9 @@ jobs:
           node scripts/select_archive_compat_baseline.mjs --self-test
           node scripts/verify_byte_identity_allowlist.mjs --self-test
           node scripts/verify_byte_identity_allowlist.mjs
+          node scripts/test_release_version.mjs
+          node scripts/verify_release_fixtures.mjs --self-test
+          node scripts/verify_release_fixtures.mjs
           node scripts/verify_core_fixtures.mjs
           node scripts/verify_local_api.mjs
           node scripts/test_publication_comprehension_scorer.mjs
@@ -95,6 +110,12 @@ jobs:
           node scripts/manage_github_security.mjs --validate
           git diff --check
 
+      - name: Verify the tagged source on macOS
+        if: matrix.target == 'aarch64-apple-darwin'
+        run: |
+          cargo test --workspace --all-targets --locked
+          cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
+
       - name: Build release binaries
         run: |
           cargo build --release --locked -p synapse-cli --bin synapse
@@ -102,41 +123,8 @@ jobs:
           cargo build --release --locked -p synapse-publication --bin synapse-present
 
       - name: Verify archive compatibility baselines
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
         run: CARGO_NET_OFFLINE=false bash scripts/verify_archive_compatibility.sh target/release/synapse
-
-      - name: Smoke-test release binaries
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          test "$(target/release/synapse --version)" = "synapse $version"
-          test "$(target/release/synapse-local --version)" = "synapse-local $version"
-          test "$(target/release/synapse-present --version)" = "synapse-present $version"
-          target/release/synapse --help >/dev/null
-          target/release/synapse-local --help >/dev/null
-          target/release/synapse-present --help >/dev/null
-          smoke="$(mktemp -d)"
-          trap 'rm -rf "$smoke"' EXIT
-          printf 'original\n' > "$smoke/original.bin"
-          printf 'current\n' > "$smoke/current.bin"
-          printf 'candidate\n' > "$smoke/candidate.bin"
-          target/release/synapse init "$smoke/repo" >/dev/null
-          target/release/synapse creator-run "$smoke/repo" release-smoke \
-            "$smoke/original.bin" "$smoke/current.bin" "$smoke/candidate.bin" \
-            --subject "Release publication smoke" \
-            --creator "Release workflow" \
-            --decision defer \
-            --rationale "Private smoke rationale" >/dev/null
-          mkdir "$smoke/inbox"
-          target/release/synapse inbox put "$smoke/inbox" release-smoke \
-            "$smoke/original.bin" "$smoke/current.bin" "$smoke/candidate.bin" \
-            --subject "Release inbox smoke" \
-            --creator "Release workflow" >/dev/null
-          test -s "$smoke/inbox/release-smoke/manifest.json"
-          target/release/synapse-present export "$smoke/repo" "$smoke/view" \
-            --session release-smoke --public --github >/dev/null
-          target/release/synapse-present preview "$smoke/view" >/dev/null
-          for file in projection.json story.md index.html manifest.json checksums.json target/README.md; do
-            test -s "$smoke/view/$file"
-          done
 
       - name: Package release archive
         run: |
@@ -144,60 +132,46 @@ jobs:
           bash scripts/package_release.sh "$GITHUB_REF_NAME" "$TARGET" dist
 
       - name: Smoke-test the packaged archive
-        run: |
-          bundle="synapsegit-$GITHUB_REF_NAME-$TARGET"
-          unpacked="$(mktemp -d)"
-          trap 'rm -rf "$unpacked"' EXIT
-          tar -xzf "dist/$bundle.tar.gz" -C "$unpacked"
-          for file in LICENSE THIRD_PARTY_NOTICES.md SECURITY.md CHANGELOG.md AI_AGENT_GUIDE.md AI_AGENT_GUIDE.ja.md; do
-            test -s "$unpacked/$bundle/$file"
-          done
-          version="${GITHUB_REF_NAME#v}"
-          test "$("$unpacked/$bundle/synapse" --version)" = "synapse $version"
-          test "$("$unpacked/$bundle/synapse-local" --version)" = "synapse-local $version"
-          test "$("$unpacked/$bundle/synapse-present" --version)" = "synapse-present $version"
-          "$unpacked/$bundle/synapse" --help >/dev/null
-          "$unpacked/$bundle/synapse-local" --help >/dev/null
-          "$unpacked/$bundle/synapse-present" --help >/dev/null
-          printf 'original\n' > "$unpacked/original.bin"
-          printf 'current\n' > "$unpacked/current.bin"
-          printf 'candidate\n' > "$unpacked/candidate.bin"
-          "$unpacked/$bundle/synapse" init "$unpacked/repo" >/dev/null
-          "$unpacked/$bundle/synapse" creator-run "$unpacked/repo" packaged-smoke \
-            "$unpacked/original.bin" "$unpacked/current.bin" "$unpacked/candidate.bin" \
-            --subject "Packaged publication smoke" \
-            --creator "Release workflow" \
-            --decision reject \
-            --rationale "Private packaged smoke rationale" >/dev/null
-          "$unpacked/$bundle/synapse-present" export "$unpacked/repo" "$unpacked/view" \
-            --session packaged-smoke --public --github >/dev/null
-          "$unpacked/$bundle/synapse-present" preview "$unpacked/view" >/dev/null
-
-      - name: Smoke-test the bundled archive tutorial
-        run: |
-          bundle="synapsegit-$GITHUB_REF_NAME-$TARGET"
-          unpacked="$(mktemp -d)"
-          trap 'rm -rf "$unpacked"' EXIT
-          tar -xzf "dist/$bundle.tar.gz" -C "$unpacked"
-          for file in TUTORIAL.md scripts/run_mural_tutorial.sh \
-            docs/tutorial/assets/mural-original.png \
-            docs/tutorial/assets/mural-current.png \
-            docs/tutorial/assets/mural-ai-proposal.png; do
-            test -s "$unpacked/$bundle/$file"
-          done
-          test -x "$unpacked/$bundle/scripts/run_mural_tutorial.sh"
-          if grep -q '{{RELEASE_TAG}}' "$unpacked/$bundle/TUTORIAL.md"; then
-            echo "release_error: unresolved RELEASE_TAG placeholder in bundled guide" >&2
-            exit 1
-          fi
-          grep -q "/blob/$GITHUB_REF_NAME/" "$unpacked/$bundle/TUTORIAL.md"
-
-          bash scripts/test_tutorial_bundle.sh --bundle "$unpacked/$bundle"
+        run: bash scripts/smoke_release_archive.sh "dist/synapsegit-$GITHUB_REF_NAME-$TARGET.tar.gz" "$GITHUB_REF_NAME" "$TARGET"
 
       - name: Attest the release archive
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: dist/synapsegit-${{ github.ref_name }}-${{ env.TARGET }}.tar.gz
+
+      - name: Keep the release archive for publishing
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-${{ matrix.target }}
+          path: |
+            dist/*.tar.gz
+            dist/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish the release assets
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check out the tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Collect the platform archives
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: release-*
+          path: release-parts
+
+      - name: Combine and verify the checksums
+        run: |
+          bash scripts/assemble_release_assets.sh release-parts dist
+          (cd dist && sha256sum --check SHA256SUMS)
+          test "$(wc -l < dist/SHA256SUMS)" -eq 2
+          test -f "dist/synapsegit-$GITHUB_REF_NAME-x86_64-unknown-linux-gnu.tar.gz"
+          test -f "dist/synapsegit-$GITHUB_REF_NAME-aarch64-apple-darwin.tar.gz"
 
       - name: Create or resume the draft release
         env:
@@ -234,7 +208,7 @@ jobs:
         run: |
           test "$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = true
           gh release upload "$GITHUB_REF_NAME" \
-            "dist/synapsegit-$GITHUB_REF_NAME-$TARGET.tar.gz" \
+            dist/*.tar.gz \
             dist/SHA256SUMS \
             --repo "$GITHUB_REPOSITORY" \
             --clobber

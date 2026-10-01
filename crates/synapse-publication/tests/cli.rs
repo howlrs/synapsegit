@@ -18,7 +18,9 @@ impl TempDirectory {
                 std::process::id()
             ));
             match fs::create_dir(&path) {
-                Ok(()) => return Self(path),
+                // macOS places the temporary directory under the `/var` symlink,
+                // and publication refuses symlinked parents.
+                Ok(()) => return Self(path.canonicalize().unwrap()),
                 Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
                 Err(error) => panic!("create {}: {error}", path.display()),
             }

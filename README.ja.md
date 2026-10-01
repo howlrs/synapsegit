@@ -103,7 +103,7 @@ GNU向けで、glibc 2.34以降を必要とします。それ以外のplatform�
 ```bash
 curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.13.1/synapsegit-v0.13.1-x86_64-unknown-linux-gnu.tar.gz
 curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.13.1/SHA256SUMS
-sha256sum --check SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
 ```
 
 checksum検証が失敗した場合はここで中止し、archiveを展開・installしないでください。

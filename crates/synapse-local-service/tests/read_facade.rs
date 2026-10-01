@@ -22,7 +22,9 @@ impl TempDirectory {
             std::process::id()
         ));
         fs::create_dir(&path).unwrap();
-        Self(path)
+        // Errors report canonical paths; macOS keeps the temporary directory
+        // under the `/var` symlink.
+        Self(path.canonicalize().unwrap())
     }
 
     fn directory(&self, name: &str) -> PathBuf {

@@ -121,15 +121,22 @@ GitHub SettingsのSocial previewへ明示的にuploadしない限り、repositor
 | Channel | Support | Notes |
 |---|---|---|
 | Linux x86_64 GNU archive | Preview support | Ubuntu 22.04 build、glibc 2.34+ |
+| macOS arm64（Apple Silicon）archive | Preview support（v0.13.1の次のreleaseから） | macOS 14でbuild・test・archive smoke。Appleの署名・notarizationなし |
 | Tagged source build | Best-effort preview | Rust 1.88+、対応Unix-like host |
 | Windows | Unsupported | atomic archive publication path未対応 |
-| macOS / Linux ARM64 prebuilt | Not published | release pipelineで未検証 |
+| Linux ARM64 prebuilt | Not published | release pipelineで未検証。tagged source buildを使う |
 | Public cloud / container service | Not published | architectureまたはprivate smokeのみ |
 
 新しいplatformは、buildが通るだけで配布対象にしない。tag workflowでtest、binary smoke、archive
 展開後smokeを実行でき、security boundaryと制限をrelease notesへ記述してから追加する。
 
 ## Release asset構成
+
+tag workflowは、Linux x86_64（`ubuntu-22.04`）とmacOS arm64（`macos-14`）のjobで、それぞれtest、release build、
+archive作成、展開後smoke（`scripts/smoke_release_archive.sh`）、build provenance attestationを行う。publish jobは
+両方のarchiveを集め、`scripts/assemble_release_assets.sh`で2行の`SHA256SUMS`にまとめてからdraft releaseへuploadする。
+利用者は`sha256sum --check --ignore-missing SHA256SUMS`（macOSでは該当行を`shasum -a 256 --check`へ渡す）で、
+downloadしたarchiveだけを検証する。main／Pull RequestのCIも、同じmacOS jobと両archiveの組み立てを毎回検証する。
 
 v0.13.1 archiveは、v0.11.1、v0.10.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
 generic-artifact v1のworkflow／schema／local projectionはtagged sourceに含まれるworkspace libraryであり、
