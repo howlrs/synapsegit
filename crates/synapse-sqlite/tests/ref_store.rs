@@ -33,6 +33,9 @@ impl TestDirectory {
         ));
         fs::create_dir(&path)
             .unwrap_or_else(|error| panic!("create test directory {}: {error}", path.display()));
+        // Errors report canonical paths; macOS keeps the temporary directory
+        // under the `/var` symlink.
+        let path = path.canonicalize().unwrap();
         Self { path }
     }
 

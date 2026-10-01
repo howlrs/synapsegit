@@ -21,6 +21,8 @@ bundle="synapsegit-$tag-$target"
 script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/synapsegit-release-smoke.XXXXXX")"
+# synapse-present refuses symlinked parents; macOS keeps TMPDIR under /var.
+work="$(cd "$work" && pwd -P)"
 trap 'rm -rf -- "$work"' EXIT
 tar -xzf "$archive" -C "$work"
 root="$work/$bundle"

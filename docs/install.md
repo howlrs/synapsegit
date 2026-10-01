@@ -120,6 +120,10 @@ export PATH="$HOME/.local/bin:$PATH"
 synapse --version
 ```
 
+`synapse-present` refuses a publication path whose parent folders include a
+symbolic link. On macOS `/tmp` and `/var` are symbolic links, so keep
+publication inputs and outputs under your home folder.
+
 The binaries are not signed or notarized by Apple. Files downloaded with `curl`
 carry no quarantine attribute and run directly. If you downloaded the archive
 with a browser and macOS blocks a binary, remove the quarantine attribute from
