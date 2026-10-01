@@ -32,6 +32,14 @@ formats; see docs/compatibility.md.
   every one of them. `scripts/verify_release_fixtures.mjs` requires a fixture
   for each new release, and `scripts/generate_release_fixture.sh` records it
   from the verified release archive.
+- Creator pilot evaluation kit v2 (`docs/evaluation/creator-pilot/v2/`) for
+  v1.0 release candidates: a consent sheet, participant tasks, and questions
+  in English and Japanese, a facilitator guide with the severe-problem
+  criteria from the v1.0 release plan and a triage procedure, and a result
+  template. Participants ask their own AI agent to place a candidate in the
+  import inbox, decide on the page themselves, read the record back, and make
+  a backup. A synthetic rehearsal of the whole kit is recorded; it found no
+  severe problem and led to #186 and #187. Kit v1 stays fixed to v0.9.0.
 - The documentation check compares the `SECURITY.md` supported row with the
   `synapse-cli` minor version. From v0.13.2, it also requires the release notes,
   which double as the bundled archive `README.md`, to keep the rule not to

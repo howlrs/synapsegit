@@ -78,6 +78,7 @@ GitHub milestone [`v1.0`](https://github.com/howlrs/synapsegit/milestone/1)が�
 - [#150](https://github.com/howlrs/synapsegit/issues/150) session詳細とcreator-reportに、対象名・作成者名・判断の記録時刻を表示する
 - [#151](https://github.com/howlrs/synapsegit/issues/151) 日時とTimelineを人が読める表示にする
 - [#155](https://github.com/howlrs/synapsegit/issues/155) 画面の専門用語を平易にし、技術情報を折りたたむ
+- [#186](https://github.com/howlrs/synapsegit/issues/186) 取り込み済みのInbox候補を「取り込み待ち」から区別する（評価キットv2のrehearsalで発見）
 - [#159](https://github.com/howlrs/synapsegit/issues/159) 日本語表示で英語のまま残る欄名を直す
 
 AI経由のCLI操作:
@@ -92,7 +93,9 @@ AI経由のCLI操作:
 - [#165](https://github.com/howlrs/synapsegit/issues/165) v1形式の凍結を仕様に反映し、全公開版の読み取り互換を検査する
 - [#158](https://github.com/howlrs/synapsegit/issues/158) macOS arm64のprebuilt archiveを配布する（Linux ARM64はv1.0の対象外）
 - [#168](https://github.com/howlrs/synapsegit/issues/168) release手順でpre-release tag（v1.0.0-rc.N）を扱えるようにする
-- [#169](https://github.com/howlrs/synapsegit/issues/169) v1.0の利用モデルに合う評価キットv2を作り、v1.0-rcで実利用者Pilotを行う
+- [#169](https://github.com/howlrs/synapsegit/issues/169) v1.0の利用モデルに合う評価キットv2を作る（キットと合成素材でのrehearsalは完了）
+- [#193](https://github.com/howlrs/synapsegit/issues/193) 評価に使うv1.0.0-rc.1を準備して公開する
+- [#192](https://github.com/howlrs/synapsegit/issues/192) v1.0.0-rcを主対象の3〜5人が評価キットv2で試用する（チームが実施・判断）
 - [#164](https://github.com/howlrs/synapsegit/issues/164) READMEを「できること・始め方」中心に再構成する
 
 v1形式の凍結前に方針を決める設計（決定済み）:
@@ -120,6 +123,7 @@ AIエージェントはCLIでこれらの操作を代わりに行えるため、
 - [#163](https://github.com/howlrs/synapsegit/issues/163) 派生sessionの公開。新しい公開profileは、凍結した公開bundle v1と並べて後から追加できる。
 - [#178](https://github.com/howlrs/synapsegit/issues/178) 次の制作段階のつながりの記録と表示（[#161](https://github.com/howlrs/synapsegit/issues/161)の決定）。
 - [#179](https://github.com/howlrs/synapsegit/issues/179) 同じ派生元の複数候補を並べて比較する画面（[#162](https://github.com/howlrs/synapsegit/issues/162)の決定）。
+- [#187](https://github.com/howlrs/synapsegit/issues/187) `creator-report`のテキスト出力で生成メモとピンをkey=value形式にする。JSON出力は構造化済みで、AIエージェント向けガイドはJSONを案内しているため。
 
 ## リリース条件
 
