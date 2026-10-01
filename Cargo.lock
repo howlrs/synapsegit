@@ -1290,6 +1290,7 @@ name = "synapse-creator"
 version = "0.13.1"
 dependencies = [
  "getrandom 0.4.3",
+ "rustix",
  "serde",
  "serde_json",
  "sha2",

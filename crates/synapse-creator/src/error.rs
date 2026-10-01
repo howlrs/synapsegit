@@ -16,6 +16,8 @@ pub enum CreatorError {
     SessionExists(String),
     SessionIncomplete(String),
     SessionNotFound(String),
+    /// An import-inbox candidate with this slug already exists.
+    InboxCandidateExists(String),
     Io {
         operation: &'static str,
         path: PathBuf,
@@ -43,6 +45,7 @@ impl CreatorError {
             Self::SessionExists(_) => "creator_session_exists",
             Self::SessionIncomplete(_) => "creator_session_incomplete",
             Self::SessionNotFound(_) => "creator_session_not_found",
+            Self::InboxCandidateExists(_) => "inbox_candidate_exists",
             Self::Io { .. } | Self::Clock(_) | Self::Random(_) => "storage_error",
             Self::Repository(error) => error.code(),
             Self::Application(error) => error.code(),
@@ -78,6 +81,10 @@ impl fmt::Display for CreatorError {
             Self::SessionNotFound(session) => {
                 write!(formatter, "creator session {session:?} was not found")
             }
+            Self::InboxCandidateExists(slug) => write!(
+                formatter,
+                "inbox candidate {slug:?} already exists; choose another slug"
+            ),
             Self::Io {
                 operation,
                 path,

@@ -265,6 +265,7 @@ project ACL／FIFO fenceを通して`HumanDecisionRuntime::publish_decision`を�
 GUIのない環境では、実行前に別のviewerで3画像を確認し、この一回の`creator-run`実行で判断する。
 
 ブラウザで判断前の候補を確認する用途は`creator-run`ではなく、`synapse-local --import-root KEY=PATH`のmanifest-last inboxを使う。browser requestはpathを送らずlogical slugだけを送り、一覧へ戻る操作はprivate stagingを破棄する。すでに`defer`したproposalまたは中断sessionを改めて検討する場合は、localhostの再レビューが3画像から新しいsessionを作る。元proposalのauthorityやdecisionはresume・変更しない。CLIと`synapse-local`は同じrepositoryへ同時に書き込めないため、CLI実行前にserverを停止する。
+AIエージェントやscriptから判断前の候補を置く場合は、判断を記録しない`synapse inbox put`を使う。
 
 ```bash
 synapse creator-run .synapse-creator mural-1 \
@@ -701,6 +702,43 @@ verifyしてから一つの完全なdocumentへ組み立て、それを丸ごと
 並び、stageは`original_observation`／`current_observation`／`image_import`／`ai_proposal`の順に
 現れる（各sessionでの記録順）。
 
+### `inbox put <inbox-dir> <slug> <original> <current> <ai-output> --subject <label> --creator <name> [--generation-note-file <path>] [--format text|json]`
+
+`synapse-local --import-root KEY=PATH`のInboxへ、判断をせずに候補を1件書き出す。repositoryを開かず、
+Proposalを作らず、Human Decisionも記録しない。人が`synapse-local`のproject画面で候補を確認し、取り込んで判断する。
+AIエージェント経由でCLIを使う場合の既定の経路である（[#166](https://github.com/howlrs/synapsegit/issues/166)）。
+
+```bash
+mkdir -p "$HOME/SynapseGit/inbox"
+synapse inbox put "$HOME/SynapseGit/inbox" mural-next \
+  original.png current.png ai-output.png \
+  --subject "North wall mural" \
+  --creator "Aki" \
+  --generation-note-file generation-note.json
+synapse-local \
+  --project "mural=$HOME/SynapseGit/mural" \
+  --import-root "mural=$HOME/SynapseGit/inbox"
+```
+
+- `<inbox-dir>`は既存のdirectoryに限る。存在しない場合は作らずに`usage_error`で終了する。
+- `<slug>`は`[a-z][a-z0-9-]{0,63}`。`<inbox-dir>/<slug>`が既に存在する場合は、空directoryでも上書きせず
+  `inbox_candidate_exists`で終了する。同じslugへ同時に書いた場合も一方だけが成功する。
+- 3つのfileを`original`、`current`、`ai-output`という固定名でcopyし、同じ読み込みでsizeとSHA-256を計算して
+  `synapsegit-import-inbox-v1`のmanifestへ記録する。各fileは通常file（symbolic linkは辿る）で最大64 MiB。
+  超える場合は`resource_limit`、directoryやFIFOは`usage_error`で、何も公開しない。
+- `--subject`は1〜500、`--creator`は1〜300 UTF-8 bytes。`--generation-note-file`は`creator-run`と同じ形式・上限で、
+  省略した項目はmanifestへ空文字として書く。
+- 書き込みは`<inbox-dir>`直下の`.<slug>.partial-<random>`で行い、manifestまで書いてflushした後、directory全体を
+  上書きしないrenameで`<slug>`として公開する。`synapse-local`はslugの形式に合わない名前を無視するため、
+  書き込み途中の候補は一覧に出ない。失敗時は一時directoryを削除する。processが強制終了した場合だけ一時directoryが
+  残る。残ったものは削除してよく、同じslugでの再試行は妨げないが、Inboxの256項目の上限に数えられる。
+- repositoryに触れないため、`synapse-local`の起動中でも実行できる。
+- text出力（既定）は`inbox_candidate=`、`path=`、各fileの`<role>_size=`と`<role>_sha256=`、`decision_recorded=false`、
+  `next=`の行である。`--format json`は`"format": "synapsegit-cli-inbox-put-v1"`、`slug`、`path`、`manifest`、
+  `decision_recorded`（常に`false`）、`next`を持つJSON documentを1件出力する。fieldの追加は`-v1`のまま行い、
+  削除・rename・意味の変更には新しい識別子を使う。
+- `synapse inbox --help`と`synapse inbox put --help`は、この説明をstdoutへ出してexit code 0で終了する。
+
 ### `refs <repo>`
 
 current Refs を name 順に出力する。
@@ -821,6 +859,7 @@ directory archive を検証し、object、reflog、Refs を復元する。
 | `creator_session_exists` | `creator-run`のproposal／decision Refがcomplete sessionとして既に存在するcreate-only conflict |
 | `creator_session_incomplete` | base Ref公開後等にproposal／decision Refがpartial stateで残ったcreate-only session。自動resume／cleanupしない |
 | `creator_session_not_found` | `creator-report`に必要なcurrent proposal／decision Refがない |
+| `inbox_candidate_exists` | `inbox put`の`<inbox-dir>/<slug>`が既に存在する。上書きしないため、別のslugを選ぶ |
 | `creator_report_unavailable_after_commit` | `creator-run`のsession commit／fsckは完了したが、続くreport構築が失敗。再実行で上書きせず`creator-report`で再確認する |
 | `creator_report_invalid` | current proposal／Feedback／decision snapshot／AI Activity、またはcomparison Tree set／Analysis／tool Actor／adapter digest／ordered input／replay prerequisite／両Ref reachabilityがcreator contractと一致しない |
 | `creator_implementation_unrecognized` | comparison evidenceは整合しているが、byte-identity implementation OIDが現在のbuildのbundleでも公開済みreleaseのbundleでもない。新しいreleaseや未リリースのsource buildで作ったsession。retry不可、identityへの影響なし |

@@ -8,6 +8,7 @@ v0.13.1 release binaryを[install guide](install.md)から導入するか、
 [localhost runbook](../deploy/local/README.md)に従って起動してください。
 
 `synapse-local --import-root KEY=PATH` を使う場合、producerは`PATH/<slug>`へ3つの画像を書き、strict manifestを最後に書く。ブラウザはpathではなくslugだけを送る。確認を閉じるとprocess-private stagingは直ちに破棄され、Proposal作成は確認した同じstaged bytesだけを使う。
+CLIやAIエージェントからは`synapse inbox put`でこの形式の候補を書き出せる。repositoryを開かず、判断も記録しない。判断は人がブラウザで行う。
 
 ## 1. 画像と生成メモを取り込む
 

@@ -125,6 +125,12 @@ jobs:
             --creator "Release workflow" \
             --decision defer \
             --rationale "Private smoke rationale" >/dev/null
+          mkdir "$smoke/inbox"
+          target/release/synapse inbox put "$smoke/inbox" release-smoke \
+            "$smoke/original.bin" "$smoke/current.bin" "$smoke/candidate.bin" \
+            --subject "Release inbox smoke" \
+            --creator "Release workflow" >/dev/null
+          test -s "$smoke/inbox/release-smoke/manifest.json"
           target/release/synapse-present export "$smoke/repo" "$smoke/view" \
             --session release-smoke --public --github >/dev/null
           target/release/synapse-present preview "$smoke/view" >/dev/null

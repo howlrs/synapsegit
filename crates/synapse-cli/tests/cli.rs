@@ -1432,3 +1432,109 @@ fn creator_report_format_json_represents_generation_note_pins_derived_and_reuse_
         assert_eq!(before["decision_pins"], after["decision_pins"]);
     }
 }
+
+#[test]
+fn inbox_put_writes_a_manifest_last_candidate_without_a_repository_or_decision() {
+    let temp = TempDirectory::new();
+    let inbox = temp.join("inbox");
+    fs::create_dir(&inbox).unwrap();
+    for (name, bytes) in [
+        ("original.png", b"original".as_slice()),
+        ("current.png", b"current"),
+        ("candidate.png", b"candidate"),
+    ] {
+        fs::write(temp.join(name), bytes).unwrap();
+    }
+    let note = temp.join("note.json");
+    fs::write(&note, br#"{"tool":"Image tool","prompt":"Evening light"}"#).unwrap();
+    let arguments = |slug: &str, format: &str| {
+        vec![
+            "inbox".to_owned(),
+            "put".to_owned(),
+            inbox.to_str().unwrap().to_owned(),
+            slug.to_owned(),
+            temp.join("original.png").to_str().unwrap().to_owned(),
+            temp.join("current.png").to_str().unwrap().to_owned(),
+            temp.join("candidate.png").to_str().unwrap().to_owned(),
+            "--subject".to_owned(),
+            "Coastal mural".to_owned(),
+            "--creator".to_owned(),
+            "Assistant".to_owned(),
+            "--generation-note-file".to_owned(),
+            note.to_str().unwrap().to_owned(),
+            "--format".to_owned(),
+            format.to_owned(),
+        ]
+    };
+
+    let text = run_owned(arguments("first", "text"));
+    assert_success(&text);
+    let stdout = String::from_utf8(text.stdout).unwrap();
+    assert!(stdout.starts_with("inbox_candidate=first\n"), "{stdout}");
+    assert!(stdout.contains("ai_output_size=9\n"));
+    assert!(stdout.contains("decision_recorded=false\n"));
+    let manifest: serde_json::Value =
+        serde_json::from_slice(&fs::read(inbox.join("first/manifest.json")).unwrap()).unwrap();
+    assert_eq!(manifest["version"], "synapsegit-import-inbox-v1");
+    assert_eq!(manifest["ai_output"]["name"], "ai-output");
+    assert_eq!(
+        manifest["metadata"]["generation_note"]["tool"],
+        "Image tool"
+    );
+    assert_eq!(manifest["metadata"]["generation_note"]["model"], "");
+    assert_eq!(fs::read(inbox.join("first/current")).unwrap(), b"current");
+
+    let json = json_stdout(&run_owned(arguments("second", "json")));
+    assert_eq!(json["format"], "synapsegit-cli-inbox-put-v1");
+    assert_eq!(json["slug"], "second");
+    assert_eq!(json["decision_recorded"], false);
+    assert_eq!(json["manifest"]["original"]["size"], 8);
+
+    // Only the two candidates exist: no repository, staging, or other files.
+    let mut names: Vec<_> = fs::read_dir(&inbox)
+        .unwrap()
+        .map(|entry| entry.unwrap().file_name().into_string().unwrap())
+        .collect();
+    names.sort();
+    assert_eq!(names, ["first", "second"]);
+
+    let duplicate = run_owned(arguments("first", "text"));
+    assert_eq!(duplicate.status.code(), Some(1));
+    assert!(
+        String::from_utf8_lossy(&duplicate.stderr).starts_with("inbox_candidate_exists: "),
+        "{}",
+        String::from_utf8_lossy(&duplicate.stderr)
+    );
+}
+
+#[test]
+fn inbox_put_refuses_a_missing_inbox_directory_and_prints_help() {
+    let temp = TempDirectory::new();
+    fs::write(temp.join("file.png"), b"bytes").unwrap();
+    let missing = temp.join("missing-inbox");
+    let file = temp.join("file.png");
+    let output = run(&[
+        "inbox",
+        "put",
+        missing.to_str().unwrap(),
+        "slug",
+        file.to_str().unwrap(),
+        file.to_str().unwrap(),
+        file.to_str().unwrap(),
+        "--subject",
+        "Subject",
+        "--creator",
+        "Creator",
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).starts_with("usage_error: inbox directory "));
+    assert!(!missing.exists());
+
+    for arguments in [&["inbox", "--help"][..], &["inbox", "put", "--help"]] {
+        let help = run(arguments);
+        assert_success(&help);
+        assert!(String::from_utf8_lossy(&help.stdout).contains("synapse inbox put <inbox-dir>"));
+    }
+    let usage = run(&["--help"]);
+    assert!(String::from_utf8_lossy(&usage.stdout).contains("synapse inbox put"));
+}
