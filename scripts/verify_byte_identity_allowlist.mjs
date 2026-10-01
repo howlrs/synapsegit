@@ -21,17 +21,24 @@ const BUNDLE_MEMBERS = [
   ["src/lib.rs", "crates/synapse-observation/src/lib.rs"],
 ];
 
+// X.Y.Z or X.Y.Z-rc.N, with an optional leading "v". The fourth element is the
+// release-candidate number, or null for a normal release.
 export function parseVersion(version) {
-  const match = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.exec(version);
+  const match = /^v?(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-rc\.([1-9]\d*))?$/.exec(version);
   if (!match) return null;
-  return match.slice(1).map(Number);
+  return [Number(match[1]), Number(match[2]), Number(match[3]), match[4] === undefined ? null : Number(match[4])];
 }
 
+// A release candidate sorts before its normal release, as in SemVer.
 export function compareVersions(left, right) {
   for (let index = 0; index < 3; index += 1) {
     if (left[index] !== right[index]) return left[index] - right[index];
   }
-  return 0;
+  const [leftCandidate, rightCandidate] = [left[3] ?? null, right[3] ?? null];
+  if (leftCandidate === rightCandidate) return 0;
+  if (leftCandidate === null) return 1;
+  if (rightCandidate === null) return -1;
+  return leftCandidate - rightCandidate;
 }
 
 export function parseAllowlist(source) {
@@ -72,7 +79,7 @@ export function validateEntries(entries) {
   for (const { tag, oid } of entries) {
     const version = parseVersion(tag);
     if (!version || !tag.startsWith("v")) {
-      failures.push(`${tag}: entry must name a vX.Y.Z release tag`);
+      failures.push(`${tag}: entry must name a vX.Y.Z or vX.Y.Z-rc.N release tag`);
       continue;
     }
     if (!/^blob:sg-oid-v1:sha256:[0-9a-f]{64}$/.test(oid)) failures.push(`${tag}: ${oid} is not a Blob OID`);
@@ -86,7 +93,7 @@ export function validateEntries(entries) {
 
 export function requiredReleaseTags(lines, currentVersion) {
   const current = parseVersion(currentVersion);
-  if (!current) throw new Error(`current version is not normal semver: ${currentVersion}`);
+  if (!current) throw new Error(`current version is not a supported release version: ${currentVersion}`);
   return lines.map((line) => {
     const [tag, objectType, commit, ancestor] = line.split("\t");
     return { tag, objectType, commit, ancestor, version: parseVersion(tag ?? "") };
@@ -205,6 +212,7 @@ function selfTest() {
   assert.match(validateEntries([{ tag: "v0.2.0", oid: oid("2") }, { tag: "v0.1.0", oid: oid("1") }]).join("\n"), /ascending/);
   assert.match(validateEntries([{ tag: "v0.1.0", oid: oid("1") }, { tag: "v0.2.0", oid: oid("1") }]).join("\n"), /duplicate/);
   assert.match(validateEntries([{ tag: "0.1.0", oid: oid("1") }]).join("\n"), /vX\.Y\.Z/);
+  assert.deepEqual(validateEntries([{ tag: "v0.14.0", oid: oid("1") }, { tag: "v1.0.0-rc.1", oid: oid("2") }, { tag: "v1.0.0", oid: oid("3") }]), []);
   assert.match(validateEntries([{ tag: "v0.1.0", oid: "blob:sg-oid-v1:sha256:1" }]).join("\n"), /not a Blob OID/);
   const commit = (digit) => digit.repeat(40);
   const lines = [
@@ -218,7 +226,12 @@ function selfTest() {
   ];
   assert.deepEqual(requiredReleaseTags(lines, "0.13.1"), ["v0.1.0", "v0.13.0"]);
   assert.deepEqual(requiredReleaseTags(lines, "0.14.0"), ["v0.1.0", "v0.13.0", "v0.13.1"]);
-  assert.throws(() => requiredReleaseTags(lines, "0.14"), /normal semver/);
+  // Sessions recorded by a published release candidate must stay readable, so
+  // candidate tags are required like normal releases, in SemVer order.
+  const withCandidates = [...lines, `v1.0.0-rc.2\ttag\t${commit("a")}\ttrue`, `v1.0.0-rc.1\ttag\t${commit("b")}\ttrue`];
+  assert.deepEqual(requiredReleaseTags(withCandidates, "1.0.0-rc.2"), ["v0.1.0", "v0.13.0", "v0.13.1", "v0.14.0", "v1.0.0-rc.1"]);
+  assert.deepEqual(requiredReleaseTags(withCandidates, "1.0.0"), ["v0.1.0", "v0.13.0", "v0.13.1", "v0.14.0", "v1.0.0-rc.1", "v1.0.0-rc.2"]);
+  assert.throws(() => requiredReleaseTags(lines, "0.14"), /supported release version/);
   const members = new Map([
     ["crates/synapse-observation/Cargo.toml", Buffer.from("manifest\n")],
     ["crates/synapse-observation/src/byte_identity.rs", Buffer.from("algorithm\n")],
