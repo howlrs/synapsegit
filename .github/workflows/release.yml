@@ -236,8 +236,10 @@ jobs:
           - runner: macos-14
             target: aarch64-apple-darwin
     runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
     permissions:
       contents: read
+      attestations: read
     steps:
       - name: Check out the tagged source
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -295,6 +297,7 @@ jobs:
             --repo howlrs/synapsegit \
             --signer-workflow howlrs/synapsegit/.github/workflows/release.yml \
             --source-ref "refs/tags/$GITHUB_REF_NAME" \
+            --source-digest "$GITHUB_SHA" \
             --deny-self-hosted-runners \
             --format json > attestation.json
           node "$GITHUB_WORKSPACE/scripts/verify_release_attestation.mjs" \

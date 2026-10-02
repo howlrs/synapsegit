@@ -345,7 +345,7 @@ archiveを初めて含める。これはv1.0.0の正式版ではなく、[#192](
 
 `post-publish-verify` jobは、公開済みReleaseから両archiveと`SHA256SUMS`を別directoryへdownloadし、
 Linux x86_64とmacOS arm64のrunnerで検証する。checksumの2行とarchive名、attestationの
-workflow／tag／`github-hosted` runner／digestを確認した後、展開したbinaryのversion、help、
+workflow／tag／tagged commit／`github-hosted` runner／digestを確認した後、展開したbinaryのversion、help、
 3-file Pilot、`inbox put`、local publication、tutorialを検査する。失敗時はworkflowが失敗となり、
 公開済みRCの検証が完了したと扱わない。
 
