@@ -26,10 +26,14 @@ milestone.
 
 ### Known limitations
 
-- The real-user 3–5-person Creator pilot has not yet been conducted. Issue
-  [#192](https://github.com/howlrs/synapsegit/issues/192) remains open to track
-  it; the synthetic rehearsal and documentation checks are not real-user
-  evidence.
+- No real-user 3–5-person Creator pilot has been conducted. Issue
+  [#192](https://github.com/howlrs/synapsegit/issues/192) records the v1.0.0
+  release-gate substitute: 3–5 operational trials in isolated AI-mocked
+  environments by Codex, Gemini, and Claude, with localhost UI screenshots
+  inspected by the operators. These trials do not count people, consent, user
+  experience, or a Human Decision; a real-user follow-up remains possible
+  after release. Four trials completed and were accepted after independent Gemini/Claude
+  review. The evaluation gate is satisfied; #192 closes with PR #197.
 
 ## [1.0.0-rc.1] - 2026-10-02
 

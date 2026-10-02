@@ -1,0 +1,293 @@
+{
+  "schema": "synapsegit-v1-mock-evaluation-v1",
+  "status": "reviewed",
+  "release": {
+    "version": "1.0.0",
+    "source_commit": "93a29b770655b9926b0be5e1a6c0941d4a079d9c",
+    "runtime": "cached-candidate-binaries",
+    "binary_identity": "byte-for-byte-verified-against-freshly-packaged-local-candidate",
+    "platform": "x86_64-unknown-linux-gnu"
+  },
+  "scenarios": [
+    {
+      "id": "M1",
+      "provider": "Codex",
+      "human_participant": false,
+      "mock_persona": "Mock codex",
+      "mock_conditions": {
+        "locale": "ja",
+        "viewport": "1440x1000",
+        "filesystem": "isolated synthetic workspace",
+        "restart": "not exercised"
+      },
+      "operations": [
+        {
+          "name": "inbox_put",
+          "outcome": "pass"
+        },
+        {
+          "name": "localhost_review_before_decision",
+          "outcome": "pass"
+        },
+        {
+          "name": "localhost_comparison",
+          "outcome": "pass"
+        },
+        {
+          "name": "mock_adopt_decision",
+          "outcome": "pass"
+        },
+        {
+          "name": "creator_report",
+          "outcome": "pass"
+        },
+        {
+          "name": "fsck_source",
+          "outcome": "pass"
+        },
+        {
+          "name": "export_restore",
+          "outcome": "pass"
+        },
+        {
+          "name": "fsck_restored",
+          "outcome": "pass"
+        }
+      ],
+      "measurements": {
+        "before_decision_creator_report_exit_status": 1,
+        "source_fsck": {
+          "objects": 24,
+          "verified": 24,
+          "closures": 2,
+          "issues": 0
+        },
+        "restored_fsck": {
+          "objects": 24,
+          "verified": 24,
+          "closures": 2,
+          "issues": 0
+        },
+        "restored_report_matches_source": true,
+        "report_sha256": "e5bbf630882d9221b8bdb126a60c606041203d70f9668484880244874f382b2c",
+        "screenshot_sha256": "a6695222a78a14593addd79e45bf539d03e0868ca6346543da292a361ab1b61a"
+      },
+      "screenshot": "artifacts/M1.png",
+      "visual_inspection": "pass",
+      "s1": "pass",
+      "s2": "pass",
+      "s3": "pass",
+      "review": "accepted"
+    },
+    {
+      "id": "M2",
+      "provider": "Codex",
+      "human_participant": false,
+      "mock_persona": "Mock codex",
+      "mock_conditions": {
+        "locale": "en",
+        "viewport": "390x844",
+        "filesystem": "isolated synthetic workspace; archive restored into a fresh target",
+        "restart": "not exercised"
+      },
+      "operations": [
+        {
+          "name": "inbox_put",
+          "outcome": "pass"
+        },
+        {
+          "name": "localhost_review_before_decision",
+          "outcome": "pass"
+        },
+        {
+          "name": "localhost_comparison",
+          "outcome": "pass"
+        },
+        {
+          "name": "mock_defer_decision",
+          "outcome": "pass"
+        },
+        {
+          "name": "creator_report",
+          "outcome": "pass"
+        },
+        {
+          "name": "fsck_source",
+          "outcome": "pass"
+        },
+        {
+          "name": "export_restore",
+          "outcome": "pass"
+        },
+        {
+          "name": "fsck_restored",
+          "outcome": "pass"
+        }
+      ],
+      "measurements": {
+        "before_decision_creator_report_exit_status": 1,
+        "source_fsck": {
+          "objects": 24,
+          "verified": 24,
+          "closures": 2,
+          "issues": 0
+        },
+        "restored_fsck": {
+          "objects": 24,
+          "verified": 24,
+          "closures": 2,
+          "issues": 0
+        },
+        "restored_report_matches_source": true,
+        "report_sha256": "12d38ad3bd8e1d6eb2ddeae84bf5d06a8338fdf4cb755495787aad2e5b83946e",
+        "screenshot_sha256": "ff8754f23453707dd4b7ea38c01300f676457649aaf69f8672bdfd7409498d44"
+      },
+      "screenshot": "artifacts/M2.png",
+      "visual_inspection": "pass",
+      "s1": "pass",
+      "s2": "pass",
+      "s3": "pass",
+      "review": "accepted"
+    },
+    {
+      "id": "M3",
+      "provider": "Gemini",
+      "human_participant": false,
+      "mock_persona": "Mock gemini",
+      "mock_conditions": {
+        "locale": "ja",
+        "viewport": "1440x1000",
+        "filesystem": "isolated synthetic workspace",
+        "restart": "not exercised"
+      },
+      "operations": [
+        {
+          "name": "inbox_put",
+          "outcome": "pass"
+        },
+        {
+          "name": "localhost_review_before_decision",
+          "outcome": "pass"
+        },
+        {
+          "name": "localhost_comparison",
+          "outcome": "pass"
+        },
+        {
+          "name": "mock_adopt_decision",
+          "outcome": "pass"
+        },
+        {
+          "name": "creator_report",
+          "outcome": "pass"
+        },
+        {
+          "name": "fsck_source",
+          "outcome": "pass"
+        },
+        {
+          "name": "export_restore",
+          "outcome": "pass"
+        },
+        {
+          "name": "fsck_restored",
+          "outcome": "pass"
+        }
+      ],
+      "measurements": {
+        "before_decision_creator_report_exit_status": 1,
+        "source_fsck": {
+          "objects": 24,
+          "verified": 24,
+          "closures": 2,
+          "issues": 0
+        },
+        "restored_fsck": {
+          "objects": 24,
+          "verified": 24,
+          "closures": 2,
+          "issues": 0
+        },
+        "restored_report_matches_source": true,
+        "report_sha256": "792e17879319a630ecc79a31802770b744beb63d335503e40125f3e388560f9e",
+        "screenshot_sha256": "553ee50d88d8fc3c9b2f47dea3e3d57ec575f463096447286bf3fd1aa19eeaeb"
+      },
+      "screenshot": "artifacts/M3.png",
+      "visual_inspection": "pass",
+      "s1": "pass",
+      "s2": "pass",
+      "s3": "pass",
+      "review": "accepted"
+    },
+    {
+      "id": "M4",
+      "provider": "Claude",
+      "human_participant": false,
+      "mock_persona": "Mock claude",
+      "mock_conditions": {
+        "locale": "en",
+        "viewport": "1440x1000",
+        "filesystem": "isolated synthetic workspace",
+        "restart": "not exercised"
+      },
+      "operations": [
+        {
+          "name": "inbox_put",
+          "outcome": "pass"
+        },
+        {
+          "name": "localhost_review_before_decision",
+          "outcome": "pass"
+        },
+        {
+          "name": "localhost_comparison",
+          "outcome": "pass"
+        },
+        {
+          "name": "mock_adopt_decision",
+          "outcome": "pass"
+        },
+        {
+          "name": "creator_report",
+          "outcome": "pass"
+        },
+        {
+          "name": "fsck_source",
+          "outcome": "pass"
+        },
+        {
+          "name": "export_restore",
+          "outcome": "pass"
+        },
+        {
+          "name": "fsck_restored",
+          "outcome": "pass"
+        }
+      ],
+      "measurements": {
+        "before_decision_creator_report_exit_status": 1,
+        "source_fsck": {
+          "objects": 24,
+          "verified": 24,
+          "closures": 2,
+          "issues": 0
+        },
+        "restored_fsck": {
+          "objects": 24,
+          "verified": 24,
+          "closures": 2,
+          "issues": 0
+        },
+        "restored_report_matches_source": true,
+        "report_sha256": "92f4cd7c6a20a8bb22274baf58710f86914115974491a1cb4de1db44cb2d9079",
+        "screenshot_sha256": "2533872c86e3737ba81b8e23122e824ed71c8fb2535774bce83d88eba257a9be"
+      },
+      "screenshot": "artifacts/M4.png",
+      "visual_inspection": "pass",
+      "s1": "pass",
+      "s2": "pass",
+      "s3": "pass",
+      "review": "accepted"
+    }
+  ]
+}

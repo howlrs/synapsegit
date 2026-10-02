@@ -8,9 +8,9 @@ Last verified: 2026-10-02
 v1.0.0は、AIエージェントがInboxへ候補を置き、人がlocalhost UIで画像を確認して判断する
 local single-user向けのreleaseである。v1形式は[互換性方針](./compatibility.md)に従って凍結済みで、
 formal Core Stage 1は別の研究として続ける。
-[#192](https://github.com/howlrs/synapsegit/issues/192)の3〜5人の実利用者評価は未実施であり、
-Issueは継続する。公開時期はrelease planの条件とmaintainerの判断に従う。合成素材での
-rehearsalは実利用者評価の結果ではない。
+実利用者3〜5人の評価は未実施であり、人間のUX評価・参加者数・Human Decisionの実績は主張しない。
+[#192](https://github.com/howlrs/synapsegit/issues/192)では、v1.0.0公開条件としてCodex、Gemini、Claudeが
+4件の隔離したAIモック環境で主要フローを実運用試験し、localhost UIを目視確認した。Gemini・Claudeの独立reviewを受け、公開条件2を満たすと判断した。PR #197のmergeでIssueを完了する。合成素材でのrehearsalは実利用者評価の結果ではない。
 両platformの手順は[v1.0.0 release notes](./releases/v1.0.0.md)を使う。
 
 tagged v1.0.0 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
@@ -22,7 +22,7 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 
 ## 現在の成果
 
-- [Creator pilot評価キットv2](./evaluation/creator-pilot/v2/)と合成素材でのrehearsal。実利用者評価は[#192](https://github.com/howlrs/synapsegit/issues/192)で継続する
+- [Creator pilot評価キットv2](./evaluation/creator-pilot/v2/)と合成素材でのrehearsal、および[4件のAIモック環境の実運用試験](./evaluation/creator-pilot/v2/rehearsals/2026-10-02-multi-ai-mock-evaluation.md)。後者はGemini・Claudeの独立reviewを経て受入済みである。実利用者評価は未実施で、公開後のフォローアップ候補として残る
 - sessionのSubject、Creator、判断日時、読みやすいTimelineとtechnical detailsの折りたたみ
 - project画面のセッション／取り込む／保守／履歴の分離と、未取り込み候補だけを数えるInbox通知
 - strict JSON、canonical bytes、domain-separated OID
@@ -180,7 +180,7 @@ production／distribution／brand制限も変更しない。
 
 v1.0に向けた対象利用者、互換性の約束、範囲、リリース条件は[v1.0 release plan](./v1_release_plan.md)で決めた
 （[#147](https://github.com/howlrs/synapsegit/issues/147)）。v1.0の必須作業はGitHub milestone `v1.0`で管理する。
-次の研究・改善の優先順位のうち、2の実利用者評価はv1.0-rcのPilotとして行い、3の派生セッション公開はv1.0の後に扱う。
+次の研究・改善の優先順位のうち、2の実利用者評価はv1.0公開後に行い、3の派生セッション公開はv1.0の後に扱う。
 6の追加platformは、v1.0ではmacOS arm64を対象にする。
 
 1. 分離済みの[publication comprehension corpus](./evaluation/publication-comprehension/v1/)で、
@@ -190,8 +190,9 @@ v1.0に向けた対象利用者、互換性の約束、範囲、リリース条�
    v0.9.0向けの手順は[Creator pilot 評価キットv1](./evaluation/creator-pilot/v1/)、
    v1.0の利用モデル（AIエージェント経由のInbox、人による画面での判断、backup）向けの手順は
    [評価キットv2](./evaluation/creator-pilot/v2/)として整備済み（どちらも合成素材でのrehearsalは完了）。
-   **実利用者によるcreator benefit評価は参加者の募集・実施を含めて未完了のまま**であり、キットの整備だけでは
-   完了しない。v1.0-rcでの3〜5人の評価は[v1.0 release plan](./v1_release_plan.md#リリース条件)の条件である。
+   **実利用者によるcreator benefit評価は参加者の募集・実施を含めて未完了のまま**であり、キットの整備や
+   AIモック試験だけでは完了しない。v1.0の公開条件は、[v1.0 release plan](./v1_release_plan.md#リリース条件)に
+   記した3〜5件のAIモック環境での実運用試験と目視確認である。
 3. 派生セッション公開の必要性を評価し、対応する場合は再利用意味を保持する新しい公開profileを設計する。
 4. fixed-point Observation datasetとpixel-level adapterを別contractとして検証する。
 5. durable admission transactionを含むproduction control planeを実装する。

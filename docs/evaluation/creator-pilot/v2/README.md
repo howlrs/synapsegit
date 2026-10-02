@@ -4,10 +4,13 @@
 「生成AIをきっかけに技術を使い始め、CLIをAIエージェント経由で使うクリエイター」が、
 SynapseGitを自分の制作で使えるかを確かめるための手順書とテンプレート一式です。
 
-参加者は、自分のAIエージェントに頼んで候補（Original、Current、AI output）をInboxへ置き、
+参加者向けの通常手順では、自分のAIエージェントに頼んで候補（Original、Current、AI output）をInboxへ置き、
 `synapse-local`の画面で確認して、採用・不採用・保留を自分で記録します。その後、記録を読み返し、
-backupを作ります。[v1.0 release plan](../../../v1_release_plan.md#リリース条件)は、3〜5人の実利用者が
-このキットで試し、重大な問題がないことをv1.0.0の条件にしています。
+backupを作ります。実利用者3〜5人の評価は未実施です。v1.0.0の公開条件では、代わりにCodex、Gemini、Claudeが
+3〜5件の隔離したAIモック環境で同じ主要フローを試行し、画面を目視確認します。詳細は
+[2026-10-02 multi-AI mock evaluation](./rehearsals/2026-10-02-multi-ai-mock-evaluation.md)と
+[v1.0 release plan](../../../v1_release_plan.md#リリース条件)を参照してください。これは実利用者の同意、人数、UX、
+Human Decisionの評価ではありません。
 
 [評価キットv1](../v1/)はv0.9.0の操作（CLIの`creator-run`またはブラウザの3ファイル取り込み）に
 固定したまま変更しません。v2は別の利用モデルを評価するキットです。
@@ -21,7 +24,7 @@ backupを作ります。[v1.0 release plan](../../../v1_release_plan.md#リリ�
 | [`questions-ja.md`](./questions-ja.md) / [`questions-en.md`](./questions-en.md) | 理解度確認と振り返りの質問。回答例や正解は含みません | 参加者 |
 | [`facilitator-guide.md`](./facilitator-guide.md) | 準備、進め方、check-point、観察項目、重大な問題の基準、見つかった問題の処理 | 進行役 |
 | [`result-template.md`](./result-template.md) | 1セッション分の結果を記録する空テンプレート。未実施と実施済みを区別する | 進行役 |
-| [`rehearsals/`](./rehearsals/2026-10-01-synthetic-agent-rehearsal.md) | 合成素材でのリハーサル記録。実利用者評価ではありません | メンテナ・開発者 |
+| [`rehearsals/`](./rehearsals/2026-10-01-synthetic-agent-rehearsal.md) | 合成素材でのリハーサル記録と、AIモック環境での実運用試験の記録。いずれも実利用者評価ではありません | メンテナ・開発者 |
 
 ## 使い方
 
@@ -32,6 +35,14 @@ backupを作ります。[v1.0 release plan](../../../v1_release_plan.md#リリ�
 4. セッション後、`result-template.md`をコピーし、1セッション1ファイルとして記録します。
 5. 見つかった問題は、`facilitator-guide.md`の「6. 見つかった問題の処理」に従って、milestone `v1.0`へ
    入れるか、v1.xへの延期を理由付きで記録します。
+
+## v1.0.0 AIモック試験
+
+実参加者を使わないv1.0.0の公開前試験では、Codex、Gemini、Claudeが隔離したfilesystem、locale、viewport、
+restart条件で主要フローを実行します。各試行は実行ログ、作成物の検査、localhost UIスクリーンショットの目視確認を
+記録します。画面で使うDecisionは明示的なモック固定値であり、人の判断として記録・報告しません。実行結果は
+[`rehearsals/2026-10-02-multi-ai-mock-evaluation.md`](./rehearsals/2026-10-02-multi-ai-mock-evaluation.md)にのみ
+集約します。実参加者用の同意書、課題、質問票、結果テンプレートは、この試験には使いません。
 
 ## v1との違い
 
