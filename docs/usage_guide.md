@@ -50,7 +50,7 @@ empty-target checkbox、browser確認、queued/polled jobを必要とする。�
 automatic recoveryのUIは未実装である。詳しいoption、limit、
 localhost security boundary、GCP CLI smokeとの違いは[native localhost runbook](../deploy/local/README.md)を参照する。
 
-![SynapseGit Localのcreator session詳細。Human Decision、AI output selected、三つの画像roleを表示](./assets/synapse-local/creator-session.png)
+![SynapseGit Localの完了creator sessionにあるOriginal、Current、AI outputの三つの画像role](./assets/synapse-local/creator-session.png)
 
 *Session detail — Human Decision、AI outputの選択状態、original／current／AI output、byte-identity evidenceを同じsession内で確認する画面です。*
 

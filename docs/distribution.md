@@ -111,10 +111,14 @@ GitHub SettingsのSocial previewへ明示的にuploadしない限り、repositor
 公開前に次を確認する。
 
 - 1280 × 640相当の2:1 landscapeで、1 MB未満
-- `SynapseGit`、短い価値提案、`Stage 0 preview`以外の細かな文を詰め込まない
+- `SynapseGit`、短い価値提案、`Release candidate`、AI提案→人の判断→local archiveの流れを簡潔に示す
 - 実装済みUIのように見える架空画面を使わない
 - mobile share cardでも名称が読める
 - dark/light backgroundの両方で主要文字が読める
+
+2026-10-02版は現行のbuilt-in `image_gen`で更新したconcept graphicです。
+生成promptとhashは[`assets/image-generation.json`](./assets/image-generation.json)に記録します。
+GitHub Settingsへのuploadは、このrepositoryの画像更新とは別の操作です。
 
 ## Release channelと対応platform
 

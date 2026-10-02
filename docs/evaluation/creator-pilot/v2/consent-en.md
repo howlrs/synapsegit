@@ -38,23 +38,34 @@ you are not expected to finish quickly.
 
 The facilitator records only these observations:
 
-- which tasks you finished, where you needed help, words you misread, and
+- which tasks you finished; where ordinary explanation, technical substitution,
+  or an undocumented workaround was needed; who did it; words you misread; and
   steps that felt like a burden
 - the approximate time for each task, as an observation and not a target
 - the key points of your answers
 - problems found, such as defects or unclear screens
+- the product name of your AI agent only if you agree to it. Otherwise we use a
+  general description, such as “a terminal-capable AI agent.”
 
 These are not recorded:
 
 - your name, contact details, or organization
 - images or titles of your work
-- the text of your decision rationale or of your prompts to the AI
+- the text of your decision rationale, prompts to the AI, or raw agent logs
 
 ## Publication
 
-Results are summarized so that you cannot be identified and recorded in the
-SynapseGit repository (documents or issues). You appear only as a participant
-ID, such as `P1`.
+Your record follows the choices below. Consent to publish an individual
+observation is separate from consent to include your participation in a public
+aggregate (the participant count and the S1--S3 conclusion). You may agree to
+the latter without publishing an individual result. An individual result uses
+only an anonymous public label; a private participant ID that links you to a
+record, and private record locations, are never published.
+
+The facilitator and evaluation team may inspect private records within the
+scope you permit. A public summary contains only consented observations and
+protocol metadata, such as the version used. It excludes your work, information
+that identifies you, decision rationale, prompts, and raw logs.
 
 ## If you want to stop
 
@@ -64,12 +75,22 @@ deleted. Published summaries remain, without information that identifies you.
 ## What you agree to (tick the boxes)
 
 - [ ] I have read the above and take part in the evaluation.
-- [ ] The observations listed above may be published in anonymized form.
+- [ ] The observations listed above may be published as an anonymized
+  individual result.
+- [ ] A public aggregate may include my participation in its count and its
+  S1--S3 conclusion only (individual publication is a separate consent).
 - [ ] Screenshots may be taken (only when no work of mine is visible, or the
   practice images are used).
 - [ ] I will use my own work. It does not leave my computer, and I have read
   the note about my AI agent.
+- [ ] The product name of my AI agent may be recorded as an observation (it may
+  be published only if I also agree to publish an individual result).
 
-Participant ID: ________　Date: ________
+Participant ID (for example, `P1`; used as an anonymous ID only in a published
+individual result): ________　Date: ________
 
 Facilitator contact (filled in by the facilitator): ________
+
+Private-record storage, readers, retention period, deletion method, and
+deletion contact/policy (filled in and explained by the facilitator before
+records are collected): ________

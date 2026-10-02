@@ -1,0 +1,79 @@
+{
+  "format": 1,
+  "runtime": {
+    "release": "v1.0.0-rc.1",
+    "archive_sha256": "b8b90ef1b9d34490f04f230e0d54cf3c50f834737d473ca83a9d9db64bef7b93",
+    "synapse_local_version": "synapse-local 1.0.0-rc.1"
+  },
+  "inputs": {
+    "synthetic": true,
+    "files": {
+      "original": "docs/tutorial/assets/mural-original.png",
+      "current": "docs/tutorial/assets/mural-current.png",
+      "proposal": "docs/tutorial/assets/mural-ai-proposal.png"
+    },
+    "hashes": {
+      "original": "11d3a64c89e91b54c7db57abfadcce8eaa06d83f8339a56bdff2936a2b043e9b",
+      "current": "0331eaaed0f60674e574320f134e85e0f50ba644e9a034b826875339e29092c5",
+      "proposal": "a8744dc755d496e1dca09101a4ec1a401f06d8edd184774028167ed43b53f1fb"
+    }
+  },
+  "captures": {
+    "overview": {
+      "file": "docs/assets/synapse-local/overview-hero.png",
+      "sha256": "9769d62125c0676e94734901f1b98c7cbfbed824836fba79c808e92eecc5bd6b",
+      "dimensions": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    "creatorSession": {
+      "file": "docs/assets/synapse-local/creator-session.png",
+      "sha256": "b433672775b2ed03c014c162ac3a2e04195cf4cc5f28b937fbec47468c04ec3f",
+      "dimensions": {
+        "width": 1440,
+        "height": 1100
+      }
+    },
+    "dashboard": {
+      "file": "docs/assets/synapse-local/project-dashboard.png",
+      "sha256": "9769d62125c0676e94734901f1b98c7cbfbed824836fba79c808e92eecc5bd6b",
+      "dimensions": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    "decision": {
+      "file": "docs/assets/synapse-local/decision-review.png",
+      "sha256": "bba84e07a5adab573a47dfaf0ceddaa44250e11ae5c424c462be89249df8b125",
+      "dimensions": {
+        "width": 1440,
+        "height": 1100
+      }
+    },
+    "importPreview": {
+      "file": "docs/assets/synapse-local/import-preview.png",
+      "sha256": "2bff2100a401a2f2f2c9484bd0c87fb3ca94ef4d2b239d5ac820cc15b789bc87",
+      "dimensions": {
+        "width": 1440,
+        "height": 1200
+      }
+    },
+    "comparison": {
+      "file": "docs/assets/synapse-local/image-comparison.png",
+      "sha256": "70d3b57b36be2f447fe4d73da35fb3ea8c7765339c9281d089841031f67a4a69",
+      "dimensions": {
+        "width": 1440,
+        "height": 1000
+      }
+    },
+    "tutorial": {
+      "file": "docs/tutorial/assets/tutorial-overview.png",
+      "sha256": "9769d62125c0676e94734901f1b98c7cbfbed824836fba79c808e92eecc5bd6b",
+      "dimensions": {
+        "width": 1440,
+        "height": 1000
+      }
+    }
+  }
+}
