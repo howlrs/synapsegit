@@ -1,18 +1,19 @@
 # SynapseGit project status
 
-Audience: preview evaluators、contributors、maintainers
+Audience: users、contributors、maintainers
 Status: public project snapshot
-Applies to: v1.0.0-rc.1 release
+Applies to: v1.0.0 release preparation
 Last verified: 2026-10-02
 
-v1.0.0-rc.1は、生成AIを使うクリエイターによる実利用者評価向けの**release candidate**である。
-AIエージェントがInboxへ候補を置き、人がlocalhost UIで画像を確認して判断する。
-v1形式は[互換性方針](./compatibility.md)に従って凍結済みで、formal Core Stage 1は別の研究として続ける。
-正式なv1.0.0には、[#192](https://github.com/howlrs/synapsegit/issues/192)の3〜5人の評価と重大な問題の解決が必要である。
-通常のインストール例は公開済みv0.13.1を維持し、RCの両platformの手順は
-[RC release notes](./releases/v1.0.0-rc.1.md)を使う。
+v1.0.0は、AIエージェントがInboxへ候補を置き、人がlocalhost UIで画像を確認して判断する
+local single-user向けのreleaseである。v1形式は[互換性方針](./compatibility.md)に従って凍結済みで、
+formal Core Stage 1は別の研究として続ける。
+実利用者3〜5人の評価は未実施であり、人間のUX評価・参加者数・Human Decisionの実績は主張しない。
+[#192](https://github.com/howlrs/synapsegit/issues/192)では、v1.0.0公開条件としてCodex、Gemini、Claudeが
+4件の隔離したAIモック環境で主要フローを実運用試験し、localhost UIを目視確認した。Gemini・Claudeの独立reviewを受け、公開条件2を満たすと判断した。PR #197のmergeでIssueを完了する。合成素材でのrehearsalは実利用者評価の結果ではない。
+両platformの手順は[v1.0.0 release notes](./releases/v1.0.0.md)を使う。
 
-tagged v1.0.0-rc.1 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
+tagged v1.0.0 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
 boundaryが含まれる。これはdeterministic mapper／bounded checkout、固定v1 JSON contract、sequential
 Proposal／Decision workflow、host-authenticated one-shot approval、Proposal／Decision CAS前後を別SQLite
 journalへ結ぶ明示的なrestart recovery／reconciliation orchestration、local public projectionである。
@@ -21,7 +22,7 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 
 ## 現在の成果
 
-- v1.0 release candidate向けの[Creator pilot評価キットv2](./evaluation/creator-pilot/v2/)と合成素材でのrehearsal。実利用者評価の結果ではない
+- [Creator pilot評価キットv2](./evaluation/creator-pilot/v2/)と合成素材でのrehearsal、および[4件のAIモック環境の実運用試験](./evaluation/creator-pilot/v2/rehearsals/2026-10-02-multi-ai-mock-evaluation.md)。後者はGemini・Claudeの独立reviewを経て受入済みである。実利用者評価は未実施で、公開後のフォローアップ候補として残る
 - sessionのSubject、Creator、判断日時、読みやすいTimelineとtechnical detailsの折りたたみ
 - project画面のセッション／取り込む／保守／履歴の分離と、未取り込み候補だけを数えるInbox通知
 - strict JSON、canonical bytes、domain-separated OID
@@ -154,16 +155,16 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 
 | Item | Status |
 |---|---|
-| Localhost Inbox and fresh interrupted/Defer review | Included in v1.0.0-rc.1; explicit Human review, no source decision rewrite |
+| Localhost Inbox and fresh interrupted/Defer review | Included in v1.0.0; explicit Human review, no source decision rewrite |
 | Public repository | Available |
-| v1.0.0-rc.1 GitHub prerelease | [Available](https://github.com/howlrs/synapsegit/releases/tag/v1.0.0-rc.1) |
-| Linux x86_64 GNU binary | Available; glibc 2.34+; published archive verified |
-| macOS arm64 binary | Available; built and smoke-tested on macOS 14; published archive verified; not signed or notarized |
-| Source build from fixed tag | Available; Rust 1.88+ |
-| SHA-256 release checksum | Available and verified for both platform archives |
-| Build provenance attestation | Verified for both published archives by the tag workflow |
-| `synapse-present` binary | Included in v1.0.0-rc.1; local generation only, with no remote publish |
-| Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v1.0.0-rc.1 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
+| v1.0.0 GitHub Release | Published after the tag workflow completes |
+| Linux x86_64 GNU binary | v1.0.0 pending tag workflow; v1.0.0-rc.1 archive is published and verified |
+| macOS arm64 binary | v1.0.0 pending tag workflow; v1.0.0-rc.1 archive was built and smoke-tested on macOS 14, and is not signed or notarized |
+| Source build from fixed tag | v1.0.0 pending tag; Rust 1.88+ |
+| SHA-256 release checksum | v1.0.0 pending publication; both v1.0.0-rc.1 platform archives are verified |
+| Build provenance attestation | v1.0.0 pending publication; both v1.0.0-rc.1 archives were verified by its tag workflow |
+| `synapse-present` binary | Included in v1.0.0; local generation only, with no remote publish |
+| Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v1.0.0 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
 | crates.io / GHCR / OS packages | Intentionally unavailable; GitHub Releases only |
 | Source use, Fork, and redistribution terms | Custom source-available license available; not open source |
 
@@ -171,7 +172,7 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 incomplete-session diagnostics、bounded browser `fsck`を含む。review authorityとmaintenance
 job stateはprocess-localであり、process restartを越えて再開できない。`synapse-present`も
 v0.3.0で導入された三binary構成をv0.4.0 archiveで維持するが、生成物のremote upload／publishは行わない。
-generic artifact C1 library／schema／local projectionはv1.0.0-rc.1 tagged sourceのworkspace libraryであり、
+generic artifact C1 library／schema／local projectionはv1.0.0 tagged sourceのworkspace libraryであり、
 archiveのbinary数や既存binaryのHTTP／CLI／UI capabilityを変更しない。source-available licenseの
 production／distribution／brand制限も変更しない。
 
@@ -179,7 +180,7 @@ production／distribution／brand制限も変更しない。
 
 v1.0に向けた対象利用者、互換性の約束、範囲、リリース条件は[v1.0 release plan](./v1_release_plan.md)で決めた
 （[#147](https://github.com/howlrs/synapsegit/issues/147)）。v1.0の必須作業はGitHub milestone `v1.0`で管理する。
-次の研究・改善の優先順位のうち、2の実利用者評価はv1.0-rcのPilotとして行い、3の派生セッション公開はv1.0の後に扱う。
+次の研究・改善の優先順位のうち、2の実利用者評価はv1.0公開後に行い、3の派生セッション公開はv1.0の後に扱う。
 6の追加platformは、v1.0ではmacOS arm64を対象にする。
 
 1. 分離済みの[publication comprehension corpus](./evaluation/publication-comprehension/v1/)で、
@@ -189,8 +190,9 @@ v1.0に向けた対象利用者、互換性の約束、範囲、リリース条�
    v0.9.0向けの手順は[Creator pilot 評価キットv1](./evaluation/creator-pilot/v1/)、
    v1.0の利用モデル（AIエージェント経由のInbox、人による画面での判断、backup）向けの手順は
    [評価キットv2](./evaluation/creator-pilot/v2/)として整備済み（どちらも合成素材でのrehearsalは完了）。
-   **実利用者によるcreator benefit評価は参加者の募集・実施を含めて未完了のまま**であり、キットの整備だけでは
-   完了しない。v1.0-rcでの3〜5人の評価は[v1.0 release plan](./v1_release_plan.md#リリース条件)の条件である。
+   **実利用者によるcreator benefit評価は参加者の募集・実施を含めて未完了のまま**であり、キットの整備や
+   AIモック試験だけでは完了しない。v1.0の公開条件は、[v1.0 release plan](./v1_release_plan.md#リリース条件)に
+   記した3〜5件のAIモック環境での実運用試験と目視確認である。
 3. 派生セッション公開の必要性を評価し、対応する場合は再利用意味を保持する新しい公開profileを設計する。
 4. fixed-point Observation datasetとpixel-level adapterを別contractとして検証する。
 5. durable admission transactionを含むproduction control planeを実装する。

@@ -1,6 +1,6 @@
 [package]
 name = "synapse-sqlite"
-version = "1.0.0-rc.1"
+version = "1.0.0"
 description = "Transactional SQLite RefStore and reflog for SynapseGit Core"
 edition.workspace = true
 repository.workspace = true

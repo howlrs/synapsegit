@@ -1,6 +1,6 @@
 # Synapse Core operations and semantic validation v0.1
 
-Status: Stage 0 draft
+Status: Normative; frozen for SynapseGit v1.x
 
 Protocol index: [SynapseGit Core Protocol v0.1](./README.md)
 

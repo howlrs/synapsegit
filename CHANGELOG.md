@@ -2,11 +2,38 @@
 
 All notable user-visible changes are recorded here. SynapseGit uses semantic
 version tags for release identification. The v1 formats are frozen for v1.x;
-see docs/compatibility.md. v1.0.0-rc.1 remains a prerelease for evaluation
-before the first stable product release. Formal Core Stage 1 is a separate
-research milestone.
+see docs/compatibility.md. Formal Core Stage 1 is a separate research
+milestone.
 
 ## [Unreleased]
+
+## [1.0.0] - 2026-10-02
+
+### Changed
+
+- Published the first stable v1.0 product release. The v1 formats remain frozen
+  throughout v1.x: `sg-oid-v1`, Core record schemas, the directory archive
+  profile, import inbox manifest v1, and Creator report/list/inbox JSON profiles
+  (additive fields only). The release reader recognizes the implementation bundle from the
+  preceding `v1.0.0-rc.1` release as well as every earlier published release.
+- Linux x86_64 GNU and macOS arm64 (Apple Silicon) archives are released with
+  SHA-256 checksums and GitHub build attestations. macOS binaries are not
+  signed or notarized.
+- The documentation images are a 2026-10-02 material revision. Their localhost
+  UI captures were made from the SHA-256-verified `v1.0.0-rc.1` archive and
+  are documentation evidence, not a claim about the bytes in this v1.0.0
+  bundle.
+
+### Known limitations
+
+- No real-user 3–5-person Creator pilot has been conducted. Issue
+  [#192](https://github.com/howlrs/synapsegit/issues/192) records the v1.0.0
+  release-gate substitute: 3–5 operational trials in isolated AI-mocked
+  environments by Codex, Gemini, and Claude, with localhost UI screenshots
+  inspected by the operators. These trials do not count people, consent, user
+  experience, or a Human Decision; a real-user follow-up remains possible
+  after release. Four trials completed and were accepted after independent Gemini/Claude
+  review. The evaluation gate is satisfied; #192 closes with PR #197.
 
 ## [1.0.0-rc.1] - 2026-10-02
 
@@ -791,7 +818,8 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v1.0.0-rc.1...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/howlrs/synapsegit/compare/v1.0.0-rc.1...v1.0.0
 [1.0.0-rc.1]: https://github.com/howlrs/synapsegit/compare/v0.13.1...v1.0.0-rc.1
 [0.13.1]: https://github.com/howlrs/synapsegit/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/howlrs/synapsegit/compare/v0.12.0...v0.13.0

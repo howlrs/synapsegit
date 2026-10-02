@@ -1,8 +1,8 @@
 # SynapseGit GitHub配布ガイド
 
 Audience: maintainer、release担当、公開文書を更新するcontributor
-Status: prerelease運用runbook
-Applies to: v1.0.0-rc.1 release preparation
+Status: release運用runbook
+Applies to: v1.0.0 release preparation
 Last verified: 2026-10-02
 
 この文書は、SynapseGitを「GitHub上で見つける」「現在の用途を判断する」「安全に試す」までの
@@ -56,7 +56,7 @@ strict slugで、小文字から始まり小文字英数字とハイフンだけ
 名前は既存のsession-not-found errorになる。操作にはJavaScriptが必要で、無効時も一覧は読めるが名前で
 古いsessionを開くことはできない。
 
-公開文面では、将来の利用構想とv0.13.1で実行できる能力を同じものとして表示しない。
+公開文面では、将来の利用構想とv1.0.0で実行できる能力を同じものとして表示しない。
 
 ## 公開surface
 
@@ -99,9 +99,8 @@ sqlite
 `git`、`image-diff`、`cloud-service`は、互換性または未実装機能を誤認させるため現時点では
 付けない。Topicsは機能追加時に増やすのではなく、公開利用者が実際に辿れる用途に合わせる。
 
-外部project siteができるまではWebsite欄を空のままにする。prereleaseはGitHubの
-`/releases/latest`対象外なので、汎用release導線には
-`https://github.com/howlrs/synapsegit/releases`を使い、install commandにはversion固定URLを使う。
+外部project siteができるまではWebsite欄を空のままにする。通常releaseはGitHubの
+`/releases/latest`対象になるが、install commandにはversion固定URLを使う。
 
 ## Social Preview
 
@@ -111,7 +110,7 @@ GitHub SettingsのSocial previewへ明示的にuploadしない限り、repositor
 公開前に次を確認する。
 
 - 1280 × 640相当の2:1 landscapeで、1 MB未満
-- `SynapseGit`、短い価値提案、`Release candidate`、AI提案→人の判断→local archiveの流れを簡潔に示す
+- `SynapseGit`、短い価値提案、`v1.0.0`、AI提案→人の判断→local archiveの流れを簡潔に示す
 - 実装済みUIのように見える架空画面を使わない
 - mobile share cardでも名称が読める
 - dark/light backgroundの両方で主要文字が読める
@@ -124,9 +123,9 @@ GitHub Settingsへのuploadは、このrepositoryの画像更新とは別の操�
 
 | Channel | Support | Notes |
 |---|---|---|
-| Linux x86_64 GNU archive | Preview support | Ubuntu 22.04 build、glibc 2.34+ |
-| macOS arm64（Apple Silicon）archive | Preview support（v0.13.1の次のreleaseから） | macOS 14でbuild・test・archive smoke。Appleの署名・notarizationなし |
-| Tagged source build | Best-effort preview | Rust 1.88+、対応Unix-like host |
+| Linux x86_64 GNU archive | Supported release path | Ubuntu 22.04 build、glibc 2.34+ |
+| macOS arm64（Apple Silicon）archive | Supported release path | macOS 14でbuild・test・archive smoke。Appleの署名・notarizationなし |
+| Tagged source build | Best-effort | Rust 1.88+、対応Unix-like host |
 | Windows | Unsupported | atomic archive publication path未対応 |
 | Linux ARM64 prebuilt | Not published | release pipelineで未検証。tagged source buildを使う |
 | Public cloud / container service | Not published | architectureまたはprivate smokeのみ |
@@ -142,7 +141,7 @@ archive作成、展開後smoke（`scripts/smoke_release_archive.sh`）、build p
 利用者は`sha256sum --check --ignore-missing SHA256SUMS`（macOSでは該当行を`shasum -a 256 --check`へ渡す）で、
 downloadしたarchiveだけを検証する。main／Pull RequestのCIも、同じmacOS jobと両archiveの組み立てを毎回検証する。
 
-v0.13.1 archiveは、v0.11.1、v0.10.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
+v1.0.0 archiveは、v0.11.1、v0.10.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
 generic-artifact v1のworkflow／schema／local projectionはtagged sourceに含まれるworkspace libraryであり、
 archiveへ第四のbinaryや既存binaryのgeneric HTTP／CLI／UI surfaceを追加しない。
 公開済みv0.6.0 archiveも同じ三binary構成であり、後から内容を変更しない。
@@ -273,7 +272,7 @@ binaryを使う。開発時のlocal既定がdebug profileであることは変�
    `gh run watch <run-id> --exit-status`で完了を待つ。tag workflowも、build前に`scripts/wait_for_main_ci.mjs`で
    同じcommitのmain CI成功を待つ。失敗・cancel・未実行のままなら公開しない。その場合は、該当するmain CI runを
    成功までre-runしてから、release workflowをre-runする。署名運用を導入した後はsigned tagを必須にする。
-7. tag workflowがdraft prereleaseを作り、asset upload、checksum、attestation、公開まで成功したことを確認する。
+7. tag workflowが通常のGitHub Releaseを作り、asset upload、checksum、attestation、公開まで成功したことを確認する。
 8. 別directoryへassetをdownloadし、checksum、attestation、三binaryの`--version`／`--help`、3-file Pilot、
    read-only local publication bundleのexport／previewを確認する。archiveに第四のbinaryや
    generic-artifact HTTP／CLI／UI surfaceが紛れ込んでいないことも確認する。
@@ -336,9 +335,8 @@ v1.0の前に配布するrelease candidateは、`vX.Y.Z-rc.N`（Nは1以上で�
 - tag workflowはrcをdraft prereleaseとして作り、titleを`SynapseGit vX.Y.Z-rc.N — release candidate`にする。
   checksum、attestation、smokeは通常のreleaseと同じである。
 
-v1.0.0の正式版をprereleaseではない通常のreleaseとして公開する設定（`--prerelease`と`--latest=false`の扱い、
-title）は、[v1.0 release plan](./v1_release_plan.md)のリリース条件に沿ってv1.0の公開準備で変更する。
-それまでは、すべてのtagを従来どおりprereleaseとして公開する。
+v1.0.0はprereleaseではない通常のreleaseとして公開し、GitHub Releaseのlatestとして扱う。
+`vX.Y.Z-rc.N`は引き続きcandidate向けのprereleaseである。
 
 `v1.0.0-rc.1`はこの手順で公開する最初のcandidateであり、Linux x86_64に加えてmacOS arm64
 archiveを初めて含める。これはv1.0.0の正式版ではなく、[#192](https://github.com/howlrs/synapsegit/issues/192)
@@ -392,7 +390,7 @@ license変更時は少なくとも次を同じPull Requestで更新する。
 
 - [Installation](./install.md)
 - [Project status](./project_status.md)
-- [Release notes](./releases/v0.13.1.md)
+- [Release notes](./releases/v1.0.0.md)
 - [Security model](./security_model.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Documentation index](./README.md)

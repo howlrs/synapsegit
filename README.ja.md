@@ -3,8 +3,9 @@
 [English](./README.md) | [日本語](./README.ja.md)
 
 [![CI](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml/badge.svg)](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml)
-![Stage 0 preview](https://img.shields.io/badge/status-Stage%200%20preview-orange)
+![v1.0.0](https://img.shields.io/badge/release-v1.0.0-0a7f3f)
 ![Linux x86_64](https://img.shields.io/badge/binary-Linux%20x86__64-555)
+![macOS arm64](https://img.shields.io/badge/binary-macOS%20arm64-555)
 [![License: source-available](https://img.shields.io/badge/license-source--available-blue)](./LICENSE)
 
 **AIが何を提案し、あなたが何を決めたかを、手元に記録する。**
@@ -47,21 +48,20 @@ SynapseGitは、それぞれを独立した記録として残し、最後に作�
 
 画像は生成したfixtureであり、実在の作品や処置の証拠ではありません。
 このrepositoryでは[2026-10-02版の画像](./docs/assets/image-generation.json)を使います。
-公開済みv1.0.0-rc.1 archiveは以前の画像を保持します。Pilotでは使うreleaseの同梱素材を固定し、
-releaseと素材の版を記録してください。
+v1.0.0 archiveにはこの3枚のtutorial画像を同梱します。以前のreleaseはその版の素材を保持するため、
+sessionで使ったreleaseと素材の版を記録してください。
 
 ## 始める
 
 ### 1. installする
 
-配布archiveはRust toolchainなしで使えます。公開済みv0.13.1のarchiveはLinux x86_64（glibc 2.34以降）用です。
-v1.0.0-rc.1のPilotはApple SiliconのmacOS用archiveを初めて含み、固定したLinux／macOS commandは
-[v1.0.0-rc.1 release notes](./docs/releases/v1.0.0-rc.1.md)にあります。他のplatformでは
+v1.0.0の配布archiveはRust toolchainなしで使えます。Linux x86_64（glibc 2.34以降）と
+Apple SiliconのmacOSに対応します。他のplatformでは
 [tagged sourceからbuild](./docs/install.md#build-from-a-tagged-source-release)できます。
 
 ```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.13.1/synapsegit-v0.13.1-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.13.1/SHA256SUMS
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.0.0/synapsegit-v1.0.0-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.0.0/SHA256SUMS
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
@@ -119,8 +119,8 @@ synapse creator-report "$HOME/SynapseGit/demo" session-1
   元の記録は残ります。
 - **ローカルで1人が使うものです。** `synapse-local`は`127.0.0.1`だけで動きます。hosted serviceや
   multi-user serviceはなく、何もuploadしません。
-- **platform:** 公開済みv0.13.1 archiveはLinux x86_64用です。v1.0.0-rc.1のPilotはmacOS arm64も
-  配布します。Windowsには対応しません。Linux ARM64はsourceからbuildします。
+- **platform:** v1.0.0 archiveはLinux x86_64とmacOS arm64用です。Windowsには対応しません。
+  Linux ARM64はsourceからbuildします。
 
 配布binaryではなく、Rust libraryとしてだけある機能もあります。実装者は
 [実装の境界とlibraryだけの機能](./docs/implementation_boundaries.md)を参照してください。
@@ -166,13 +166,12 @@ flowchart LR
 
 ## リリースと互換性
 
-- SynapseGitはStage 0 previewです。各releaseはGitHubで公開し、SHA-256 checksumとbuild provenance
+- SynapseGit v1.0.0はlocal single-user向けのreleaseです。各releaseはGitHubで公開し、SHA-256 checksumとbuild provenance
   attestationを付けます。crates.ioやcontainer registryでは配布しません。
 - v1.0.0から、object、識別子、archiveの形式はv1.xの間固定され、公開したすべての版のrepositoryと
   archiveを読めます。[互換性方針](./docs/compatibility.md)を参照してください。
-- 各releaseの変更は[CHANGELOG](./CHANGELOG.md)、公開済みの[v0.13.1 release notes](./docs/releases/v0.13.1.md)、
-  Pilot向けの[v1.0.0-rc.1 release notes](./docs/releases/v1.0.0-rc.1.md)にあります。重要なデータで試す前に、
-  該当する資料を読んでください。
+- 各releaseの変更は[CHANGELOG](./CHANGELOG.md)と[v1.0.0 release notes](./docs/releases/v1.0.0.md)にあります。
+  重要なデータで試す前に、該当する資料を読んでください。
 
 ## Security、support、license
 

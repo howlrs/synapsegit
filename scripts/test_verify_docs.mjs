@@ -50,10 +50,10 @@ try {
 
   fs.writeFileSync(reference, original);
 
-  // SECURITY.md must name the synapse-cli minor series as the supported row.
+  // SECURITY.md must describe the current stable major or prerelease minor.
   const security = path.join(fixture, "SECURITY.md");
   const securityOriginal = fs.readFileSync(security, "utf8");
-  const supportedRow = /^\| Latest v\d+\.\d+\.x prerelease \|/mu;
+  const supportedRow = /^\| Latest v[^|]+ \|/mu;
   assert.match(securityOriginal, supportedRow);
   fs.writeFileSync(security, securityOriginal.replace(supportedRow, "| Latest v0.1.x prerelease |"));
   result = verify();
@@ -72,14 +72,15 @@ try {
   const nextVersion = `${major}.${minor}.0`;
   const nextTag = `v${nextVersion}`;
   fs.writeFileSync(cliManifest, manifestOriginal.replace(versionLine[0], `version = "${nextVersion}"`));
-  fs.writeFileSync(security, securityOriginal.replace(supportedRow, `| Latest v${major}.${minor}.x prerelease |`));
+  const stableSupport = major === 0 ? `Latest v${major}.${minor}.x prerelease` : `Latest v${major}.x`;
+  fs.writeFileSync(security, securityOriginal.replace(supportedRow, `| ${stableSupport} |`));
   const notes = path.join(fixture, "docs", "releases", `${nextTag}.md`);
   result = verify();
   assert.notEqual(result.status, 0, "missing release notes must fail");
   assert.ok(result.stderr.includes(`docs/releases/${nextTag}.md: release notes for the current synapse-cli version are missing`), result.stderr);
 
   fs.writeFileSync(notes, [
-    `# SynapseGit ${nextTag} — Stage 0 preview`,
+    `# SynapseGit ${nextTag}`,
     "",
     "After the tag workflow publishes the prerelease, read the installation guide.",
     "",
@@ -99,7 +100,7 @@ try {
   }
 
   fs.writeFileSync(notes, [
-    `# SynapseGit ${nextTag} — Stage 0 preview`,
+    `# SynapseGit ${nextTag}`,
     "",
     "Stop if either verification command fails. Do not extract or install an",
     "unverified archive.",
@@ -119,6 +120,20 @@ try {
   const candidateTag = `${nextTag}-rc.1`;
   const candidateNotes = path.join(fixture, "docs", "releases", `${candidateTag}.md`);
   fs.writeFileSync(cliManifest, manifestOriginal.replace(versionLine[0], `version = "${nextVersion}-rc.1"`));
+  // A stable support row cannot describe a candidate. Also verify the inverse.
+  if (major > 0) {
+    fs.writeFileSync(candidateNotes, fs.readFileSync(notes, "utf8").replaceAll(nextTag, candidateTag));
+    result = verify();
+    assert.notEqual(result.status, 0, "a candidate must require prerelease support wording");
+    assert.ok(result.stderr.includes(`use Latest v${major}.${minor}.x prerelease`), result.stderr);
+    fs.writeFileSync(cliManifest, manifestOriginal.replace(versionLine[0], `version = "${nextVersion}"`));
+    fs.writeFileSync(security, securityOriginal.replace(supportedRow, `| Latest v${major}.${minor}.x prerelease |`));
+    result = verify();
+    assert.notEqual(result.status, 0, "a stable version must reject prerelease support wording");
+    assert.ok(result.stderr.includes(`use Latest v${major}.x`), result.stderr);
+    fs.writeFileSync(cliManifest, manifestOriginal.replace(versionLine[0], `version = "${nextVersion}-rc.1"`));
+  }
+  fs.writeFileSync(security, securityOriginal.replace(supportedRow, `| Latest v${major}.${minor}.x prerelease |`));
   const completeNotes = fs.readFileSync(notes, "utf8");
   fs.writeFileSync(candidateNotes, completeNotes.replaceAll(nextTag, candidateTag));
   result = verify();

@@ -21,7 +21,7 @@ mod report_json;
 use report_json::CreatorReportDocument;
 
 const USAGE: &str = "\
-SynapseGit Core Stage 0
+SynapseGit Core
 
 Usage:
   synapse init <repo>

@@ -5,7 +5,7 @@ Format identifier: `synapsegit-core-archive-v0.1`
 
 この profile は `synapse-core` が現在 export / restore する directory layout と validation rule を定義する。
 service 間 transport、圧縮 package、署名 package、長期保存標準への mapping は対象外である。
-protocol freeze 前の draft であり、互換実装は format identifier と repository release を記録すること。
+v1.xで凍結されたprofileであり、互換実装は format identifier と repository release を記録すること。
 
 ## Goals and non-goals
 

@@ -9,8 +9,8 @@ Decided in: [#147](https://github.com/howlrs/synapsegit/issues/147), implemented
 SynapseGit makes two promises for v1.x:
 
 1. **Read compatibility.** A v1.x binary reads every repository, directory
-   archive, and Creator session written by any published release, from v0.1.0
-   through v1.x.
+   archive, and Creator session written by a published release from v0.1.0
+   up to and including that binary's own version.
 2. **Frozen v1 formats.** The formats below keep their meaning and bytes
    throughout v1.x. A change gets a new identifier, and the old format stays
    readable.
@@ -34,6 +34,11 @@ The Core protocol keeps its directory and identifiers (`spec/core/v0.1`,
 that existing objects and archives carry.
 
 ## What is not promised
+
+An older binary may refuse a Creator session recorded by a newer release
+with `creator_implementation_unrecognized`. Open it with the recording release
+or a later release. The frozen formats and the promise to read earlier releases
+do not require an older binary to recognize a future implementation bundle.
 
 - The localhost HTTP API (`/api/v1`, `info.version` with `-draft`) is the
   browser UI's internal contract.

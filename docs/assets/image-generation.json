@@ -61,20 +61,27 @@
     },
     {
       "path": "docs/assets/social-preview.png",
-      "sha256": "66525465407fc2a3d4e5f38aa2016cf75898ea7e45035aa7e6d51ffd4c6c06a9",
-      "previous_sha256": "0967dd357f46d8086c6ad6381e61cb50fbe7ce971539789db844dcacbc4687dd",
+      "sha256": "ad04d253dbdb2677490e3c1ddb61340e5943f09a9d0e80e7ff397231dde968fa",
+      "previous_sha256": "66525465407fc2a3d4e5f38aa2016cf75898ea7e45035aa7e6d51ffd4c6c06a9",
       "width": 1774,
       "height": 887,
-      "bytes": 958132,
+      "bytes": 926796,
       "role": "social_preview",
       "input": {
         "path": "docs/assets/social-preview.png",
-        "revision": "v1.0.0-rc.1",
-        "sha256": "0967dd357f46d8086c6ad6381e61cb50fbe7ce971539789db844dcacbc4687dd"
+        "revision": "2026-10-02-v1-badge-draft",
+        "sha256": "46b38758a268f3dd5287cb10e505b235deb95c86ae8e5f6c6a29d71443df4a6f",
+        "generated_from": {
+          "path": "docs/assets/social-preview.png",
+          "revision": "2026-10-02-rc-material-refresh",
+          "sha256": "66525465407fc2a3d4e5f38aa2016cf75898ea7e45035aa7e6d51ffd4c6c06a9"
+        },
+        "generation_prompt": "Use case: text-localization. Asset type: SynapseGit repository social-preview PNG. The referenced image is the edit target. Change only the pale sage status badge text from \"Release candidate\" to exact \"v1.0.0\" for the stable product release. Keep the exact 2:1 landscape proportions, ivory background, generous margins, large dark forest-green SynapseGit title, exact subtitle \"Creative-work provenance, locally\", colors, typography style, and all right-side diagram elements. Preserve diagram text exactly \"AI proposal\", \"Human decision\", \"Local archive\", with left-to-right arrows and picture file symbol. Preserve the visual meaning: human decision is between AI proposal and local archive. No other text or objects. Return one PNG, same 1774 by 887 dimensions if possible, within 1MB if possible, crisp readable small badge. No transparency. This is a conceptual explanatory graphic, not a screenshot."
       },
       "transparent_background": false,
       "postprocessing": "none; generated PNG bytes copied unchanged",
-      "prompt": "Use case: productivity-visual. Asset type: SynapseGit repository social-preview graphic. Refresh the supplied existing social card with crisp, polished image quality and accurate modern product semantics. Retain its clean 2:1 composition, ivory background, left-aligned large dark forest-green product title, refined sans-serif typography, and restrained sage, purple and amber palette. Exact left text: \"SynapseGit\" and on the next line \"Creative-work provenance, locally\". Exact small status label: \"Release candidate\". On the right, replace the old branching conceptual diagram with a simple clear left-to-right flow of three rounded nodes connected by arrows: \"AI proposal\" (purple), \"Human decision\" (amber), \"Local archive\" (forest green). A small picture-file symbol may introduce the flow; retain the quiet spacious feel and legibility at thumbnail size. The arrows must visibly go from AI proposal to Human decision to Local archive; no bypass from AI to archive, no parallel AI and human authorization, no cloud or remote publish. This is an explanatory concept graphic, not an app screenshot. No fictional UI controls, hash strings, additional text, logos from other brands, people, or watermark. Render every quoted label verbatim with clean readable lettering. Output a PNG in exactly 1280x640 if possible, 2:1 landscape."
+      "prompt": "Use case: precise-object-edit. Asset type: repository social preview PNG, maximum 1,000,000 bytes. The referenced image is the edit target and already has correct text. Deliver a more compact PNG at EXACTLY 1280x640 pixels (2:1), not 1774x887. Preserve the entire design, composition and text, scaling all elements together to fit the smaller canvas. All text exactly: \"SynapseGit\", \"Creative-work provenance, locally\", badge \"v1.0.0\", and diagram nodes \"AI proposal\", \"Human decision\", \"Local archive\". Preserve left-to-right arrows, forest green title and local archive, purple AI proposal, amber human decision, sage badge. Preserve pale ivory background but keep it flat and smooth without film grain or added texture, for efficient PNG compression. No other changes, no border, no transparency, no extra text. This is a conceptual explanatory graphic, not a screenshot.",
+      "output_note": "The tool returned 1774x887 rather than the requested 1280x640. The selected raw PNG retains the required 2:1 ratio and is below 1 MB."
     }
   ]
 }

@@ -3,7 +3,7 @@
 Audience: maintainers、contributors、v1.0の評価者
 Status: accepted plan（[#147](https://github.com/howlrs/synapsegit/issues/147)で決定）
 Applies to: v1.0.0までの作業と、v1.x系列の互換性の約束
-Last decided: 2026-10-01
+Last decided: 2026-10-02
 
 v1.0は、Stage 0 previewを終え、生成AIを使って制作する個人が日常的に使える最初の安定版とする。
 この文書は、v1.0の対象利用者、互換性の約束、対応platform、範囲、リリース条件を定める。
@@ -36,7 +36,7 @@ v1.0は、Stage 0 previewを終え、生成AIを使って制作する個人が�
 
 v1.xは次の二つを約束する。
 
-- **読み取り互換**: v1.xのbinaryは、v0.1.0以降のすべての公開版とv1.xで作ったrepository、archive、creator sessionを読める。
+- **読み取り互換**: v1.xのbinaryは、v0.1.0からそのbinary自身のversionまでのすべての公開版で作ったrepository、archive、creator sessionを読める。
 - **v1形式の凍結**: 下表で「凍結」とした形式は、v1.xの間に意味と形式を変えない。変更が必要な場合は新しい識別子を追加し、旧形式の読み取りを維持する。
 
 | 対象 | 識別子 | v1.0での扱い | 変更が必要なとき |
@@ -95,7 +95,7 @@ AI経由のCLI操作:
 - [#168](https://github.com/howlrs/synapsegit/issues/168) release手順でpre-release tag（v1.0.0-rc.N）を扱えるようにする
 - [#169](https://github.com/howlrs/synapsegit/issues/169) v1.0の利用モデルに合う評価キットv2を作る（キットと合成素材でのrehearsalは完了）
 - [#193](https://github.com/howlrs/synapsegit/issues/193) 評価に使うv1.0.0-rc.1を準備して公開する
-- [#192](https://github.com/howlrs/synapsegit/issues/192) v1.0.0-rcを主対象の3〜5人が評価キットv2で試用する（チームが実施・判断）
+- [#192](https://github.com/howlrs/synapsegit/issues/192) v1.0.0候補を、Codex、Gemini、Claudeによる3〜5件のAIモック環境・実運用試験で確認する（チームが実施・判断）
 - [#164](https://github.com/howlrs/synapsegit/issues/164) READMEを「できること・始め方」中心に再構成する
 
 v1形式の凍結前に方針を決める設計（決定済み）:
@@ -130,9 +130,9 @@ AIエージェントはCLIでこれらの操作を代わりに行えるため、
 次をすべて満たした時にv1.0.0を公開する。
 
 1. milestone `v1.0`のIssueがすべてcloseしている。
-2. v1.0.0-rcを配布し、主対象に合う3〜5人の実利用者が評価キットで試用している。次の重大な問題がなく、見つかった問題はmilestone `v1.0`で解決済みか、v1.xへの延期を理由付きで記録している。
+2. v1.0.0-rcを配布し、Codex、Gemini、Claudeが合計3〜5件の隔離したモック環境で主要な実運用フローを試行している。各試行は実行ログとlocalhost UIの目視確認用スクリーンショットを残す。これはAIモック試験であり、実利用者数、Human Decision、UXの人間評価を主張するものではない。次の重大な問題がなく、見つかった問題はmilestone `v1.0`で解決済みか、v1.xへの延期を理由付きで記録している。
    - 記録の損失または破損
-   - Human Decisionの誤った記録（AIの判断が人の判断として記録される等）
+   - AI経由の準備操作でDecisionが記録される、またはモックのテスト値を人のHuman Decisionとして報告すること
    - 主要な操作（Inboxへの候補の書き出し、取り込み、判断、振り返り、backup）を完了できないこと
 3. 全公開版で作ったrepositoryとarchiveの読み取り互換testが、CIとrelease workflowで通る。対象とする版の範囲（pre-release tagを含むか）は[#165](https://github.com/howlrs/synapsegit/issues/165)と[#168](https://github.com/howlrs/synapsegit/issues/168)で決める。
 4. Linux x86_64とmacOS arm64で、release gate（test、binary smoke、archive展開後のsmoke、checksum、build provenance attestation）が通る。
@@ -150,7 +150,7 @@ AIエージェントはCLIでこれらの操作を代わりに行えるため、
 
 v1.0はproduct releaseの軸であり、[Stage 0 exit gate](./stage0_execution_plan.md#exit-gate)とは別に扱う。
 exit gateの未完了項目（第二の独立production実装、Painting control dataset、Creator benefit metric、SurrealDBの判断）は、
-v1.0の条件にしない。Creator benefit metricの一部は、v1.0-rcの実利用者Pilotで採取する。
+v1.0の条件にしない。Creator benefit metricを含む実利用者評価は、v1.0公開後に別途行う研究として扱う。
 Stage 1への移行判断は、v1.x以降の研究として続ける。
 
 ## 決定の記録
@@ -166,3 +166,7 @@ Stage 1への移行判断は、v1.x以降の研究として続ける。
 | CLIの変更手順 | 削除・変更の前に、少なくとも1 minor versionの非推奨期間を置く | 規則を置かない |
 
 必須・入れば良い・v1.0の後の区分とCLIの変更手順は、上の決定から導いた案を、メンテナが同日に[PR #170](https://github.com/howlrs/synapsegit/pull/170)のreviewで承認した。区分を変える場合は、この文書とmilestoneを同じPRで更新する。
+
+2026-10-02、メンテナは上の「実利用者の評価」の判断を置き換えた。v1.0.0の公開条件は、Codex、Gemini、Claudeが合計3〜5件のAIモック環境で実運用フローを試行し、画面を目視確認することとする。試行ごとにS1（記録の損失・破損）、S2（AIの準備操作またはモックのテスト値を人の判断として扱う誤り）、S3（Inboxへの候補の書き出し、取り込み、画面での判断フロー、読み返し、backupを完了できないこと）を記録する。この置換は実利用者のUX評価・同意・参加者数を代替しない。実利用者3〜5人の評価はv1.0公開後に可能なフォローアップとして残す。#192は、全モック試行と目視確認を記録・reviewするまでcloseしない。
+
+同日、M1〜M4の4試行を実行し、各試行でS1〜S3と画面の目視確認を記録した。実行記録は[2026-10-02 multi-AI mock evaluation](./evaluation/creator-pilot/v2/rehearsals/2026-10-02-multi-ai-mock-evaluation.md)にある。Gemini・Claudeの独立reviewを受け、変更後の公開条件2を満たすと判断した。#192はこの記録を含むPR #197のmergeで完了する。

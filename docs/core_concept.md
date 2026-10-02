@@ -2,7 +2,7 @@
 
 **物理・デジタル創作の「計画・手順・観測・判断」をつなぐ系譜基盤**
 
-- Status: Draft
+- Status: Informative concept; Core v0.1 formats are frozen for v1.x
 - Date: 2026-07-11
 - Source vision: [init_plan.md](./init_plan.md)
 - Scope: SynapseGit Coreのみ。Chrono-Engine、利益分配、人物再現は対象外。

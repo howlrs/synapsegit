@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SynapseGit v1 multi-AI mock evaluation result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "status", "release", "scenarios"],
+  "properties": {
+    "schema": { "const": "synapsegit-v1-mock-evaluation-v1" },
+    "status": { "enum": ["executed_awaiting_review", "reviewed"] },
+    "release": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "source_commit", "runtime", "binary_identity", "platform"],
+      "properties": {
+        "version": { "const": "1.0.0" },
+        "source_commit": { "const": "93a29b770655b9926b0be5e1a6c0941d4a079d9c" },
+        "runtime": { "const": "cached-candidate-binaries" },
+        "binary_identity": { "const": "byte-for-byte-verified-against-freshly-packaged-local-candidate" },
+        "platform": { "const": "x86_64-unknown-linux-gnu" }
+      }
+    },
+    "scenarios": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": { "$ref": "#/$defs/scenario" },
+      "allOf": [
+        { "contains": { "type": "object", "properties": { "id": { "const": "M1" }, "provider": { "const": "Codex" } }, "required": ["id", "provider"] } },
+        { "contains": { "type": "object", "properties": { "id": { "const": "M2" }, "provider": { "const": "Codex" } }, "required": ["id", "provider"] } },
+        { "contains": { "type": "object", "properties": { "id": { "const": "M3" }, "provider": { "const": "Gemini" } }, "required": ["id", "provider"] } },
+        { "contains": { "type": "object", "properties": { "id": { "const": "M4" }, "provider": { "const": "Claude" } }, "required": ["id", "provider"] } }
+      ]
+    }
+  },
+  "$defs": {
+    "fsck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["objects", "verified", "closures", "issues"],
+      "properties": {
+        "objects": { "const": 24 },
+        "verified": { "const": 24 },
+        "closures": { "const": 2 },
+        "issues": { "const": 0 }
+      }
+    },
+    "scenario": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "provider", "human_participant", "mock_persona", "mock_conditions", "operations", "measurements", "screenshot", "visual_inspection", "s1", "s2", "s3", "review"],
+      "properties": {
+        "id": { "enum": ["M1", "M2", "M3", "M4"] },
+        "provider": { "enum": ["Codex", "Gemini", "Claude"] },
+        "human_participant": { "const": false },
+        "mock_persona": { "type": "string", "pattern": "^Mock [a-z]+$" },
+        "mock_conditions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["locale", "viewport", "filesystem", "restart"],
+          "properties": {
+            "locale": { "enum": ["ja", "en"] },
+            "viewport": { "enum": ["1440x1000", "390x844"] },
+            "filesystem": { "type": "string", "minLength": 1 },
+            "restart": { "type": "string", "minLength": 1 }
+          }
+        },
+        "operations": {
+          "type": "array",
+          "minItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "outcome"],
+            "properties": {
+              "name": { "type": "string", "minLength": 1 },
+              "outcome": { "enum": ["pass", "fail"] }
+            }
+          }
+        },
+        "measurements": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["before_decision_creator_report_exit_status", "source_fsck", "restored_fsck", "restored_report_matches_source", "report_sha256", "screenshot_sha256"],
+          "properties": {
+            "before_decision_creator_report_exit_status": { "const": 1 },
+            "source_fsck": { "$ref": "#/$defs/fsck" },
+            "restored_fsck": { "$ref": "#/$defs/fsck" },
+            "restored_report_matches_source": { "const": true },
+            "report_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+            "screenshot_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+          }
+        },
+        "screenshot": { "type": "string", "pattern": "^artifacts/M[1-4]\\.png$" },
+        "visual_inspection": { "const": "pass" },
+        "s1": { "const": "pass" },
+        "s2": { "const": "pass" },
+        "s3": { "const": "pass" },
+        "review": { "enum": ["accepted", "rejected", "pending"] }
+      }
+    }
+  }
+}

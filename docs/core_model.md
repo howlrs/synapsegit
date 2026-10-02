@@ -1,9 +1,9 @@
 # SynapseGit Core データモデル
 
 この文書は、Core v0.1 の object graph と意味層を短く把握するための案内である。
-正確な制約は [`spec/core/v0.1`](../spec/core/v0.1/README.md) の normative draft と JSON Schema を参照する。
+正確な制約は [`spec/core/v0.1`](../spec/core/v0.1/README.md) の normative protocol と JSON Schema を参照する。
 
-Status: **Core v0.1 / Stage 0 draft**<br>
+Status: **Core v0.1 implemented; formats frozen for v1.x**<br>
 Audience: 利用者、adapter / Core 実装者<br>
 Document type: informative overview
 

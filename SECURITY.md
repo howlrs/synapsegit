@@ -1,14 +1,14 @@
 # Security policy
 
-SynapseGit is a Stage 0 preview. It is suitable for local evaluation, not for a
+SynapseGit v1.0.0 is suitable for local single-user use, not for a
 public, multi-user, or production deployment.
 
 ## Supported versions
 
 | Version | Security handling |
 |---|---|
-| Latest v1.0.x prerelease | Best-effort investigation and fixes after the tag workflow publishes it |
-| Older prereleases | Upgrade may be required before a fix is provided |
+| Latest v1.x | Best-effort investigation and fixes under the current policy |
+| Older releases | Upgrade may be required before a fix is provided |
 | Unreleased `main` builds | Not a supported distribution |
 
 Data-format compatibility is described separately in the
