@@ -176,7 +176,7 @@ dependencyを含むcandidate closureを検証してreachable snapshotへ結び�
 
 creator reportのreaderは、implementation OIDが現在のbuildのbundleか、公開済みreleaseが記録したbundleで
 あることを要求する。後者は`crates/synapse-creator/src/report.rs`の監査済みallowlistに、release tagとOIDの
-組で列挙する。v0.1.0からv0.13.1までの全release tagで`src/byte_identity.rs`と`src/lib.rs`は同一であり、
+組で列挙する。v0.1.0からv1.0.0-rc.1までの全release tagで`src/byte_identity.rs`と`src/lib.rs`は同一であり、
 bundleの差はpackage manifest（毎releaseのversion、v0.2.0の`license-file`／`publish`、v0.5.0の`[lints]`／
 workspace `serde_json`）だけである。`scripts/verify_byte_identity_allowlist.mjs`は各tagのsourceからOIDを
 再計算する。CIとrelease workflowは、entryとtag sourceの不一致、および現在のversionより古い公開releaseの

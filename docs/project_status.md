@@ -83,8 +83,8 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
   machine-readable質問／oracle、privacy canary、静的accessibility baseline
 - 英語tutorialから続けるCreator workflow／public-text／privacy/trustのfocused documentation path、および実制作Pilot用の日本語開始前チェックリストと振り返りテンプレート
 - GitHub projectionとGit identity/importは設計済みで、GitHubをobject／Ref／reflogのauthorityにしない。Git importer、GitHub App、remote publish、hosted serviceは未実装
-- Linux x86_64 GNUとmacOS arm64向けv1.0.0-rc.1 prerelease archive、checksum、build attestation（tag workflowが検証して公開する）
-- v1.xでの読み取り互換とv1形式の凍結（`sg-oid-v1`、Core record schema、archive profile、Inbox manifest v1、CLI JSON）。公開済み全17版が書いたrepositoryとarchiveをfixtureとして固定し、CIで読み取り・restoreを検査する（[互換性方針](./compatibility.md)）
+- Linux x86_64 GNUとmacOS arm64向けv1.0.0-rc.1 prerelease archive、checksum、build attestationを[GitHub Release](https://github.com/howlrs/synapsegit/releases/tag/v1.0.0-rc.1)で公開済み。両platformの公開後download／checksum／attestation／archive smokeは[tag workflow](https://github.com/howlrs/synapsegit/actions/runs/36997536278)で確認済み
+- v1.xでの読み取り互換とv1形式の凍結（`sg-oid-v1`、Core record schema、archive profile、Inbox manifest v1、CLI JSON）。公開済み全18版が書いたrepositoryとarchiveをfixtureとして固定し、CIで読み取り・restoreを検査する（[互換性方針](./compatibility.md)）
 - 既存repository向け操作は未作成・不完全なrepositoryを拒否。新規作成は`synapse init`／`creator-run`、または空directoryを登録した`synapse-local`で可能
 - tracked Bash fence、Cargo direct-dependency図、OpenAPI revision registry、archive／generation browser flow、publication HTMLのrelease gate
 
@@ -156,12 +156,12 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 |---|---|
 | Localhost Inbox and fresh interrupted/Defer review | Included in v1.0.0-rc.1; explicit Human review, no source decision rewrite |
 | Public repository | Available |
-| v1.0.0-rc.1 GitHub prerelease | Available after the tag workflow publishes it |
-| Linux x86_64 GNU binary | Available after the tag workflow; glibc 2.34+ |
-| macOS arm64 binary | Included in v1.0.0-rc.1 after the tag workflow; built and smoke-tested on macOS 14; not signed or notarized |
-| Source build from fixed tag | Available after the tag workflow; Rust 1.88+ |
-| SHA-256 release checksum | Available after the tag workflow |
-| Build provenance attestation | Generated for the v1.0.0-rc.1 archive by the tag workflow |
+| v1.0.0-rc.1 GitHub prerelease | [Available](https://github.com/howlrs/synapsegit/releases/tag/v1.0.0-rc.1) |
+| Linux x86_64 GNU binary | Available; glibc 2.34+; published archive verified |
+| macOS arm64 binary | Available; built and smoke-tested on macOS 14; published archive verified; not signed or notarized |
+| Source build from fixed tag | Available; Rust 1.88+ |
+| SHA-256 release checksum | Available and verified for both platform archives |
+| Build provenance attestation | Verified for both published archives by the tag workflow |
 | `synapse-present` binary | Included in v1.0.0-rc.1; local generation only, with no remote publish |
 | Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v1.0.0-rc.1 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
 | crates.io / GHCR / OS packages | Intentionally unavailable; GitHub Releases only |

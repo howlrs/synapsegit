@@ -26,7 +26,7 @@ use synapse_projection::{
 use synapse_sqlite::RefSnapshot;
 
 // Byte-identity implementation bundles recorded by published SynapseGit
-// releases. Every annotated release tag from v0.1.0 through v0.13.1 embeds the
+// releases. Every annotated release tag from v0.1.0 through v1.0.0-rc.1 embeds the
 // same `src/byte_identity.rs` and `src/lib.rs` bytes; the bundles differ only in
 // the package manifest (the version on every release, `license-file`/`publish`
 // in v0.2.0, and `[lints]`/workspace `serde_json` in v0.5.0).
@@ -103,6 +103,10 @@ pub(crate) const HISTORIC_BYTE_IDENTITY_IMPLEMENTATION_OIDS: &[(&str, &str)] = &
     (
         "v0.13.1",
         "blob:sg-oid-v1:sha256:93b7f96bec0b2e80fb3a6ef6087af7f11d77daff36b6145095a273c2af30e180",
+    ),
+    (
+        "v1.0.0-rc.1",
+        "blob:sg-oid-v1:sha256:a40660de210eb0abc0bb8ec901120f673fa47a566ca559cc13b6c013e8b3cb65",
     ),
 ];
 
