@@ -13,8 +13,8 @@ milestone.
 
 - Published the first stable v1.0 product release. The v1 formats remain frozen
   throughout v1.x: `sg-oid-v1`, Core record schemas, the directory archive
-  profile, import inbox manifest v1, and CLI JSON documents (additive fields
-  only). The release reader recognizes the implementation bundle from the
+  profile, import inbox manifest v1, and Creator report/list/inbox JSON profiles
+  (additive fields only). The release reader recognizes the implementation bundle from the
   preceding `v1.0.0-rc.1` release as well as every earlier published release.
 - Linux x86_64 GNU and macOS arm64 (Apple Silicon) archives are released with
   SHA-256 checksums and GitHub build attestations. macOS binaries are not

@@ -5,6 +5,7 @@
 [![CI](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml/badge.svg)](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml)
 ![v1.0.0](https://img.shields.io/badge/release-v1.0.0-0a7f3f)
 ![Linux x86_64](https://img.shields.io/badge/binary-Linux%20x86__64-555)
+![macOS arm64](https://img.shields.io/badge/binary-macOS%20arm64-555)
 [![License: source-available](https://img.shields.io/badge/license-source--available-blue)](./LICENSE)
 
 **AIが何を提案し、あなたが何を決めたかを、手元に記録する。**
@@ -47,7 +48,7 @@ SynapseGitは、それぞれを独立した記録として残し、最後に作�
 
 画像は生成したfixtureであり、実在の作品や処置の証拠ではありません。
 このrepositoryでは[2026-10-02版の画像](./docs/assets/image-generation.json)を使います。
-v1.0.0 archiveにはこの版の素材を同梱します。以前のreleaseはその版の素材を保持するため、
+v1.0.0 archiveにはこの3枚のtutorial画像を同梱します。以前のreleaseはその版の素材を保持するため、
 sessionで使ったreleaseと素材の版を記録してください。
 
 ## 始める

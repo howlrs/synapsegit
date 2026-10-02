@@ -5,6 +5,7 @@
 [![CI](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml/badge.svg)](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml)
 ![v1.0.0](https://img.shields.io/badge/release-v1.0.0-0a7f3f)
 ![Linux x86_64](https://img.shields.io/badge/binary-Linux%20x86__64-555)
+![macOS arm64](https://img.shields.io/badge/binary-macOS%20arm64-555)
 [![License: source-available](https://img.shields.io/badge/license-source--available-blue)](./LICENSE)
 
 **Keep a local record of what an AI proposed and what you decided.**
@@ -51,7 +52,7 @@ and troubleshooting.
 
 The images are generated fixtures, not evidence of a real artwork or treatment.
 This repository uses the [2026-10-02 image revision](./docs/assets/image-generation.json).
-The v1.0.0 archive bundles this revision. Earlier releases retain their bundled
+The v1.0.0 archive bundles these three tutorial images. Earlier releases retain their bundled
 materials; record the release and material revision used for any session.
 
 ## Get started

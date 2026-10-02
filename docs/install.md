@@ -205,7 +205,7 @@ cargo install \
   synapse-publication
 ```
 
-`--locked`はtagに記録されたdependency versionを使います。Stage 0のworkspace crateは
+`--locked`はtagに記録されたdependency versionを使います。workspace crateは
 crates.io配布を意図せず、repository sourceからbuildします。
 
 ## Update
