@@ -2,15 +2,15 @@
 
 Audience: users、contributors、maintainers
 Status: public project snapshot
-Applies to: v1.0.0 release preparation
-Last verified: 2026-10-02
+Applies to: v1.0.0 stable release
+Last verified: 2026-10-03
 
 v1.0.0は、AIエージェントがInboxへ候補を置き、人がlocalhost UIで画像を確認して判断する
 local single-user向けのreleaseである。v1形式は[互換性方針](./compatibility.md)に従って凍結済みで、
 formal Core Stage 1は別の研究として続ける。
 実利用者3〜5人の評価は未実施であり、人間のUX評価・参加者数・Human Decisionの実績は主張しない。
 [#192](https://github.com/howlrs/synapsegit/issues/192)では、v1.0.0公開条件としてCodex、Gemini、Claudeが
-4件の隔離したAIモック環境で主要フローを実運用試験し、localhost UIを目視確認した。Gemini・Claudeの独立reviewを受け、公開条件2を満たすと判断した。PR #197のmergeでIssueを完了する。合成素材でのrehearsalは実利用者評価の結果ではない。
+4件の隔離したAIモック環境で主要フローを実運用試験し、localhost UIを目視確認した。Gemini・Claudeの独立reviewを受け、公開条件2を満たすと判断し、PR #197のmergeでIssueを完了した。合成素材でのrehearsalは実利用者評価の結果ではない。
 両platformの手順は[v1.0.0 release notes](./releases/v1.0.0.md)を使う。
 
 tagged v1.0.0 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
@@ -84,8 +84,8 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
   machine-readable質問／oracle、privacy canary、静的accessibility baseline
 - 英語tutorialから続けるCreator workflow／public-text／privacy/trustのfocused documentation path、および実制作Pilot用の日本語開始前チェックリストと振り返りテンプレート
 - GitHub projectionとGit identity/importは設計済みで、GitHubをobject／Ref／reflogのauthorityにしない。Git importer、GitHub App、remote publish、hosted serviceは未実装
-- Linux x86_64 GNUとmacOS arm64向けv1.0.0-rc.1 prerelease archive、checksum、build attestationを[GitHub Release](https://github.com/howlrs/synapsegit/releases/tag/v1.0.0-rc.1)で公開済み。両platformの公開後download／checksum／attestation／archive smokeは[tag workflow](https://github.com/howlrs/synapsegit/actions/runs/36997536278)で確認済み
-- v1.xでの読み取り互換とv1形式の凍結（`sg-oid-v1`、Core record schema、archive profile、Inbox manifest v1、CLI JSON）。公開済み全18版が書いたrepositoryとarchiveをfixtureとして固定し、CIで読み取り・restoreを検査する（[互換性方針](./compatibility.md)）
+- Linux x86_64 GNUとmacOS arm64向けv1.0.0 archive、checksum、build attestationを[GitHub Release](https://github.com/howlrs/synapsegit/releases/tag/v1.0.0)で公開済み。両platformの公開後download／checksum／attestation／archive smokeは[tag workflow](https://github.com/howlrs/synapsegit/actions/runs/37026671551)で確認済み
+- v1.xでの読み取り互換とv1形式の凍結（`sg-oid-v1`、Core record schema、archive profile、Inbox manifest v1、CLI JSON）。公開済み全19版が書いたrepositoryとarchiveをfixtureとして固定し、CIで読み取り・restoreを検査する（[互換性方針](./compatibility.md)）
 - 既存repository向け操作は未作成・不完全なrepositoryを拒否。新規作成は`synapse init`／`creator-run`、または空directoryを登録した`synapse-local`で可能
 - tracked Bash fence、Cargo direct-dependency図、OpenAPI revision registry、archive／generation browser flow、publication HTMLのrelease gate
 
@@ -157,12 +157,12 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 |---|---|
 | Localhost Inbox and fresh interrupted/Defer review | Included in v1.0.0; explicit Human review, no source decision rewrite |
 | Public repository | Available |
-| v1.0.0 GitHub Release | Published after the tag workflow completes |
-| Linux x86_64 GNU binary | v1.0.0 pending tag workflow; v1.0.0-rc.1 archive is published and verified |
-| macOS arm64 binary | v1.0.0 pending tag workflow; v1.0.0-rc.1 archive was built and smoke-tested on macOS 14, and is not signed or notarized |
-| Source build from fixed tag | v1.0.0 pending tag; Rust 1.88+ |
-| SHA-256 release checksum | v1.0.0 pending publication; both v1.0.0-rc.1 platform archives are verified |
-| Build provenance attestation | v1.0.0 pending publication; both v1.0.0-rc.1 archives were verified by its tag workflow |
+| v1.0.0 GitHub Release | [Published 2026-10-02 15:35:25 UTC](https://github.com/howlrs/synapsegit/releases/tag/v1.0.0) |
+| Linux x86_64 GNU binary | Published; archive SHA-256 `060840bd93300ed2741cbb9ff8b3150852b37e953f8afd1c0c5e413a000216db` |
+| macOS arm64 binary | Published; archive SHA-256 `e16963588b01d89fd81e00b0df8436e16628b0b8838553c40d2c66e42aa5f530`; built and smoke-tested on macOS 14, and is not signed or notarized |
+| Source build from fixed tag | Available from `v1.0.0`; Rust 1.88+ |
+| SHA-256 release checksum | Published in the v1.0.0 `SHA256SUMS`; both platform archives were independently checked |
+| Build provenance attestation | GitHub attestation was independently verified for both v1.0.0 archives against `refs/tags/v1.0.0` and source commit `ca3a362793c1c3a1e89224aaddbd2b3a93e1bb3f` |
 | `synapse-present` binary | Included in v1.0.0; local generation only, with no remote publish |
 | Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v1.0.0 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
 | crates.io / GHCR / OS packages | Intentionally unavailable; GitHub Releases only |
