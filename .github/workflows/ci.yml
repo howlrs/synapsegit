@@ -77,6 +77,7 @@ jobs:
           node scripts/manage_github_security.mjs --validate
           node scripts/wait_for_main_ci.mjs --self-test
           node scripts/test_release_version.mjs
+          node scripts/test_verify_release_attestation.mjs
           node scripts/verify_release_fixtures.mjs --self-test
           node scripts/verify_release_fixtures.mjs
           git diff --check

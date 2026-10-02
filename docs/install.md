@@ -2,8 +2,8 @@
 
 Audience: preview users and evaluators
 Status: Stage 0 prerelease
-Applies to: v0.13.1 release preparation
-Last verified: 2026-09-30
+Applies to: v0.13.1 general installation; v1.0.0-rc.1 pilot installation
+Last verified: 2026-10-02
 
 SynapseGit currently has one prebuilt distribution and one source-install path.
 It is not published to crates.io, Homebrew, a Linux package repository, or a
@@ -26,6 +26,11 @@ libraries. Those are workspace libraries for an embedding application. The
 release archive still contains exactly the three binaries listed above; it does
 not add a generic-artifact HTTP, CLI, browser UI, executable, or remote publish
 path.
+
+For the v1.0.0 release-candidate pilot, including the first macOS arm64
+archive, use the fixed commands in the
+[v1.0.0-rc.1 release notes](./releases/v1.0.0-rc.1.md). It is a prerelease
+for the 3–5 real-user pilot, not the final v1.0.0 release.
 
 ## Install the Linux x86-64 release
 
@@ -90,10 +95,11 @@ the tutorial instead.
 
 ## Install the macOS arm64 release
 
-Releases after v0.13.1 also publish an archive for macOS on Apple Silicon. It is
-built and smoke-tested on macOS 14 by the same tag workflow, with the same
-checksum and build-provenance attestation. Set `TAG` to that release, for
-example `v1.0.0-rc.1`:
+`v1.0.0-rc.1` is the first release with an archive for macOS on Apple Silicon.
+It is built and smoke-tested on macOS 14 by the same tag workflow, with the
+same checksum and build-provenance attestation. Its fixed pilot commands are
+in the [v1.0.0-rc.1 release notes](./releases/v1.0.0-rc.1.md); for a later
+release, set `TAG` to that fixed tag:
 
 ```bash
 TAG=vX.Y.Z
@@ -245,6 +251,7 @@ need the recorded data.
 ## Next steps
 
 - [Read the v0.13.1 release notes](./releases/v0.13.1.md)
+- [Install v1.0.0-rc.1 for the pilot, including macOS arm64](./releases/v1.0.0-rc.1.md)
 - [Complete the illustrated 15-minute mural tutorial](./tutorial/README.md)
 - [画像付き15分 壁画チュートリアルを実行する](./tutorial/README.ja.md)
 - [Get started from the README](../README.md#get-started)

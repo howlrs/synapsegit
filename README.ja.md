@@ -51,8 +51,9 @@ SynapseGitは、それぞれを独立した記録として残し、最後に作�
 
 ### 1. installする
 
-配布archiveはRust toolchainなしで使えます。v0.13.1のarchiveはLinux x86_64（glibc 2.34以降）用です。
-v0.13.1より後のreleaseは、Apple SiliconのmacOS用も含みます。他のplatformでは
+配布archiveはRust toolchainなしで使えます。公開済みv0.13.1のarchiveはLinux x86_64（glibc 2.34以降）用です。
+v1.0.0-rc.1のPilotはApple SiliconのmacOS用archiveを初めて含み、固定したLinux／macOS commandは
+[v1.0.0-rc.1 release notes](./docs/releases/v1.0.0-rc.1.md)にあります。他のplatformでは
 [tagged sourceからbuild](./docs/install.md#build-from-a-tagged-source-release)できます。
 
 ```bash
@@ -115,8 +116,8 @@ synapse creator-report "$HOME/SynapseGit/demo" session-1
   元の記録は残ります。
 - **ローカルで1人が使うものです。** `synapse-local`は`127.0.0.1`だけで動きます。hosted serviceや
   multi-user serviceはなく、何もuploadしません。
-- **platform:** Linux x86_64と、v0.13.1より後のreleaseではmacOS arm64。Windowsには対応しません。
-  Linux ARM64はsourceからbuildします。
+- **platform:** 公開済みv0.13.1 archiveはLinux x86_64用です。v1.0.0-rc.1のPilotはmacOS arm64も
+  配布します。Windowsには対応しません。Linux ARM64はsourceからbuildします。
 
 配布binaryではなく、Rust libraryとしてだけある機能もあります。実装者は
 [実装の境界とlibraryだけの機能](./docs/implementation_boundaries.md)を参照してください。
@@ -166,8 +167,9 @@ flowchart LR
   attestationを付けます。crates.ioやcontainer registryでは配布しません。
 - v1.0.0から、object、識別子、archiveの形式はv1.xの間固定され、公開したすべての版のrepositoryと
   archiveを読めます。[互換性方針](./docs/compatibility.md)を参照してください。
-- 各releaseの変更は[CHANGELOG](./CHANGELOG.md)と[v0.13.1 release notes](./docs/releases/v0.13.1.md)に
-  あります。重要なデータで試す前に読んでください。
+- 各releaseの変更は[CHANGELOG](./CHANGELOG.md)、公開済みの[v0.13.1 release notes](./docs/releases/v0.13.1.md)、
+  Pilot向けの[v1.0.0-rc.1 release notes](./docs/releases/v1.0.0-rc.1.md)にあります。重要なデータで試す前に、
+  該当する資料を読んでください。
 
 ## Security、support、license
 

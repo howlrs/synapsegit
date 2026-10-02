@@ -1,6 +1,6 @@
 [package]
 name = "synapse-local-http"
-version = "0.13.1"
+version = "1.0.0-rc.1"
 description = "Loopback-only HTTP and UI transport for the SynapseGit local application"
 edition.workspace = true
 repository.workspace = true

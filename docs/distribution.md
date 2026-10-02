@@ -1,9 +1,9 @@
 # SynapseGit GitHub配布ガイド
 
 Audience: maintainer、release担当、公開文書を更新するcontributor
-Status: Stage 0運用runbook
-Applies to: v0.13.1 release preparation
-Last verified: 2026-09-30
+Status: prerelease運用runbook
+Applies to: v1.0.0-rc.1 release preparation
+Last verified: 2026-10-02
 
 この文書は、SynapseGitを「GitHub上で見つける」「現在の用途を判断する」「安全に試す」までの
 公開導線とrelease手順を定義する。protocolの規範仕様ではない。
@@ -220,6 +220,7 @@ node scripts/verify_mermaid.mjs
 node scripts/manage_github_security.mjs --validate
 node scripts/wait_for_main_ci.mjs --self-test
 node scripts/test_release_version.mjs
+node scripts/test_verify_release_attestation.mjs
 node scripts/verify_release_fixtures.mjs --self-test
 node scripts/verify_release_fixtures.mjs
 git diff --check
@@ -335,7 +336,18 @@ v1.0.0の正式版をprereleaseではない通常のreleaseとして公開する
 title）は、[v1.0 release plan](./v1_release_plan.md)のリリース条件に沿ってv1.0の公開準備で変更する。
 それまでは、すべてのtagを従来どおりprereleaseとして公開する。
 
+`v1.0.0-rc.1`はこの手順で公開する最初のcandidateであり、Linux x86_64に加えてmacOS arm64
+archiveを初めて含める。これはv1.0.0の正式版ではなく、[#192](https://github.com/howlrs/synapsegit/issues/192)
+で主対象の実利用者3〜5人が評価キットv2で試用するためのprereleaseである。正式版は、
+[v1.0 release plan](./v1_release_plan.md#リリース条件)のPilotと他の条件を満たした後に判断する。
+
 ## 公開後check
+
+`post-publish-verify` jobは、公開済みReleaseから両archiveと`SHA256SUMS`を別directoryへdownloadし、
+Linux x86_64とmacOS arm64のrunnerで検証する。checksumの2行とarchive名、attestationの
+workflow／tag／tagged commit／`github-hosted` runner／digestを確認した後、展開したbinaryのversion、help、
+3-file Pilot、`inbox put`、local publication、tutorialを検査する。失敗時はworkflowが失敗となり、
+公開済みRCの検証が完了したと扱わない。
 
 - Release URLをsign-out状態で開ける
 - READMEのversion固定download URLが200を返す

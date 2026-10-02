@@ -1,13 +1,23 @@
 # Changelog
 
 All notable user-visible changes are recorded here. SynapseGit uses semantic
-version tags for release identification, but the Core protocol, OID profile,
-and archive format remain Stage 0 drafts until v1.0.0 freezes them as the v1
-formats; see docs/compatibility.md.
+version tags for release identification. The v1 formats are frozen for v1.x;
+see docs/compatibility.md. v1.0.0-rc.1 remains a prerelease for evaluation
+before the first stable product release. Formal Core Stage 1 is a separate
+research milestone.
 
 ## [Unreleased]
 
+## [1.0.0-rc.1] - 2026-10-02
+
 ### Added
+
+- The first v1.0 release candidate for a 3–5-person creator pilot. An AI agent
+  prepares the import inbox; the person reviews the images and records the
+  decision in the localhost UI. The pilot results and resolution of severe
+  problems are still required before v1.0.0. General installation examples
+  keep v0.13.1; the candidate release notes give both platform instructions.
+
 
 - Releases publish a macOS arm64 (Apple Silicon) archive next to the Linux
   x86_64 archive. The tag workflow builds, tests, packages, smoke-tests, and
@@ -79,6 +89,10 @@ formats; see docs/compatibility.md.
 
 ### Changed
 
+- Updated Askama from 0.16.0 to 0.16.1, rustix from 1.1.4 to 1.1.5,
+  TOML from 1.1.4 to 1.1.6, and jsonschema from 0.57.0 to 0.58.2.
+  The workspace minimum remains Rust 1.88. The lockfile and generated
+  third-party notices include the updated dependency set.
 - `synapse-local` uses plain words for what a creator reads. For example,
   "caller-supplied" becomes "made outside this app", "Byte identity evidence"
   becomes "File-content match check (not a visual comparison)", "staging"
@@ -148,6 +162,10 @@ formats; see docs/compatibility.md.
 
 ### Fixed
 
+- The third-party notices generator recognizes the workspace-root license
+  omitted from the jsonschema-regex and jsonschema-value 0.58.2 crate archives.
+  Its exact-version fallbacks use the vendored license verified against the
+  packages' recorded upstream revision.
 - An import-inbox candidate that was already imported no longer shows as
   waiting. SynapseGit still leaves the inbox untouched. A candidate counts as
   imported when a session with its suggested name, `inbox-<slug>`, exists. The
@@ -773,7 +791,8 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v0.13.1...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v1.0.0-rc.1...HEAD
+[1.0.0-rc.1]: https://github.com/howlrs/synapsegit/compare/v0.13.1...v1.0.0-rc.1
 [0.13.1]: https://github.com/howlrs/synapsegit/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/howlrs/synapsegit/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/howlrs/synapsegit/compare/v0.11.1...v0.12.0

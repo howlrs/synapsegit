@@ -98,6 +98,7 @@ jobs:
           node scripts/verify_byte_identity_allowlist.mjs --self-test
           node scripts/verify_byte_identity_allowlist.mjs
           node scripts/test_release_version.mjs
+          node scripts/test_verify_release_attestation.mjs
           node scripts/verify_release_fixtures.mjs --self-test
           node scripts/verify_release_fixtures.mjs
           node scripts/verify_core_fixtures.mjs
@@ -222,3 +223,84 @@ jobs:
             --draft=false \
             --prerelease \
             --latest=false
+
+  post-publish-verify:
+    name: Verify published ${{ matrix.target }} release archive
+    needs: publish
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+          - runner: macos-14
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      attestations: read
+    steps:
+      - name: Check out the tagged source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+
+      - name: Download and verify the published release assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          verify_dir="$(mktemp -d "${TMPDIR:-/tmp}/synapsegit-release-verify.XXXXXX")"
+          trap 'rm -rf -- "$verify_dir"' EXIT
+          gh release download "$GITHUB_REF_NAME" \
+            --repo "$GITHUB_REPOSITORY" \
+            --dir "$verify_dir" \
+            --pattern 'synapsegit-*.tar.gz' \
+            --pattern SHA256SUMS
+          cd "$verify_dir"
+          test "$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft)" = false
+          test "$(gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isPrerelease --jq .isPrerelease)" = true
+
+          expected_linux="synapsegit-$GITHUB_REF_NAME-x86_64-unknown-linux-gnu.tar.gz"
+          expected_macos="synapsegit-$GITHUB_REF_NAME-aarch64-apple-darwin.tar.gz"
+          expected_archives="$(printf '%s\n' "$expected_linux" "$expected_macos" | sort)"
+          shopt -s nullglob
+          downloaded_archives=(synapsegit-*.tar.gz)
+          downloaded_files=(*)
+          test "${#downloaded_archives[@]}" -eq 2
+          test "${#downloaded_files[@]}" -eq 3
+          actual_archives="$(printf '%s\n' "${downloaded_archives[@]}" | sort)"
+          test "$actual_archives" = "$expected_archives"
+          test "$(wc -l < SHA256SUMS)" -eq 2
+          actual_checksums="$(awk '
+            NF != 2 || length($1) != 64 || $1 ~ /[^0-9a-f]/ || $2 ~ /\// { exit 1 }
+            { print $2 }
+          ' SHA256SUMS | sort)"
+          test "$actual_checksums" = "$expected_archives"
+          if [[ "$RUNNER_OS" == macOS ]]; then
+            shasum -a 256 --check SHA256SUMS
+          else
+            sha256sum --check SHA256SUMS
+          fi
+
+          archive="synapsegit-$GITHUB_REF_NAME-$TARGET.tar.gz"
+          digest="$(awk -v archive="$archive" '$2 == archive { print $1 }' SHA256SUMS)"
+          test -n "$digest"
+          gh attestation verify "$archive" \
+            --repo howlrs/synapsegit \
+            --signer-workflow howlrs/synapsegit/.github/workflows/release.yml \
+            --source-ref "refs/tags/$GITHUB_REF_NAME" \
+            --source-digest "$GITHUB_SHA" \
+            --deny-self-hosted-runners \
+            --format json > attestation.json
+          node "$GITHUB_WORKSPACE/scripts/verify_release_attestation.mjs" \
+            attestation.json "$archive" "$digest" "$GITHUB_REF_NAME"
+          bash "$GITHUB_WORKSPACE/scripts/smoke_release_archive.sh" \
+            "$archive" "$GITHUB_REF_NAME" "$TARGET"

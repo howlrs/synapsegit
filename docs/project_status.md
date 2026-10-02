@@ -2,15 +2,17 @@
 
 Audience: preview evaluators、contributors、maintainers
 Status: public project snapshot
-Applies to: v0.13.1 release
-Last verified: 2026-09-30
+Applies to: v1.0.0-rc.1 release
+Last verified: 2026-10-02
 
-SynapseGit Coreは**Stage 0 draft**である。v0.13.1は、v0.3.0で配布したlocal repository、bounded
-creator Pilot、localhost import／review／diagnostics／`fsck`、read-only publication bundleの三binary
-surfaceを維持しつつ、generic regular-file application boundaryをtagged sourceで評価するprereleaseである。
-production-readyなcreator applicationやmulti-user serviceではない。
+v1.0.0-rc.1は、生成AIを使うクリエイターによる実利用者評価向けの**release candidate**である。
+AIエージェントがInboxへ候補を置き、人がlocalhost UIで画像を確認して判断する。
+v1形式は[互換性方針](./compatibility.md)に従って凍結済みで、formal Core Stage 1は別の研究として続ける。
+正式なv1.0.0には、[#192](https://github.com/howlrs/synapsegit/issues/192)の3〜5人の評価と重大な問題の解決が必要である。
+通常のインストール例は公開済みv0.13.1を維持し、RCの両platformの手順は
+[RC release notes](./releases/v1.0.0-rc.1.md)を使う。
 
-tagged v0.13.1 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
+tagged v1.0.0-rc.1 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
 boundaryが含まれる。これはdeterministic mapper／bounded checkout、固定v1 JSON contract、sequential
 Proposal／Decision workflow、host-authenticated one-shot approval、Proposal／Decision CAS前後を別SQLite
 journalへ結ぶ明示的なrestart recovery／reconciliation orchestration、local public projectionである。
@@ -19,6 +21,9 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 
 ## 現在の成果
 
+- v1.0 release candidate向けの[Creator pilot評価キットv2](./evaluation/creator-pilot/v2/)と合成素材でのrehearsal。実利用者評価の結果ではない
+- sessionのSubject、Creator、判断日時、読みやすいTimelineとtechnical detailsの折りたたみ
+- project画面のセッション／取り込む／保守／履歴の分離と、未取り込み候補だけを数えるInbox通知
 - strict JSON、canonical bytes、domain-separated OID
 - concrete Record schemaとlocal semantic validation
 - filesystem content-addressed ObjectStore、typed closure、Tombstone、`fsck`
@@ -78,7 +83,7 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
   machine-readable質問／oracle、privacy canary、静的accessibility baseline
 - 英語tutorialから続けるCreator workflow／public-text／privacy/trustのfocused documentation path、および実制作Pilot用の日本語開始前チェックリストと振り返りテンプレート
 - GitHub projectionとGit identity/importは設計済みで、GitHubをobject／Ref／reflogのauthorityにしない。Git importer、GitHub App、remote publish、hosted serviceは未実装
-- Linux x86_64 GNU向けv0.13.1 prerelease archive、checksum、build attestation
+- Linux x86_64 GNUとmacOS arm64向けv1.0.0-rc.1 prerelease archive、checksum、build attestation（tag workflowが検証して公開する）
 - v1.xでの読み取り互換とv1形式の凍結（`sg-oid-v1`、Core record schema、archive profile、Inbox manifest v1、CLI JSON）。公開済み全17版が書いたrepositoryとarchiveをfixtureとして固定し、CIで読み取り・restoreを検査する（[互換性方針](./compatibility.md)）
 - 既存repository向け操作は未作成・不完全なrepositoryを拒否。新規作成は`synapse init`／`creator-run`、または空directoryを登録した`synapse-local`で可能
 - tracked Bash fence、Cargo direct-dependency図、OpenAPI revision registry、archive／generation browser flow、publication HTMLのrelease gate
@@ -105,9 +110,9 @@ Chromium 34件が成功し、独立レビューで検出した公開v1の誤表�
 
 ## 現在の利用対象
 
-今すぐの評価対象は、CLIを扱えるtechnical creator、provenance／human-in-the-loop AIの
-researcher・tool builder、Rust developerである。一般の画家、建築家、施工・修復担当、
-デザイナーへそのまま提供できるcapture／継続編集UXにはまだ達していない。v0.3.0で導入され
+RCの主な評価対象は、生成AIをきっかけに技術を使い始め、CLIをAIエージェント経由で使うクリエイターである。
+人がlocalhost UIで判断する利用モデルを[AIエージェント向けガイド](./ai_agent_guide.ja.md)で案内する。
+captureや継続session編集は未実装であり、multi-user serviceは提供しない。v0.3.0で導入され
 v0.4.0にも収録されるlocalhost UIは三file importと単一proposalのreviewを行えるが、AI outputはcaller-suppliedで、
 pending reviewはprocess restartを越えて復元できない。ただしProposal closureを検証できるrestart後の中断と、完了したDeferは、記録済みの3画像を新しいsessionへ引き継いで改めて判断できる。元の判断は復元・変更しない。restart後等のincomplete sessionを
 read-onlyで診断し、明示確認したbounded `fsck`をbackground jobとしてpollできる。表示したRef／headから
@@ -149,24 +154,24 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 
 | Item | Status |
 |---|---|
-| Localhost Inbox and fresh interrupted/Defer review | Included in v0.13.1; explicit Human review, no source decision rewrite |
+| Localhost Inbox and fresh interrupted/Defer review | Included in v1.0.0-rc.1; explicit Human review, no source decision rewrite |
 | Public repository | Available |
-| v0.13.1 GitHub prerelease | Available after the tag workflow publishes it |
+| v1.0.0-rc.1 GitHub prerelease | Available after the tag workflow publishes it |
 | Linux x86_64 GNU binary | Available after the tag workflow; glibc 2.34+ |
-| macOS arm64 binary | Published from the release after v0.13.1; built and smoke-tested on macOS 14; not signed or notarized |
+| macOS arm64 binary | Included in v1.0.0-rc.1 after the tag workflow; built and smoke-tested on macOS 14; not signed or notarized |
 | Source build from fixed tag | Available after the tag workflow; Rust 1.88+ |
 | SHA-256 release checksum | Available after the tag workflow |
-| Build provenance attestation | Generated for the v0.13.1 archive by the tag workflow |
-| `synapse-present` binary | Included in v0.13.1; local generation only, with no remote publish |
-| Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v0.13.1 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
-| crates.io / GHCR / OS packages | Intentionally unavailable in Stage 0 |
+| Build provenance attestation | Generated for the v1.0.0-rc.1 archive by the tag workflow |
+| `synapse-present` binary | Included in v1.0.0-rc.1; local generation only, with no remote publish |
+| Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v1.0.0-rc.1 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
+| crates.io / GHCR / OS packages | Intentionally unavailable; GitHub Releases only |
 | Source use, Fork, and redistribution terms | Custom source-available license available; not open source |
 
 `v0.3.0`で導入され`v0.4.0`にも収録される`SynapseGit Local` binaryは、上記の三file import／review、dedicated read-only
 incomplete-session diagnostics、bounded browser `fsck`を含む。review authorityとmaintenance
 job stateはprocess-localであり、process restartを越えて再開できない。`synapse-present`も
 v0.3.0で導入された三binary構成をv0.4.0 archiveで維持するが、生成物のremote upload／publishは行わない。
-generic artifact C1 library／schema／local projectionはv0.13.1 tagged sourceのworkspace libraryであり、
+generic artifact C1 library／schema／local projectionはv1.0.0-rc.1 tagged sourceのworkspace libraryであり、
 archiveのbinary数や既存binaryのHTTP／CLI／UI capabilityを変更しない。source-available licenseの
 production／distribution／brand制限も変更しない。
 
@@ -174,7 +179,7 @@ production／distribution／brand制限も変更しない。
 
 v1.0に向けた対象利用者、互換性の約束、範囲、リリース条件は[v1.0 release plan](./v1_release_plan.md)で決めた
 （[#147](https://github.com/howlrs/synapsegit/issues/147)）。v1.0の必須作業はGitHub milestone `v1.0`で管理する。
-次のStage 0の優先順位のうち、2の実利用者評価はv1.0-rcのPilotとして行い、3の派生セッション公開はv1.0の後に扱う。
+次の研究・改善の優先順位のうち、2の実利用者評価はv1.0-rcのPilotとして行い、3の派生セッション公開はv1.0の後に扱う。
 6の追加platformは、v1.0ではmacOS arm64を対象にする。
 
 1. 分離済みの[publication comprehension corpus](./evaluation/publication-comprehension/v1/)で、

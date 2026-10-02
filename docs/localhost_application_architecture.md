@@ -50,7 +50,7 @@ The application has two Rust packages:
   the existing Core, Creator, SQLite, and Publication crates;
 - `synapse-local-http`: the Axum HTTP/static-asset binary, depending on
   `synapse-local-service` but not directly on `synapse-core` or
-  `synapse-sqlite`. [Askama 0.16.0](https://docs.rs/askama/0.16.0/askama/)
+  `synapse-sqlite`. [Askama 0.16.1](https://docs.rs/askama/0.16.1/askama/)
   renders type-checked HTML templates while
   preserving the workspace's Rust 1.88 MSRV.
 
