@@ -52,7 +52,8 @@ localhost security boundary、GCP CLI smokeとの違いは[native localhost runb
 
 ![SynapseGit Localの完了creator sessionにあるOriginal、Current、AI outputの三つの画像role](./assets/synapse-local/creator-session.png)
 
-*Session detail — Human Decision、AI outputの選択状態、original／current／AI output、byte-identity evidenceを同じsession内で確認する画面です。*
+*完了sessionの画像sectionです。Original／Current／AI outputを確認できます。
+同じsessionの他のsectionにHuman Decision、AI outputの選択状態、byte-identity evidenceがあります。*
 
 v0.8.0では、privateな生成メモ・判断ピンを記録し、完了記録のOriginal／Currentを再利用して
 別の候補を試せます。[Creator操作ガイド](creator_workflow.md)に手順をまとめています。

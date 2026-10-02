@@ -75,5 +75,13 @@
         "height": 1000
       }
     }
+  },
+  "capture": {
+    "date": "2026-10-02",
+    "playwright": "1.63.0",
+    "chromium": "153.0.8010.12",
+    "locale": "ja-JP",
+    "demonstration": "Synthetic tutorial; creator-run --decision adopt records a scripted example, not a participant decision or pilot result.",
+    "archive_checksum_source": "https://github.com/howlrs/synapsegit/releases/download/v1.0.0-rc.1/SHA256SUMS"
   }
 }

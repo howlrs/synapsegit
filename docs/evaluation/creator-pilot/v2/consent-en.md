@@ -18,7 +18,11 @@ It is not a test of your skills.
 2. Check the candidate in your browser and record Adopt, Reject, or Defer
    yourself.
 3. Read the record back and make a backup.
-4. Answer a few questions in your own words.
+4. Review only the necessary part of your AI agent’s command display with the
+   facilitator to check who recorded the decision. Raw logs, prompts, and
+   private paths are not recorded. If you cannot show the necessary part, we
+   record that it could not be confirmed.
+5. Answer a few questions in your own words.
 
 The session is planned for 60 to 90 minutes. This is a guide, not a target;
 you are not expected to finish quickly.
@@ -59,8 +63,14 @@ Your record follows the choices below. Consent to publish an individual
 observation is separate from consent to include your participation in a public
 aggregate (the participant count and the S1--S3 conclusion). You may agree to
 the latter without publishing an individual result. An individual result uses
-only an anonymous public label; a private participant ID that links you to a
-record, and private record locations, are never published.
+an anonymous participant ID, such as `P1`, without linking it to your name.
+Aggregate-only consent does not publish participant IDs, individual results,
+or private record locations.
+
+If a product issue needs to be published, the evaluation team reproduces it
+independently with synthetic material. That issue contains no participant ID,
+session, or participant observation and does not expand publication of your
+individual observations.
 
 The facilitator and evaluation team may inspect private records within the
 scope you permit. A public summary contains only consented observations and
@@ -86,8 +96,8 @@ deleted. Published summaries remain, without information that identifies you.
 - [ ] The product name of my AI agent may be recorded as an observation (it may
   be published only if I also agree to publish an individual result).
 
-Participant ID (for example, `P1`; used as an anonymous ID only in a published
-individual result): ________　Date: ________
+Participant ID (for example, `P1`; an anonymous ID not linked to your name,
+published only with individual-result consent): ________　Date: ________
 
 Facilitator contact (filled in by the facilitator): ________
 

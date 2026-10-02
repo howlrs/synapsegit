@@ -191,6 +191,14 @@ async function main() {
     await writeFile(outputFiles.metadata, `${JSON.stringify({
       format: 1,
       runtime: { release: "v1.0.0-rc.1", archive_sha256: expectedArchiveSha256, synapse_local_version: version },
+      capture: {
+        date: new Date().toISOString().slice(0, 10),
+        playwright: require("playwright/package.json").version,
+        chromium: browser.version(),
+        locale: "ja-JP",
+        demonstration: "Synthetic tutorial; creator-run --decision adopt records a scripted example, not a participant decision or pilot result.",
+        archive_checksum_source: "https://github.com/howlrs/synapsegit/releases/download/v1.0.0-rc.1/SHA256SUMS",
+      },
       inputs: { synthetic: true, files: Object.fromEntries(Object.entries(inputs).map(([key, file]) => [key, path.relative(root, file)])), hashes: Object.fromEntries(Object.entries(inputs).map(([key]) => [key, imageHashes[key]])) },
       captures: Object.fromEntries(Object.entries(outputFiles).filter(([, file]) => file.endsWith(".png")).map(([key, file]) => [key, { file: path.relative(root, file), sha256: imageHashes[key], dimensions: imageDimensions[key] }])),
     }, null, 2)}\n`);
