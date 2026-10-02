@@ -2,13 +2,11 @@
 set -euo pipefail
 
 tag="${1:-}"
-# A release candidate uses vX.Y.Z-rc.N with N >= 1, for example v1.0.0-rc.1.
-if [[ ! "$tag" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-rc\.[1-9][0-9]*)?$ ]]; then
+if ! version="$(node scripts/release-version.mjs "$tag" 2>/dev/null)"; then
   echo "release_error: expected a semantic version tag such as v0.1.0 or v1.0.0-rc.1, got ${tag:-<empty>}" >&2
   exit 1
 fi
 
-version="${tag#v}"
 for manifest in crates/*/Cargo.toml; do
   package_version="$(
     awk '

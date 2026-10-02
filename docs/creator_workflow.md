@@ -2,8 +2,8 @@
 
 English: [Creator workflow](./creator_workflow.en.md).
 
-対象はv0.13.1です。生成メモはv0.11.0、判断ピン・通常の派生セッション・公開用文章フォームはv0.8.0で導入されました。中断／Deferからの新しい再レビューと任意のInbox取り込みも利用できます。
-v0.13.1 release binaryを[install guide](install.md)から導入するか、
+対象はv1.0.0です。生成メモはv0.11.0、判断ピン・通常の派生セッション・公開用文章フォームはv0.8.0で導入されました。中断／Deferからの新しい再レビューと任意のInbox取り込みも利用できます。
+v1.0.0 release binaryを[install guide](install.md)から導入するか、
 [source build](quickstart.md#1-build-する)で作成した`synapse-local`を
 [localhost runbook](../deploy/local/README.md)に従って起動してください。
 

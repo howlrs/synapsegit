@@ -1,6 +1,6 @@
 # Native localhost application
 
-v0.11.0で導入された生成メモと、v0.8.0で導入された判断ピン・派生セッション・公開用文章フォームは、v0.13.1でも利用できます。[Creator操作ガイド](../../docs/creator_workflow.md)に操作手順と公開v1の制限を説明しています。
+v0.11.0で導入された生成メモと、v0.8.0で導入された判断ピン・派生セッション・公開用文章フォームは、v1.0.0でも利用できます。[Creator操作ガイド](../../docs/creator_workflow.md)に操作手順と公開v1の制限を説明しています。
 
 `synapse-local` is the first creator-facing SynapseGit application. It runs as
 one native process on the user's machine and serves a browser UI only on IPv4
@@ -9,7 +9,7 @@ deployment, or a Docker workload.
 
 ## Current implementation boundary
 
-The tagged v0.13.1 implementation provides:
+The tagged v1.0.0 implementation provides:
 
 - a startup-owned catalog of local repositories;
 - project status, current Refs, and bounded reflog pages;
@@ -36,8 +36,8 @@ The tagged v0.13.1 implementation provides:
 
 The import, review, diagnostics, and browser `fsck` slices were introduced as
 the v0.3.0 localhost milestone and remain the same image-specific application
-surface in the tagged v0.13.1 binary. The generic-artifact workflow included in
-the v0.13.1 tagged source is not connected to this service or UI. The release archive remains
+surface in the tagged v1.0.0 binary. The generic-artifact workflow included in
+the v1.0.0 tagged source is not connected to this service or UI. The release archive remains
 `synapse`, `synapse-local`, and `synapse-present`; it adds no generic-artifact
 HTTP/CLI/UI, new binary, or remote publish path.
 
@@ -55,7 +55,7 @@ The tagged v0.6.0 UI added a bounded, read-only archive listing view
 (`GET /archives` plus a dashboard section) behind an optional
 `--archive-root PATH` startup flag; the path must already exist and be a
 directory. Without `--archive-root`, the UI behaves as before and does not
-provide archive listing. The tagged v0.13.1 binary also enables
+provide archive listing. The tagged v1.0.0 binary also enables
 authenticated `POST /api/v1/projects/{projectKey}/archive-exports` when this
 root is configured. The request accepts only an exact project confirmation and
 a logical archive slug; the server uses its fixed Core-equivalent limits and
@@ -71,7 +71,7 @@ empty-target checkbox serialized as `true`, and browser confirmation, then uses
 the existing queued/polled operation API.
 The dedicated diagnostics route and server-rendered view are read-only: displayed
 Ref/head values are never accepted back as review authority and history is not
-rewritten. The tagged v0.13.1 project page also runs read-only `fsck` only after
+rewritten. The tagged v1.0.0 project page also runs read-only `fsck` only after
 the user types the exact project key. It returns `202 Accepted`, polls a random
 process-local operation ID, and displays clean/dirty aggregate counts. A dirty
 repository is a completed result with `clean=false`, not a failed job.
@@ -116,12 +116,12 @@ diagnostics views remain available without it.
 
 ## Build and start
 
-Linux x86_64では、tag workflow後の[`v0.13.1` preview release](../../docs/releases/v0.13.1.md)に
+Linux x86_64では、tag workflow後の[`v1.0.0` release](../../docs/releases/v1.0.0.md)に
 `synapse-local`を含む検証済みbinary archiveが公開される。downloadとchecksum検証は
 [Installation guide](../../docs/install.md#install-the-linux-x86-64-release)を参照する。その他のplatformでは、
-下記のsource buildを使用する。v0.13.1の配布binaryには、三file import／same-process
+下記のsource buildを使用する。v1.0.0の配布binaryには、三file import／same-process
 Human reviewに加え、dedicated read-only diagnostics、bounded browser `fsck`
-（いずれもv0.3.0で導入し、v0.13.1でも変更なし）、任意の`--archive-root`起動flag指定時のみ
+（いずれもv0.3.0で導入し、v1.0.0でも変更なし）、任意の`--archive-root`起動flag指定時のみ
 有効なbounded read-only archive listing（v0.6.0で追加）、および認証付きbounded archive
 export／empty-target restore API（v0.7.0で追加）と、v0.8.0のproject-page browser controlが含まれる。
 complete Creator sessionの**非公開の記録を保存（JSON）**は、操作時に既存の認証付きdetail endpointを
@@ -202,7 +202,7 @@ publication of source-private rationale.
 All three choices complete the single decision flow. **Defer does not allow
 changing or reopening that session's decision in this Pilot.** Pending review
 still requires the same server process, and restart recovery is unchanged.
-These review and rationale display improvements are included in tagged v0.13.1.
+These review and rationale display improvements are included in tagged v1.0.0.
 
 ### Check selected files before import (v0.8.0)
 
@@ -233,7 +233,7 @@ are disabled while the request is pending. A failed request restores those
 controls and preserves the selection; it is not retried automatically.
 Replacing or clearing a file, resetting the form, or leaving the page releases
 its preview URL. This preflight UI requires JavaScript and is included in the
-tagged v0.13.1 binary.
+tagged v1.0.0 binary.
 
 ### Inspect image details before deciding (v0.8.1)
 
@@ -267,7 +267,7 @@ successfully decoded inline PNG/JPEG/GIF/WebP responses enter it. Other media
 retain their download-only behavior; corrupt or unsupported raster data shows
 an error on its card. Comparison is unavailable without JavaScript and does
 not add evidence access or recovery to incomplete sessions. The comparison
-dialog is included in the v0.13.1 tagged binary.
+dialog is included in the v1.0.0 tagged binary.
 
 ### Review an interrupted or deferred proposal again
 
@@ -315,7 +315,7 @@ returns an empty list — this is the same as a configured-but-empty root, so
 the response alone cannot distinguish "not configured" from "configured but
 empty".
 
-On the tagged v0.13.1 binary, the same option also enables the archive export
+On the tagged v1.0.0 binary, the same option also enables the archive export
 and empty-target restore APIs and sets `archive_export=true` and
 `archive_restore=true` in each project capability response. Without it, export
 and restore requests fail before job reservation with `service_unavailable`.

@@ -1,6 +1,6 @@
 # Core v0.1 JSON Schemas
 
-Status: **Stage 0 normative draft**
+Status: **Normative; frozen for SynapseGit v1.x**
 
 These Draft 2020-12 schemas define the accepted shape of SynapseGit Core v0.1
 structured objects. They are embedded by `synapse-schema` for offline

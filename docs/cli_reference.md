@@ -1,6 +1,6 @@
 # SynapseGit CLI reference
 
-`synapse` is a local Stage 0 interface for object ingestion, Ref updates, integrity checks, directory archive round trips,
+`synapse` is a local interface for object ingestion, Ref updates, integrity checks, directory archive round trips,
 and one bounded single-creator Pilot. It is not a network client or production authorization boundary. The Rust
 workspace provides process-local authenticated AI and admitted-proposal-bound narrow Human routes
 in `synapse-application`, plus `synapse-core::CreativeAiRuntime` and `HumanDecisionRuntime`.
@@ -13,7 +13,7 @@ bundle. It does not change any `synapse` command or turn the Core archive comman
 
 AIエージェントからCLIを使う場合の規則と手順は、[AIエージェント向けガイド](ai_agent_guide.ja.md)にまとめている。
 
-Status: **implemented at Core v0.1 / Stage 0 draft**
+Status: **implemented at Core v0.1; formats frozen for v1.x**
 
 ## Build and help
 

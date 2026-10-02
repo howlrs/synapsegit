@@ -1,6 +1,6 @@
 # SynapseGit Core 使用ガイド
 
-Status: **Core v0.1 / Stage 0 draft**
+Status: **Core v0.1 implemented; formats frozen for v1.x**
 
 このガイドは、SynapseGit Coreの想定利用者、Pilotでの使い方、現在このリポジトリで実行できる範囲をまとめる。現時点ではproduction向け制作アプリやcapture clientを提供していないが、3画像から手書きJSONなしで一sessionを記録するboundedなlocal single-creator Pilotと、v0.3.0で導入されv0.4.0にも収録されるimport／review／diagnostics／bounded `fsck`のloopback-only UI、作者外の人とAIへ履歴を説明するread-only local publication bundleまで実装されている。利用フローの図は実装済み境界に加えて構想とPilot仮説を含む。
 

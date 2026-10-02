@@ -1,18 +1,19 @@
 # SynapseGit project status
 
-Audience: preview evaluators、contributors、maintainers
+Audience: users、contributors、maintainers
 Status: public project snapshot
-Applies to: v1.0.0-rc.1 release
+Applies to: v1.0.0 release preparation
 Last verified: 2026-10-02
 
-v1.0.0-rc.1は、生成AIを使うクリエイターによる実利用者評価向けの**release candidate**である。
-AIエージェントがInboxへ候補を置き、人がlocalhost UIで画像を確認して判断する。
-v1形式は[互換性方針](./compatibility.md)に従って凍結済みで、formal Core Stage 1は別の研究として続ける。
-正式なv1.0.0には、[#192](https://github.com/howlrs/synapsegit/issues/192)の3〜5人の評価と重大な問題の解決が必要である。
-通常のインストール例は公開済みv0.13.1を維持し、RCの両platformの手順は
-[RC release notes](./releases/v1.0.0-rc.1.md)を使う。
+v1.0.0は、AIエージェントがInboxへ候補を置き、人がlocalhost UIで画像を確認して判断する
+local single-user向けのreleaseである。v1形式は[互換性方針](./compatibility.md)に従って凍結済みで、
+formal Core Stage 1は別の研究として続ける。
+[#192](https://github.com/howlrs/synapsegit/issues/192)の3〜5人の実利用者評価は未実施であり、
+Issueは継続する。公開時期はrelease planの条件とmaintainerの判断に従う。合成素材での
+rehearsalは実利用者評価の結果ではない。
+両platformの手順は[v1.0.0 release notes](./releases/v1.0.0.md)を使う。
 
-tagged v1.0.0-rc.1 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
+tagged v1.0.0 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
 boundaryが含まれる。これはdeterministic mapper／bounded checkout、固定v1 JSON contract、sequential
 Proposal／Decision workflow、host-authenticated one-shot approval、Proposal／Decision CAS前後を別SQLite
 journalへ結ぶ明示的なrestart recovery／reconciliation orchestration、local public projectionである。
@@ -21,7 +22,7 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 
 ## 現在の成果
 
-- v1.0 release candidate向けの[Creator pilot評価キットv2](./evaluation/creator-pilot/v2/)と合成素材でのrehearsal。実利用者評価の結果ではない
+- [Creator pilot評価キットv2](./evaluation/creator-pilot/v2/)と合成素材でのrehearsal。実利用者評価は[#192](https://github.com/howlrs/synapsegit/issues/192)で継続する
 - sessionのSubject、Creator、判断日時、読みやすいTimelineとtechnical detailsの折りたたみ
 - project画面のセッション／取り込む／保守／履歴の分離と、未取り込み候補だけを数えるInbox通知
 - strict JSON、canonical bytes、domain-separated OID
@@ -154,16 +155,16 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 
 | Item | Status |
 |---|---|
-| Localhost Inbox and fresh interrupted/Defer review | Included in v1.0.0-rc.1; explicit Human review, no source decision rewrite |
+| Localhost Inbox and fresh interrupted/Defer review | Included in v1.0.0; explicit Human review, no source decision rewrite |
 | Public repository | Available |
-| v1.0.0-rc.1 GitHub prerelease | [Available](https://github.com/howlrs/synapsegit/releases/tag/v1.0.0-rc.1) |
-| Linux x86_64 GNU binary | Available; glibc 2.34+; published archive verified |
-| macOS arm64 binary | Available; built and smoke-tested on macOS 14; published archive verified; not signed or notarized |
-| Source build from fixed tag | Available; Rust 1.88+ |
-| SHA-256 release checksum | Available and verified for both platform archives |
-| Build provenance attestation | Verified for both published archives by the tag workflow |
-| `synapse-present` binary | Included in v1.0.0-rc.1; local generation only, with no remote publish |
-| Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v1.0.0-rc.1 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
+| v1.0.0 GitHub Release | Published after the tag workflow completes |
+| Linux x86_64 GNU binary | v1.0.0 pending tag workflow; v1.0.0-rc.1 archive is published and verified |
+| macOS arm64 binary | v1.0.0 pending tag workflow; v1.0.0-rc.1 archive was built and smoke-tested on macOS 14, and is not signed or notarized |
+| Source build from fixed tag | v1.0.0 pending tag; Rust 1.88+ |
+| SHA-256 release checksum | v1.0.0 pending publication; both v1.0.0-rc.1 platform archives are verified |
+| Build provenance attestation | v1.0.0 pending publication; both v1.0.0-rc.1 archives were verified by its tag workflow |
+| `synapse-present` binary | Included in v1.0.0; local generation only, with no remote publish |
+| Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v1.0.0 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
 | crates.io / GHCR / OS packages | Intentionally unavailable; GitHub Releases only |
 | Source use, Fork, and redistribution terms | Custom source-available license available; not open source |
 
@@ -171,7 +172,7 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 incomplete-session diagnostics、bounded browser `fsck`を含む。review authorityとmaintenance
 job stateはprocess-localであり、process restartを越えて再開できない。`synapse-present`も
 v0.3.0で導入された三binary構成をv0.4.0 archiveで維持するが、生成物のremote upload／publishは行わない。
-generic artifact C1 library／schema／local projectionはv1.0.0-rc.1 tagged sourceのworkspace libraryであり、
+generic artifact C1 library／schema／local projectionはv1.0.0 tagged sourceのworkspace libraryであり、
 archiveのbinary数や既存binaryのHTTP／CLI／UI capabilityを変更しない。source-available licenseの
 production／distribution／brand制限も変更しない。
 

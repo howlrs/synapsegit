@@ -11,7 +11,7 @@ The four-week implementation and pilot gate is tracked in
 runtime/storage decision is in
 [`docs/runtime_architecture.md`](../../../docs/runtime_architecture.md).
 
-Normative Stage 0 draft artifacts are:
+Normative frozen v1.x format artifacts are:
 
 - [`oid-profile.md`](./oid-profile.md) for accepted structured input and identity;
 - [`operations.md`](./operations.md) for ingestion stages, graph, Ref, deletion,
@@ -26,7 +26,7 @@ is absent from the prose profile or schemas. `README.md` and files under
 
 ## Scope
 
-The v0.1 draft defines:
+The v0.1 protocol defines:
 
 - deterministic content IDs for structured Core objects;
 - an immutable `RecordEnvelope` without a self-referential OID field;

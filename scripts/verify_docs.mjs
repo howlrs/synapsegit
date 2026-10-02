@@ -246,13 +246,16 @@ function checkReleaseMetadata() {
   }
   const [major, minor, patch, candidate] = version;
   const security = fs.readFileSync(path.join(root, "SECURITY.md"), "utf8");
-  const supported = [...security.matchAll(/^\|\s*Latest v(\d+)\.(\d+)\.x prerelease\s*\|/gmu)];
+  const expectedSupport = major === 0 || candidate !== null
+    ? `Latest v${major}.${minor}.x prerelease`
+    : `Latest v${major}.x`;
+  const supported = [...security.matchAll(/^\|\s*(Latest v[^|]+?)\s*\|/gmu)];
   if (supported.length !== 1) {
-    failures.push("SECURITY.md: Supported versions must have exactly one 'Latest vX.Y.x prerelease' row");
-  } else if (Number(supported[0][1]) !== major || Number(supported[0][2]) !== minor) {
+    failures.push(`SECURITY.md: Supported versions must have exactly one '${expectedSupport}' row`);
+  } else if (supported[0][1] !== expectedSupport) {
     failures.push(
-      `SECURITY.md: Supported versions names Latest v${supported[0][1]}.${supported[0][2]}.x prerelease, ` +
-        `but synapse-cli is ${major}.${minor}.${patch}; use Latest v${major}.${minor}.x prerelease`,
+      `SECURITY.md: Supported versions names ${supported[0][1]}, ` +
+        `but synapse-cli is ${major}.${minor}.${patch}${candidate === null ? "" : `-rc.${candidate}`}; use ${expectedSupport}`,
     );
   }
 

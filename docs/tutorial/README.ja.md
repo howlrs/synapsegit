@@ -46,7 +46,7 @@ test ! -e "$SYNAPSE_TUTORIAL_REPO"
 ## 1. 提案とHuman Decisionを記録する
 
 sample pathを解決できるよう、cloneしたSynapseGit repository rootか、
-v0.13.1のrelease archiveを展開したdirectory(同じ
+v1.0.0のrelease archiveを展開したdirectory(同じ
 `docs/tutorial/assets/`のpathがarchiveにも同梱されます。archive rootの
 `TUTORIAL.md`を参照してください)で実行します。
 

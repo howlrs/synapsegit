@@ -1,8 +1,8 @@
 # Installing SynapseGit
 
-Audience: preview users and evaluators
-Status: Stage 0 prerelease
-Applies to: v0.13.1 general installation; v1.0.0-rc.1 pilot installation
+Audience: local single-user users and evaluators
+Status: v1.0.0 release installation
+Applies to: v1.0.0
 Last verified: 2026-10-02
 
 SynapseGit currently has one prebuilt distribution and one source-install path.
@@ -11,8 +11,8 @@ container registry.
 
 | Route | Requirements | Installs | Recommended for |
 |---|---|---|---|
-| GitHub Release archive | Linux x86_64, glibc 2.34+ | `synapse`, `synapse-local`, `synapse-present` | Fastest preview evaluation |
-| GitHub Release archive (releases after v0.13.1) | macOS on Apple Silicon (arm64) | `synapse`, `synapse-local`, `synapse-present` | Creators on a Mac |
+| GitHub Release archive | Linux x86_64, glibc 2.34+ | `synapse`, `synapse-local`, `synapse-present` | Fastest local setup |
+| GitHub Release archive | macOS on Apple Silicon (arm64) | `synapse`, `synapse-local`, `synapse-present` | Creators on a Mac |
 | Tagged source build | Rust 1.88+, supported Unix-like host | The selected binary | Other platforms and source review |
 
 Windows is not currently supported by the archive publication path. Linux ARM64
@@ -20,39 +20,36 @@ has no release-tested prebuilt artifact yet; use a tagged source build. The Dock
 in this repository is for a private, one-shot GCP packaging smoke test; it is
 not an end-user SynapseGit image.
 
-The tagged v0.13.1 source also contains the frozen generic-artifact v1
+The tagged v1.0.0 source also contains the frozen generic-artifact v1
 contracts and their sequential, durable, checkout, and local-projection Rust
 libraries. Those are workspace libraries for an embedding application. The
 release archive still contains exactly the three binaries listed above; it does
 not add a generic-artifact HTTP, CLI, browser UI, executable, or remote publish
 path.
 
-For the v1.0.0 release-candidate pilot, including the first macOS arm64
-archive, use the fixed commands in the
-[v1.0.0-rc.1 release notes](./releases/v1.0.0-rc.1.md). It is a prerelease
-for the 3–5 real-user pilot, not the final v1.0.0 release.
+Use the fixed v1.0.0 commands below for both published archive platforms.
 
 ## Install the Linux x86-64 release
 
-After the v0.13.1 tag workflow publishes the prerelease, download the archive
+After the v1.0.0 tag workflow publishes the release, download the archive
 and checksum from its fixed release URL:
 
 ```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.13.1/synapsegit-v0.13.1-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v0.13.1/SHA256SUMS
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.0.0/synapsegit-v1.0.0-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.0.0/SHA256SUMS
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
 `SHA256SUMS` lists every archive of the release; `--ignore-missing` checks the
 one you downloaded. It detects accidental or malicious byte changes relative to the file
 published on the same Release. It does not authenticate the project owner by
-itself. Verify the v0.13.1 archive's build provenance with GitHub CLI as well:
+itself. Verify the v1.0.0 archive's build provenance with GitHub CLI as well:
 
 ```bash
-gh attestation verify synapsegit-v0.13.1-x86_64-unknown-linux-gnu.tar.gz \
+gh attestation verify synapsegit-v1.0.0-x86_64-unknown-linux-gnu.tar.gz \
   --repo howlrs/synapsegit \
   --signer-workflow howlrs/synapsegit/.github/workflows/release.yml \
-  --source-ref refs/tags/v0.13.1 \
+  --source-ref refs/tags/v1.0.0 \
   --deny-self-hosted-runners
 ```
 
@@ -64,13 +61,13 @@ Inspect the extracted release notes before installing. Then copy all three
 binaries to a user-owned directory:
 
 ```bash
-tar -xzf synapsegit-v0.13.1-x86_64-unknown-linux-gnu.tar.gz
-less synapsegit-v0.13.1-x86_64-unknown-linux-gnu/README.md
+tar -xzf synapsegit-v1.0.0-x86_64-unknown-linux-gnu.tar.gz
+less synapsegit-v1.0.0-x86_64-unknown-linux-gnu/README.md
 
 mkdir -p "$HOME/.local/bin"
-install -m 0755 synapsegit-v0.13.1-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
-install -m 0755 synapsegit-v0.13.1-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
-install -m 0755 synapsegit-v0.13.1-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
+install -m 0755 synapsegit-v1.0.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
+install -m 0755 synapsegit-v1.0.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
+install -m 0755 synapsegit-v1.0.0-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
 export PATH="$HOME/.local/bin:$PATH"
 
 synapse --version
@@ -85,7 +82,7 @@ used by that terminal:
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-The v0.13.1 archive also bundles the mural tutorial runner
+The v1.0.0 archive also bundles the mural tutorial runner
 (`scripts/run_mural_tutorial.sh`), its three sample images
 (`docs/tutorial/assets/`), and a self-contained guide (`TUTORIAL.md` at the
 archive root, next to this bundle's `README.md`), so you can try the tutorial
@@ -95,14 +92,12 @@ the tutorial instead.
 
 ## Install the macOS arm64 release
 
-`v1.0.0-rc.1` is the first release with an archive for macOS on Apple Silicon.
-It is built and smoke-tested on macOS 14 by the same tag workflow, with the
-same checksum and build-provenance attestation. Its fixed pilot commands are
-in the [v1.0.0-rc.1 release notes](./releases/v1.0.0-rc.1.md); for a later
-release, set `TAG` to that fixed tag:
+`v1.0.0` includes an archive for macOS on Apple Silicon. It is built and
+smoke-tested on macOS 14 by the same tag workflow, with the same checksum and
+build-provenance attestation:
 
 ```bash
-TAG=vX.Y.Z
+TAG=v1.0.0
 curl -LO "https://github.com/howlrs/synapsegit/releases/download/$TAG/synapsegit-$TAG-aarch64-apple-darwin.tar.gz"
 curl -LO "https://github.com/howlrs/synapsegit/releases/download/$TAG/SHA256SUMS"
 grep "synapsegit-$TAG-aarch64-apple-darwin.tar.gz" SHA256SUMS | shasum -a 256 --check
@@ -142,24 +137,24 @@ xattr -d com.apple.quarantine "$HOME/.local/bin/synapse" "$HOME/.local/bin/synap
 ## Build from a tagged source release
 
 Install Rust 1.88 or newer, a C toolchain, and SQLite build prerequisites for
-the host. Install directly from the immutable v0.13.1 tag:
+the host. Install directly from the immutable v1.0.0 tag:
 
 ```bash
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.13.1 \
+  --tag v1.0.0 \
   --locked \
   synapse-cli
 
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.13.1 \
+  --tag v1.0.0 \
   --locked \
   synapse-local-http
 
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.13.1 \
+  --tag v1.0.0 \
   --locked \
   synapse-publication
 
@@ -174,7 +169,7 @@ not a moving branch, when installing software you plan to evaluate or retain.
 To inspect and test the source before installing:
 
 ```bash
-git clone --branch v0.13.1 --depth 1 https://github.com/howlrs/synapsegit.git
+git clone --branch v1.0.0 --depth 1 https://github.com/howlrs/synapsegit.git
 cd synapsegit
 cargo test --workspace --all-targets --locked
 cargo install --path crates/synapse-cli --locked
@@ -193,19 +188,19 @@ The workspace crates are intentionally marked `publish = false` during Stage
 ```bash
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.13.1 \
+  --tag v1.0.0 \
   --locked \
   synapse-cli
 
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.13.1 \
+  --tag v1.0.0 \
   --locked \
   synapse-local-http
 
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v0.13.1 \
+  --tag v1.0.0 \
   --locked \
   synapse-publication
 ```
@@ -215,14 +210,14 @@ crates.io配布を意図せず、repository sourceからbuildします。
 
 ## Update
 
-Preview releases may change the object, archive, or OID draft. Before updating:
+v1.x keeps the object, identifier, and archive formats compatible as described
+in the [compatibility policy](./compatibility.md). Before updating:
 
 1. read the new release notes and [changelog](../CHANGELOG.md);
 2. export important repositories with the currently installed version;
 3. keep the old binary and archive until the new version has verified the data;
 4. install the new binaries only from a fixed release tag; and
-5. do not assume forward or backward compatibility unless the release notes say
-   it is supported.
+5. read the release notes for operational and supported-version changes.
 
 v0.13.1 and earlier binaries refuse Creator sessions recorded by releases before
 v0.11.1 with `creator_report_invalid`, even though `fsck` passes
@@ -250,8 +245,7 @@ need the recorded data.
 
 ## Next steps
 
-- [Read the v0.13.1 release notes](./releases/v0.13.1.md)
-- [Install v1.0.0-rc.1 for the pilot, including macOS arm64](./releases/v1.0.0-rc.1.md)
+- [Read the v1.0.0 release notes](./releases/v1.0.0.md)
 - [Complete the illustrated 15-minute mural tutorial](./tutorial/README.md)
 - [画像付き15分 壁画チュートリアルを実行する](./tutorial/README.ja.md)
 - [Get started from the README](../README.md#get-started)
