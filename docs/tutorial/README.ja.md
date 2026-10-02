@@ -6,15 +6,18 @@
 3つの画像状態を保持し、1つをAI帰属の提案として記録し、人が判断し、localhost画面で
 結果を確認し、read-onlyなpresentation bundleを生成します。
 
-model、cloud service、GitHub API、実在作品は使用しません。3画像は、このrepositoryの
-tutorial用に生成したsynthetic fixtureです。
+このtutorialの実行ではmodel、cloud service、GitHub APIを呼び出しません。
+3画像は2026-10-02にbuilt-in `image_gen`で更新したsynthetic fixtureです。
+[生成promptと画像hash](../assets/image-generation.json)に素材の版を記録しています。
+toolからbackend model IDは返されていません。公開済みv1.0.0-rc.1 archiveには以前の画像が
+残ります。実在作品や実際の保存修復を記録したものではありません。
 
 ## 作成する履歴
 
 | Original reference | Current observation | AI-attributed proposal |
 |---|---|---|
-| ![目立つ損傷がないsyntheticな海岸壁画](./assets/mural-original.png) | ![亀裂、剥落、水染みがあるsyntheticな海岸壁画](./assets/mural-current.png) | ![抑制的なsynthetic保存修復案](./assets/mural-ai-proposal.png) |
-| 過去の参照状態 | 亀裂、剥落、変色が見える状態 | 控えめなdigital処置案 |
+| ![目立つ損傷がないsyntheticな海岸壁画](./assets/mural-original.png) | ![亀裂と顔料の欠損があるsyntheticな海岸壁画](./assets/mural-current.png) | ![抑制的なsynthetic保存修復案](./assets/mural-ai-proposal.png) |
+| 過去の参照状態 | 亀裂と顔料の欠損が見える状態 | 控えめなdigital処置案 |
 
 SynapseGitは、これらをopaqueなbytesとして保存します。上記の説明はtutorialの文脈として
 人が書いたもので、現在のbyte-identity adapterが画像から解釈した内容ではありません。
@@ -115,8 +118,9 @@ Subject、メモ、rationale、保存済み履歴、API identifier、error code�
 
 ![このtutorial repositoryから生成した実際のSynapseGit Local overview](./assets/tutorial-overview.png)
 
-_tutorial fixtureを読み込んだ実際の`synapse-local`画面です。2 Refs、完了session 1件、
-review待ち0件を表示しています。_
+_2026-10-02版の合成画像を読み込んだ実際の`synapse-local` v1.0.0-rc.1画面です。
+完了session 1件、review待ち0件を表示しています。
+[撮影記録](../assets/synapse-local/capture.json)にruntimeと画像hashを記録します。_
 
 projectと完了sessionを開き、次を確認します。
 

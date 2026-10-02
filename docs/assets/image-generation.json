@@ -1,0 +1,80 @@
+{
+  "format": 1,
+  "revision": "2026-10-02",
+  "tool": "built-in image_gen",
+  "backend_model_id": null,
+  "backend_model_note": "The built-in tool did not expose a backend model ID; no specific model version is asserted.",
+  "synthetic": true,
+  "purpose": "Fictional tutorial materials and a conceptual repository social card. These are not evidence of a real artwork, conservation treatment, authorship, or verified model execution by SynapseGit.",
+  "published_release_note": "Published v1.0.0-rc.1 archives and tags retain their earlier tutorial image bytes. This revision applies to the repository documentation and future packages built from it.",
+  "assets": [
+    {
+      "path": "docs/tutorial/assets/mural-original.png",
+      "sha256": "11d3a64c89e91b54c7db57abfadcce8eaa06d83f8339a56bdff2936a2b043e9b",
+      "previous_sha256": "81fb456f125a8badc28d6676832380ac8fce487096a3fd61b55117be6e9d1f90",
+      "width": 1448,
+      "height": 1086,
+      "bytes": 2767836,
+      "role": "original",
+      "input": {
+        "path": "docs/tutorial/assets/mural-original.png",
+        "revision": "v1.0.0-rc.1",
+        "sha256": "81fb456f125a8badc28d6676832380ac8fce487096a3fd61b55117be6e9d1f90"
+      },
+      "transparent_background": false,
+      "postprocessing": "none; generated PNG bytes copied unchanged",
+      "prompt": "Use case: precise-object-edit. Asset type: synthetic tutorial Original image for the SynapseGit README and creator pilot. Edit the supplied synthetic coastal mural image as the target, refreshing it with polished, natural, detailed image quality while preserving its design and visual identity. Keep the same frontal camera view, the entire rectangular mural on a pale plaster wall, a narrow visible floor strip, three angular seabirds, cream clouds, muted blue-green sea with thin horizontal wave lines, faceted ochre and brown cliffs with the small dark cave, dark green headland and foreground agave forms. Preserve the same composition, positions, colors, scale and 4:3 landscape framing. This is the earlier Original condition: gentle age and plaster patina, no obvious long structural crack and no conspicuous missing-paint patch. Make textures physically plausible, subtle and clearly readable at README thumbnail size. It must remain a fictional, AI-generated tutorial mural, not a real heritage object or a documented conservation treatment. No people, signage, text, logo or watermark; no glossy digital gradients, no new decorative objects. Output a single high-quality PNG image, approximately 1440 by 1080 pixels."
+    },
+    {
+      "path": "docs/tutorial/assets/mural-current.png",
+      "sha256": "0331eaaed0f60674e574320f134e85e0f50ba644e9a034b826875339e29092c5",
+      "previous_sha256": "340502a587ab5a7e7dd645bdf844271adccec0e8b0cdcbdbdac9f7bfe54a7e29",
+      "width": 1448,
+      "height": 1086,
+      "bytes": 2386458,
+      "role": "current",
+      "input": {
+        "path": "docs/tutorial/assets/mural-original.png",
+        "revision": "2026-10-02",
+        "sha256": "11d3a64c89e91b54c7db57abfadcce8eaa06d83f8339a56bdff2936a2b043e9b"
+      },
+      "transparent_background": false,
+      "postprocessing": "none; generated PNG bytes copied unchanged",
+      "prompt": "Use case: precise-object-edit. Asset type: synthetic CURRENT-condition mural input for the SynapseGit README and tutorial. The supplied image is the freshly generated Original baseline. Change only its conservation condition, keeping the same 1448x1086 4:3 canvas, exact frontal view, rectangular mural boundaries, floor and wall, geometric coast, three seabirds, clouds, colors, cave and agave composition. Add two conspicuous but plausible condition problems: one narrow dark hairline structural crack running irregularly downward from the top edge near the center-left, through the cream cloud and down toward the blue sea; and one small ragged off-white missing-pigment/plaster patch on the lower part of the front ochre cliff near the cave, with a few small flakes at its edge. The rest of the mural, composition and texture must stay essentially identical to the reference. These visible defects should be easy to notice in a three-image comparison at README scale, while avoiding exaggerated destruction or grime. Keep this a fictional AI-generated tutorial image, no real-world treatment claims. No text, logos, people or watermark. Output one PNG at the same dimensions and framing as the reference."
+    },
+    {
+      "path": "docs/tutorial/assets/mural-ai-proposal.png",
+      "sha256": "a8744dc755d496e1dca09101a4ec1a401f06d8edd184774028167ed43b53f1fb",
+      "previous_sha256": "3c9b26db2fb13f7d053e1ef2f97b7e0d6b7dfdb2d2b5b92ae04218f0ca9352fc",
+      "width": 1448,
+      "height": 1086,
+      "bytes": 2111980,
+      "role": "ai_proposal",
+      "input": {
+        "path": "docs/tutorial/assets/mural-current.png",
+        "revision": "2026-10-02",
+        "sha256": "0331eaaed0f60674e574320f134e85e0f50ba644e9a034b826875339e29092c5"
+      },
+      "transparent_background": false,
+      "postprocessing": "none; generated PNG bytes copied unchanged",
+      "prompt": "Use case: precise-object-edit. Asset type: synthetic AI PROPOSAL mural input for the SynapseGit README and tutorial. Input image: the freshly generated Current-condition image is the edit target. Create one restrained hypothetical conservation proposal. Change only the two visible condition defects: visually close the irregular hairline crack near the center-left with a subtly toned repair, and replace the small off-white pigment-loss patch beside the cave with matching muted ochre and cream cliff paint. Preserve all existing age, natural plaster patina, colors, the exact geometric coast composition, three seabirds, cloud shapes, cave, agave forms, outer wall and floor, scale and frontal framing. The repaired areas may remain slightly discernible on close inspection; do not make the entire mural look new or glossy. This is a fictional AI-generated candidate image for a human to review, not evidence of a real restoration or an approved treatment. No text, logo, people, watermark, added objects, or changed decorative geometry. Output one PNG with the same 1448x1086 4:3 canvas as the target."
+    },
+    {
+      "path": "docs/assets/social-preview.png",
+      "sha256": "66525465407fc2a3d4e5f38aa2016cf75898ea7e45035aa7e6d51ffd4c6c06a9",
+      "previous_sha256": "0967dd357f46d8086c6ad6381e61cb50fbe7ce971539789db844dcacbc4687dd",
+      "width": 1774,
+      "height": 887,
+      "bytes": 958132,
+      "role": "social_preview",
+      "input": {
+        "path": "docs/assets/social-preview.png",
+        "revision": "v1.0.0-rc.1",
+        "sha256": "0967dd357f46d8086c6ad6381e61cb50fbe7ce971539789db844dcacbc4687dd"
+      },
+      "transparent_background": false,
+      "postprocessing": "none; generated PNG bytes copied unchanged",
+      "prompt": "Use case: productivity-visual. Asset type: SynapseGit repository social-preview graphic. Refresh the supplied existing social card with crisp, polished image quality and accurate modern product semantics. Retain its clean 2:1 composition, ivory background, left-aligned large dark forest-green product title, refined sans-serif typography, and restrained sage, purple and amber palette. Exact left text: \"SynapseGit\" and on the next line \"Creative-work provenance, locally\". Exact small status label: \"Release candidate\". On the right, replace the old branching conceptual diagram with a simple clear left-to-right flow of three rounded nodes connected by arrows: \"AI proposal\" (purple), \"Human decision\" (amber), \"Local archive\" (forest green). A small picture-file symbol may introduce the flow; retain the quiet spacious feel and legibility at thumbnail size. The arrows must visibly go from AI proposal to Human decision to Local archive; no bypass from AI to archive, no parallel AI and human authorization, no cloud or remote publish. This is an explanatory concept graphic, not an app screenshot. No fictional UI controls, hash strings, additional text, logos from other brands, people, or watermark. Render every quoted label verbatim with clean readable lettering. Output a PNG in exactly 1280x640 if possible, 2:1 landscape."
+    }
+  ]
+}

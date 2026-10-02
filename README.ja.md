@@ -46,6 +46,9 @@ SynapseGitは、それぞれを独立した記録として残し、最後に作�
 | ![海辺の壁画の合成original画像](./docs/tutorial/assets/mural-original.png) | ![保全上の問題が見える合成current画像](./docs/tutorial/assets/mural-current.png) | ![控えめな処置案の合成画像](./docs/tutorial/assets/mural-ai-proposal.png) |
 
 画像は生成したfixtureであり、実在の作品や処置の証拠ではありません。
+このrepositoryでは[2026-10-02版の画像](./docs/assets/image-generation.json)を使います。
+公開済みv1.0.0-rc.1 archiveは以前の画像を保持します。Pilotでは使うreleaseの同梱素材を固定し、
+releaseと素材の版を記録してください。
 
 ## 始める
 

@@ -50,6 +50,9 @@ and troubleshooting.
 | ![Synthetic original coastal mural](./docs/tutorial/assets/mural-original.png) | ![Synthetic current mural with visible conservation issues](./docs/tutorial/assets/mural-current.png) | ![Synthetic restrained treatment proposal](./docs/tutorial/assets/mural-ai-proposal.png) |
 
 The images are generated fixtures, not evidence of a real artwork or treatment.
+This repository uses the [2026-10-02 image revision](./docs/assets/image-generation.json).
+Published v1.0.0-rc.1 archives keep the earlier images; use a fixed release's
+bundled materials for its pilot and record the release and material revision.
 
 ## Get started
 

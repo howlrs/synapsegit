@@ -7,15 +7,19 @@ end. You will keep three image states, attribute one state as an AI proposal,
 make a Human Decision, inspect the result in the localhost application, and
 produce a read-only presentation bundle.
 
-No model, cloud service, GitHub API, or real artwork is involved. The three
-images are synthetic tutorial fixtures generated for this repository.
+Running this tutorial does not call a model, cloud service, or GitHub API.
+The three images are synthetic fixtures, refreshed with the built-in `image_gen`
+tool on 2026-10-02. [Prompts and image hashes](../assets/image-generation.json)
+record this revision; no backend model ID was exposed by the tool.
+Published v1.0.0-rc.1 archives retain the earlier images. No real artwork or
+conservation treatment is documented here.
 
 ## What you will create
 
 | Original reference | Current observation | AI-attributed proposal |
 |---|---|---|
-| ![Synthetic coastal mural before visible damage](./assets/mural-original.png) | ![Synthetic coastal mural with a crack, paint loss, and water discoloration](./assets/mural-current.png) | ![Synthetic restrained conservation proposal](./assets/mural-ai-proposal.png) |
-| Earlier reference state | Crack, flaking, and discoloration are visible | A restrained digital treatment proposal |
+| ![Synthetic coastal mural before visible damage](./assets/mural-original.png) | ![Synthetic coastal mural with a crack and a missing-pigment patch](./assets/mural-current.png) | ![Synthetic restrained conservation proposal](./assets/mural-ai-proposal.png) |
+| Earlier reference state | A crack and paint loss are visible | A restrained digital treatment proposal |
 
 SynapseGit stores these as opaque bytes. The descriptions above are tutorial
 context written by us; the current byte-identity adapter does not derive those
@@ -123,8 +127,9 @@ retained in the browser and takes priority over `Accept-Language`.
 
 ![Actual SynapseGit Local overview generated from this tutorial repository](./assets/tutorial-overview.png)
 
-_Actual `synapse-local` output from the tutorial fixture. It shows two Refs,
-one completed session, and no pending reviews._
+_Actual `synapse-local` v1.0.0-rc.1 output with the 2026-10-02 synthetic images.
+It shows one completed session and no pending reviews.
+[Capture provenance](../assets/synapse-local/capture.json) records the runtime and image hashes._
 
 Open the project and the completed session to inspect:
 
