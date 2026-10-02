@@ -65,12 +65,14 @@ try {
   // verification, backup, and license essentials.
   const cliManifest = path.join(fixture, "crates", "synapse-cli", "Cargo.toml");
   const manifestOriginal = fs.readFileSync(cliManifest, "utf8");
-  const versionLine = /^version = "0\.(\d+)\.\d+"$/mu.exec(manifestOriginal);
-  assert.ok(versionLine, "synapse-cli must use a 0.y.z version");
-  const minor = Number(versionLine[1]) + 1;
-  const nextTag = `v0.${minor}.0`;
-  fs.writeFileSync(cliManifest, manifestOriginal.replace(versionLine[0], `version = "0.${minor}.0"`));
-  fs.writeFileSync(security, securityOriginal.replace(supportedRow, `| Latest v0.${minor}.x prerelease |`));
+  const versionLine = /^version = "(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-rc\.[1-9]\d*)?"$/mu.exec(manifestOriginal);
+  assert.ok(versionLine, "synapse-cli must use X.Y.Z or X.Y.Z-rc.N");
+  const major = Number(versionLine[1]);
+  const minor = Number(versionLine[2]) + 1;
+  const nextVersion = `${major}.${minor}.0`;
+  const nextTag = `v${nextVersion}`;
+  fs.writeFileSync(cliManifest, manifestOriginal.replace(versionLine[0], `version = "${nextVersion}"`));
+  fs.writeFileSync(security, securityOriginal.replace(supportedRow, `| Latest v${major}.${minor}.x prerelease |`));
   const notes = path.join(fixture, "docs", "releases", `${nextTag}.md`);
   result = verify();
   assert.notEqual(result.status, 0, "missing release notes must fail");
@@ -112,6 +114,19 @@ try {
   ].join("\n"));
   result = verify();
   assert.equal(result.status, 0, `wrapped required prose must pass\n${result.stderr}`);
+
+  // Candidates use the same required prose, with their own tag-pinned link.
+  const candidateTag = `${nextTag}-rc.1`;
+  const candidateNotes = path.join(fixture, "docs", "releases", `${candidateTag}.md`);
+  fs.writeFileSync(cliManifest, manifestOriginal.replace(versionLine[0], `version = "${nextVersion}-rc.1"`));
+  const completeNotes = fs.readFileSync(notes, "utf8");
+  fs.writeFileSync(candidateNotes, completeNotes.replaceAll(nextTag, candidateTag));
+  result = verify();
+  assert.equal(result.status, 0, `candidate release notes must pass\n${result.stderr}`);
+  fs.writeFileSync(candidateNotes, completeNotes);
+  result = verify();
+  assert.notEqual(result.status, 0, "a candidate must not use the normal release's pinned guide link");
+  assert.ok(result.stderr.includes(`missing the tag-pinned installation guide link https://github.com/howlrs/synapsegit/blob/${candidateTag}/docs/install.md`), result.stderr);
 
   console.log("docs_test_ok");
 } finally {

@@ -7,7 +7,7 @@ public, multi-user, or production deployment.
 
 | Version | Security handling |
 |---|---|
-| Latest v0.13.x prerelease | Best-effort investigation and fixes after the tag workflow publishes it |
+| Latest v1.0.x prerelease | Best-effort investigation and fixes after the tag workflow publishes it |
 | Older prereleases | Upgrade may be required before a fix is provided |
 | Unreleased `main` builds | Not a supported distribution |
 

@@ -55,9 +55,11 @@ The images are generated fixtures, not evidence of a real artwork or treatment.
 
 ### 1. Install
 
-The prebuilt archive needs no Rust toolchain. The v0.13.1 archive is for
-Linux x86_64 (glibc 2.34 or newer). Releases after v0.13.1 also include macOS
-on Apple Silicon. Other platforms can
+The prebuilt archive needs no Rust toolchain. The published v0.13.1 archive is
+for Linux x86_64 (glibc 2.34 or newer). The v1.0.0-rc.1 pilot is the first
+release candidate with macOS on Apple Silicon; its fixed Linux and macOS
+commands are in the [v1.0.0-rc.1 release notes](./docs/releases/v1.0.0-rc.1.md).
+Other platforms can
 [build from a tagged source](./docs/install.md#build-from-a-tagged-source-release).
 
 ```bash
@@ -125,8 +127,9 @@ To look at it in the browser, run
   images again in a new session; the earlier record stays.
 - **It is local and single-user.** `synapse-local` serves only `127.0.0.1`.
   There is no hosted or multi-user service, and nothing is uploaded.
-- **Platforms:** Linux x86_64 and, from releases after v0.13.1, macOS arm64.
-  Windows is not supported; Linux ARM64 needs a source build.
+- **Platforms:** The published v0.13.1 archive is Linux x86_64. The
+  v1.0.0-rc.1 pilot also provides macOS arm64. Windows is not supported;
+  Linux ARM64 needs a source build.
 
 Some workspace features exist only as Rust libraries, not in the packaged
 binaries. Implementers can read
@@ -181,9 +184,10 @@ details.
 - From v1.0.0, the object, identifier, and archive formats are frozen for
   v1.x, and repositories and archives from every published release stay
   readable. See the [compatibility policy](./docs/compatibility.md).
-- What changed in each release is in the [changelog](./CHANGELOG.md) and the
-  [v0.13.1 release notes](./docs/releases/v0.13.1.md). Read them before using
-  the preview with important data.
+- What changed in each release is in the [changelog](./CHANGELOG.md), the
+  [published v0.13.1 release notes](./docs/releases/v0.13.1.md), and the
+  [v1.0.0-rc.1 pilot notes](./docs/releases/v1.0.0-rc.1.md). Read the
+  applicable notes before using the preview with important data.
 
 ## Security, support, and license
 

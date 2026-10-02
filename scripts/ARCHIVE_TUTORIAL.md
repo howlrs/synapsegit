@@ -59,23 +59,30 @@ releaseへupgradeしてください。
 
 ## Prerequisites / 前提条件
 
-- Linux x86_64, Bash, glibc 2.34 or newer (the same requirement as installing
-  the archive).
+- Linux x86_64 with Bash and glibc 2.34 or newer, or macOS on Apple Silicon
+  (arm64) with Bash. Use the archive for your platform.
 - No Rust toolchain, no internet access, and no other SynapseGit repository at
   the target path.
 
-- Linux x86_64、Bash、glibc 2.34以降(archive installと同じ要件)。
+- Linux x86_64（Bash、glibc 2.34以降）、またはApple Silicon（arm64）のmacOSと
+  Bash。自分のplatform用archiveを使ってください。
 - Rust toolchainもinternet accessも不要です。対象pathに既存のSynapseGit
   repositoryがないことを確認してください。
 
 ## 1. Put the bundled binaries on PATH / 同梱binaryをPATHへ置く
 
 This assumes you already verified `SHA256SUMS` and extracted the archive as
-described in the [installation guide](https://github.com/howlrs/synapsegit/blob/{{RELEASE_TAG}}/docs/install.md#install-the-linux-x86-64-release).
-Move into the extracted directory and install the three binaries from there:
+described in the [installation guide](https://github.com/howlrs/synapsegit/blob/{{RELEASE_TAG}}/docs/install.md).
+Select the extracted directory for Linux x86_64 or macOS arm64, then install
+the three binaries from there:
 
 ```bash
-cd synapsegit-{{RELEASE_TAG}}-x86_64-unknown-linux-gnu
+case "$(uname -s):$(uname -m)" in
+  Linux:x86_64) target=x86_64-unknown-linux-gnu ;;
+  Darwin:arm64) target=aarch64-apple-darwin ;;
+  *) echo "This archive tutorial supports Linux x86_64 or macOS arm64." >&2; exit 1 ;;
+esac
+cd "synapsegit-{{RELEASE_TAG}}-$target"
 
 mkdir -p "$HOME/.local/bin"
 install -m 0755 synapse "$HOME/.local/bin/synapse"
@@ -88,10 +95,9 @@ synapse-local --version
 synapse-present --version
 ```
 
-事前に[installation guide](https://github.com/howlrs/synapsegit/blob/{{RELEASE_TAG}}/docs/install.md#install-the-linux-x86-64-release)
-の手順で`SHA256SUMS`を検証しarchiveを展開済みである前提です。展開先directoryへ
-移動し、そこから3つのbinaryをinstallしてください。手順は上記bash blockと同じ
-です。
+事前に[installation guide](https://github.com/howlrs/synapsegit/blob/{{RELEASE_TAG}}/docs/install.md)
+の手順で`SHA256SUMS`を検証しarchiveを展開済みである前提です。上記bash blockはLinux
+x86_64またはmacOS arm64を選んで展開先directoryへ移動し、そこから3つのbinaryをinstallします。
 
 ## 2. Run the bundled tutorial runner / 同梱のtutorial runnerを実行する
 
@@ -109,8 +115,10 @@ step 4.
 
 The runner also works from any other current directory: it resolves the
 sample images relative to its own location inside the archive, not to your
-working directory. For example, `/path/to/synapsegit-{{RELEASE_TAG}}-x86_64-unknown-linux-gnu/scripts/run_mural_tutorial.sh`
-works the same way from anywhere.
+working directory. For example,
+`/path/to/synapsegit-{{RELEASE_TAG}}-TARGET/scripts/run_mural_tutorial.sh`,
+where `TARGET` is `x86_64-unknown-linux-gnu` or `aarch64-apple-darwin`, works
+the same way from anywhere.
 
 今いる展開先directoryから、相対pathでrunnerを実行してください。まだ存在しない
 repository pathを渡します。上記bash blockと同じcommandを使い、第2引数に
@@ -120,8 +128,9 @@ Ref headが表示され、`synapse creator-report`が自動実行されます。
 
 runnerは他のどのcurrent directoryから実行しても動作します。sample画像は
 runner自身のarchive内の位置から解決され、実行時のworking directoryには依存
-しません。例えば`/path/to/synapsegit-{{RELEASE_TAG}}-x86_64-unknown-linux-gnu/scripts/run_mural_tutorial.sh`
-のように絶対pathで呼んでも同じ結果になります。
+しません。例えば`/path/to/synapsegit-{{RELEASE_TAG}}-TARGET/scripts/run_mural_tutorial.sh`
+（`TARGET`は`x86_64-unknown-linux-gnu`または`aarch64-apple-darwin`）のように絶対pathで
+呼んでも同じ結果になります。
 
 Argument checks and refusals are unchanged: a missing or misspelled decision
 argument exits with status `2`; an existing repository path is refused with
