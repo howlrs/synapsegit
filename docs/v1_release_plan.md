@@ -36,7 +36,7 @@ v1.0は、Stage 0 previewを終え、生成AIを使って制作する個人が�
 
 v1.xは次の二つを約束する。
 
-- **読み取り互換**: v1.xのbinaryは、v0.1.0以降のすべての公開版とv1.xで作ったrepository、archive、creator sessionを読める。
+- **読み取り互換**: v1.xのbinaryは、v0.1.0からそのbinary自身のversionまでのすべての公開版で作ったrepository、archive、creator sessionを読める。
 - **v1形式の凍結**: 下表で「凍結」とした形式は、v1.xの間に意味と形式を変えない。変更が必要な場合は新しい識別子を追加し、旧形式の読み取りを維持する。
 
 | 対象 | 識別子 | v1.0での扱い | 変更が必要なとき |
