@@ -16,6 +16,22 @@ milestone.
   is now discarded and the command keeps its own exit code; any other stdout
   write failure is a `storage_error` with exit code 1.
 
+- The Import page suggested `inbox-<slug>` as the session name even when it
+  exceeded the 64-byte session limit, so a candidate whose slug was longer
+  than 58 characters could not be imported under the suggestion and stayed
+  listed as waiting. Such a slug now gets a shortened suggestion that ends in
+  eight hexadecimal digits of the slug's SHA-256; shorter slugs keep
+  `inbox-<slug>` (local API `0.6.8-draft`).
+
+- A generation note given as a JSON array was accepted and its strings were
+  taken as `tool`, `model`, `prompt`, and `intent` in that order; `[]` was
+  accepted as an empty note. `--generation-note-file` of `creator-run` and
+  `synapse inbox put`, the localhost API, and the import inbox reader now
+  accept a generation note only as a JSON object, as documented. Import inbox
+  manifest v1 files, file entries, and metadata are likewise read only as JSON
+  objects, as `manifest.schema.json` requires. Stored sessions and manifests
+  written by SynapseGit are unaffected.
+
 ## [1.0.0] - 2026-10-02
 
 ### Changed

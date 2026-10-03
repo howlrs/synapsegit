@@ -6,7 +6,7 @@ pub const GENERATION_NOTE_KEY: &str = "org.synapsegit.creator-generation-note";
 
 /// Optional private, user-declared text. This is not execution evidence.
 #[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct CreatorGenerationNote {
     #[serde(default)]
     pub tool: String,
@@ -17,6 +17,8 @@ pub struct CreatorGenerationNote {
     #[serde(default)]
     pub intent: String,
 }
+
+json_object_serde!(CreatorGenerationNote);
 
 impl CreatorGenerationNote {
     pub fn validate(&self) -> Result<()> {
@@ -115,6 +117,37 @@ pub(crate) fn read_generation_note(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_note_is_read_only_from_a_json_object() {
+        let note: CreatorGenerationNote =
+            serde_json::from_str(r#"{"tool":"T","intent":"I"}"#).unwrap();
+        assert_eq!(
+            note,
+            CreatorGenerationNote {
+                tool: "T".into(),
+                intent: "I".into(),
+                ..Default::default()
+            }
+        );
+        assert_eq!(
+            serde_json::to_value(&note).unwrap(),
+            serde_json::json!({"tool": "T", "model": "", "prompt": "", "intent": "I"})
+        );
+        for rejected in [
+            r#"["T","M","P","I"]"#,
+            "[]",
+            r#"{"tool":"T","tool":"U"}"#,
+            r#"{"extra":""}"#,
+            "null",
+            r#""T""#,
+        ] {
+            assert!(
+                serde_json::from_str::<CreatorGenerationNote>(rejected).is_err(),
+                "{rejected}"
+            );
+        }
+    }
     #[test]
     fn rejects_unknown_format_fields_and_cross_proposal_binding() {
         let mut record = serde_json::json!({"entity_id":"activity-a", "extensions":{}});
