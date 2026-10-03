@@ -178,7 +178,7 @@ generic artifact C1 library／schema／local projectionはv1.0.1 tagged source�
 archiveのbinary数や既存binaryのHTTP／CLI／UI capabilityを変更しない。source-available licenseの
 production／distribution／brand制限も変更しない。
 
-v1.0.0の公開日時、archive checksum、attestationの検証実績は、[公開時の固定snapshot](https://github.com/howlrs/synapsegit/blob/ca3a362793c1c3a1e89224aaddbd2b3a93e1bb3f/docs/project_status.md#配布上の現在地)から確認できる。
+v1.0.0の公開日時、archive checksum、attestationの検証実績は、[公開時の固定snapshot](https://github.com/howlrs/synapsegit/blob/f2da8cf2c4ff78063899a471644bb9d3c3dc0dd9/docs/project_status.md#配布上の現在地)から確認できる。
 
 ## 次の優先順位
 
