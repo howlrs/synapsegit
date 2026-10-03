@@ -166,5 +166,7 @@
       "output_note": "The tool supplied these actual dimensions; no resizing, cropping or image re-encoding was performed."
     }
   ],
-  "documentation_illustration_revision": "2026-10-03"
+  "documentation_illustration_revision": "2026-10-03",
+  "documentation_provenance_note": "Full generation prompts, input roles, intermediate candidates and Inbox records for the 2026-10-03 documentation illustrations are retained in private project storage, not published in this metadata. No Human Decision was recorded.",
+  "previous_metadata_source": "https://github.com/howlrs/synapsegit/blob/v1.0.1/docs/assets/image-generation.json"
 }

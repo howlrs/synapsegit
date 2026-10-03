@@ -88,6 +88,8 @@ for guide in ai_agent_guide.md ai_agent_guide.ja.md; do
   chmod 0644 "$bundled"
 done
 
+# Guides move to the archive root, so their ./assets links move with them.
+# Tutorial files retain their existing docs/tutorial/assets layout.
 mkdir -p "$bundle_directory/assets"
 for asset in "${agent_illustrations[@]}"; do
   install -m 0644 "$asset" "$bundle_directory/assets/$(basename "$asset")"
