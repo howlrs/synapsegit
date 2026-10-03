@@ -9,6 +9,13 @@ milestone.
 
 ### Fixed
 
+- `synapse` and `synapse-present` panicked with exit code 101 when stdout was
+  a pipe that its reader had already closed, for example
+  `synapse creator-report REPO SESSION | head -1`. `creator-run` could report
+  this crash after its session was already recorded. Output to a closed pipe
+  is now discarded and the command keeps its own exit code; any other stdout
+  write failure is a `storage_error` with exit code 1.
+
 - The Import page suggested `inbox-<slug>` as the session name even when it
   exceeded the 64-byte session limit, so a candidate whose slug was longer
   than 58 characters could not be imported under the suggestion and stayed

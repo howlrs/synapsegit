@@ -4,7 +4,7 @@ use std::env;
 use std::error::Error;
 use std::fmt;
 use std::fs::File;
-use std::io::{self, Read};
+use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -89,6 +89,29 @@ limits. --format json prints one JSON document tagged
 ";
 const VERSION: &str = concat!("synapse ", env!("CARGO_PKG_VERSION"));
 
+/// Write to stdout without panicking.  When the reader has already closed the
+/// pipe, as `| head` does, the rest of the output is discarded and the command
+/// still finishes with its own exit status.  Any other write failure is a
+/// `storage_error`.
+fn write_stdout(arguments: fmt::Arguments<'_>) -> Result<(), CliError> {
+    match io::stdout().write_fmt(arguments) {
+        Err(error) if error.kind() != io::ErrorKind::BrokenPipe => Err(CliError::Stdout(error)),
+        _ => Ok(()),
+    }
+}
+
+macro_rules! out {
+    ($($arg:tt)*) => {
+        write_stdout(format_args!($($arg)*))?
+    };
+}
+
+macro_rules! outln {
+    ($($arg:tt)*) => {
+        write_stdout(format_args!("{}\n", format_args!($($arg)*)))?
+    };
+}
+
 #[derive(Debug)]
 enum CliError {
     Usage(String),
@@ -105,6 +128,7 @@ enum CliError {
         source: CreatorError,
     },
     Clock(String),
+    Stdout(io::Error),
     FsckFailed,
 }
 
@@ -113,7 +137,7 @@ impl CliError {
         match self {
             Self::Usage(_) => "usage_error",
             Self::InitTargetNotEmpty(_) => "repository_not_empty",
-            Self::Io { .. } | Self::Clock(_) => "storage_error",
+            Self::Io { .. } | Self::Clock(_) | Self::Stdout(_) => "storage_error",
             Self::Core(error) => error.code(),
             Self::Creator(error) => error.code(),
             Self::CreatorReportUnavailableAfterCommit { .. } => {
@@ -177,6 +201,7 @@ impl fmt::Display for CliError {
                 "creator session {session:?} was committed, but its report is unavailable: {source}; rerun creator-report"
             ),
             Self::Clock(message) => formatter.write_str(message),
+            Self::Stdout(source) => write!(formatter, "write standard output: {source}"),
             Self::FsckFailed => formatter.write_str("fsck found integrity issues"),
         }
     }
@@ -185,7 +210,7 @@ impl fmt::Display for CliError {
 impl Error for CliError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
-            Self::Io { source, .. } => Some(source),
+            Self::Io { source, .. } | Self::Stdout(source) => Some(source),
             Self::Core(error) => Some(error),
             Self::Creator(error) => Some(error),
             Self::CreatorReportUnavailableAfterCommit { source, .. } => Some(source),
@@ -229,7 +254,7 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
     };
     if command != "inbox" && matches!(args.get(1).map(String::as_str), Some("--help" | "-h")) {
         if let Some(help) = command_help(command) {
-            print!("{help}");
+            out!("{help}");
             return Ok(());
         }
     }
@@ -237,7 +262,7 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
         if let Some(topic) = args.get(1) {
             let help = command_help(topic)
                 .ok_or_else(|| CliError::Usage(format!("unknown command {topic:?}")))?;
-            print!("{help}");
+            out!("{help}");
             return Ok(());
         }
     }
@@ -245,7 +270,7 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
         "init" => {
             require_len(&args, 2)?;
             init_repository(Path::new(&args[1]))?;
-            println!("initialized {}", args[1]);
+            outln!("initialized {}", args[1]);
         }
         "put-blob" => put_blob(&args)?,
         "put-record" => put_structured(&args, Some(ObjectKind::Record))?,
@@ -257,14 +282,14 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
             require_len(&args, 2)?;
             let repository = Repository::open_existing(&args[1])?;
             for record in repository.refs().list().map_err(RepositoryError::from)? {
-                println!("{}\t{}", record.name, record.head);
+                outln!("{}\t{}", record.name, record.head);
             }
         }
         "fsck" => {
             require_len(&args, 2)?;
             let repository = Repository::open_existing(&args[1])?;
             let report = repository.fsck()?;
-            println!(
+            outln!(
                 "objects={} verified={} closures={} issues={}",
                 report.objects_seen,
                 report.objects_verified,
@@ -282,19 +307,19 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
             require_len(&args, 3)?;
             let mut repository = Repository::open_existing(&args[1])?;
             repository.export_archive(&args[2])?;
-            println!("exported {}", args[2]);
+            outln!("exported {}", args[2]);
         }
         "restore" => {
             require_len(&args, 3)?;
             Repository::restore_archive(&args[1], &args[2])?;
-            println!("restored {}", args[2]);
+            outln!("restored {}", args[2]);
         }
         "creator-run" => creator_run(&args)?,
         "creator-report" => creator_report_command(&args)?,
         "inbox" => inbox_command(&args)?,
         "creator-list" => creator_list_command(&args)?,
-        "help" | "--help" | "-h" => println!("{USAGE}"),
-        "version" | "--version" | "-V" => println!("{VERSION}"),
+        "help" | "--help" | "-h" => outln!("{USAGE}"),
+        "version" | "--version" | "-V" => outln!("{VERSION}"),
         other => return Err(CliError::Usage(format!("unknown command {other:?}"))),
     }
     Ok(())
@@ -383,21 +408,23 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
             source,
         }
     })?;
-    println!("session={}", receipt.session);
-    println!("subject={}", receipt.subject_id);
-    println!("original={}", receipt.original_blob_oid);
-    println!("current={}", receipt.current_blob_oid);
-    println!("ai_output={}", receipt.ai_output_blob_oid);
-    println!(
+    outln!("session={}", receipt.session);
+    outln!("subject={}", receipt.subject_id);
+    outln!("original={}", receipt.original_blob_oid);
+    outln!("current={}", receipt.current_blob_oid);
+    outln!("ai_output={}", receipt.ai_output_blob_oid);
+    outln!(
         "proposal_ref={}\t{}",
-        receipt.proposal_ref, receipt.proposal_head
+        receipt.proposal_ref,
+        receipt.proposal_head
     );
-    println!(
+    outln!(
         "decision_ref={}\t{}",
-        receipt.decision_ref, receipt.decision_head
+        receipt.decision_ref,
+        receipt.decision_head
     );
-    println!("disposition={}", receipt.disposition.as_cli_str());
-    print_creator_report(&report);
+    outln!("disposition={}", receipt.disposition.as_cli_str());
+    print_creator_report(&report)?;
     Ok(())
 }
 
@@ -497,7 +524,7 @@ fn creator_list_command(args: &[String]) -> Result<(), CliError> {
         .collect();
     match format {
         CreatorReportFormat::Text => {
-            println!(
+            outln!(
                 "# session\tstate\tdisposition\trecorded_at\tsubject_label\tcreator_name (unverified overview; run creator-report for the verified record)"
             );
             for (session, state, overview) in &rows {
@@ -506,7 +533,7 @@ fn creator_list_command(args: &[String]) -> Result<(), CliError> {
                         .as_ref()
                         .map_or_else(|| "-".to_owned(), |value| format!("{value:?}"))
                 };
-                println!(
+                outln!(
                     "{session}\t{state}\t{}\t{}\t{}\t{}",
                     overview.disposition.unwrap_or("-"),
                     overview.recorded_at.as_deref().unwrap_or("-"),
@@ -537,7 +564,7 @@ fn creator_list_command(args: &[String]) -> Result<(), CliError> {
                 "verified": false,
                 "sessions": sessions,
             });
-            println!(
+            outln!(
                 "{}",
                 serde_json::to_string_pretty(&document).expect("serializable creator list")
             );
@@ -556,7 +583,7 @@ fn inbox_command(args: &[String]) -> Result<(), CliError> {
     if is_help(args.get(1))
         || (args.get(1).is_some_and(|value| value == "put") && is_help(args.get(2)))
     {
-        print!("{INBOX_USAGE}");
+        out!("{INBOX_USAGE}");
         return Ok(());
     }
     if args.get(1).map(String::as_str) != Some("put") {
@@ -620,18 +647,18 @@ fn inbox_command(args: &[String]) -> Result<(), CliError> {
     let manifest = &receipt.manifest;
     match format.unwrap_or(CreatorReportFormat::Text) {
         CreatorReportFormat::Text => {
-            println!("inbox_candidate={}", args[3]);
-            println!("path={}", receipt.directory.display());
+            outln!("inbox_candidate={}", args[3]);
+            outln!("path={}", receipt.directory.display());
             for (role, file) in [
                 ("original", &manifest.original),
                 ("current", &manifest.current),
                 ("ai_output", &manifest.ai_output),
             ] {
-                println!("{role}_size={}", file.size);
-                println!("{role}_sha256={}", file.sha256.as_deref().unwrap_or(""));
+                outln!("{role}_size={}", file.size);
+                outln!("{role}_sha256={}", file.sha256.as_deref().unwrap_or(""));
             }
-            println!("decision_recorded=false");
-            println!("next={INBOX_NEXT_STEP}");
+            outln!("decision_recorded=false");
+            outln!("next={INBOX_NEXT_STEP}");
         }
         CreatorReportFormat::Json => {
             let document = serde_json::json!({
@@ -642,7 +669,7 @@ fn inbox_command(args: &[String]) -> Result<(), CliError> {
                 "decision_recorded": false,
                 "next": INBOX_NEXT_STEP,
             });
-            println!(
+            outln!(
                 "{}",
                 serde_json::to_string_pretty(&document).expect("serializable inbox receipt")
             );
@@ -707,7 +734,7 @@ fn creator_report_command(args: &[String]) -> Result<(), CliError> {
     // leaves a partial line, and never a partial JSON document, on stdout.
     let report = creator_report(&args[1], &args[2])?;
     match format.unwrap_or(CreatorReportFormat::Text) {
-        CreatorReportFormat::Text => print_creator_report(&report),
+        CreatorReportFormat::Text => print_creator_report(&report)?,
         CreatorReportFormat::Json => {
             let document = CreatorReportDocument::from_report(&report);
             // The document is built entirely from primitive, always-valid-UTF8
@@ -718,111 +745,114 @@ fn creator_report_command(args: &[String]) -> Result<(), CliError> {
             let text = document
                 .to_pretty_string()
                 .expect("creator report JSON document is always serializable");
-            print!("{text}");
+            out!("{text}");
         }
     }
     Ok(())
 }
 
-fn print_creator_report(report: &CreatorReport) {
-    println!("report_session={}", report.session);
-    println!("project={}", report.project_id);
-    println!("subject={}", report.subject_id);
+fn print_creator_report(report: &CreatorReport) -> Result<(), CliError> {
+    outln!("report_session={}", report.session);
+    outln!("project={}", report.project_id);
+    outln!("subject={}", report.subject_id);
     if let Some(label) = &report.subject_label {
-        println!("subject_label={label:?}");
+        outln!("subject_label={label:?}");
     }
-    println!("proposal_attributed_to_agent={}", report.agent_id);
-    println!("ai_output_source=caller_supplied");
-    println!("reviewed_by_human={}", report.creator_id);
+    outln!("proposal_attributed_to_agent={}", report.agent_id);
+    outln!("ai_output_source=caller_supplied");
+    outln!("reviewed_by_human={}", report.creator_id);
     if let Some(name) = &report.creator_name {
-        println!("creator_name={name:?}");
+        outln!("creator_name={name:?}");
     }
-    println!("selected={}", report.selected_ai_output);
-    println!("base_head={}", report.base_head);
-    println!("base_snapshot={}", report.base_snapshot);
-    println!("proposal_snapshot={}", report.proposal_snapshot);
-    println!("decision_snapshot={}", report.decision_snapshot);
-    println!(
+    outln!("selected={}", report.selected_ai_output);
+    outln!("base_head={}", report.base_head);
+    outln!("base_snapshot={}", report.base_snapshot);
+    outln!("proposal_snapshot={}", report.proposal_snapshot);
+    outln!("decision_snapshot={}", report.decision_snapshot);
+    outln!(
         "decision_ref={}\t{}",
-        report.decision_ref, report.decision_head
+        report.decision_ref,
+        report.decision_head
     );
-    println!(
+    outln!(
         "proposal_ref={}\t{}",
-        report.proposal_ref, report.proposal_head
+        report.proposal_ref,
+        report.proposal_head
     );
-    println!("disposition={}", report.disposition.as_cli_str());
+    outln!("disposition={}", report.disposition.as_cli_str());
     if let Some(recorded_at) = &report.decision_recorded_at {
-        println!("decision_recorded_at={recorded_at}");
+        outln!("decision_recorded_at={recorded_at}");
     }
     if let Some(source) = &report.source {
-        println!("reused_reference_source={source:?}");
+        outln!("reused_reference_source={source:?}");
     }
     if let Some(source) = &report.reuse_source {
         // Keep every field escaped: this is a human-readable report surface,
         // not a shell-safe serialization format.
-        println!("reused_three_blob_source_format={:?}", source.format);
-        println!("reused_three_blob_source_kind={:?}", source.kind);
-        println!("reused_three_blob_source_session={:?}", source.session);
-        println!(
+        outln!("reused_three_blob_source_format={:?}", source.format);
+        outln!("reused_three_blob_source_kind={:?}", source.kind);
+        outln!("reused_three_blob_source_session={:?}", source.session);
+        outln!(
             "reused_three_blob_source_proposal_head={:?}",
             source.proposal_head
         );
-        println!(
+        outln!(
             "reused_three_blob_source_decision_head={:?}",
             source.decision_head
         );
-        println!(
+        outln!(
             "reused_three_blob_source_original_blob_oid={:?}",
             source.original_blob_oid
         );
-        println!(
+        outln!(
             "reused_three_blob_source_current_blob_oid={:?}",
             source.current_blob_oid
         );
-        println!(
+        outln!(
             "reused_three_blob_source_ai_output_blob_oid={:?}",
             source.ai_output_blob_oid
         );
     }
     if report.annotations_unavailable {
-        println!("decision_pins=unavailable");
+        outln!("decision_pins=unavailable");
     }
     if let Some(annotations) = &report.annotations {
-        println!("decision_pins_private={annotations:?}");
+        outln!("decision_pins_private={annotations:?}");
     }
     if let Some(note) = &report.generation_note {
-        println!("generation_note_user_declared={note:?}");
+        outln!("generation_note_user_declared={note:?}");
     }
     if let Some(rationale) = &report.rationale {
-        println!("rationale={rationale:?}");
+        outln!("rationale={rationale:?}");
     }
-    println!("original={}", report.original_blob_oid);
-    println!("current={}", report.current_blob_oid);
-    println!("ai_output={}", report.ai_output_blob_oid);
+    outln!("original={}", report.original_blob_oid);
+    outln!("current={}", report.current_blob_oid);
+    outln!("ai_output={}", report.ai_output_blob_oid);
     if let Some(comparison) = &report.comparison {
-        println!("comparison_analysis={}", comparison.analysis_oid);
-        println!(
+        outln!("comparison_analysis={}", comparison.analysis_oid);
+        outln!(
             "comparison_adapter={}@{}",
-            comparison.adapter_id, comparison.adapter_version
+            comparison.adapter_id,
+            comparison.adapter_version
         );
-        println!("comparison_status={}", comparison.status);
-        println!("comparison_comparability={}", comparison.comparability);
-        println!("byte_identity={}", comparison.outcome);
-        println!(
+        outln!("comparison_status={}", comparison.status);
+        outln!("comparison_comparability={}", comparison.comparability);
+        outln!("byte_identity={}", comparison.outcome);
+        outln!(
             "comparison_reason_codes={}",
             comparison.reason_codes.join(",")
         );
-        println!("comparison_replay_ready={}", comparison.replay_ready);
+        outln!("comparison_replay_ready={}", comparison.replay_ready);
         for warning in &comparison.warnings {
-            println!("comparison_warning={warning:?}");
+            outln!("comparison_warning={warning:?}");
         }
     } else {
-        println!("comparison=unavailable");
+        outln!("comparison=unavailable");
     }
-    println!("fsck=clean objects={}", report.fsck_objects);
-    println!("timeline={}", report.timeline.len());
+    outln!("fsck=clean objects={}", report.fsck_objects);
+    outln!("timeline={}", report.timeline.len());
     for entry in &report.timeline {
-        println!(
+        outln!(
             "{}\t{}\t{}\t{}\t{}\t{}\t{}",
             entry.ordering_time,
             entry.time_basis,
@@ -833,6 +863,7 @@ fn print_creator_report(report: &CreatorReport) {
             entry.reachable_from.join(",")
         );
     }
+    Ok(())
 }
 
 fn put_blob(args: &[String]) -> Result<(), CliError> {
@@ -844,7 +875,7 @@ fn put_blob(args: &[String]) -> Result<(), CliError> {
         Some(oid) => repository.put_blob_claimed(oid, input)?,
         None => repository.put_blob(input)?,
     };
-    println!("{}", result.oid);
+    outln!("{}", result.oid);
     Ok(())
 }
 
@@ -858,7 +889,7 @@ fn put_structured(args: &[String], expected: Option<ObjectKind>) -> Result<(), C
         (None, Some(oid)) => repository.put_object_claimed(oid, &bytes)?,
         (None, None) => repository.put_object(&bytes)?,
     };
-    println!("{}", result.oid);
+    outln!("{}", result.oid);
     Ok(())
 }
 
@@ -913,7 +944,7 @@ fn update_ref(args: &[String]) -> Result<(), CliError> {
             message,
         },
     })?;
-    println!("{}\t{}", args[2], args[4]);
+    outln!("{}\t{}", args[2], args[4]);
     Ok(())
 }
 

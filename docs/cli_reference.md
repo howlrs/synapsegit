@@ -33,6 +33,8 @@ cargo run -p synapse-cli -- --help
 usage error の場合は usage 全文も stderr に出す。次の操作がmessageに含まれない主なerror（`creator_session_exists`、
 `creator_session_incomplete`、`creator_session_not_found`、`fsck_failed`、入力fileを開けない`storage_error`）では、
 2行目に`hint: `で始まる案内を1行出す。1行目のcodeとexit codeは変わらない。
+stdoutの読み手が先に閉じた場合（`| head`など）は残りの出力を捨て、commandは本来のexit codeで終了する。
+それ以外のstdout書き込み失敗は`storage_error`である。`synapse-present`も同じである。
 
 `synapse COMMAND --help`、`synapse COMMAND -h`、`synapse help COMMAND`は、そのcommandのusageと短い説明を
 stdoutへ出してexit code 0で終了する。commandは実行しない（`synapse init --help`はrepositoryを作らない）。
