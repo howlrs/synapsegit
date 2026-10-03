@@ -200,9 +200,14 @@ path family; they do not identify each extension within that family. Keep the
 `-draft` suffix while the application contract remains a Stage 0 draft. Neither
 a revision bump nor the `v1` path promises stable protocol compatibility.
 
-The current contract is `0.6.7-draft`: it adds the optional `imported_session`
+The current contract is `0.6.8-draft`: the suggested session name of a staged
+import-inbox preview always fits the 64-byte session grammar. It is
+`inbox-<slug>` when that fits. A longer slug keeps its first 49 bytes without
+trailing hyphens and ends with `-` and the first eight lowercase hexadecimal
+digits of the slug's SHA-256, so slugs with a long shared prefix still get
+different suggestions. `0.6.7-draft` added the optional `imported_session`
 field to each import-inbox item. It names the session created from the
-candidate under its suggested name, `inbox-<slug>`, and is omitted otherwise.
+candidate under its suggested name and is omitted otherwise.
 A candidate imported under another name is not recognized, and the inbox
 directory is never changed. `0.6.6-draft` added the optional `subject_label`,
 `creator_name`, and `decision_recorded_at` fields to the verified complete

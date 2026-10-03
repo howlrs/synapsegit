@@ -7,6 +7,15 @@ milestone.
 
 ## [Unreleased]
 
+### Fixed
+
+- The Import page suggested `inbox-<slug>` as the session name even when it
+  exceeded the 64-byte session limit, so a candidate whose slug was longer
+  than 58 characters could not be imported under the suggestion and stayed
+  listed as waiting. Such a slug now gets a shortened suggestion that ends in
+  eight hexadecimal digits of the slug's SHA-256; shorter slugs keep
+  `inbox-<slug>` (local API `0.6.8-draft`).
+
 ## [1.0.0] - 2026-10-02
 
 ### Changed
