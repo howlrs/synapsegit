@@ -2,7 +2,12 @@
 
 [日本語](./presentation_sidecar.md)
 
-This v0.8.0 feature is included in the v0.11.1 release binary. It lets you
+[![Keep private prompts, reasons and image notes apart from the title, description and creator credit written for others](./assets/private-public-notes.en.png)](./assets/private-public-notes.en.png)
+
+_Concept illustration of public-text preparation. Downloading the text does
+not share images or private creation notes._
+
+This v0.8.0 feature is included in the v1.0.1 release binary. It lets you
 prepare author-supplied public text for one complete, non-derived Creator
 session. It is deliberately separate from the private Creator record and from
 bundle generation.

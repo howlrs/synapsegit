@@ -16,6 +16,11 @@ conservation treatment is documented here.
 
 ## What you will create
 
+[![Prepare a candidate, compare three images and make a human decision, then revisit the record](../assets/creator-journey.en.png)](../assets/creator-journey.en.png)
+
+_Concept illustration of the walkthrough. The three files below are the actual
+inputs; the later application images are real screen captures._
+
 | Original reference | Current observation | AI-attributed proposal |
 |---|---|---|
 | ![Synthetic coastal mural before visible damage](./assets/mural-original.png) | ![Synthetic coastal mural with a crack and a missing-pigment patch](./assets/mural-current.png) | ![Synthetic restrained conservation proposal](./assets/mural-ai-proposal.png) |

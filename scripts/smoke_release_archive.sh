@@ -28,6 +28,7 @@ tar -xzf "$archive" -C "$work"
 root="$work/$bundle"
 for file in README.md LICENSE THIRD_PARTY_NOTICES.md SECURITY.md CHANGELOG.md \
   AI_AGENT_GUIDE.md AI_AGENT_GUIDE.ja.md TUTORIAL.md scripts/run_mural_tutorial.sh \
+  assets/creator-journey.en.png assets/creator-journey.ja.png \
   docs/tutorial/assets/mural-original.png docs/tutorial/assets/mural-current.png \
   docs/tutorial/assets/mural-ai-proposal.png; do
   [[ -s "$root/$file" ]] || fail "missing or empty $file"

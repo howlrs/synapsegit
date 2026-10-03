@@ -1,5 +1,19 @@
 # SynapseGit 想定利用者別シナリオ資料
 
+## AIを使うクリエイターへの説明画像
+
+[![準備をAIに任せ、画像を見て自分で判断し、制作の経緯を後から見返す3ステップ](../assets/creator-journey.ja.png)](../assets/creator-journey.ja.png)
+
+非プログラマ向けの説明には、操作名より先に「AIへの依頼」「自分の判断」「手元の記録」を示します。
+上は2026-10-03にimagegenで作成した説明イラストです。実画面キャプチャではありません。
+次の画像も、スライドや資料へ挿入できます。
+
+- [元の画像・現在の画像・AIの候補から判断まで](../assets/creator-overview.ja.png)（[English](../assets/creator-overview.en.png)）
+- [AIに準備を頼む制作の3ステップ](../assets/creator-journey.ja.png)（[English](../assets/creator-journey.en.png)）
+- [制作メモと公開用文章を分ける](../assets/private-public-notes.ja.png)（[English](../assets/private-public-notes.en.png)）
+
+## 既存のシナリオスライド
+
 生成済み資料:
 
 - [synapsegit_user_scenarios_ja.pptx](./synapsegit_user_scenarios_ja.pptx)

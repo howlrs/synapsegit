@@ -2,7 +2,11 @@
 
 English: [Public-text workflow](./presentation_sidecar.en.md).
 
-このフォームはv0.8.0で導入され、current v0.11.1 release binaryにも含まれます。
+[![手元の制作メモとは別に、タイトル・作品の説明・制作者表記を公開用の文章として書く](./assets/private-public-notes.ja.png)](./assets/private-public-notes.ja.png)
+
+_公開用の文章を用意する説明イラストです。文章を書き出しても、画像や制作メモがそのまま共有されることはありません。_
+
+このフォームはv0.8.0で導入され、current v1.0.1 release binaryにも含まれます。
 localhostのプロジェクト画面で「公開用の制作ノートを作る」を開き、通常の3画像取り込みで
 作成した完了セッションを一つ選びます。参照画像を再利用した派生セッションは公開形式v1に未対応で、
 フォームの確認時に拒否されます。作品タイトル、概要、公開用表示名、セッションのタイトル、

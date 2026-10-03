@@ -2,6 +2,11 @@
 
 [日本語](./creator_workflow.md)
 
+[![A creator asks AI to prepare a candidate, compares the images and decides, then revisits the local decision history](./assets/creator-journey.en.png)](./assets/creator-journey.en.png)
+
+_Concept illustration of preparation, human choice and the record. You can
+ask an [AI agent](./ai_agent_guide.md) to handle the preparation commands._
+
 This focused guide is for the v1.0.1 release binary. It explains the path
 after the [15-minute mural tutorial](./tutorial/README.md): record your own
 three images, keep optional private notes, make a Human Decision, and begin a
@@ -158,6 +163,11 @@ reviews the candidate and decides in the browser. This is the default path when
 an AI agent operates the CLI for you.
 
 ## Prepare public text separately
+
+[![Private prompts, decision reasons and image notes stay separate from freshly written public title, work description and creator credit](./assets/private-public-notes.en.png)](./assets/private-public-notes.en.png)
+
+_Concept illustration. Writing public text does not copy private notes or
+share anything; sharing remains a separate step._
 
 For one complete, non-derived session created with the normal three-file
 import, the project page can create a public-text `presentation.toml` from

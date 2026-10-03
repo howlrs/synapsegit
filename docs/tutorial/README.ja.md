@@ -14,6 +14,10 @@ toolからbackend model IDは返されていません。公開済みv1.0.0-rc.1 
 
 ## 作成する履歴
 
+[![候補の準備、3画像の比較と人の判断、制作履歴の読み返しというチュートリアルの流れ](../assets/creator-journey.ja.png)](../assets/creator-journey.ja.png)
+
+_一連の流れを示す説明イラストです。下の3枚は実際に入力する素材で、後半の画面は実装済みアプリのキャプチャです。_
+
 | Original reference | Current observation | AI-attributed proposal |
 |---|---|---|
 | ![目立つ損傷がないsyntheticな海岸壁画](./assets/mural-original.png) | ![亀裂と顔料の欠損があるsyntheticな海岸壁画](./assets/mural-current.png) | ![抑制的なsynthetic保存修復案](./assets/mural-ai-proposal.png) |

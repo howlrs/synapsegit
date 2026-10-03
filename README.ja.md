@@ -18,10 +18,12 @@ SynapseGitは、元の状態（Original）、今の状態（Current）、AIが�
 SynapseGitは、証拠、AIの提案、人の判断を分けて扱います。記録の識別子はファイルの内容が変わっていない
 ことを確かめるもので、作者性、真実、著作権、許可、物理的な変化を証明するものではありません。
 
-![ローカルの壁画保全repositoryを表示するSynapseGit Localのproject一覧](./docs/assets/synapse-local/overview-hero.png)
+[![元の画像・現在の画像・AIの候補を見比べ、人が採用・不採用・保留を選び、その判断を手元の履歴に残す](./docs/assets/creator-overview.ja.png)](./docs/assets/creator-overview.ja.png)
 
-_実際の`synapse-local`の画面です。`127.0.0.1`だけで配信され、hosted serviceやmulti-user serviceでは
-ありません。_
+_仕組みを説明するイラストです。普段のAIツールで候補を用意し、画像を見て自分で決めます。
+SynapseGitは、その経緯を自分のコンピューターに残します。_
+
+画像はクリック／タップで拡大できます。
 
 ## 解決すること
 
@@ -70,11 +72,16 @@ sha256sum --check --ignore-missing SHA256SUMS
 
 ### 2. AIエージェントに準備を任せ、判断は自分でする
 
+[![AIに候補の準備を頼み、自分で画像を比較して判断し、後から画像・判断・理由を見返す3ステップ](./docs/assets/creator-journey.ja.png)](./docs/assets/creator-journey.ja.png)
+
+_制作の流れを説明するイラストです。準備の操作はエージェントに頼めます。
+採用・不採用・保留は、画像を確認した自分で選びます。_
+
 AIエージェントに[AIエージェント向けガイド](./docs/ai_agent_guide.ja.md)を渡します（release archiveにも
 `AI_AGENT_GUIDE.ja.md`として入っています）。そのうえで、例えば次のように頼みます。
 
-> 先にSynapseGitのAIエージェント向けガイドを読んで。この候補を`synapse inbox put`でInboxへ置き、
-> `synapse-local`を起動してURLを教えて。判断は私がするので、代わりに選ばないで。
+> 先にSynapseGitのAIエージェント向けガイドを読んで。この3枚（元の画像・現在の画像・候補）を
+> 記録する準備をして、私が画像を見比べて判断できる画面を開いて。判断は私がするので、代わりに選ばないで。
 
 URLを開き、プロジェクトの「取り込む」ページで候補を確認して提案を作成し、画像を見比べてから、
 採用・不採用・保留を選びます。その後、エージェントは`synapse creator-list`と
@@ -107,6 +114,11 @@ synapse creator-report "$HOME/SynapseGit/demo" session-1
 | 整合性を確認し、backupを作り、復元する | 「管理」ページ、`fsck`、`export`、`restore` |
 | 非公開のメモを含まない、ローカルの閲覧用bundleを作る | `synapse-present`と公開用の制作ノート |
 | 日本語または英語の画面で使う | headerの言語切り替え |
+
+![syntheticな壁画の例を表示した実際のSynapseGit Localプロジェクト画面](./docs/assets/synapse-local/overview-hero.png)
+
+_こちらは実際の画面キャプチャです。`127.0.0.1`だけで配信され、hosted serviceやmulti-user serviceでは
+ありません。_
 
 ## しないこと
 
