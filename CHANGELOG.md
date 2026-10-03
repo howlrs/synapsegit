@@ -16,6 +16,15 @@ milestone.
   eight hexadecimal digits of the slug's SHA-256; shorter slugs keep
   `inbox-<slug>` (local API `0.6.8-draft`).
 
+- A generation note given as a JSON array was accepted and its strings were
+  taken as `tool`, `model`, `prompt`, and `intent` in that order; `[]` was
+  accepted as an empty note. `--generation-note-file` of `creator-run` and
+  `synapse inbox put`, the localhost API, and the import inbox reader now
+  accept a generation note only as a JSON object, as documented. Import inbox
+  manifest v1 files, file entries, and metadata are likewise read only as JSON
+  objects, as `manifest.schema.json` requires. Stored sessions and manifests
+  written by SynapseGit are unaffected.
+
 ## [1.0.0] - 2026-10-02
 
 ### Changed

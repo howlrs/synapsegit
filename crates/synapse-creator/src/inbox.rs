@@ -35,7 +35,7 @@ pub const IMPORT_INBOX_AI_OUTPUT_NAME: &str = "ai-output";
 
 /// One strict `synapsegit-import-inbox-v1` manifest.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct ImportInboxManifest {
     pub version: String,
     pub original: ImportInboxFile,
@@ -44,9 +44,11 @@ pub struct ImportInboxManifest {
     pub metadata: ImportInboxMetadata,
 }
 
+json_object_serde!(ImportInboxManifest);
+
 /// One file entry of an inbox manifest.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct ImportInboxFile {
     pub name: String,
     pub size: u64,
@@ -54,15 +56,19 @@ pub struct ImportInboxFile {
     pub sha256: Option<String>,
 }
 
+json_object_serde!(ImportInboxFile);
+
 /// Caller-supplied display metadata of an inbox candidate.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct ImportInboxMetadata {
     pub subject_label: String,
     pub creator_name: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub generation_note: Option<CreatorGenerationNote>,
 }
+
+json_object_serde!(ImportInboxMetadata);
 
 /// Why an inbox manifest is not acceptable.  The messages are shown by the
 /// localhost service and are part of its user-facing behavior.
@@ -586,6 +592,51 @@ mod tests {
         .unwrap();
         assert_eq!(raw["metadata"]["generation_note"]["model"], "");
         assert_eq!(raw["version"], IMPORT_INBOX_MANIFEST_VERSION);
+    }
+
+    #[test]
+    fn manifest_parts_are_read_only_from_json_objects() {
+        let file = |name: &str| serde_json::json!({"name": name, "size": 1});
+        let valid = serde_json::json!({
+            "version": IMPORT_INBOX_MANIFEST_VERSION,
+            "original": file("original"),
+            "current": file("current"),
+            "ai_output": file("ai-output"),
+            "metadata": {
+                "subject_label": "Subject",
+                "creator_name": "Creator",
+                "generation_note": {"tool": "T", "model": "M", "prompt": "P", "intent": "I"}
+            }
+        });
+        let manifest: ImportInboxManifest = serde_json::from_value(valid.clone()).unwrap();
+        manifest.validate().unwrap();
+        assert_eq!(serde_json::to_value(&manifest).unwrap(), valid);
+
+        // Each array lists the values in field order, which serde's derived
+        // struct deserialization would otherwise accept positionally.
+        let mut top_level = Vec::new();
+        for key in ["version", "original", "current", "ai_output", "metadata"] {
+            top_level.push(valid[key].clone());
+        }
+        let mut positional = vec![serde_json::Value::Array(top_level)];
+        for (pointer, value) in [
+            ("/original", serde_json::json!(["original", 1])),
+            ("/metadata", serde_json::json!(["Subject", "Creator"])),
+            (
+                "/metadata/generation_note",
+                serde_json::json!(["T", "M", "P", "I"]),
+            ),
+        ] {
+            let mut manifest = valid.clone();
+            *manifest.pointer_mut(pointer).unwrap() = value;
+            positional.push(manifest);
+        }
+        for manifest in positional {
+            assert!(
+                serde_json::from_value::<ImportInboxManifest>(manifest.clone()).is_err(),
+                "{manifest}"
+            );
+        }
     }
 
     #[test]

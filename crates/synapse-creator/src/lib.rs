@@ -8,6 +8,9 @@
 
 #![forbid(unsafe_code)]
 
+#[macro_use]
+mod json_object;
+
 mod annotations;
 pub use annotations::{
     ANNOTATIONS_FORMAT, ANNOTATIONS_KEY, CreatorAnnotations, CreatorImageRole, CreatorPin,
