@@ -114,6 +114,78 @@ fn a_candidate_written_by_the_shared_producer_is_ready_and_stages_its_bytes() {
 }
 
 #[test]
+fn a_long_slug_suggests_a_valid_session_and_is_marked_after_import() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let inbox = temporary.directory("inbox");
+    let inputs = temporary.directory("inputs");
+    for name in ["original.png", "current.png", "output.png"] {
+        fs::write(inputs.join(name), name.as_bytes()).unwrap();
+    }
+    // `inbox-<slug>` exceeds the 64-byte session limit for both slugs, and
+    // they share more than the kept prefix.
+    let prefix = format!("north-wall-{}", "a".repeat(46));
+    let first = format!("{prefix}-one");
+    let second = format!("{prefix}-two");
+    for slug in [&first, &second] {
+        assert!(slug.len() <= 64);
+        synapse_creator::put_import_inbox_candidate(&synapse_creator::ImportInboxCandidate {
+            inbox_root: &inbox,
+            slug,
+            original: &inputs.join("original.png"),
+            current: &inputs.join("current.png"),
+            ai_output: &inputs.join("output.png"),
+            subject_label: "Subject",
+            creator_name: "Creator",
+            generation_note: None,
+        })
+        .unwrap();
+    }
+    let mut roots = BTreeMap::new();
+    roots.insert("project".to_owned(), inbox);
+    let service = LocalService::new([ProjectRegistration::new("project", "Project", repository)])
+        .unwrap()
+        .with_import_roots(roots)
+        .unwrap();
+    let staged = service.stage_import_inbox("project", &first).unwrap();
+    let suggested = staged.session.clone();
+    assert!(suggested.len() <= 64, "{suggested}");
+    assert!(suggested.starts_with("inbox-north-wall-"), "{suggested}");
+    assert_ne!(
+        suggested,
+        service
+            .stage_import_inbox("project", &second)
+            .unwrap()
+            .session
+    );
+    let pending = service
+        .begin_staged_import_inbox(
+            "project",
+            "test-instance",
+            &staged.stage_id,
+            synapse_local_service::BeginStagedImportInboxRequest {
+                session: suggested.clone(),
+                subject_label: staged.subject_label.clone(),
+                creator_name: staged.creator_name.clone(),
+                generation_note: None,
+            },
+        )
+        .unwrap();
+    let items = service.list_import_inbox("project").unwrap().items;
+    let imported = |slug: &str| {
+        items
+            .iter()
+            .find(|item| item.slug == slug)
+            .unwrap()
+            .imported_session
+            .clone()
+    };
+    assert_eq!(imported(&first), Some(suggested));
+    assert_eq!(imported(&second), None);
+    drop(pending);
+}
+
+#[test]
 fn manifest_last_listing_and_staging_freeze_verified_bytes() {
     let temporary = TempDirectory::new();
     let repository = temporary.directory("repository");
