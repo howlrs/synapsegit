@@ -1,6 +1,6 @@
 [package]
 name = "synapse-observation"
-version = "1.0.0"
+version = "1.0.1"
 description = "Conservative Observation analysis adapters for SynapseGit Stage 0"
 edition.workspace = true
 repository.workspace = true

@@ -2,7 +2,7 @@
 
 [日本語](./creator_workflow.md)
 
-This focused guide is for the v1.0.0 release binary. It explains the path
+This focused guide is for the v1.0.1 release binary. It explains the path
 after the [15-minute mural tutorial](./tutorial/README.md): record your own
 three images, keep optional private notes, make a Human Decision, and begin a
 fresh review when another candidate is needed.
