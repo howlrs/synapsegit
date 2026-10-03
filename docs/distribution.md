@@ -110,7 +110,7 @@ GitHub SettingsのSocial previewへ明示的にuploadしない限り、repositor
 公開前に次を確認する。
 
 - 1280 × 640相当の2:1 landscapeで、1 MB未満
-- `SynapseGit`、短い価値提案、`v1.0.0`、AI提案→人の判断→local archiveの流れを簡潔に示す
+- `SynapseGit`、短い価値提案、AIの候補→人の判断→手元の履歴の流れを簡潔に示す。versionは入れず、release更新で古くならない画像にする
 - 実装済みUIのように見える架空画面を使わない
 - mobile share cardでも名称が読める
 - dark/light backgroundの両方で主要文字が読める

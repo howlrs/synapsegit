@@ -1,5 +1,11 @@
 # SynapseGit documentation
 
+[![元の画像、現在の画像、AIの候補を人が比較して判断し、その経緯を手元に残すSynapseGitの仕組み](./assets/creator-overview.ja.png)](./assets/creator-overview.ja.png)
+
+AIを使うクリエイターは、まず[制作の流れ](./creator_workflow.md)の説明画像をご覧ください。
+操作の準備は[AIエージェントに頼む](./ai_agent_guide.ja.md)こともできます。
+上の画像は仕組みを説明するイラストで、アプリの画面キャプチャではありません。
+
 このディレクトリは、SynapseGit Core を「試す」「評価する」「実装する」ための入口である。
 現在の状態は **v1.0.1 stable release / v1形式は凍結済み**。OID・schema・local repository の縦断経路に加え、
 ordered Observationのprimary Blob OIDだけを比べるdeterministic byte-identity baselineが動作する。

@@ -26,6 +26,10 @@ tutorial_assets=(
   docs/tutorial/assets/mural-current.png
   docs/tutorial/assets/mural-ai-proposal.png
 )
+agent_illustrations=(
+  docs/assets/creator-journey.en.png
+  docs/assets/creator-journey.ja.png
+)
 if [[ ! -x "$tutorial_runner" ]]; then
   echo "release_error: missing or non-executable $tutorial_runner" >&2
   exit 1
@@ -34,7 +38,7 @@ if [[ ! -s "$tutorial_guide" ]]; then
   echo "release_error: missing or empty $tutorial_guide" >&2
   exit 1
 fi
-for asset in "${tutorial_assets[@]}"; do
+for asset in "${tutorial_assets[@]}" "${agent_illustrations[@]}"; do
   if [[ ! -s "$asset" ]]; then
     echo "release_error: missing or empty $asset" >&2
     exit 1
@@ -82,6 +86,11 @@ for guide in ai_agent_guide.md ai_agent_guide.ja.md; do
   sed -e 's|(\./ai_agent_guide\.md)|(./AI_AGENT_GUIDE.md)|g' \
     -e 's|(\./ai_agent_guide\.ja\.md)|(./AI_AGENT_GUIDE.ja.md)|g' "docs/$guide" > "$bundled"
   chmod 0644 "$bundled"
+done
+
+mkdir -p "$bundle_directory/assets"
+for asset in "${agent_illustrations[@]}"; do
+  install -m 0644 "$asset" "$bundle_directory/assets/$(basename "$asset")"
 done
 
 mkdir -p "$bundle_directory/scripts" "$bundle_directory/docs/tutorial/assets"

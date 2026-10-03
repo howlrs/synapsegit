@@ -20,10 +20,12 @@ SynapseGit keeps evidence, AI proposals, and human decisions apart. Its
 identifiers verify that file contents are unchanged; they do not prove
 authorship, truth, copyright, permission, or physical change.
 
-![SynapseGit Local project overview showing a local mural conservation repository](./docs/assets/synapse-local/overview-hero.png)
+[![Original, current and AI candidate images are compared by a person who chooses adopt, reject or defer; the decision is recorded locally](./docs/assets/creator-overview.en.png)](./docs/assets/creator-overview.en.png)
 
-_The actual `synapse-local` page, served only from `127.0.0.1`. It is not a
-hosted or multi-user service._
+_Concept illustration: an AI tool supplies a candidate; you compare the images
+and decide. SynapseGit keeps the record on your computer._
+
+Click or tap an illustration to view it at full size.
 
 ## The problem it solves
 
@@ -74,12 +76,17 @@ build-provenance check, the macOS steps, and where to put the three binaries.
 
 ### 2. Let your AI agent prepare, and decide yourself
 
+[![Three steps: ask an AI agent to prepare a candidate, compare the images and decide, then revisit images, decisions and reasons locally](./docs/assets/creator-journey.en.png)](./docs/assets/creator-journey.en.png)
+
+_An illustrated workflow, not an application screenshot. The agent handles
+preparation; the choice is yours._
+
 Give your AI agent the [AI agent guide](./docs/ai_agent_guide.md) (it is also
 bundled in the release archive as `AI_AGENT_GUIDE.md`). Then ask, for example:
 
-> Read the SynapseGit AI agent guide first. Put this candidate in the inbox
-> with `synapse inbox put`, start `synapse-local`, and give me the URL. I will
-> decide, so do not choose for me.
+> Read the SynapseGit AI agent guide first. Prepare these three images (original,
+> current and candidate) for recording, and open the page where I can compare them.
+> I will make the decision; do not choose for me.
 
 Open the URL, go to the project's **Import** page, review the candidate,
 create the proposal, compare the images, and choose Adopt, Reject, or Defer.
@@ -115,6 +122,11 @@ To look at it in the browser, run
 | Check integrity, back up, and restore | Maintenance page, `fsck`, `export`, `restore` |
 | Make a local read-only view without private notes | `synapse-present` and the public-text form |
 | Use the pages in Japanese or English | Language switch in the header |
+
+![Actual SynapseGit Local project overview for the synthetic mural example](./docs/assets/synapse-local/overview-hero.png)
+
+_The actual `synapse-local` page, served only from `127.0.0.1`. It is not a
+hosted or multi-user service._
 
 ## What it does not do
 

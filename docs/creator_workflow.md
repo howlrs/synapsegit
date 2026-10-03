@@ -2,6 +2,11 @@
 
 English: [Creator workflow](./creator_workflow.en.md).
 
+[![AIに準備を頼む、画像を見比べて自分で判断する、後から経緯を見返す制作の3ステップ](./assets/creator-journey.ja.png)](./assets/creator-journey.ja.png)
+
+_制作の流れを説明するイラストです。操作を覚える前に、準備・判断・記録の役割を押さえてください。
+操作の準備は[AIエージェントに頼む](./ai_agent_guide.ja.md)こともできます。_
+
 対象はv1.0.1です。生成メモはv0.11.0、判断ピン・通常の派生セッション・公開用文章フォームはv0.8.0で導入されました。中断／Deferからの新しい再レビューと任意のInbox取り込みも利用できます。
 v1.0.1 release binaryを[install guide](install.md)から導入するか、
 [source build](quickstart.md#1-build-する)で作成した`synapse-local`を
@@ -80,6 +85,10 @@ AIエージェントなら候補ごとの`synapse inbox put`）、1件ずつ判�
 v1.0にはありません（並べて比較する画面はv1.x以降に予定。[#179](https://github.com/howlrs/synapsegit/issues/179)）。
 
 ## 5. 公開用文章を準備する
+
+[![プロンプト・判断理由・画像メモを含む手元の制作記録と、別に書くタイトル・作品の説明・制作者表記を分ける](./assets/private-public-notes.ja.png)](./assets/private-public-notes.ja.png)
+
+_公開用の文章を別に用意する仕組みの説明です。制作メモは自動転記されず、文章の作成と外部共有も別の操作です。_
 
 プロジェクト画面の「公開用の制作ノートを作る」から、**通常の3画像取り込みで作成した完了セッション**を選びます。
 文章を空欄から入力・確認し、`presentation.toml`をダウンロードします。

@@ -13,6 +13,11 @@ images and decides in the browser.
 
 ## Rules
 
+[![An AI agent prepares the candidate; the person compares and decides; the record can be revisited locally](./assets/creator-journey.en.png)](./assets/creator-journey.en.png)
+
+_Concept illustration of the creator and agent roles. Give this guide to your
+agent for preparation; the person still reviews the images and decides._
+
 Read these before you run any command.
 
 1. **Never choose a Human Decision.** Do not run
