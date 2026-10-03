@@ -78,7 +78,8 @@ synapse inbox put "$INBOX" north-wall-2 \
 ```
 
 出力に`"decision_recorded": false`があることを確認します。slugは`[a-z][a-z0-9-]{0,63}`で、
-まだ存在しない名前に限ります。各画像は64 MiB以下の通常fileです。既存のslugは
+まだ存在しない名前に限ります。提案されるsession名をちょうど`inbox-<slug>`にするため、slugは58文字以下に
+します。それより長いslugでは、末尾が16進数8桁の短縮した名前を提案します。各画像は64 MiB以下の通常fileです。既存のslugは
 `inbox_candidate_exists`で拒否されるので、別のslugを選びます。
 
 ### 5. 確認と判断を人に渡す

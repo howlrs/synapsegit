@@ -649,7 +649,7 @@ impl LocalService {
                 })
                 .unwrap_or_default();
             for item in items.iter_mut().filter(|item| item.ready) {
-                let session = format!("inbox-{}", item.slug);
+                let session = suggested_inbox_session(&item.slug);
                 if sessions.contains(&session) {
                     item.imported_session = Some(session);
                 }
@@ -682,7 +682,7 @@ impl LocalService {
         let preview = StagedImportInboxPreview {
             stage_id: stage_id.clone(),
             slug: slug.to_owned(),
-            session: format!("inbox-{slug}"),
+            session: suggested_inbox_session(slug),
             subject_label: manifest.subject_label,
             creator_name: manifest.creator_name,
             generation_note: manifest.generation_note,
@@ -2072,6 +2072,27 @@ struct CheckedInboxManifest {
     subject_label: String,
     creator_name: String,
     generation_note: Option<synapse_creator::CreatorGenerationNote>,
+}
+
+/// The session name suggested for an inbox candidate: `inbox-<slug>` when it
+/// fits the 64-byte session grammar.  A longer slug keeps its first 49 bytes,
+/// without trailing hyphens, and gains eight hexadecimal digits of the slug's
+/// SHA-256, so every suggestion is a valid session name and distinct slugs
+/// with a long shared prefix are still told apart.
+fn suggested_inbox_session(slug: &str) -> String {
+    let session = format!("inbox-{slug}");
+    if session.len() <= 64 {
+        return session;
+    }
+    let digest = Sha256::digest(slug.as_bytes());
+    format!(
+        "inbox-{}-{:02x}{:02x}{:02x}{:02x}",
+        slug[..49].trim_end_matches('-'),
+        digest[0],
+        digest[1],
+        digest[2],
+        digest[3]
+    )
 }
 
 fn inbox_denied(detail: impl Into<String>) -> ServiceError {
@@ -3473,6 +3494,34 @@ mod tests {
         assert_eq!(diagnostic.proposal_head, fixed_summary.proposal_head);
         assert_eq!(diagnostic.decision_head, fixed_summary.decision_head);
         assert!(diagnostic.recommended_action.contains("Run fsck"));
+    }
+
+    #[test]
+    fn suggested_inbox_session_is_always_a_session_name() {
+        assert_eq!(
+            suggested_inbox_session("north-wall-2"),
+            "inbox-north-wall-2"
+        );
+        let longest_unchanged = format!("a{}", "b".repeat(57));
+        assert_eq!(
+            suggested_inbox_session(&longest_unchanged),
+            format!("inbox-{longest_unchanged}")
+        );
+        for slug in [
+            format!("a{}", "b".repeat(58)),
+            format!("a{}", "-".repeat(63)),
+            format!("a{}", "9".repeat(63)),
+        ] {
+            let session = suggested_inbox_session(&slug);
+            assert!(is_slug(&session), "{session}");
+            assert!(session.starts_with("inbox-a"), "{session}");
+            assert!(!session.contains("--"), "{session}");
+        }
+        let shared = "c".repeat(60);
+        assert_ne!(
+            suggested_inbox_session(&format!("{shared}-one")),
+            suggested_inbox_session(&format!("{shared}-two"))
+        );
     }
 
     #[test]

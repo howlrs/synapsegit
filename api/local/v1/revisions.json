@@ -35,6 +35,10 @@
     {
       "version": "0.6.7-draft",
       "sha256": "34012e709dcd7e2a059c17249f4693295ecca4ab947678825bd4325725762f90"
+    },
+    {
+      "version": "0.6.8-draft",
+      "sha256": "306a562bdca50943c60f222d5e1e337d8a9e76e6f8bef7ded1a22cf01d4d6655"
     }
   ]
 }

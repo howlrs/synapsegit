@@ -87,7 +87,9 @@ synapse inbox put "$INBOX" north-wall-2 \
 ```
 
 Check that the output has `"decision_recorded": false`. The slug must match
-`[a-z][a-z0-9-]{0,63}` and must not exist yet. Each image must be a regular
+`[a-z][a-z0-9-]{0,63}` and must not exist yet. Keep it to 58 characters or
+fewer so that the suggested session name is exactly `inbox-<slug>`; a longer
+slug gets a shortened name that ends in eight hexadecimal digits. Each image must be a regular
 file of at most 64 MiB. An existing slug fails with `inbox_candidate_exists`;
 choose another slug.
 
