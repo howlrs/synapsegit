@@ -598,6 +598,38 @@ fn creator_run_records_a_generation_note_file_before_creating_the_repository() {
     );
     assert!(!invalid_repository.exists());
 
+    // A positional JSON array is not a note object, even with four strings in
+    // the field order.
+    for (name, contents) in [("array", r#"["T","M","P","I"]"#), ("empty-array", "[]")] {
+        let array_note = temporary.join(format!("{name}-generation-note.json"));
+        fs::write(&array_note, contents).unwrap();
+        let array_repository = temporary.join(format!("{name}-note-repo"));
+        let array = run(&[
+            "creator-run",
+            array_repository.to_str().unwrap(),
+            "array-note",
+            original.to_str().unwrap(),
+            current.to_str().unwrap(),
+            proposal.to_str().unwrap(),
+            "--subject",
+            "Array note",
+            "--creator",
+            "Aki",
+            "--decision",
+            "adopt",
+            "--generation-note-file",
+            array_note.to_str().unwrap(),
+        ]);
+        assert_eq!(array.status.code(), Some(1), "{name}");
+        assert!(
+            String::from_utf8(array.stderr)
+                .unwrap()
+                .contains("usage_error: generation note file"),
+            "{name}"
+        );
+        assert!(!array_repository.exists(), "{name}");
+    }
+
     let missing_repository = temporary.join("missing-note-repo");
     let missing_note = temporary.join("missing-generation-note.json");
     let missing = run(&[
@@ -1537,6 +1569,37 @@ fn inbox_put_refuses_a_missing_inbox_directory_and_prints_help() {
     }
     let usage = run(&["--help"]);
     assert!(String::from_utf8_lossy(&usage.stdout).contains("synapse inbox put"));
+}
+
+#[test]
+fn inbox_put_refuses_a_positional_generation_note_array() {
+    let temp = TempDirectory::new();
+    let inbox = temp.join("inbox");
+    fs::create_dir(&inbox).unwrap();
+    let file = temp.join("file.png");
+    fs::write(&file, b"bytes").unwrap();
+    let note = temp.join("note.json");
+    fs::write(&note, r#"["T","M","P","I"]"#).unwrap();
+    let output = run(&[
+        "inbox",
+        "put",
+        inbox.to_str().unwrap(),
+        "array-note",
+        file.to_str().unwrap(),
+        file.to_str().unwrap(),
+        file.to_str().unwrap(),
+        "--subject",
+        "Subject",
+        "--creator",
+        "Creator",
+        "--generation-note-file",
+        note.to_str().unwrap(),
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(
+        String::from_utf8_lossy(&output.stderr).starts_with("usage_error: generation note file")
+    );
+    assert_eq!(fs::read_dir(&inbox).unwrap().count(), 0);
 }
 
 #[test]
