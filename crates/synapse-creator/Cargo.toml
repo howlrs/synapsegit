@@ -1,6 +1,6 @@
 [package]
 name = "synapse-creator"
-version = "1.0.0"
+version = "1.0.1"
 description = "Local creator-facing provenance workflow for SynapseGit Stage 0"
 edition.workspace = true
 rust-version.workspace = true

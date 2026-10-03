@@ -2,18 +2,18 @@
 
 Audience: users、contributors、maintainers
 Status: public project snapshot
-Applies to: v1.0.0 stable release
+Applies to: v1.0.1 stable release
 Last verified: 2026-10-03
 
-v1.0.0は、AIエージェントがInboxへ候補を置き、人がlocalhost UIで画像を確認して判断する
+v1.0.1は、AIエージェントがInboxへ候補を置き、人がlocalhost UIで画像を確認して判断する
 local single-user向けのreleaseである。v1形式は[互換性方針](./compatibility.md)に従って凍結済みで、
 formal Core Stage 1は別の研究として続ける。
 実利用者3〜5人の評価は未実施であり、人間のUX評価・参加者数・Human Decisionの実績は主張しない。
 [#192](https://github.com/howlrs/synapsegit/issues/192)では、v1.0.0公開条件としてCodex、Gemini、Claudeが
 4件の隔離したAIモック環境で主要フローを実運用試験し、localhost UIを目視確認した。Gemini・Claudeの独立reviewを受け、公開条件2を満たすと判断し、PR #197のmergeでIssueを完了した。合成素材でのrehearsalは実利用者評価の結果ではない。
-両platformの手順は[v1.0.0 release notes](./releases/v1.0.0.md)を使う。
+両platformの手順は[v1.0.1 release notes](./releases/v1.0.1.md)を使う。
 
-tagged v1.0.0 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
+tagged v1.0.1 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
 boundaryが含まれる。これはdeterministic mapper／bounded checkout、固定v1 JSON contract、sequential
 Proposal／Decision workflow、host-authenticated one-shot approval、Proposal／Decision CAS前後を別SQLite
 journalへ結ぶ明示的なrestart recovery／reconciliation orchestration、local public projectionである。
@@ -21,6 +21,8 @@ release archiveは従来どおり三binaryだけで、このboundaryのHTTP／CL
 invocation、remote publish、durable identity／ACL、multi-process linearizability、production serviceを提供しない。
 
 ## 現在の成果
+
+- v1.0.1は長いInbox slugのsession名補正、生成メモ／Inbox manifestのobject-only JSON検証、CLIのstdout切断時の正常終了を修正する。Core／OID／archive形式とHuman Decision境界は変更しない
 
 - [Creator pilot評価キットv2](./evaluation/creator-pilot/v2/)と合成素材でのrehearsal、および[4件のAIモック環境の実運用試験](./evaluation/creator-pilot/v2/rehearsals/2026-10-02-multi-ai-mock-evaluation.md)。後者はGemini・Claudeの独立reviewを経て受入済みである。実利用者評価は未実施で、公開後のフォローアップ候補として残る
 - sessionのSubject、Creator、判断日時、読みやすいTimelineとtechnical detailsの折りたたみ
@@ -155,16 +157,16 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 
 | Item | Status |
 |---|---|
-| Localhost Inbox and fresh interrupted/Defer review | Included in v1.0.0; explicit Human review, no source decision rewrite |
+| Localhost Inbox and fresh interrupted/Defer review | Included in v1.0.1; explicit Human review, no source decision rewrite |
 | Public repository | Available |
-| v1.0.0 GitHub Release | [Published 2026-10-02 15:35:25 UTC](https://github.com/howlrs/synapsegit/releases/tag/v1.0.0) |
-| Linux x86_64 GNU binary | Published; archive SHA-256 `060840bd93300ed2741cbb9ff8b3150852b37e953f8afd1c0c5e413a000216db` |
-| macOS arm64 binary | Published; archive SHA-256 `e16963588b01d89fd81e00b0df8436e16628b0b8838553c40d2c66e42aa5f530`; built and smoke-tested on macOS 14, and is not signed or notarized |
-| Source build from fixed tag | Available from `v1.0.0`; Rust 1.88+ |
-| SHA-256 release checksum | Published in the v1.0.0 `SHA256SUMS`; both platform archives were independently checked |
-| Build provenance attestation | GitHub attestation was independently verified for both v1.0.0 archives against `refs/tags/v1.0.0` and source commit `ca3a362793c1c3a1e89224aaddbd2b3a93e1bb3f` |
-| `synapse-present` binary | Included in v1.0.0; local generation only, with no remote publish |
-| Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v1.0.0 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
+| v1.0.1 GitHub Release | [Release assets and notes](https://github.com/howlrs/synapsegit/releases/tag/v1.0.1) |
+| Linux x86_64 GNU binary | Release archive for glibc 2.34+; verify against the v1.0.1 `SHA256SUMS` |
+| macOS arm64 binary | Release archive built and smoke-tested on macOS 14; not signed or notarized |
+| Source build from fixed tag | Available from `v1.0.1`; Rust 1.88+ |
+| SHA-256 release checksum | The v1.0.1 `SHA256SUMS` lists both platform archives; verify before extraction |
+| Build provenance attestation | Verify the v1.0.1 archives against `refs/tags/v1.0.1`; the tag workflow checks the digest, tagged commit, and GitHub-hosted runner |
+| `synapse-present` binary | Included in v1.0.1; local generation only, with no remote publish |
+| Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v1.0.1 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
 | crates.io / GHCR / OS packages | Intentionally unavailable; GitHub Releases only |
 | Source use, Fork, and redistribution terms | Custom source-available license available; not open source |
 
@@ -172,9 +174,11 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 incomplete-session diagnostics、bounded browser `fsck`を含む。review authorityとmaintenance
 job stateはprocess-localであり、process restartを越えて再開できない。`synapse-present`も
 v0.3.0で導入された三binary構成をv0.4.0 archiveで維持するが、生成物のremote upload／publishは行わない。
-generic artifact C1 library／schema／local projectionはv1.0.0 tagged sourceのworkspace libraryであり、
+generic artifact C1 library／schema／local projectionはv1.0.1 tagged sourceのworkspace libraryであり、
 archiveのbinary数や既存binaryのHTTP／CLI／UI capabilityを変更しない。source-available licenseの
 production／distribution／brand制限も変更しない。
+
+v1.0.0の公開日時、archive checksum、attestationの検証実績は、[公開時の固定snapshot](https://github.com/howlrs/synapsegit/blob/f2da8cf2c4ff78063899a471644bb9d3c3dc0dd9/docs/project_status.md#配布上の現在地)から確認できる。
 
 ## 次の優先順位
 

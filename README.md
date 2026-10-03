@@ -3,7 +3,7 @@
 [English](./README.md) | [日本語](./README.ja.md)
 
 [![CI](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml/badge.svg)](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml)
-![v1.0.0](https://img.shields.io/badge/release-v1.0.0-0a7f3f)
+![v1.0.1](https://img.shields.io/badge/release-v1.0.1-0a7f3f)
 ![Linux x86_64](https://img.shields.io/badge/binary-Linux%20x86__64-555)
 ![macOS arm64](https://img.shields.io/badge/binary-macOS%20arm64-555)
 [![License: source-available](https://img.shields.io/badge/license-source--available-blue)](./LICENSE)
@@ -52,20 +52,20 @@ and troubleshooting.
 
 The images are generated fixtures, not evidence of a real artwork or treatment.
 This repository uses the [2026-10-02 image revision](./docs/assets/image-generation.json).
-The v1.0.0 archive bundles these three tutorial images. Earlier releases retain their bundled
+The v1.0.1 archive bundles these three tutorial images. Earlier releases retain their bundled
 materials; record the release and material revision used for any session.
 
 ## Get started
 
 ### 1. Install
 
-The prebuilt v1.0.0 archives need no Rust toolchain. They support Linux x86_64
+The prebuilt v1.0.1 archives need no Rust toolchain. They support Linux x86_64
 (glibc 2.34 or newer) and macOS on Apple Silicon. Other platforms can
 [build from a tagged source](./docs/install.md#build-from-a-tagged-source-release).
 
 ```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.0.0/synapsegit-v1.0.0-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.0.0/SHA256SUMS
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.0.1/synapsegit-v1.0.1-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.0.1/SHA256SUMS
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
@@ -128,7 +128,7 @@ To look at it in the browser, run
   images again in a new session; the earlier record stays.
 - **It is local and single-user.** `synapse-local` serves only `127.0.0.1`.
   There is no hosted or multi-user service, and nothing is uploaded.
-- **Platforms:** v1.0.0 provides Linux x86_64 and macOS arm64 archives. Windows is not supported;
+- **Platforms:** v1.0.1 provides Linux x86_64 and macOS arm64 archives. Windows is not supported;
   Linux ARM64 needs a source build.
 
 Some workspace features exist only as Rust libraries, not in the packaged
@@ -178,14 +178,14 @@ details.
 
 ## Releases and compatibility
 
-- SynapseGit v1.0.0 is a local single-user release. Each release is published on GitHub with
+- SynapseGit v1.0.1 is a local single-user release. Each release is published on GitHub with
   SHA-256 checksums and a build-provenance attestation; crates.io and container
   registries are not used.
 - From v1.0.0, the object, identifier, and archive formats are frozen for
   v1.x, and repositories and archives from every published release stay
   readable. See the [compatibility policy](./docs/compatibility.md).
 - What changed in each release is in the [changelog](./CHANGELOG.md) and the
-  [v1.0.0 release notes](./docs/releases/v1.0.0.md). Read the applicable notes
+  [v1.0.1 release notes](./docs/releases/v1.0.1.md). Read the applicable notes
   before using it with important data.
 
 ## Security, support, and license
