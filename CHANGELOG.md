@@ -11,6 +11,9 @@ milestone.
 
 ### Fixed
 
+- Preserve readability of v1.0.0 Creator sessions after the package version
+  bump by registering their audited byte-identity implementation bundle.
+
 - `synapse` and `synapse-present` panicked with exit code 101 when stdout was
   a pipe that its reader had already closed, for example
   `synapse creator-report REPO SESSION | head -1`. `creator-run` could report
