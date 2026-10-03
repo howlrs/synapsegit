@@ -3,6 +3,7 @@
 use std::env;
 use std::error::Error;
 use std::fmt;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use synapse_publication::{
@@ -19,10 +20,28 @@ Usage:
 ";
 const VERSION: &str = concat!("synapse-present ", env!("CARGO_PKG_VERSION"));
 
+/// Write one stdout line without panicking.  When the reader has already
+/// closed the pipe, the rest of the output is discarded and the command still
+/// finishes with its own exit status.  Any other write failure is a
+/// `storage_error`.
+fn write_stdout_line(arguments: fmt::Arguments<'_>) -> Result<(), CliError> {
+    match writeln!(io::stdout(), "{arguments}") {
+        Err(error) if error.kind() != io::ErrorKind::BrokenPipe => Err(CliError::Stdout(error)),
+        _ => Ok(()),
+    }
+}
+
+macro_rules! outln {
+    ($($arg:tt)*) => {
+        write_stdout_line(format_args!($($arg)*))?
+    };
+}
+
 #[derive(Debug)]
 enum CliError {
     Usage(String),
     Publication(PublicationError),
+    Stdout(io::Error),
 }
 
 impl CliError {
@@ -30,6 +49,7 @@ impl CliError {
         match self {
             Self::Usage(_) => "usage_error",
             Self::Publication(error) => error.code(),
+            Self::Stdout(_) => "storage_error",
         }
     }
 }
@@ -39,6 +59,7 @@ impl fmt::Display for CliError {
         match self {
             Self::Usage(message) => formatter.write_str(message),
             Self::Publication(error) => error.fmt(formatter),
+            Self::Stdout(source) => write!(formatter, "write standard output: {source}"),
         }
     }
 }
@@ -47,6 +68,7 @@ impl Error for CliError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Publication(error) => Some(error),
+            Self::Stdout(source) => Some(source),
             Self::Usage(_) => None,
         }
     }
@@ -85,7 +107,7 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
                     "help does not accept additional arguments".into(),
                 ));
             }
-            println!("{USAGE}");
+            outln!("{USAGE}");
             Ok(())
         }
         "version" | "--version" | "-V" => {
@@ -94,7 +116,7 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
                     "version does not accept additional arguments".into(),
                 ));
             }
-            println!("{VERSION}");
+            outln!("{VERSION}");
             Ok(())
         }
         other => Err(CliError::Usage(format!("unknown command {other:?}"))),
@@ -174,12 +196,12 @@ fn export(args: &[String]) -> Result<(), CliError> {
         destination: PathBuf::from(&args[2]),
         target: target.unwrap_or(OutputTarget::Synapse),
     })?;
-    println!("exported={}", receipt.destination.display());
-    println!("target={}", receipt.target.as_str());
-    println!("visibility={}", receipt.visibility.as_str());
-    println!("projection_sha256={}", receipt.projection_sha256);
-    println!("sessions={}", receipt.sessions_exported);
-    println!("incomplete_sessions={}", receipt.incomplete_sessions);
+    outln!("exported={}", receipt.destination.display());
+    outln!("target={}", receipt.target.as_str());
+    outln!("visibility={}", receipt.visibility.as_str());
+    outln!("projection_sha256={}", receipt.projection_sha256);
+    outln!("sessions={}", receipt.sessions_exported);
+    outln!("incomplete_sessions={}", receipt.incomplete_sessions);
     Ok(())
 }
 
@@ -191,10 +213,10 @@ fn preview(args: &[String]) -> Result<(), CliError> {
     }
     let root = Path::new(&args[1]);
     let verified = verify_bundle(root)?;
-    println!("target={}", verified.manifest.target.as_str());
-    println!("visibility={}", verified.manifest.visibility.as_str());
-    println!("projection_sha256={}", verified.manifest.projection_sha256);
-    println!(
+    outln!("target={}", verified.manifest.target.as_str());
+    outln!("visibility={}", verified.manifest.visibility.as_str());
+    outln!("projection_sha256={}", verified.manifest.projection_sha256);
+    outln!(
         "index_path={}",
         root.join(&verified.manifest.html_path).display()
     );

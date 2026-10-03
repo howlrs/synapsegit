@@ -50,6 +50,18 @@ fn run_owned(arguments: Vec<String>) -> Output {
         .unwrap()
 }
 
+/// Run with stdout connected to a pipe whose reader has already closed, as
+/// when the output is piped into a command that exits early.
+fn run_with_closed_stdout(arguments: &[&str]) -> Output {
+    let (reader, writer) = std::io::pipe().unwrap();
+    drop(reader);
+    Command::new(env!("CARGO_BIN_EXE_synapse"))
+        .args(arguments)
+        .stdout(writer)
+        .output()
+        .unwrap()
+}
+
 fn assert_success(output: &Output) {
     assert!(
         output.status.success(),
@@ -1537,6 +1549,68 @@ fn inbox_put_refuses_a_missing_inbox_directory_and_prints_help() {
     }
     let usage = run(&["--help"]);
     assert!(String::from_utf8_lossy(&usage.stdout).contains("synapse inbox put"));
+}
+
+#[test]
+fn a_closed_stdout_discards_output_and_keeps_the_exit_status() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    for name in ["original.bin", "current.bin", "candidate.bin"] {
+        fs::write(temp.join(name), name.as_bytes()).unwrap();
+    }
+    let repository = repository.to_str().unwrap();
+    // creator-run prints after its commit; a reader that left early must not
+    // turn the recorded session into a failure.
+    let created = run_with_closed_stdout(&[
+        "creator-run",
+        repository,
+        "piped",
+        temp.join("original.bin").to_str().unwrap(),
+        temp.join("current.bin").to_str().unwrap(),
+        temp.join("candidate.bin").to_str().unwrap(),
+        "--subject",
+        "Subject",
+        "--creator",
+        "Aki",
+        "--decision",
+        "defer",
+    ]);
+    for (arguments, output) in [
+        (vec!["creator-run"], created),
+        (vec!["--help"], run_with_closed_stdout(&["--help"])),
+        (
+            vec!["creator-list"],
+            run_with_closed_stdout(&["creator-list", repository]),
+        ),
+        (
+            vec!["creator-report"],
+            run_with_closed_stdout(&["creator-report", repository, "piped"]),
+        ),
+        (
+            vec!["creator-report", "--format", "json"],
+            run_with_closed_stdout(&["creator-report", repository, "piped", "--format", "json"]),
+        ),
+        (vec!["fsck"], run_with_closed_stdout(&["fsck", repository])),
+    ] {
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{arguments:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            output.stderr.is_empty(),
+            "{arguments:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    let report = run(&["creator-report", repository, "piped"]);
+    assert_success(&report);
+    assert!(String::from_utf8_lossy(&report.stdout).contains("disposition=defer\n"));
+
+    let missing = run_with_closed_stdout(&["creator-report", repository, "missing"]);
+    assert_eq!(missing.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&missing.stderr).starts_with("creator_session_not_found: "));
 }
 
 #[test]

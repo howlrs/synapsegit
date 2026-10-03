@@ -7,6 +7,15 @@ milestone.
 
 ## [Unreleased]
 
+### Fixed
+
+- `synapse` and `synapse-present` panicked with exit code 101 when stdout was
+  a pipe that its reader had already closed, for example
+  `synapse creator-report REPO SESSION | head -1`. `creator-run` could report
+  this crash after its session was already recorded. Output to a closed pipe
+  is now discarded and the command keeps its own exit code; any other stdout
+  write failure is a `storage_error` with exit code 1.
+
 ## [1.0.0] - 2026-10-02
 
 ### Changed

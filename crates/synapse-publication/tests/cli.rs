@@ -123,6 +123,43 @@ fn help_and_version_follow_the_companion_binary_contract() {
 }
 
 #[test]
+fn a_closed_stdout_discards_output_and_keeps_the_exit_status() {
+    let temporary = TempDirectory::new("closed-stdout");
+    let repository = temporary.join("repository");
+    empty_repository(&repository);
+    let bundle = temporary.join("bundle");
+    let closed = |arguments: Vec<String>| {
+        let (reader, writer) = std::io::pipe().unwrap();
+        drop(reader);
+        command().args(arguments).stdout(writer).output().unwrap()
+    };
+    for (label, output) in [
+        ("help", closed(strings(&["--help"]))),
+        (
+            "export",
+            closed(export_arguments(&repository, &bundle, &[])),
+        ),
+        (
+            "preview",
+            closed(strings(&["preview", bundle.to_str().unwrap()])),
+        ),
+    ] {
+        assert_eq!(
+            output.status.code(),
+            Some(0),
+            "{label}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert!(
+            output.stderr.is_empty(),
+            "{label}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    assert!(bundle.join("projection.json").is_file());
+}
+
+#[test]
 fn default_and_explicit_target_aliases_are_deterministic() {
     let temporary = TempDirectory::new("target-aliases");
     let repository = temporary.join("repository");
