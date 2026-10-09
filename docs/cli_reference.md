@@ -856,8 +856,10 @@ PNGはtext chunkを画像データの後ろにも置けるため、256 KiBを超
 | `no_gps_found` | 完了した上限内の検査でGPS項目を見つけなかった。その他のprivate metadataがない保証ではない。 |
 | `could_not_check` | 未対応形式、圧縮XMP、ImageMagickのraw profile、MPF／Motion Photo、不正なmetadata、256 KiBを超えるPNG、読み取り・IFD・深さの上限等で確認できなかった。GPSなしとは扱わない。 |
 
-CLIの警告はstderrへ出す。`inbox put --format json`とdecision commandの`metadata_warnings`はrole、check、messageを
-含み、stdoutはJSONのまま保つ。警告だけで成功・失敗やexit codeを変えない。localhostでは
+CLIの警告はstderrへ出す。`inbox put --format json`とdecision commandの`metadata_warnings`は、警告となる
+`gps_found`と`could_not_check`だけをrole、check、messageで含む。完了した確認である`no_gps_found`は
+advisory配列とstderrから省くため、上のtableは画像検査自体のcheck値を説明する。stdoutはJSONのまま保つ。
+警告だけで成功・失敗やexit codeを変えない。localhostでは
 upload時の選択画像と、Inbox候補の確認画面の各画像の横に警告を表示する。自動除去は行わない。
 
 ### `refs <repo>`

@@ -1761,7 +1761,22 @@ fn decision_commands_emit_one_private_json_document_when_requested() {
         document["report"]["format"],
         "synapsegit-cli-creator-report-v1"
     );
-    assert!(document["metadata_warnings"].is_array());
+    let expected_warnings = |document: &serde_json::Value| {
+        let warnings = document["metadata_warnings"]
+            .as_array()
+            .expect("metadata warnings array");
+        assert_eq!(warnings.len(), 3);
+        for (warning, role) in warnings.iter().zip(["original", "current", "ai_output"]) {
+            assert_eq!(warning["role"], role);
+            assert_eq!(warning["check"], "could_not_check");
+            assert!(
+                warning["message"]
+                    .as_str()
+                    .is_some_and(|message| !message.is_empty())
+            );
+        }
+    };
+    expected_warnings(&document);
 
     let run_repository = temp.join("creator-run-repository");
     let created = run_owned(vec![
@@ -1784,6 +1799,7 @@ fn decision_commands_emit_one_private_json_document_when_requested() {
     assert_eq!(document["route"], "creator_run");
     assert!(document["inbox_candidate"].is_null());
     assert_eq!(document["receipt"]["session"], "json-run");
+    expected_warnings(&document);
 
     let rejected_repository = temp.join("invalid-format-repository");
     let bad_format = run_owned(vec![
