@@ -321,6 +321,10 @@ synapse creator-run .synapse-creator mural-1 \
 - `original`、`current`、`ai-output`はraw bytesのopaque Blobとしてstreaming ingestする。original／currentという
   roleはcaller-suppliedである。originalとcurrentのprimary Blob OIDは後述のbyte-identity adapterで比較するが、
   media type、EXIF、pixel、画像内容をdecodeせず、画像registrationやvisual／physical changeを判定しない。
+- 3つの入力は、repositoryの作成・変更前にnon-blocking openした同じdescriptorからregular fileかと64 MiB上限を確認し、
+  private stagingへ保持する。directoryやFIFOは`storage_error: inspect creator input ...`で直ちに拒否し、
+  socketなどopenできない入力は`storage_error: open creator input ...`で拒否する。どちらもhintを付け、repositoryを
+  作成・変更しない。
 - `ai-output`はtrusted local integrationが事前に用意したfileである。commandはmodel、connector、paint toolを
   起動せず、prepared local ExecutorがそのOIDをAI proposal outputとして返す。
 - `--subject`は1〜500 UTF-8 bytes、`--creator`は1〜300 UTF-8 bytes。`--creator`はself-declaredな表示名で、

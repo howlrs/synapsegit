@@ -1232,11 +1232,10 @@ where
             }
         }
     }
-    validate_input_files(
-        &options.original_image,
-        &options.current_image,
-        &options.ai_output,
-    )?;
+    // Retaining opens every caller path with O_NONBLOCK, checks the opened
+    // descriptor is a regular file, and measures the bytes that will later be
+    // recorded. Do this before opening a repository so a FIFO cannot block
+    // this command or leave any repository state behind.
     let retained = crate::retain_creator_input_files(
         &options.original_image,
         &options.current_image,

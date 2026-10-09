@@ -4,6 +4,8 @@ use std::process::{Command, Output};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Barrier};
 use std::thread;
+#[cfg(unix)]
+use std::time::{Duration, Instant};
 use synapse_core::Repository;
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -48,6 +50,48 @@ fn run_owned(arguments: Vec<String>) -> Output {
         .args(arguments)
         .output()
         .unwrap()
+}
+
+#[cfg(unix)]
+fn run_owned_with_timeout(arguments: Vec<String>) -> Output {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_synapse"))
+        .args(arguments)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+    let deadline = Instant::now() + Duration::from_secs(2);
+    loop {
+        if child.try_wait().unwrap().is_some() {
+            return child.wait_with_output().unwrap();
+        }
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("creator-run did not reject a non-regular input within two seconds");
+        }
+        thread::sleep(Duration::from_millis(10));
+    }
+}
+
+#[cfg(unix)]
+fn directory_contents(path: &Path) -> Vec<(PathBuf, Vec<u8>)> {
+    fn collect(root: &Path, path: &Path, entries: &mut Vec<(PathBuf, Vec<u8>)>) {
+        for entry in fs::read_dir(path).unwrap() {
+            let entry = entry.unwrap();
+            let entry_path = entry.path();
+            let relative = entry_path.strip_prefix(root).unwrap().to_owned();
+            if entry.file_type().unwrap().is_dir() {
+                collect(root, &entry_path, entries);
+            } else {
+                entries.push((relative, fs::read(entry_path).unwrap()));
+            }
+        }
+    }
+    let mut entries = Vec::new();
+    collect(path, path, &mut entries);
+    entries.sort_by(|left, right| left.0.cmp(&right.0));
+    entries
 }
 
 /// Run with stdout connected to a pipe whose reader has already closed, as
@@ -2007,6 +2051,89 @@ fn common_errors_add_one_hint_line_after_the_stable_code() {
     let stderr = String::from_utf8(exists.stderr).unwrap();
     assert!(stderr.starts_with("creator_session_exists: "));
     assert!(stderr.contains("\nhint: choose a new session name"));
+}
+
+#[cfg(unix)]
+#[test]
+fn creator_run_rejects_non_regular_inputs_for_every_role_without_mutating_the_repository() {
+    use std::os::unix::net::UnixListener;
+
+    let temporary = TempDirectory::new();
+    let repository = temporary.join("repository");
+    assert_success(&run(&["init", repository.to_str().unwrap()]));
+    let original = temporary.join("original.png");
+    let current = temporary.join("current.png");
+    let output = temporary.join("output.png");
+    for input in [&original, &current, &output] {
+        fs::write(input, b"ordinary creator input").unwrap();
+    }
+
+    for special in ["directory", "fifo", "socket"] {
+        let path = temporary.join(format!("non-regular-{special}"));
+        let socket = match special {
+            "directory" => {
+                fs::create_dir(&path).unwrap();
+                None
+            }
+            "fifo" => {
+                assert!(
+                    Command::new("mkfifo")
+                        .arg(&path)
+                        .status()
+                        .unwrap()
+                        .success()
+                );
+                None
+            }
+            "socket" => Some(UnixListener::bind(&path).unwrap()),
+            _ => unreachable!(),
+        };
+        for role in 0..3 {
+            let before = directory_contents(&repository);
+            let paths = [&original, &current, &output];
+            let mut arguments = vec![
+                "creator-run".to_owned(),
+                repository.display().to_string(),
+                format!("{special}-{role}"),
+            ];
+            for (index, input) in paths.iter().enumerate() {
+                arguments.push(
+                    if index == role { &path } else { input }
+                        .display()
+                        .to_string(),
+                );
+            }
+            arguments.extend([
+                "--subject".to_owned(),
+                "Non regular input".to_owned(),
+                "--creator".to_owned(),
+                "Aki".to_owned(),
+                "--decision".to_owned(),
+                "defer".to_owned(),
+            ]);
+            let failure = run_owned_with_timeout(arguments);
+            assert_eq!(failure.status.code(), Some(1));
+            let stderr = String::from_utf8(failure.stderr).unwrap();
+            assert!(
+                stderr.starts_with("storage_error: ")
+                    && stderr.contains(&format!("creator input {}:", path.display())),
+                "{stderr}"
+            );
+            assert!(
+                stderr.contains("hint: check that each input path exists"),
+                "{stderr}"
+            );
+            assert!(!stderr.contains("Usage:\n"), "{stderr}");
+            assert!(failure.stdout.is_empty());
+            assert_eq!(
+                directory_contents(&repository),
+                before,
+                "{special} role {role}"
+            );
+        }
+        drop(socket);
+        fs::remove_file(&path).unwrap_or_else(|_| fs::remove_dir(&path).unwrap());
+    }
 }
 
 fn copy_directory(source: &Path, destination: &Path) {
