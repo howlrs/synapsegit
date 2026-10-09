@@ -417,7 +417,6 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
         image_metadata_warning("current", &options.current_image),
         image_metadata_warning("ai_output", &options.ai_output),
     ];
-    for warning in &metadata_warnings { if warning.check != synapse_creator::ImageMetadataCheck::NoGpsFound { eprintln!("warning [{}]: {}", warning.role, warning.message); } }
     let receipt = run_creator_session_with_note(&options, generation_note.as_ref())?;
     let report = creator_report(&options.repository, &options.session).map_err(|source| {
         CliError::CreatorReportUnavailableAfterCommit {
@@ -425,6 +424,7 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
             source,
         }
     })?;
+    emit_metadata_warnings(&metadata_warnings);
     outln!("session={}", receipt.session);
     outln!("subject={}", receipt.subject_id);
     outln!("original={}", receipt.original_blob_oid);
@@ -658,9 +658,10 @@ fn inbox_command(args: &[String]) -> Result<(), CliError> {
         .map(read_generation_note_file)
         .transpose()?;
     let metadata_warnings = [
-        image_metadata_warning("original", Path::new(&args[4])), image_metadata_warning("current", Path::new(&args[5])), image_metadata_warning("ai_output", Path::new(&args[6])),
+        image_metadata_warning("original", Path::new(&args[4])),
+        image_metadata_warning("current", Path::new(&args[5])),
+        image_metadata_warning("ai_output", Path::new(&args[6])),
     ];
-    for warning in &metadata_warnings { if warning.check != synapse_creator::ImageMetadataCheck::NoGpsFound { eprintln!("warning [{}]: {}", warning.role, warning.message); } }
     let receipt = put_import_inbox_candidate(&ImportInboxCandidate {
         inbox_root: Path::new(&args[2]),
         slug: &args[3],
@@ -671,6 +672,7 @@ fn inbox_command(args: &[String]) -> Result<(), CliError> {
         creator_name: &creator,
         generation_note: generation_note.as_ref(),
     })?;
+    emit_metadata_warnings(&metadata_warnings);
     let manifest = &receipt.manifest;
     match format.unwrap_or(CreatorReportFormat::Text) {
         CreatorReportFormat::Text => {
@@ -704,6 +706,16 @@ fn inbox_command(args: &[String]) -> Result<(), CliError> {
         }
     }
     Ok(())
+}
+
+/// Advisories are emitted only once the command has completed successfully so
+/// every failure keeps its established error-code-first stderr contract.
+fn emit_metadata_warnings(warnings: &[synapse_creator::ImageMetadataWarning]) {
+    for warning in warnings {
+        if warning.check != synapse_creator::ImageMetadataCheck::NoGpsFound {
+            eprintln!("warning [{}]: {}", warning.role, warning.message);
+        }
+    }
 }
 
 fn read_generation_note_file(path: &Path) -> Result<CreatorGenerationNote, CliError> {

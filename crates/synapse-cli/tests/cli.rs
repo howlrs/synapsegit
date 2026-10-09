@@ -880,7 +880,8 @@ fn creator_report_prints_private_user_declared_notes_separately_and_escaped() {
     let text = String::from_utf8(report.stdout).unwrap();
     assert!(text.contains("generation_note_user_declared="));
     assert!(text.contains("日本語\\nPRIVATE_NOTE\\u{1b}[31m"));
-    assert!(text.contains("rationale=\"別の判断理由\""));
+    assert!(text.contains("rationale=別の判断理由"));
+    assert!(text.contains("rationale_source=creator"));
     assert!(!text.contains('\u{1b}'));
 }
 
@@ -1533,6 +1534,8 @@ fn inbox_put_writes_a_manifest_last_candidate_without_a_repository_or_decision()
     assert_eq!(json["slug"], "second");
     assert_eq!(json["decision_recorded"], false);
     assert_eq!(json["manifest"]["original"]["size"], 8);
+    assert_eq!(json["metadata_warnings"].as_array().unwrap().len(), 3);
+    assert_eq!(json["metadata_warnings"][0]["check"], "could_not_check");
 
     // Only the two candidates exist: no repository, staging, or other files.
     let mut names: Vec<_> = fs::read_dir(&inbox)
@@ -2083,11 +2086,15 @@ fn a_closed_stdout_discards_output_and_keeps_the_exit_status() {
             "{arguments:?}: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        assert!(
-            output.stderr.is_empty(),
-            "{arguments:?}: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if arguments == ["creator-run"] {
+            assert!(
+                stderr.contains("warning [original]:"),
+                "{arguments:?}: {stderr}"
+            );
+        } else {
+            assert!(stderr.is_empty(), "{arguments:?}: {stderr}");
+        }
     }
     let report = run(&["creator-report", repository, "piped"]);
     assert_success(&report);
