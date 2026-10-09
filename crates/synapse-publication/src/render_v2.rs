@@ -18,7 +18,7 @@ pub(crate) fn render_story(projection: &PublicProjection, locale: PublicationLoc
     .expect("writing to String cannot fail");
     write_markdown_paragraph(
         &mut output,
-        presented(locale, &projection.presentation.summary),
+        &summary_value(locale, &projection.presentation.summary),
     );
     if let Some(creator) = &projection.presentation.creator_display_name {
         writeln!(
@@ -248,7 +248,7 @@ pub(crate) fn render_html(projection: &PublicProjection, locale: PublicationLoca
         "<header><p class=\"eyebrow\">{}</p><h1>{}</h1><p class=\"lead\">{}</p><div class=\"badges\"><span>{}</span><span>{}: 0</span></div>",
         key(locale, Key::ProviderNeutralView),
         html(presented(locale, &projection.presentation.title)),
-        html(presented(locale, &projection.presentation.summary)),
+        html(&summary_value(locale, &projection.presentation.summary)),
         html(projection.publication.visibility.as_str()), key(locale, Key::Network)
     )
     .expect("writing to String cannot fail");
@@ -663,7 +663,7 @@ fn role_label(locale: PublicationLocale, role: &str) -> &str {
     }
 }
 
-fn presented<'a>(locale: PublicationLocale, value: &'a PresentedText) -> &'a str {
+fn presented(locale: PublicationLocale, value: &PresentedText) -> &str {
     if value.origin != ValueOrigin::DerivedSummary || locale == PublicationLocale::En {
         return &value.value;
     }
@@ -673,14 +673,11 @@ fn presented<'a>(locale: PublicationLocale, value: &'a PresentedText) -> &'a str
         "Recorded current state" => "記録されたCurrent state",
         "AI-attributed proposal" => "AIに帰属する提案",
         value if value.starts_with("Session ") => "Session（記録済み識別子）",
-        value if value.starts_with("A reviewable history of ") => {
-            "AIに帰属する提案と人間の判断を保持し、raw source assetを公開しない確認可能な制作履歴です。"
-        }
         _ => &value.value,
     }
 }
 
-fn attribution_scope<'a>(locale: PublicationLocale, session: &'a PublicSession) -> &'a str {
+fn attribution_scope(locale: PublicationLocale, session: &PublicSession) -> &str {
     if locale == PublicationLocale::Ja
         && session.proposal.attribution_scope_origin == ValueOrigin::DerivedSummary
         && session.proposal.attribution_scope
@@ -689,6 +686,20 @@ fn attribution_scope<'a>(locale: PublicationLocale, session: &'a PublicSession) 
         "呼び出し元提供のoutputはworkflowによりAIへ帰属します。model invocationは独立に検証されていません。"
     } else {
         &session.proposal.attribution_scope
+    }
+}
+
+fn summary_value(locale: PublicationLocale, value: &PresentedText) -> String {
+    if locale == PublicationLocale::Ja
+        && value.origin == ValueOrigin::DerivedSummary
+        && value.value.starts_with("A reviewable history of ")
+    {
+        let count = value.value.split_whitespace().nth(5).unwrap_or("0");
+        format!(
+            "完了したCreator sessionは{count}件です。AIに帰属する提案と人間の判断を保持し、raw source assetを公開しない確認可能な制作履歴です。"
+        )
+    } else {
+        value.value.clone()
     }
 }
 
