@@ -198,6 +198,10 @@ fn png(b: &[u8]) -> ImageMetadataCheck {
     let mut gps_found = false;
     let mut saw_idat = false;
     let mut after_idat = false;
+    let mut indexed = false;
+    let mut saw_plte = false;
+    let mut bit_depth = 0u8;
+    let mut color_type = 0u8;
     while p + 12 <= b.len() {
         chunks += 1;
         if chunks > MAX_PNG_CHUNKS {
@@ -212,13 +216,37 @@ fn png(b: &[u8]) -> ImageMetadataCheck {
         };
         let k = &b[p + 4..p + 8];
         let x = &b[p + 8..p + 8 + n];
+        if !valid_png_chunk_kind(k) {
+            return ImageMetadataCheck::CouldNotCheck;
+        }
         if chunks == 1 {
             if k != b"IHDR" || !valid_png_ihdr(x) {
                 return ImageMetadataCheck::CouldNotCheck;
             }
-        } else if k == b"IHDR" || (k == b"IDAT" && after_idat) {
+            indexed = x[9] == 3;
+            bit_depth = x[8];
+            color_type = x[9];
+        } else if k == b"IHDR"
+            || (k == b"IDAT" && after_idat)
+            || (k[0].is_ascii_uppercase() && !matches!(k, b"PLTE" | b"IDAT" | b"IEND"))
+        {
             return ImageMetadataCheck::CouldNotCheck;
+        } else if k == b"PLTE" {
+            if saw_idat
+                || saw_plte
+                || matches!(color_type, 0 | 4)
+                || matches!(x.len(), 0..=2)
+                || x.len() % 3 != 0
+                || x.len() > 768
+                || (indexed && x.len() / 3 > 1usize << bit_depth)
+            {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            saw_plte = true;
         } else if k == b"IDAT" {
+            if indexed && !saw_plte {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
             saw_idat = true;
         } else if saw_idat {
             after_idat = true;
@@ -243,7 +271,7 @@ fn png(b: &[u8]) -> ImageMetadataCheck {
             }
         }
         if k == b"IEND" {
-            return if n == 0 && saw_idat && p == b.len() {
+            return if n == 0 && saw_idat && (!indexed || saw_plte) && p == b.len() {
                 if gps_found {
                     ImageMetadataCheck::GpsFound
                 } else {
@@ -269,6 +297,10 @@ fn png_file(file: &mut File, length: u64) -> ImageMetadataCheck {
     let mut gps_found = false;
     let mut saw_idat = false;
     let mut after_idat = false;
+    let mut indexed = false;
+    let mut saw_plte = false;
+    let mut bit_depth = 0u8;
+    let mut color_type = 0u8;
     loop {
         chunks += 1;
         if chunks > MAX_PNG_CHUNKS || position.checked_add(12).is_none_or(|end| end > length) {
@@ -283,6 +315,9 @@ fn png_file(file: &mut File, length: u64) -> ImageMetadataCheck {
         }
         let payload_length = u32::from_be_bytes(header[..4].try_into().unwrap()) as usize;
         let kind = &header[4..];
+        if !valid_png_chunk_kind(kind) {
+            return ImageMetadataCheck::CouldNotCheck;
+        }
         let Some(end) = position.checked_add(12 + payload_length as u64) else {
             return ImageMetadataCheck::CouldNotCheck;
         };
@@ -297,9 +332,30 @@ fn png_file(file: &mut File, length: u64) -> ImageMetadataCheck {
             if file.read_exact(&mut ihdr).is_err() || !valid_png_ihdr(&ihdr) {
                 return ImageMetadataCheck::CouldNotCheck;
             }
-        } else if kind == b"IHDR" || (kind == b"IDAT" && after_idat) {
+            indexed = ihdr[9] == 3;
+            bit_depth = ihdr[8];
+            color_type = ihdr[9];
+        } else if kind == b"IHDR"
+            || (kind == b"IDAT" && after_idat)
+            || (kind[0].is_ascii_uppercase() && !matches!(kind, b"PLTE" | b"IDAT" | b"IEND"))
+        {
             return ImageMetadataCheck::CouldNotCheck;
+        } else if kind == b"PLTE" {
+            if saw_idat
+                || saw_plte
+                || matches!(color_type, 0 | 4)
+                || matches!(payload_length, 0..=2)
+                || payload_length % 3 != 0
+                || payload_length > 768
+                || (indexed && payload_length / 3 > 1usize << bit_depth)
+            {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            saw_plte = true;
         } else if kind == b"IDAT" {
+            if indexed && !saw_plte {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
             saw_idat = true;
         } else if saw_idat {
             after_idat = true;
@@ -326,7 +382,11 @@ fn png_file(file: &mut File, length: u64) -> ImageMetadataCheck {
         }
         position = end;
         if kind == b"IEND" {
-            return if payload_length == 0 && saw_idat && position == length {
+            return if payload_length == 0
+                && saw_idat
+                && (!indexed || saw_plte)
+                && position == length
+            {
                 if gps_found {
                     ImageMetadataCheck::GpsFound
                 } else {
@@ -364,6 +424,8 @@ fn valid_png_ihdr(payload: &[u8]) -> bool {
     if payload.len() != 13
         || payload[..4] == [0; 4]
         || payload[4..8] == [0; 4]
+        || payload[0] & 0x80 != 0
+        || payload[4] & 0x80 != 0
         || payload[10] != 0
         || payload[11] != 0
         || payload[12] > 1
@@ -372,8 +434,11 @@ fn valid_png_ihdr(payload: &[u8]) -> bool {
     }
     matches!(
         (payload[8], payload[9]),
-        (1 | 2 | 4 | 8, 0 | 3) | (8 | 16, 2 | 4 | 6)
+        (1 | 2 | 4 | 8, 0 | 3) | (8 | 16, 2 | 4 | 6) | (16, 0)
     )
+}
+fn valid_png_chunk_kind(kind: &[u8]) -> bool {
+    kind.len() == 4 && kind.iter().all(u8::is_ascii_alphabetic) && kind[2].is_ascii_uppercase()
 }
 fn png_crc(kind: &[u8], data: &[u8]) -> u32 {
     let mut crc = 0xffff_ffffu32;
@@ -747,6 +812,39 @@ mod tests {
         assert_eq!(
             inspect(&compressed_xmp, false),
             ImageMetadataCheck::CouldNotCheck
+        );
+        let unknown_critical = png([
+            png_chunk(b"ABCD", b""),
+            png_chunk(b"IDAT", b""),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(
+            inspect(&unknown_critical, false),
+            ImageMetadataCheck::CouldNotCheck
+        );
+        let path = std::env::temp_dir().join(format!(
+            "synapsegit-invalid-png-{}-{}.png",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        std::fs::write(&path, &unknown_critical).unwrap();
+        assert_eq!(
+            image_metadata_warning("original", &path).check,
+            ImageMetadataCheck::CouldNotCheck
+        );
+        std::fs::remove_file(path).unwrap();
+        let mut indexed_without_palette = png([png_chunk(b"IDAT", b""), png_chunk(b"IEND", b"")]);
+        indexed_without_palette[25] = 3;
+        assert_eq!(
+            inspect(&indexed_without_palette, false),
+            ImageMetadataCheck::CouldNotCheck
+        );
+        let mut grayscale_sixteen_bit = png([png_chunk(b"IDAT", b""), png_chunk(b"IEND", b"")]);
+        grayscale_sixteen_bit[24] = 16;
+        grayscale_sixteen_bit[25] = 0;
+        assert_eq!(
+            inspect(&grayscale_sixteen_bit, false),
+            ImageMetadataCheck::NoGpsFound
         );
     }
     #[test]

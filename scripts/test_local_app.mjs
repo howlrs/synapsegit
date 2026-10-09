@@ -218,6 +218,18 @@ assert.equal(await selectedImageLocationMetadata(asSelectedFile(missingIhdr)), "
 const compressedZtxt = png(validChunk("zTXt", new TextEncoder().encode("XML:com.adobe.xmp\0\0compressed")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
 assert.equal(inspectImageLocationMetadata(compressedZtxt), "could_not_check");
 assert.equal(await selectedImageLocationMetadata(asSelectedFile(compressedZtxt)), "could_not_check");
+const unknownCritical = png(validChunk("ABCD", new Uint8Array()), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+assert.equal(inspectImageLocationMetadata(unknownCritical), "could_not_check");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(unknownCritical)), "could_not_check");
+const indexedWithoutPalette = png(validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+indexedWithoutPalette[25] = 3;
+assert.equal(inspectImageLocationMetadata(indexedWithoutPalette), "could_not_check");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(indexedWithoutPalette)), "could_not_check");
+const grayscaleSixteenBit = png(validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+grayscaleSixteenBit[24] = 16;
+grayscaleSixteenBit[25] = 0;
+assert.equal(inspectImageLocationMetadata(grayscaleSixteenBit), "no_gps_found");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(grayscaleSixteenBit)), "no_gps_found");
 
 // Keep the client catalog fail-closed: a new message must have both supported
 // languages and expose the same interpolation contract in each one.
