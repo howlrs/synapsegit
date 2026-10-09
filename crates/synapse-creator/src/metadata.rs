@@ -33,7 +33,12 @@ pub fn metadata_warning_from_bytes(role: &str, bytes: &[u8]) -> ImageMetadataWar
 /// inputs are deliberately reported as `could_not_check`, never as GPS-free.
 pub fn image_metadata_warning(role: &str, path: &Path) -> ImageMetadataWarning {
     let mut bytes = Vec::with_capacity(METADATA_SCAN_BYTES);
-    let result = File::open(path).and_then(|mut f| {
+    let result = open_metadata_file(path).and_then(|mut f| {
+        if !f.metadata()?.is_file() {
+            return Err(std::io::Error::other(
+                "metadata input is not a regular file",
+            ));
+        }
         f.by_ref()
             .take((METADATA_SCAN_BYTES + 1) as u64)
             .read_to_end(&mut bytes)
@@ -58,6 +63,20 @@ fn warning(role: &str, check: ImageMetadataCheck) -> ImageMetadataWarning {
         check,
         message,
     }
+}
+
+#[cfg(unix)]
+fn open_metadata_file(path: &Path) -> std::io::Result<File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(rustix::fs::OFlags::NONBLOCK.bits() as i32)
+        .open(path)
+}
+
+#[cfg(not(unix))]
+fn open_metadata_file(path: &Path) -> std::io::Result<File> {
+    File::open(path)
 }
 
 fn inspect(b: &[u8]) -> ImageMetadataCheck {

@@ -1197,24 +1197,32 @@ where
     // Preserve the stable no-advisory failure for an already occupied
     // session before notifying about otherwise valid input metadata.
     if options.repository.exists() {
-        let repository = Repository::open_existing_read_only(&options.repository)?;
-        let decision = repository.refs().get(&decision_ref(&options.session))?;
-        let proposal = repository.refs().get(&proposal_ref(&options.session))?;
-        if decision.is_some() || proposal.is_some() {
-            let complete = match (&decision, &proposal) {
-                (Some(decision), Some(_)) => {
-                    read_json(&repository, &decision.head)?
-                        .get("commit_kind")
-                        .and_then(JsonValue::as_str)
-                        == Some("decision")
-                }
-                _ => false,
-            };
-            return Err(if complete {
-                CreatorError::SessionExists(options.session.clone())
-            } else {
-                CreatorError::SessionIncomplete(options.session.clone())
-            });
+        let repository = match Repository::open_existing_read_only(&options.repository) {
+            Ok(repository) => Some(repository),
+            // A same-process writer may legitimately keep a WAL open. Leave
+            // admission to the original begin path in that case.
+            Err(error) if error.code() == "read_only_source_busy" => None,
+            Err(error) => return Err(error.into()),
+        };
+        if let Some(repository) = repository {
+            let decision = repository.refs().get(&decision_ref(&options.session))?;
+            let proposal = repository.refs().get(&proposal_ref(&options.session))?;
+            if decision.is_some() || proposal.is_some() {
+                let complete = match (&decision, &proposal) {
+                    (Some(decision), Some(_)) => {
+                        read_json(&repository, &decision.head)?
+                            .get("commit_kind")
+                            .and_then(JsonValue::as_str)
+                            == Some("decision")
+                    }
+                    _ => false,
+                };
+                return Err(if complete {
+                    CreatorError::SessionExists(options.session.clone())
+                } else {
+                    CreatorError::SessionIncomplete(options.session.clone())
+                });
+            }
         }
     }
     let retained = crate::retain_creator_input_files(
