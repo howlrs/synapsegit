@@ -622,6 +622,33 @@ fn replace_reports_sync_warning_after_committed_exchange() {
     assert!(verify_bundle(&receipt.replacement_recovery_path.unwrap()).is_ok());
 }
 
+#[cfg(target_os = "linux")]
+#[test]
+fn replace_invalid_source_preserves_old_bundle_before_staging() {
+    let temporary = TempDirectory::new();
+    create_three_decision_fixture(&temporary.0);
+    let destination = export(&temporary, "bundle", OutputTarget::Github);
+    let before = snapshot_tree(&destination);
+    let error = export_bundle(&ExportOptions {
+        projection: projection_options(temporary.join("missing-source")),
+        destination: destination.clone(),
+        target: OutputTarget::Github,
+        locale: Some(PublicationLocale::Ja),
+        replace: true,
+    })
+    .unwrap_err();
+    assert_ne!(error.code(), "destination_exists");
+    assert_eq!(snapshot_tree(&destination), before);
+    assert!(
+        temporary
+            .0
+            .read_dir()
+            .unwrap()
+            .flatten()
+            .all(|entry| !entry.file_name().to_string_lossy().contains(".bundle.tmp-"))
+    );
+}
+
 #[test]
 fn verification_rejects_a_checksummed_human_view_that_does_not_render_from_projection() {
     let temporary = TempDirectory::new();
