@@ -11,6 +11,7 @@ Status: **Core v0.1 implemented; formats frozen for v1.x**
 - [Documentation index](./README.md)
 - [15分 壁画チュートリアル](./tutorial/README.ja.md)
 - [15-minute mural tutorial (English)](./tutorial/README.md)
+- [実制作事例: 星月夜の上塗り](./examples/starry-night/README.ja.md)
 - [v0.11.1 release notes](./releases/v0.11.1.md)
 - [5分Quickstart](./quickstart.md)
 - [Native localhost application起動手順](../deploy/local/README.md)
@@ -85,6 +86,10 @@ Coreは既存の制作ソフト、BIM/CAD、ペイントツールを置き換え
 
 このsampleは実在作品や実処置のevidenceではない。実際の`creator-run`、Human Decision、
 `creator-report`、localhost UI、`synapse-present`を一つの再現可能なflowとして示す。
+
+現物の写真にOriginal／Currentを割り当てる例は、[星月夜の上塗り](./examples/starry-night/README.ja.md)で
+確認できる。v1.0.0での開発者本人の制作であり、参照した2026-10-09の記録には5件のHuman `adopt`判断と公開bundleがある。
+採用は提案bytesを選んだ記録で、物理的な制作が地図どおりに進んだことは示さない。工程3では途中写真がなくCurrentを近似しており、その限界も明記している。
 
 tutorialの後に自分の実制作を数週間試す場合は、[実制作 Pilot 開始前チェックリスト](./creator-pilot/start-checklist.ja.md)で
 対象、保存先、復元確認、privateな記録、停止条件を先に決める。終了時は同じdirectoryの

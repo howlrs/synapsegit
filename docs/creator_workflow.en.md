@@ -162,6 +162,12 @@ candidate without opening a repository or recording a decision. A person still
 reviews the candidate and decides in the browser. This is the default path when
 an AI agent operates the CLI for you.
 
+For a concrete photo-to-Inbox and completed-decision example, see the
+[Starry Night painting case](./examples/starry-night/README.md). At its pinned
+v1.0.0 revision, five Human `adopt` decisions and a public bundle are present.
+Adopt selects the recorded proposal bytes; it does not claim a physical painting
+followed the map.
+
 ## Prepare public text separately
 
 [![Private prompts, decision reasons and image notes stay separate from freshly written public title, work description and creator credit](./assets/private-public-notes.en.png)](./assets/private-public-notes.en.png)
