@@ -177,7 +177,8 @@ const jpeg = (tiff) => { const b = new Uint8Array(tiff.length + 12); b.set([255,
 assert.equal(inspectImageLocationMetadata(jpeg(exif(true))), "gps_found");
 assert.equal(inspectImageLocationMetadata(new Uint8Array([255,216,255,217])), "no_gps_found");
 assert.equal(inspectImageLocationMetadata(new Uint8Array([71,73,70,56,57,97])), "could_not_check");
-assert.equal(inspectImageLocationMetadata(jpeg(exif(true)), true), "could_not_check");
+assert.equal(inspectImageLocationMetadata(jpeg(exif(true)), true), "gps_found");
+assert.equal(inspectImageLocationMetadata(new Uint8Array([255,216,255,217]), true), "could_not_check");
 
 // Keep the client catalog fail-closed: a new message must have both supported
 // languages and expose the same interpolation contract in each one.
