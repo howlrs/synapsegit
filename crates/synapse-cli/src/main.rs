@@ -13,8 +13,8 @@ use synapse_core::{Repository, RepositoryError};
 use synapse_creator::{
     CreatorDisposition, CreatorError, CreatorGenerationNote, CreatorReport, CreatorRunOptions,
     CreatorSessionState, ImportInboxCandidate, creator_report, discover_creator_sessions,
-    put_import_inbox_candidate, read_creator_session_overview, retain_import_inbox_candidate,
-    run_creator_session_with_note,
+    image_metadata_warning, put_import_inbox_candidate, read_creator_session_overview,
+    retain_import_inbox_candidate, run_creator_session_with_note,
 };
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
 
@@ -412,6 +412,12 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
             .ok_or_else(|| CliError::Usage("creator-run requires --decision".into()))?,
         rationale,
     };
+    let metadata_warnings = [
+        image_metadata_warning("original", &options.original_image),
+        image_metadata_warning("current", &options.current_image),
+        image_metadata_warning("ai_output", &options.ai_output),
+    ];
+    for warning in &metadata_warnings { if warning.check != synapse_creator::ImageMetadataCheck::NoGpsFound { eprintln!("warning [{}]: {}", warning.role, warning.message); } }
     let receipt = run_creator_session_with_note(&options, generation_note.as_ref())?;
     let report = creator_report(&options.repository, &options.session).map_err(|source| {
         CliError::CreatorReportUnavailableAfterCommit {
@@ -651,6 +657,10 @@ fn inbox_command(args: &[String]) -> Result<(), CliError> {
         .as_deref()
         .map(read_generation_note_file)
         .transpose()?;
+    let metadata_warnings = [
+        image_metadata_warning("original", Path::new(&args[4])), image_metadata_warning("current", Path::new(&args[5])), image_metadata_warning("ai_output", Path::new(&args[6])),
+    ];
+    for warning in &metadata_warnings { if warning.check != synapse_creator::ImageMetadataCheck::NoGpsFound { eprintln!("warning [{}]: {}", warning.role, warning.message); } }
     let receipt = put_import_inbox_candidate(&ImportInboxCandidate {
         inbox_root: Path::new(&args[2]),
         slug: &args[3],
@@ -684,6 +694,7 @@ fn inbox_command(args: &[String]) -> Result<(), CliError> {
                 "path": receipt.directory.display().to_string(),
                 "manifest": manifest,
                 "decision_recorded": false,
+                "metadata_warnings": metadata_warnings,
                 "next": INBOX_NEXT_STEP,
             });
             outln!(

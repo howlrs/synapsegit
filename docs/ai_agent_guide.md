@@ -151,6 +151,15 @@ The person can also export from the project's Maintenance page while `synapse-lo
 
 ## Output and errors
 
+## Photo location metadata
+
+`inbox put`, `creator-run`, and localhost import inspect JPEG/PNG EXIF/XMP
+location metadata in only the first 256 KiB, without decoding or changing image
+bytes. When warned, tell the person that the recorded bytes may contain location
+data and let them choose whether to supply a metadata-stripped copy before
+recording. SynapseGit never removes it automatically. Malformed, unsupported,
+or limit-reached files are reported as not fully checked, never as location-free.
+
 - Exit code `0` means success and `1` means an error.
 - The first stderr line of an error is `<code>: <message>`. Some errors add a
   second line that starts with `hint:`. Branch on the code, not the message.

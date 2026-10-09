@@ -29,6 +29,8 @@ pub use inbox::{
 };
 mod io;
 mod notes;
+mod metadata;
+pub use metadata::{image_metadata_warning, ImageMetadataCheck, ImageMetadataWarning};
 mod overview;
 pub use notes::{CreatorGenerationNote, GENERATION_NOTE_KEY};
 pub use overview::{

@@ -297,6 +297,7 @@ pub struct BeginCreatorSessionRequest {
     pub original_image: PathBuf,
     pub current_image: PathBuf,
     pub ai_output: PathBuf,
+    pub metadata_warnings: Vec<synapse_creator::ImageMetadataWarning>,
 }
 
 /// A manifest-last candidate discovered below a server-owned import root.
@@ -566,6 +567,8 @@ pub struct PendingCreatorSession {
     pub ai_output_blob_oid: String,
     pub ai_output_source: String,
     pub comparison: ComparisonEvidence,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub metadata_warnings: Vec<synapse_creator::ImageMetadataWarning>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

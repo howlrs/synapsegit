@@ -813,6 +813,7 @@ impl LocalService {
             subject_label: request.subject_label,
             creator_name: request.creator_name,
             generation_note: request.generation_note,
+            metadata_warnings: Vec::new(),
         };
         let _writer = self.acquire_project_writer(project_key)?;
         self.begin_creator_session_locked(project_key, server_instance, begin, None, None)
@@ -1336,6 +1337,11 @@ impl LocalService {
             }
         };
         let session = request.session.clone();
+        let metadata_warnings = [
+            synapse_creator::image_metadata_warning("original", &request.original_image),
+            synapse_creator::image_metadata_warning("current", &request.current_image),
+            synapse_creator::image_metadata_warning("ai_output", &request.ai_output),
+        ].into_iter().filter(|warning| warning.check != synapse_creator::ImageMetadataCheck::NoGpsFound).collect();
         let options = CreatorBeginOptions {
             repository: repository_path,
             session: request.session,
@@ -1387,7 +1393,7 @@ impl LocalService {
         self.ready_pending(project_key, &snapshot)?
             .into_iter()
             .find(|pending| pending.review_id == review_id)
-            .map(|pending| pending_session(&repository, &snapshot, pending))
+            .map(|pending| pending_session(&repository, &snapshot, pending).map(|mut response| { response.metadata_warnings = metadata_warnings; response }))
             .transpose()?
             .ok_or_else(ServiceError::outcome_unknown)
     }
@@ -2631,6 +2637,7 @@ fn pending_session(
         reuse_source: receipt.reuse_source,
         reuse_reference,
         comparison: comparison_evidence(receipt.comparison),
+        metadata_warnings: Vec::new(),
     })
 }
 
@@ -3937,6 +3944,7 @@ impl LocalService {
                 original_image: staging.0.join("original"),
                 current_image: staging.0.join("current"),
                 ai_output: staging.0.join("ai-output"),
+                metadata_warnings: Vec::new(),
             },
             None,
             Some(&confirmation.source),
@@ -4117,6 +4125,7 @@ impl LocalService {
                 original_image: staging.0.join("original"),
                 current_image: staging.0.join("current"),
                 ai_output: request.ai_output,
+                metadata_warnings: Vec::new(),
             },
             Some(&confirmation.source),
             None,
