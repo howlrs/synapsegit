@@ -65,10 +65,11 @@ fn run_owned_with_timeout(arguments: Vec<String>) -> Output {
         if child.try_wait().unwrap().is_some() {
             return child.wait_with_output().unwrap();
         }
-        assert!(
-            Instant::now() < deadline,
-            "creator-run did not reject a non-regular input within two seconds"
-        );
+        if Instant::now() >= deadline {
+            let _ = child.kill();
+            let _ = child.wait();
+            panic!("creator-run did not reject a non-regular input within two seconds");
+        }
         thread::sleep(Duration::from_millis(10));
     }
 }
