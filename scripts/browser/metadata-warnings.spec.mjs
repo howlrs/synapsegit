@@ -47,11 +47,24 @@ test("compressed XMP warns as unchecked and derived upload keeps a warning targe
 test("a pending metadata preflight prevents a fast proposal POST", async ({ page, app }) => {
   await page.goto(`${app.origin}/projects/reviews/import`);
   await page.locator('[name="session"]').fill("delayed-metadata"); await page.locator('[name="creator_name"]').fill("Creator"); await page.locator('[name="subject_label"]').fill("Subject");
-  await page.evaluate(() => { const slice=File.prototype.slice; File.prototype.slice=function(...args){const blob=slice.apply(this,args);return {...blob,arrayBuffer:async()=>{await new Promise(resolve=>setTimeout(resolve,250));return blob.arrayBuffer();}}}; });
+  await page.evaluate(() => {
+    window.releaseMetadataReads = [];
+    const slice = File.prototype.slice;
+    File.prototype.slice = function (...args) {
+      const blob = slice.apply(this, args);
+      if (args[1] !== 256 * 1024) return blob;
+      return { arrayBuffer: () => new Promise(resolve => {
+        window.releaseMetadataReads.push(async () => resolve(await blob.arrayBuffer()));
+      }) };
+    };
+  });
   let posts=0; page.on("request", request=>{if(request.method()==="POST"&&request.url().includes("creator-sessions"))posts++;});
   for (const name of ["original_image","current_image","ai_output"]) await page.locator(`[name="${name}"]`).setInputFiles(file(`${name}.jpg`,jpeg(true)));
   await page.getByRole("button",{name:"提案を作成"}).click();
-  await page.waitForTimeout(80); expect(posts).toBe(0);
-  await page.waitForTimeout(350); await page.getByRole("button",{name:"提案を作成"}).click();
+  expect(posts).toBe(0);
+  await expect(page.locator('[name="ai_output"]')).toHaveAttribute("aria-invalid", "true");
+  await page.evaluate(async () => { await Promise.all(window.releaseMetadataReads.map(release => release())); });
+  await expect(page.locator('[name="ai_output"]')).toHaveAttribute("aria-invalid", "false");
+  await page.getByRole("button",{name:"提案を作成"}).click();
   await page.waitForURL("**/creator-sessions/delayed-metadata"); expect(posts).toBe(1);
 });

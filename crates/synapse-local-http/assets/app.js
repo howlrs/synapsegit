@@ -107,6 +107,7 @@ const MESSAGE_ENTRIES = [
   ["upload.previewUnsupported", "この形式はプレビューできません。ファイルはそのまま取り込めます。", "This format cannot be previewed. The file can still be imported as is."],
   ["upload.previewReady", "{width} × {height} px · ローカルプレビュー", "{width} × {height} px · local preview"],
   ["upload.previewFailed", "プレビューを表示できません。ファイルの内容を確認してください。そのまま取り込むこともできます。", "The preview cannot be shown. Check the file contents. You can still import it as is."],
+  ["upload.locationChecking", "位置情報を確認しています。検査が終わってから送信してください。", "Checking location metadata. Wait for the check to finish before submitting."],
   ["upload.locationFound", "このファイルには位置情報が含まれる可能性があります。記録するbyteは変更されません。除く場合は、記録前に位置情報を除いたcopyを選んでください。", "This file may contain location metadata. The recorded bytes will not be changed. To remove it, choose a metadata-stripped copy before recording."],
   ["upload.locationUnknown", "このファイルの位置情報は確認しきれませんでした。位置情報がないことは示しません。", "Location metadata could not be fully checked in this file. This does not mean it has no location data."],
   ["form.fileNeedsUpload", "ファイルを含むフォームには専用のupload処理が必要です。", "File forms require the dedicated upload enhancement."],
@@ -956,8 +957,9 @@ export function enhanceCreatorUploads(root = document) {
         field.status.dataset.tone = "error";
         return;
       }
-      field.input.setCustomValidity("Metadata check in progress.");
-      try { const result = await selectedImageLocationMetadata(file); if (!isCurrent()) return; if (field.metadata && result !== "no_gps_found") { field.metadata.textContent = t(result === "gps_found" ? "upload.locationFound" : "upload.locationUnknown"); field.metadata.dataset.tone = "warning"; field.metadata.hidden = false; } } catch { if (isCurrent() && field.metadata) { field.metadata.textContent = t("upload.locationUnknown"); field.metadata.dataset.tone = "warning"; field.metadata.hidden = false; } } finally { if (isCurrent()) field.input.setCustomValidity(""); }
+      field.input.setCustomValidity(t("upload.locationChecking"));
+      field.input.setAttribute("aria-invalid", "true");
+      try { const result = await selectedImageLocationMetadata(file); if (!isCurrent()) return; if (field.metadata && result !== "no_gps_found") { field.metadata.textContent = t(result === "gps_found" ? "upload.locationFound" : "upload.locationUnknown"); field.metadata.dataset.tone = "warning"; field.metadata.hidden = false; } } catch { if (isCurrent() && field.metadata) { field.metadata.textContent = t("upload.locationUnknown"); field.metadata.dataset.tone = "warning"; field.metadata.hidden = false; } } finally { if (isCurrent()) { field.input.setCustomValidity(""); field.input.setAttribute("aria-invalid", "false"); } }
       field.status.textContent = t("upload.previewLoading");
       try {
         // Read only the signature before allocating a URL. File.type and the
