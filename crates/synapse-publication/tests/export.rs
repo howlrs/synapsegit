@@ -640,7 +640,7 @@ fn replace_retains_valid_recovery_for_both_targets() {
         })
         .unwrap();
         assert!(verify_bundle(&destination).is_ok());
-        assert!(verify_bundle(&receipt.replacement_recovery_path.unwrap()).is_ok());
+        assert!(verify_bundle(receipt.replacement_recovery_path.unwrap()).is_ok());
     }
 }
 

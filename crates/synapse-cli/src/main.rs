@@ -66,7 +66,8 @@ verified record of one session.
 
 inbox put writes one candidate for the synapse-local import inbox. It needs no
 repository, records no decision, and creates no Proposal: a person reviews the
-candidate and decides in the localhost UI started with --import-root. Run
+candidate and decides in the localhost UI started with --import-root, or gives
+an explicit decision to `synapse inbox decide`. Run
 `synapse inbox --help` for details.
 ";
 const INBOX_USAGE: &str = "\
