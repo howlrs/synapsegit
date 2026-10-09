@@ -178,11 +178,25 @@ assert.equal(inspectImageLocationMetadata(jpeg(exif(true))), "gps_found");
 assert.equal(inspectImageLocationMetadata(new Uint8Array([255,216,255,217])), "no_gps_found");
 assert.equal(inspectImageLocationMetadata(new Uint8Array([71,73,70,56,57,97])), "could_not_check");
 assert.equal(inspectImageLocationMetadata(jpeg(exif(true)), true), "gps_found");
-assert.equal(inspectImageLocationMetadata(new Uint8Array([255,216,255,217]), true), "could_not_check");
+// A JPEG header that ends inside the scan prefix is complete even though the
+// image data of a phone photo continues; appended MPF/Motion Photo media is not.
+assert.equal(inspectImageLocationMetadata(new Uint8Array([255,216,255,217]), true), "no_gps_found");
+assert.equal(inspectImageLocationMetadata(new Uint8Array([255,216,255,226,0,6,77,80,70,0,255,217])), "could_not_check");
+const motionXmp = new TextEncoder().encode("http://ns.adobe.com/xap/1.0/\0GCamera:MotionPhoto=\"1\"");
+assert.equal(inspectImageLocationMetadata(new Uint8Array([255,216,255,225,0,motionXmp.length + 2,...motionXmp,255,217])), "could_not_check");
+const subIfd = exif(false); subIfd.set([0x4a,1,4,0,1,0,0,0,40,0,0,0], 10); const gpsIfd = new Uint8Array(80); gpsIfd.set(subIfd); gpsIfd.set([1,0,0x25,0x88,4,0,1,0,0,0,60,0,0,0], 40);
+assert.equal(inspectImageLocationMetadata(jpeg(gpsIfd)), "gps_found");
 const pngChunk = (type, data) => new Uint8Array([0,0,0,data.length,...new TextEncoder().encode(type),...data,0,0,0,0]);
 const compressedXmp = new Uint8Array([...new TextEncoder().encode("XML:com.adobe.xmp"),0,1,0,0,0]);
 const pngCompressedXmp = new Uint8Array([137,80,78,71,13,10,26,10,...pngChunk("iTXt", compressedXmp),...pngChunk("IEND", new Uint8Array())]);
 assert.equal(inspectImageLocationMetadata(pngCompressedXmp), "could_not_check");
+const crc32 = (type, data) => { let value = 0xffffffff; for (const byte of [...new TextEncoder().encode(type), ...data]) { value ^= byte; for (let i = 0; i < 8; i++) value = value & 1 ? (value >>> 1) ^ 0xedb88320 : value >>> 1; } return (~value) >>> 0; };
+const validChunk = (type, data) => { const out = new Uint8Array(12 + data.length); new DataView(out.buffer).setUint32(0, data.length); out.set(new TextEncoder().encode(type), 4); out.set(data, 8); new DataView(out.buffer).setUint32(8 + data.length, crc32(type, data)); return out; };
+const plainPng = new Uint8Array([137,80,78,71,13,10,26,10,...validChunk("IEND", new Uint8Array())]);
+assert.equal(inspectImageLocationMetadata(plainPng), "no_gps_found");
+assert.equal(inspectImageLocationMetadata(plainPng, true), "could_not_check");
+const rawProfilePng = new Uint8Array([137,80,78,71,13,10,26,10,...validChunk("zTXt", new TextEncoder().encode("Raw profile type exif\0\0x")),...validChunk("IEND", new Uint8Array())]);
+assert.equal(inspectImageLocationMetadata(rawProfilePng), "could_not_check");
 
 // Keep the client catalog fail-closed: a new message must have both supported
 // languages and expose the same interpolation contract in each one.
