@@ -679,7 +679,7 @@ impl LocalService {
         })?;
         let manifest = inspect_inbox_manifest(root, slug)?;
         let stage_id = random_review_id()?;
-        let preview = StagedImportInboxPreview {
+        let mut preview = StagedImportInboxPreview {
             stage_id: stage_id.clone(),
             slug: slug.to_owned(),
             session: suggested_inbox_session(slug),
@@ -687,6 +687,7 @@ impl LocalService {
             creator_name: manifest.creator_name,
             generation_note: manifest.generation_note,
             generation_note_user_declared: true,
+            metadata_warnings: Vec::new(),
         };
         let mut stages = lock_stages(&self.staged_imports);
         purge_expired_stages(&mut stages);
@@ -721,6 +722,14 @@ impl LocalService {
                 return Err(error);
             }
         };
+        // Inspect the exact staged bytes a later Proposal would record, so the
+        // person reviewing a script-written candidate sees the same advisory
+        // as for a direct upload.
+        preview.metadata_warnings = non_empty_metadata_warnings([
+            ("original", &staged.original),
+            ("current", &staged.current),
+            ("ai_output", &staged.output),
+        ]);
         stages.insert(stage_id, staged);
         Ok(preview)
     }
@@ -1337,14 +1346,11 @@ impl LocalService {
             }
         };
         let session = request.session.clone();
-        let metadata_warnings = [
-            synapse_creator::image_metadata_warning("original", &request.original_image),
-            synapse_creator::image_metadata_warning("current", &request.current_image),
-            synapse_creator::image_metadata_warning("ai_output", &request.ai_output),
-        ]
-        .into_iter()
-        .filter(|warning| warning.check != synapse_creator::ImageMetadataCheck::NoGpsFound)
-        .collect();
+        let metadata_warnings = non_empty_metadata_warnings([
+            ("original", &request.original_image),
+            ("current", &request.current_image),
+            ("ai_output", &request.ai_output),
+        ]);
         let options = CreatorBeginOptions {
             repository: repository_path,
             session: request.session,
@@ -2093,20 +2099,22 @@ struct CheckedInboxManifest {
 /// without trailing hyphens, and gains eight hexadecimal digits of the slug's
 /// SHA-256, so every suggestion is a valid session name and distinct slugs
 /// with a long shared prefix are still told apart.
+/// Bounded metadata advisories for three role files, omitting clean results.
+fn non_empty_metadata_warnings(
+    files: [(&str, &PathBuf); 3],
+) -> Vec<synapse_creator::ImageMetadataWarning> {
+    files
+        .into_iter()
+        .map(|(role, path)| synapse_creator::image_metadata_warning(role, path))
+        .filter(|warning| warning.check != synapse_creator::ImageMetadataCheck::NoGpsFound)
+        .collect()
+}
+
+/// The canonical suggestion shared with `synapse inbox decide`. Callers have
+/// already validated the slug with the identical inbox slug grammar.
 fn suggested_inbox_session(slug: &str) -> String {
-    let session = format!("inbox-{slug}");
-    if session.len() <= 64 {
-        return session;
-    }
-    let digest = Sha256::digest(slug.as_bytes());
-    format!(
-        "inbox-{}-{:02x}{:02x}{:02x}{:02x}",
-        slug[..49].trim_end_matches('-'),
-        digest[0],
-        digest[1],
-        digest[2],
-        digest[3]
-    )
+    synapse_creator::suggested_import_inbox_session(slug)
+        .expect("inbox slugs are validated before a session is suggested")
 }
 
 fn inbox_denied(detail: impl Into<String>) -> ServiceError {

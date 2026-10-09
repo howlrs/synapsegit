@@ -1916,13 +1916,26 @@ function enhanceImportInbox() {
       status.textContent = t("inbox.discardFailed", { error: publicErrorMessage(error) });
     }
   };
-  const renderImages = () => {
+  // Location advisories come from the server's bounded check of the staged
+  // copies; unknown roles or checks are ignored rather than shown as safe.
+  const metadataChecks = (warnings) => new Map((Array.isArray(warnings) ? warnings : [])
+    .filter(warning => ["original", "current", "ai_output"].includes(warning?.role) && ["gps_found", "could_not_check"].includes(warning?.check))
+    .map(warning => [warning.role, warning.check]));
+  const renderImages = (warnings) => {
     images.replaceChildren();
-    for (const [role, label] of [["original", "Original image"], ["current", "Current image"], ["ai-output", "AI output"]]) {
+    const checks = metadataChecks(warnings);
+    for (const [role, label, warningRole] of [["original", "Original image", "original"], ["current", "Current image", "current"], ["ai-output", "AI output", "ai_output"]]) {
       const figure = document.createElement("figure"); const heading = document.createElement("figcaption"); heading.textContent = label;
       const image = document.createElement("img"); image.alt = t("inbox.stagedAlt", { label }); image.dataset.synapseImage = ""; image.dataset.url = `${endpoint}/stages/${encodeURIComponent(stageId)}/images/${role}`; image.dataset.label = label;
       const download = document.createElement("a"); download.hidden = true; download.dataset.synapseImageDownload = ""; download.textContent = t("inbox.download");
-      figure.append(heading, image, download); images.append(figure);
+      figure.append(heading, image, download);
+      const check = checks.get(warningRole);
+      if (check) {
+        const warning = document.createElement("p"); warning.className = "field__hint"; warning.dataset.creatorMetadataWarning = ""; warning.dataset.tone = "warning";
+        warning.textContent = t(check === "gps_found" ? "upload.locationFound" : "upload.locationUnknown");
+        figure.append(warning);
+      }
+      images.append(figure);
     }
     enhanceApiImages(images);
   };
@@ -1934,7 +1947,7 @@ function enhanceImportInbox() {
       stageId = preview.stage_id;
       for (const name of ["session", "subject_label", "creator_name"]) field(name).value = preview[name] || "";
       const generation = preview.generation_note || {}; field("generation_tool").value = generation.tool || ""; field("generation_model").value = generation.model || ""; field("generation_prompt").value = generation.prompt || ""; field("generation_intent").value = generation.intent || "";
-      list.hidden = true; form.hidden = false; status.textContent = t("inbox.staged"); renderImages(); form.querySelector("h3")?.focus();
+      list.hidden = true; form.hidden = false; status.textContent = t("inbox.staged"); renderImages(preview.metadata_warnings); form.querySelector("h3")?.focus();
     } catch (error) { status.textContent = publicErrorMessage(error); button.disabled = false; }
   };
   const load = async () => {

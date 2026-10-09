@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "SynapseGit localhost application API",
-    "version": "0.6.10-draft",
+    "version": "0.6.11-draft",
     "description": "Single-user, loopback-only application contract. A configured per-project import inbox accepts only manifest-last candidates, stages verified bytes in this process, and creates a later Human-review proposal from those staged bytes. Confirmed reuse creates a new review from an interrupted or deferred proposal without restoring prior authority. This is not the public Core protocol."
   },
   "servers": [
@@ -1576,7 +1576,8 @@
           "subject_label": {"type": "string", "minLength": 1, "maxLength": 500, "x-synapse-max-utf8-bytes": 500},
           "creator_name": {"type": "string", "minLength": 1, "maxLength": 300, "x-synapse-max-utf8-bytes": 300},
           "generation_note": {"oneOf": [{"$ref": "#/components/schemas/GenerationNote"}, {"type": "null"}]},
-          "generation_note_user_declared": {"const": true}
+          "generation_note_user_declared": {"const": true},
+          "metadata_warnings": {"type": "array", "items": {"$ref": "#/components/schemas/ImageMetadataWarning"}, "description": "Bounded opaque-byte JPEG/PNG location-metadata warnings read from the staged copies before any Proposal exists. Never strips or modifies bytes; absent when no warning was found. Not a guarantee that a file contains no private metadata."}
         }
       },
       "BeginStagedImportInboxRequest": {
