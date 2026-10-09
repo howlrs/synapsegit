@@ -177,6 +177,9 @@ const MESSAGE_ENTRIES = [
   ["inbox.proposalInvalid", "提案の応答が不正です。", "The proposal response is invalid."],
   ["presentation.tooLong", "{label}: {bytes} / {limit} UTF-8 bytes。上限を超えています。", "{label}: {bytes} / {limit} UTF-8 bytes. This exceeds the limit."],
   ["presentation.validating", "文章を検証しています…", "Validating the text…"],
+  ["presentation.loadingSuggestions", "確認済みの公開用候補を読み込んでいます…", "Loading verified public-text suggestions…"],
+  ["presentation.suggestionsUnavailable", "公開用候補を読み込めないため、内容を確認できません。別の完了したセッションを選ぶか、もう一度選択してください。", "Public-text suggestions could not be loaded, so the content cannot be reviewed. Choose another completed session or select this one again."],
+  ["presentation.suggestionsInvalid", "公開用候補の応答が不正です。", "The public-text suggestion response is invalid."],
   ["presentation.responseInvalid", "説明文ファイルの応答が不正です。", "The description file response is invalid."],
   ["presentation.emptyLabel", "説明文", "Description"],
   ["presentation.emptyValue", "未入力。既存の省略時動作を使用します。", "Nothing entered. The existing default behavior is used."],
@@ -1959,9 +1962,16 @@ function enhancePresentationForm() {
   const preview = document.querySelector("[data-presentation-preview]");
   const status = form.querySelector("[data-presentation-status]");
   const download = preview.querySelector("[data-presentation-download]");
+  const session = form.elements.namedItem("session");
+  const suggestionSection = form.querySelector("[data-presentation-suggestions]");
+  const suggestionAcknowledgement = form.querySelector("[data-presentation-suggestions-ack]");
+  const suggestionControls = ["creator_display_name", "title"].map(name => form.elements.namedItem(name));
   let validatedToml = null;
   let revision = 0;
   let busy = false;
+  let suggestionRevision = 0;
+  let suggestionState = "idle";
+  let suggestionAbort;
   const clearPreview = () => {
     revision += 1;
     validatedToml = null;
@@ -1971,13 +1981,60 @@ function enhancePresentationForm() {
   };
   form.addEventListener("input", event => {
     clearPreview();
+    if (suggestionControls.includes(event.target)) event.target.dataset.presentationEdited = "true";
     event.target.setCustomValidity?.("");
     status.textContent = "";
   });
   form.addEventListener("change", clearPreview);
+  const resetSuggestions = () => {
+    suggestionRevision += 1;
+    suggestionAbort?.abort();
+    suggestionAbort = undefined;
+    suggestionState = "idle";
+    suggestionSection.hidden = true;
+    suggestionAcknowledgement.checked = false;
+    suggestionAcknowledgement.required = false;
+  };
+  const applySuggestion = (control, value) => {
+    const prior = control.dataset.presentationSuggested;
+    if (control.dataset.presentationEdited !== "true" && (prior === undefined || control.value === prior)) control.value = value ?? "";
+    control.dataset.presentationSuggested = value ?? "";
+  };
+  const loadSuggestions = async () => {
+    resetSuggestions();
+    if (!(session instanceof HTMLSelectElement) || !session.value) return;
+    const selectedSession = session.value;
+    const currentSuggestionRevision = suggestionRevision;
+    suggestionState = "loading";
+    status.textContent = t("presentation.loadingSuggestions");
+    suggestionAbort = new AbortController();
+    try {
+      const endpoint = form.dataset.suggestionsEndpoint.replace("{session}", encodeURIComponent(selectedSession));
+      const result = await apiJson(endpoint, { signal: suggestionAbort.signal });
+      if (suggestionRevision !== currentSuggestionRevision || session.value !== selectedSession) return;
+      const values = [result?.creator_display_name, result?.title];
+      if (!result || values.some(value => value !== undefined && (typeof value !== "string" || UTF8_ENCODER.encode(value).length > 300))) throw new TypeError(t("presentation.suggestionsInvalid"));
+      suggestionControls.forEach((control, index) => applySuggestion(control, values[index]));
+      const hasSuggestions = values.some(value => typeof value === "string" && value.length > 0);
+      suggestionState = "ready";
+      suggestionSection.hidden = !hasSuggestions;
+      suggestionAcknowledgement.checked = false;
+      suggestionAcknowledgement.required = hasSuggestions;
+      status.textContent = "";
+    } catch (error) {
+      if (error?.name === "AbortError" || suggestionRevision !== currentSuggestionRevision) return;
+      suggestionState = "failed";
+      status.textContent = error instanceof TypeError ? error.message : t("presentation.suggestionsUnavailable");
+    }
+  };
+  session?.addEventListener("change", () => void loadSuggestions());
   form.addEventListener("submit", async event => {
     event.preventDefault();
-    if (busy || !form.reportValidity()) return;
+    if (busy || suggestionState === "loading" || suggestionState === "failed") {
+      if (suggestionState !== "loading") status.textContent = t("presentation.suggestionsUnavailable");
+      return;
+    }
+    if (!form.reportValidity()) return;
     clearPreview();
     const input = { session: form.elements.namedItem("session").value };
     const entries = [];
@@ -2022,7 +2079,7 @@ function enhancePresentationForm() {
     }
   });
   download.addEventListener("click", () => {
-    if (validatedToml === null) return;
+    if (validatedToml === null || (suggestionAcknowledgement.required && !suggestionAcknowledgement.checked)) return;
     const url = URL.createObjectURL(new Blob([validatedToml], { type: "application/toml;charset=utf-8" }));
     const link = document.createElement("a"); link.href = url; link.download = "presentation.toml";
     document.body.append(link); link.click(); link.remove();

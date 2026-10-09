@@ -796,3 +796,15 @@ pub struct PresentationSidecarRequest {
 pub struct PresentationSidecar {
     pub toml: String,
 }
+
+/// Public-text suggestions read from the verified record of one complete
+/// session. These are deliberately limited to the creator's self-declared
+/// display name and the subject label; no private review material is exposed.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PresentationSuggestions {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub creator_display_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+}

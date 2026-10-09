@@ -35,6 +35,10 @@ commandを実行する前に読んでください。
    `fsck`は読み取りだけを行う。
 5. **SynapseGitはmodelを実行しない。** AI outputと生成メモは、呼び出し側が渡した利用者申告の
    情報として記録される。modelが生成したことは検証しない。
+6. **公開文は別に確認する。** 公開bundleにはsession名、判断、OIDが入り得る一方、記録した件名・制作者名、
+   prompt、生成メモ、理由、pin、path、raw assetは自動で入らない。公開する表記は
+   `presentation.toml`のauthor-suppliedな`title`と`creator_display_name`へ人が明示的に書き、
+   privateなtextを転記しない。
 
 ## 通常の流れ
 

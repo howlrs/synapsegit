@@ -24,6 +24,16 @@ session title, captions for the three images, and a public decision note. All
 fields are optional. The form never autofills a private rationale, prompt,
 generation note, or decision pin.
 
+## What a public bundle includes
+
+The bundle can expose the session identifier, disposition, selected-role facts,
+Blob/Ref OIDs and other technical identifiers that may be correlatable. It does
+not automatically publish the recorded subject label or creator display name,
+generation notes, rationale, decision pins, internal Actor IDs, repository path,
+or raw asset bytes. To show a title or creator credit, explicitly write
+`title = "Work title"` and `creator_display_name = "Public credit"`; both are
+author-supplied public text, not verified copies of the recorded values.
+
 Use the preview action to apply the existing `PresentationInput` validation.
 It displays only your supplied text; it is not a verified preview of a final
 bundle. Editing invalidates an earlier preview. The download action writes a

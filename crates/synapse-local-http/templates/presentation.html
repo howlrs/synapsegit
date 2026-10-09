@@ -7,7 +7,7 @@
 <p>{{ m.presentation.derived_unsupported }}</p>
 <p>{{ m.presentation.private_not_copied }}</p>
 {% if sessions.is_empty() %}<p>{{ m.presentation.no_sessions }}</p>{% else %}
-<form hidden data-presentation-form data-endpoint="/api/v1/projects/{{ project_key }}/presentation-sidecars" autocomplete="off">
+<form hidden data-presentation-form data-endpoint="/api/v1/projects/{{ project_key }}/presentation-sidecars" data-suggestions-endpoint="/api/v1/projects/{{ project_key }}/creator-sessions/{session}/presentation-suggestions" autocomplete="off">
 <div class="field"><label for="public-session">{{ m.presentation.session_label }}</label><select id="public-session" name="session" required><option value="">{{ m.presentation.session_placeholder }}</option>{% for session in sessions %}<option value="{{ session }}">{{ session }}</option>{% endfor %}</select></div>
 <div class="form-grid">
 <div class="field"><label for="public-title">{{ m.presentation.title_label }}</label><input id="public-title" name="title" data-public-max-bytes="300" aria-describedby="public-title-hint"><span class="field__hint" id="public-title-hint">{{ m.single_line_limit(300) }}</span></div>
@@ -19,7 +19,7 @@
 <div class="field"><label for="public-current_caption">{{ m.presentation.current_caption_label }}</label><input id="public-current_caption" name="current_caption" data-public-max-bytes="1024" aria-describedby="public-current_caption-hint"><span class="field__hint" id="public-current_caption-hint">{{ m.single_line_limit(1024) }}</span></div>
 <div class="field"><label for="public-proposal_caption">{{ m.presentation.proposal_caption_label }}</label><input id="public-proposal_caption" name="proposal_caption" data-public-max-bytes="1024" aria-describedby="public-proposal_caption-hint"><span class="field__hint" id="public-proposal_caption-hint">{{ m.single_line_limit(1024) }}</span></div>
 <div class="field form-grid__wide"><label for="public-public_decision_note">{{ m.presentation.decision_note_label }}</label><textarea id="public-public_decision_note" name="public_decision_note" rows="4" data-public-max-bytes="5120" aria-describedby="public-public_decision_note-hint"></textarea><span class="field__hint" id="public-public_decision_note-hint">{{ m.multi_line_limit(5120) }}</span></div>
-</div><button type="submit">{{ m.presentation.check_submit }}</button><p data-presentation-status role="status" aria-live="polite"></p>
+</div><div class="field" data-presentation-suggestions hidden><p>{{ m.presentation.suggestions_help }}</p><label><input type="checkbox" name="suggestions_acknowledged" data-presentation-suggestions-ack> {{ m.presentation.suggestions_acknowledgement }}</label></div><button type="submit">{{ m.presentation.check_submit }}</button><p data-presentation-status role="status" aria-live="polite"></p>
 </form><noscript><p>{{ m.presentation.noscript }}</p></noscript>
 {% endif %}
 </section>

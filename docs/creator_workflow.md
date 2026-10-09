@@ -88,6 +88,22 @@ Adopt済みでも元AI outputはCurrentになりません。再利用は新し�
 AIエージェントなら候補ごとの`synapse inbox put`）、1件ずつ判断します。1つのreviewで複数の候補から選ぶ機能は
 v1.0にはありません（並べて比較する画面はv1.x以降に予定。[#179](https://github.com/howlrs/synapsegit/issues/179)）。
 
+## 物理作品を写真で記録する
+
+絵画などの物理作品は、提案する工程ごとに1件を作ります。Originalは作業前の基準写真、
+Currentはその工程の開始前の写真、AI outputは工程地図です。制作者が塗った結果の写真を
+AI outputへ昇格させません。撮影した結果は、次の工程のCurrentにできます。`adopt`は供給した
+提案bytesを変更せず選んだ記録であり、地図どおりの物理的な作業、結果、変更済みoutput、物理変化を証明しません。
+
+各工程の区切りで全体を正面から撮り、距離と照明をそろえます。記録前にEXIF Orientationを画像へ反映し、
+GPSを除いた別copyを使い、元写真はprivateに保管します。スマホの自動補正や光で見かけの明度は変わります。
+SynapseGitが確かめるのは記録したbyte identityで、見た目の比較や物理変化ではありません。区切りの写真が
+ない場合は近い前のCurrentを使い、生成メモのintentへ近似であることを書きます。工程間の連続性はまだ
+session間に記録されません（[#178](https://github.com/howlrs/synapsegit/issues/178)）。
+
+[星月夜の上塗り事例](./examples/starry-night/README.ja.md)はv1.0.0の開発者本人の具体例で、
+独立参加者の研究や顧客成果ではありません。
+
 ## 5. 公開用文章を準備する
 
 [![プロンプト・判断理由・画像メモを含む手元の制作記録と、別に書くタイトル・作品の説明・制作者表記を分ける](./assets/private-public-notes.ja.png)](./assets/private-public-notes.ja.png)

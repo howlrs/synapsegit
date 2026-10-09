@@ -4251,6 +4251,30 @@ impl LocalService {
 }
 
 impl LocalService {
+    /// Read the two explicitly public-text suggestions from a freshly
+    /// reconstructed complete session. The report reconstruction verifies the
+    /// exact creator Ref graph before any value is returned.
+    pub fn presentation_suggestions(
+        &self,
+        project_key: &str,
+        session: &str,
+    ) -> Result<crate::PresentationSuggestions, ServiceError> {
+        if !is_slug(session) {
+            return Err(ServiceError::session_not_found());
+        }
+        let repository = self.open_repository(project_key)?;
+        let snapshot = capture_snapshot(&repository)?;
+        let report = creator_report_from_snapshot(&repository, &snapshot, session)
+            .map_err(creator_error)?
+            .report;
+        let public_text =
+            |value: Option<String>| value.filter(|value| !value.is_empty() && value.len() <= 300);
+        Ok(crate::PresentationSuggestions {
+            creator_display_name: public_text(report.creator_name),
+            title: public_text(report.subject_label),
+        })
+    }
+
     /// Validate fresh publication text. No source-private fields are copied and
     /// no Core objects, Refs, sidecar paths or external resources are written.
     pub fn prepare_presentation_sidecar(

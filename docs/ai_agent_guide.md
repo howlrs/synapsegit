@@ -41,6 +41,11 @@ Read these before you run any command.
 5. **SynapseGit runs no model.** It records the AI output and your
    generation note as caller-supplied, user-declared information. It does not
    verify that a model produced the output.
+6. **Review public text separately.** A public bundle can expose session IDs,
+   decisions and OIDs, but not recorded subject/creator labels, prompts,
+   generation notes, rationales, pins, paths, or raw assets. Use an explicit
+   author-supplied `title` and `creator_display_name` in `presentation.toml`
+   when the person wants those public labels; never copy private text into it.
 
 ## Typical flow
 

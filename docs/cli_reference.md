@@ -115,6 +115,11 @@ sidecarは64 KiB以下のregular UTF-8 fileに限定し、symlinkとunknown fiel
 rationale、internal Actor ID、repository path、raw asset bytesはsidecarや`--public`の有無にかかわらず
 出力しない。`public_decision_note`はsource rationaleの公開化ではなく、別途authorが供給した公開文である。
 
+公開bundleにはsession名、disposition、selected role、OID／Refなど相関し得るidentifierが含まれ得る。
+記録された`--subject`と`--creator`は自動公開しない。表示したい場合はsidecarに
+`title = "Public work title"`と`creator_display_name = "Public creator"`をauthor-supplied textとして書く。
+generation note、rationale、decision pinはprivateのままである。
+
 bundle rootは次を含む。
 
 ```text

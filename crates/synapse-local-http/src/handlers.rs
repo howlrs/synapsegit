@@ -1806,3 +1806,16 @@ pub(crate) async fn api_presentation_sidecar(
     })
     .await
 }
+
+/// Return the narrowly scoped public-text suggestions for a selected session.
+/// Local-request authentication is enforced by the application middleware.
+pub(crate) async fn api_presentation_suggestions(
+    State(state): State<AppState>,
+    Path((project_key, session)): Path<(String, String)>,
+) -> Response {
+    let gate_key = project_key.clone();
+    api_blocking(state.clone(), gate_key, move |service| {
+        service.presentation_suggestions(&project_key, &session)
+    })
+    .await
+}

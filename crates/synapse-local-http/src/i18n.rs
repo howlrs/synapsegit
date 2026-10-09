@@ -650,6 +650,8 @@ message_section! {
         current_caption_label: "Currentのcaption（任意）", "Current caption (optional)";
         proposal_caption_label: "Proposalのcaption（任意）", "Proposal caption (optional)";
         decision_note_label: "公開用の判断メモ（任意）", "Public decision note (optional)";
+        suggestions_help: "選択した完了セッションで確認済みのSubjectとCreatorを、公開用の候補として入力しました。公開する内容を確認してください。", "The verified Subject and Creator from the selected complete session were entered as public-text suggestions. Review what you will make public.";
+        suggestions_acknowledgement: "候補を確認し、公開用の文章として使うことを確認しました。", "I reviewed these suggestions and confirm that I want to use them as public text.";
         check_submit: "入力した文章を確認", "Check the entered text";
         noscript: "説明文の確認とダウンロードにはJavaScriptが必要です。", "Checking and downloading the description file requires JavaScript.";
         preview_heading: "公開用文章の確認", "Review the public text";
