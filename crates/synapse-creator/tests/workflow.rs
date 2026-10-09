@@ -668,6 +668,42 @@ fn creator_session_is_create_only() {
 }
 
 #[test]
+fn metadata_preflight_allows_empty_roots_and_refuses_damaged_existing_repositories() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repo");
+    fs::create_dir(&repository_path).unwrap();
+    let first = options(
+        &temporary,
+        &repository_path,
+        "empty-root",
+        CreatorDisposition::Defer,
+    );
+    let mut reviewed = false;
+    run_creator_session_with_note_and_metadata_review(&first, None, |_| {
+        reviewed = true;
+        assert!(!repository_path.join("refs.sqlite3").exists());
+        assert!(!repository_path.join("cas").exists());
+    })
+    .unwrap();
+    assert!(reviewed);
+
+    fs::remove_dir_all(repository_path.join("cas")).unwrap();
+    let next = options(
+        &temporary,
+        &repository_path,
+        "damaged-root",
+        CreatorDisposition::Defer,
+    );
+    let mut reviewed = false;
+    assert!(
+        run_creator_session_with_note_and_metadata_review(&next, None, |_| reviewed = true)
+            .is_err()
+    );
+    assert!(!reviewed);
+    assert!(!repository_path.join("cas").exists());
+}
+
+#[test]
 fn report_requires_both_creator_refs() {
     let temporary = TempDirectory::new();
     let repository_path = temporary.join("repo");

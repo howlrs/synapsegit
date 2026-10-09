@@ -1191,7 +1191,19 @@ where
     })?;
     // Preserve the stable no-advisory failure for an already occupied
     // session before notifying about otherwise valid input metadata.
-    if options.repository.exists() {
+    let refs_path = options.repository.join("refs.sqlite3");
+    let has_ref_store = match std::fs::symlink_metadata(&refs_path) {
+        Ok(_) => true,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(error) => {
+            return Err(CreatorError::io(
+                "inspect creator ref store",
+                refs_path,
+                error,
+            ));
+        }
+    };
+    if has_ref_store {
         let repository = match Repository::open_existing_read_only(&options.repository) {
             Ok(repository) => Some(repository),
             // A same-process writer may legitimately keep a WAL open. Leave
