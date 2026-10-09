@@ -449,8 +449,7 @@ impl SessionPageView {
             rationale: match (report.rationale, report.rationale_source.as_deref()) {
                 (Some(rationale), Some("legacy_default_or_creator")) => format!(
                     "{}\n\n{}",
-                    rationale,
-                    "Legacy default or creator-supplied text; v1 did not record which."
+                    rationale, "Legacy default or creator-supplied text; v1 did not record which."
                 ),
                 (Some(rationale), _) => rationale,
                 (None, _) => String::new(),

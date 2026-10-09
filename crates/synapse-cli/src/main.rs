@@ -13,7 +13,8 @@ use synapse_core::{Repository, RepositoryError};
 use synapse_creator::{
     CreatorDisposition, CreatorError, CreatorGenerationNote, CreatorReport, CreatorRunOptions,
     CreatorSessionState, ImportInboxCandidate, creator_report, discover_creator_sessions,
-    put_import_inbox_candidate, read_creator_session_overview, run_creator_session_with_note,
+    put_import_inbox_candidate, read_creator_session_overview, retain_import_inbox_candidate,
+    run_creator_session_with_note,
 };
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
 
@@ -39,6 +40,7 @@ Usage:
   synapse creator-report <repo> <session> [--format text|json]
   synapse creator-list <repo> [--format text|json]
   synapse inbox put <inbox-dir> <slug> <original> <current> <ai-output> --subject <label> --creator <name> [--generation-note-file <path>] [--format text|json]
+  synapse inbox decide <inbox-dir> <slug> <repo> --decision <adopt|reject|defer> [--rationale <text>] [--session <name>] [--creator <name>]
 
 creator-report --format json prints one private, LOCAL-only JSON document to
 stdout, tagged \"format\": \"synapsegit-cli-creator-report-v1\" and
@@ -69,6 +71,7 @@ candidate and decides in the localhost UI started with --import-root. Run
 const INBOX_USAGE: &str = "\
 Usage:
   synapse inbox put <inbox-dir> <slug> <original> <current> <ai-output> --subject <label> --creator <name> [--generation-note-file <path>] [--format text|json]
+  synapse inbox decide <inbox-dir> <slug> <repo> --decision <adopt|reject|defer> [--rationale <text>] [--session <name>] [--creator <name>]
 
 Write one candidate for the synapse-local import inbox without recording a
 decision. The command copies the three files to <inbox-dir>/<slug>/ as
@@ -86,6 +89,14 @@ a regular file of at most 64 MiB. --subject is limited to 500 and --creator to
 300 UTF-8 bytes. --generation-note-file uses the creator-run note format and
 limits. --format json prints one JSON document tagged
 \"format\": \"synapsegit-cli-inbox-put-v1\".
+
+`inbox decide` is only for a Human Decision explicitly supplied after the
+person reviewed the exact three images. It verifies and retains the Inbox
+bytes before opening the repository, then records the manifest subject,
+creator, and generation note. `--creator` is the only metadata override.
+The default session is `inbox-<slug>` when it fits the session grammar; a
+longer slug requires explicit `--session`. It never changes Inbox. Do not run
+it while synapse-local has the repository open.
 ";
 const VERSION: &str = concat!("synapse ", env!("CARGO_PKG_VERSION"));
 
@@ -581,13 +592,19 @@ fn inbox_command(args: &[String]) -> Result<(), CliError> {
         matches!(value.map(String::as_str), Some("--help" | "-h" | "help"))
     };
     if is_help(args.get(1))
-        || (args.get(1).is_some_and(|value| value == "put") && is_help(args.get(2)))
+        || (args
+            .get(1)
+            .is_some_and(|value| matches!(value.as_str(), "put" | "decide"))
+            && is_help(args.get(2)))
     {
         out!("{INBOX_USAGE}");
         return Ok(());
     }
+    if args.get(1).map(String::as_str) == Some("decide") {
+        return inbox_decide(&args[1..]);
+    }
     if args.get(1).map(String::as_str) != Some("put") {
-        return Err(CliError::Usage("inbox requires the put subcommand".into()));
+        return Err(CliError::Usage("inbox requires put or decide".into()));
     }
     if args.len() < 7 {
         return Err(CliError::Usage(
@@ -688,6 +705,79 @@ fn read_generation_note_file(path: &Path) -> Result<CreatorGenerationNote, CliEr
     })?;
     note.validate()?;
     Ok(note)
+}
+
+fn inbox_decide(args: &[String]) -> Result<(), CliError> {
+    if args.len() < 6 {
+        return Err(CliError::Usage(
+            "inbox decide requires <inbox-dir> <slug> <repo> and --decision".into(),
+        ));
+    }
+    let mut decision = None;
+    let mut rationale = None;
+    let mut session = None;
+    let mut creator = None;
+    let mut index = 4;
+    while index < args.len() {
+        let value = args
+            .get(index + 1)
+            .ok_or_else(|| CliError::Usage(format!("{} requires a value", args[index])))?;
+        match args[index].as_str() {
+            "--decision" if decision.is_none() => {
+                decision = Some(CreatorDisposition::parse(value)?)
+            }
+            "--rationale" if rationale.is_none() => rationale = Some(value.clone()),
+            "--session" if session.is_none() => session = Some(value.clone()),
+            "--creator" if creator.is_none() => creator = Some(value.clone()),
+            other => {
+                return Err(CliError::Usage(format!(
+                    "invalid or duplicate inbox decide option {other:?}"
+                )));
+            }
+        }
+        index += 2;
+    }
+    let slug = &args[2];
+    let default_session = format!("inbox-{slug}");
+    let session = session.unwrap_or_else(|| default_session.clone());
+    if default_session.len() > 64 && session == default_session {
+        return Err(CliError::Usage(
+            "inbox slug requires explicit --session because inbox-<slug> exceeds 64 bytes".into(),
+        ));
+    }
+    // This binds the later ingest to exactly these retained bytes. No Inbox
+    // path is passed to creator-run and no repository is opened on failure.
+    let retained = retain_import_inbox_candidate(Path::new(&args[1]), slug)?;
+    let options = CreatorRunOptions {
+        repository: args[3].as_str().into(),
+        session: session.clone(),
+        original_image: retained.original.clone(),
+        current_image: retained.current.clone(),
+        ai_output: retained.ai_output.clone(),
+        subject_label: retained.manifest.metadata.subject_label.clone(),
+        creator_name: creator.unwrap_or(retained.manifest.metadata.creator_name.clone()),
+        disposition: decision
+            .ok_or_else(|| CliError::Usage("inbox decide requires --decision".into()))?,
+        rationale,
+    };
+    let receipt = run_creator_session_with_note(
+        &options,
+        retained.manifest.metadata.generation_note.as_ref(),
+    )?;
+    let _report = creator_report(&options.repository, &options.session).map_err(|source| {
+        CliError::CreatorReportUnavailableAfterCommit {
+            session: options.session.clone(),
+            source,
+        }
+    })?;
+    outln!("session={}", receipt.session);
+    outln!(
+        "decision_ref={}\t{}",
+        receipt.decision_ref,
+        receipt.decision_head
+    );
+    outln!("inbox_candidate={slug}");
+    Ok(())
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -822,7 +912,10 @@ fn print_creator_report(report: &CreatorReport) -> Result<(), CliError> {
     if let Some(note) = &report.generation_note {
         outln!("generation_note_user_declared={note:?}");
     }
-    outln!("rationale={}", report.rationale.as_deref().map_or("-", |value| value));
+    outln!(
+        "rationale={}",
+        report.rationale.as_deref().map_or("-", |value| value)
+    );
     if let Some(source) = report.rationale_source {
         outln!("rationale_source={}", source.as_str());
     }

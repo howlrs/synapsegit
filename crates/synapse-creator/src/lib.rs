@@ -24,7 +24,8 @@ pub use inbox::{
     IMPORT_INBOX_FILE_MAX_BYTES, IMPORT_INBOX_MANIFEST_MAX_BYTES, IMPORT_INBOX_MANIFEST_NAME,
     IMPORT_INBOX_MANIFEST_VERSION, IMPORT_INBOX_ORIGINAL_NAME, IMPORT_INBOX_SUBJECT_MAX_BYTES,
     ImportInboxCandidate, ImportInboxFile, ImportInboxManifest, ImportInboxManifestError,
-    ImportInboxMetadata, ImportInboxReceipt, is_import_inbox_slug, put_import_inbox_candidate,
+    ImportInboxMetadata, ImportInboxReceipt, RetainedInboxCandidate, is_import_inbox_slug,
+    put_import_inbox_candidate, retain_import_inbox_candidate,
 };
 mod io;
 mod notes;
@@ -67,8 +68,7 @@ pub use session::{
 pub use synapse_observation::{AnalysisComparability, AnalysisStatus, ByteIdentityOutcome};
 pub use types::{
     CreatorBeginOptions, CreatorComparisonReport, CreatorDecisionOptions, CreatorDisposition,
-    CreatorRationaleSource,
-    CreatorPendingDecisionState, CreatorPendingReceipt, CreatorReport, CreatorRunOptions,
-    CreatorRunReceipt, CreatorSessionState, CreatorSessionSummary, CreatorSnapshotReport,
-    CreatorTimelineEntry,
+    CreatorPendingDecisionState, CreatorPendingReceipt, CreatorRationaleSource, CreatorReport,
+    CreatorRunOptions, CreatorRunReceipt, CreatorSessionState, CreatorSessionSummary,
+    CreatorSnapshotReport, CreatorTimelineEntry,
 };

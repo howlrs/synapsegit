@@ -444,7 +444,9 @@ impl CreatorReportDocument {
             disposition: disposition_str(report.disposition),
             decision_recorded_at: report.decision_recorded_at.clone(),
             rationale: report.rationale.clone(),
-            rationale_source: report.rationale_source.map(|source| source.as_str().to_owned()),
+            rationale_source: report
+                .rationale_source
+                .map(|source| source.as_str().to_owned()),
             base_head: report.base_head.clone(),
             base_snapshot: report.base_snapshot.clone(),
             proposal_snapshot: report.proposal_snapshot.clone(),

@@ -14,6 +14,9 @@ use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
+
+static RETAINED_INBOX_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// The manifest `version` value accepted by this contract.
 pub const IMPORT_INBOX_MANIFEST_VERSION: &str = "synapsegit-import-inbox-v1";
@@ -171,6 +174,165 @@ pub struct ImportInboxCandidate<'a> {
 pub struct ImportInboxReceipt {
     pub directory: PathBuf,
     pub manifest: ImportInboxManifest,
+}
+
+/// Exact bytes and metadata admitted from a manifest-last Inbox candidate.
+/// The source Inbox is never consulted again after this value is returned.
+#[derive(Debug)]
+pub struct RetainedInboxCandidate {
+    pub manifest: ImportInboxManifest,
+    pub original: PathBuf,
+    pub current: PathBuf,
+    pub ai_output: PathBuf,
+    directory: PathBuf,
+}
+
+impl Drop for RetainedInboxCandidate {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.directory);
+    }
+}
+
+/// Verify a manifest-last candidate and retain the exact verified bytes before
+/// any repository mutation. Callers must use the returned paths, never Inbox.
+#[cfg(unix)]
+pub fn retain_import_inbox_candidate(root: &Path, slug: &str) -> Result<RetainedInboxCandidate> {
+    if !is_import_inbox_slug(slug) {
+        return Err(CreatorError::InvalidArgument(
+            "inbox slug must match [a-z][a-z0-9-]{0,63}".into(),
+        ));
+    }
+    use rustix::fs::{Mode, OFlags, openat};
+    let root_file = File::open(root).map_err(|e| CreatorError::io("open inbox root", root, e))?;
+    let directory = File::from(
+        openat(
+            &root_file,
+            slug,
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| {
+            CreatorError::InvalidArgument(format!("inbox candidate cannot be opened safely: {e}"))
+        })?,
+    );
+    let manifest_bytes = read_inbox_leaf(
+        &directory,
+        IMPORT_INBOX_MANIFEST_NAME,
+        IMPORT_INBOX_MANIFEST_MAX_BYTES,
+    )?;
+    let manifest: ImportInboxManifest = serde_json::from_slice(&manifest_bytes).map_err(|_| {
+        CreatorError::InvalidArgument("inbox manifest is not valid strict JSON".into())
+    })?;
+    manifest
+        .validate()
+        .map_err(|e| CreatorError::InvalidArgument(e.to_string()))?;
+    let staging = retained_staging_directory()?;
+    let result = (|| {
+        let original = staging.join("original");
+        let current = staging.join("current");
+        let ai_output = staging.join("ai-output");
+        retain_inbox_leaf(&directory, &manifest.original, &original)?;
+        retain_inbox_leaf(&directory, &manifest.current, &current)?;
+        retain_inbox_leaf(&directory, &manifest.ai_output, &ai_output)?;
+        Ok(RetainedInboxCandidate {
+            manifest,
+            original,
+            current,
+            ai_output,
+            directory: staging.clone(),
+        })
+    })();
+    if result.is_err() {
+        let _ = fs::remove_dir_all(&staging);
+    }
+    result
+}
+
+#[cfg(not(unix))]
+pub fn retain_import_inbox_candidate(_root: &Path, _slug: &str) -> Result<RetainedInboxCandidate> {
+    Err(CreatorError::InvalidArgument(
+        "safe Inbox retention is unsupported on this platform".into(),
+    ))
+}
+
+#[cfg(unix)]
+fn read_inbox_leaf(directory: &File, name: &str, maximum: u64) -> Result<Vec<u8>> {
+    use rustix::fs::{Mode, OFlags, openat};
+    let mut file = File::from(
+        openat(
+            directory,
+            name,
+            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| {
+            CreatorError::InvalidArgument(format!("inbox file cannot be opened safely: {e}"))
+        })?,
+    );
+    let metadata = file
+        .metadata()
+        .map_err(|e| CreatorError::io("inspect inbox file", Path::new(name), e))?;
+    if !metadata.is_file() || metadata.len() > maximum {
+        return Err(CreatorError::InvalidArgument(
+            "inbox file is not a bounded regular file".into(),
+        ));
+    }
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    Read::by_ref(&mut file)
+        .take(metadata.len() + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| CreatorError::io("read inbox file", Path::new(name), e))?;
+    if bytes.len() as u64 != metadata.len() {
+        return Err(CreatorError::InvalidArgument(
+            "inbox file changed while it was read".into(),
+        ));
+    }
+    Ok(bytes)
+}
+
+#[cfg(unix)]
+fn retain_inbox_leaf(
+    directory: &File,
+    expected: &ImportInboxFile,
+    destination: &Path,
+) -> Result<()> {
+    let bytes = read_inbox_leaf(directory, &expected.name, IMPORT_INBOX_FILE_MAX_BYTES)?;
+    if bytes.len() as u64 != expected.size {
+        return Err(CreatorError::InvalidArgument(
+            "inbox file does not match manifest size".into(),
+        ));
+    }
+    let actual = Sha256::digest(&bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    if expected
+        .sha256
+        .as_deref()
+        .is_none_or(|hash| !actual.eq_ignore_ascii_case(hash))
+    {
+        return Err(CreatorError::InvalidArgument(
+            "inbox file does not match manifest SHA-256".into(),
+        ));
+    }
+    fs::write(destination, bytes)
+        .map_err(|e| CreatorError::io("stage retained inbox file", destination, e))
+}
+
+fn retained_staging_directory() -> Result<PathBuf> {
+    for _ in 0..32 {
+        let counter = RETAINED_INBOX_COUNTER.fetch_add(1, Ordering::Relaxed);
+        let path =
+            std::env::temp_dir().join(format!("synapsegit-inbox-{}-{counter}", std::process::id()));
+        match fs::create_dir(&path) {
+            Ok(()) => return Ok(path),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(CreatorError::io("create retained inbox staging", &path, e)),
+        }
+    }
+    Err(CreatorError::ResourceLimit(
+        "could not allocate retained inbox staging".into(),
+    ))
 }
 
 /// Write one candidate below `inbox_root/slug` without replacing anything.

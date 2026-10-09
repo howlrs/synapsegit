@@ -1584,6 +1584,112 @@ fn inbox_put_refuses_a_missing_inbox_directory_and_prints_help() {
 }
 
 #[test]
+fn inbox_decide_binds_manifest_bytes_and_retains_manifest_metadata() {
+    let temp = TempDirectory::new();
+    let inbox = temp.join("inbox");
+    fs::create_dir(&inbox).unwrap();
+    for (name, bytes) in [
+        ("original", b"original".as_slice()),
+        ("current", b"current"),
+        ("proposal", b"proposal"),
+    ] {
+        fs::write(temp.join(name), bytes).unwrap();
+    }
+    let note = temp.join("note.json");
+    fs::write(&note, br#"{"tool":"tool","intent":"intent"}"#).unwrap();
+    assert_success(&run_owned(vec![
+        "inbox".into(),
+        "put".into(),
+        inbox.display().to_string(),
+        "candidate".into(),
+        temp.join("original").display().to_string(),
+        temp.join("current").display().to_string(),
+        temp.join("proposal").display().to_string(),
+        "--subject".into(),
+        "Subject".into(),
+        "--creator".into(),
+        "Creator".into(),
+        "--generation-note-file".into(),
+        note.display().to_string(),
+    ]));
+    fs::write(inbox.join("candidate/current"), b"changed").unwrap();
+    let repository = temp.join("repo");
+    let changed = run(&[
+        "inbox",
+        "decide",
+        inbox.to_str().unwrap(),
+        "candidate",
+        repository.to_str().unwrap(),
+        "--decision",
+        "adopt",
+    ]);
+    assert_eq!(changed.status.code(), Some(1));
+    assert!(
+        !repository.exists(),
+        "Inbox mismatch must precede repository mutation"
+    );
+    // Restore a manifest-matching candidate and confirm metadata and the
+    // localhost-recognized default session survive the direct route.
+    fs::write(inbox.join("candidate/current"), b"current").unwrap();
+    assert_success(&run(&[
+        "inbox",
+        "decide",
+        inbox.to_str().unwrap(),
+        "candidate",
+        repository.to_str().unwrap(),
+        "--decision",
+        "adopt",
+    ]));
+    let report = json_stdout(&run(&[
+        "creator-report",
+        repository.to_str().unwrap(),
+        "inbox-candidate",
+        "--format",
+        "json",
+    ]));
+    assert_eq!(report["subject_label"], "Subject");
+    assert_eq!(report["creator_name"], "Creator");
+    assert_eq!(report["generation_note"]["tool"], "tool");
+    assert!(inbox.join("candidate/manifest.json").is_file());
+}
+
+#[test]
+fn inbox_decide_requires_an_explicit_session_when_inbox_slug_default_is_too_long() {
+    let temp = TempDirectory::new();
+    let inbox = temp.join("inbox");
+    fs::create_dir(&inbox).unwrap();
+    let input = temp.join("input");
+    fs::write(&input, b"bytes").unwrap();
+    let slug = format!("a{}", "b".repeat(63));
+    assert_success(&run(&[
+        "inbox",
+        "put",
+        inbox.to_str().unwrap(),
+        &slug,
+        input.to_str().unwrap(),
+        input.to_str().unwrap(),
+        input.to_str().unwrap(),
+        "--subject",
+        "S",
+        "--creator",
+        "C",
+    ]));
+    let repository = temp.join("repo");
+    let output = run(&[
+        "inbox",
+        "decide",
+        inbox.to_str().unwrap(),
+        &slug,
+        repository.to_str().unwrap(),
+        "--decision",
+        "adopt",
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).contains("requires explicit --session"));
+    assert!(!repository.exists());
+}
+
+#[test]
 fn inbox_put_refuses_a_positional_generation_note_array() {
     let temp = TempDirectory::new();
     let inbox = temp.join("inbox");
