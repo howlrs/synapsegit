@@ -7,6 +7,34 @@ milestone.
 
 ## [Unreleased]
 
+### Added
+
+- Bounded JPEG/PNG location-metadata warnings before local image import and
+  while recording CLI inputs. Files are never altered and an incomplete check
+  is reported as unknown.
+- `synapse inbox decide` records an explicitly supplied decision from the
+  manifest's verified, retained bytes and metadata. It requires exclusive local
+  writer use, like the other CLI Creator commands.
+- Explicit `synapse-present export --locale en|ja` creates bundle container v2
+  with renderer v2 while keeping the public projection v1 unchanged. Exports
+  without this option retain the frozen English v1 bundle.
+- Linux-only `synapse-present export --replace` exchanges a verified bundle
+  with its completed replacement and retains the old bundle at a recovery path.
+- Verified Subject and Creator suggestions in the local public-text form,
+  with a separate confirmation before preview or download. Local API revisions
+  `0.6.9-draft` and `0.6.10-draft` document the suggestions, metadata warnings,
+  and rationale provenance.
+- A public Starry Night developer case and Japanese outreach draft, plus
+  physical-photo workflow and public-bundle disclosure guidance in Japanese
+  and English. The case is not evidence of customer success or an independent
+  Creator pilot.
+
+### Fixed
+
+- An omitted rationale remains absent in the recorded DecisionFeedback and
+  null in report JSON. Older text equal to a previous default is marked
+  `legacy_default_or_creator` because its origin cannot be inferred.
+
 ## [1.0.1] - 2026-10-03
 
 ### Fixed

@@ -1341,7 +1341,10 @@ impl LocalService {
             synapse_creator::image_metadata_warning("original", &request.original_image),
             synapse_creator::image_metadata_warning("current", &request.current_image),
             synapse_creator::image_metadata_warning("ai_output", &request.ai_output),
-        ].into_iter().filter(|warning| warning.check != synapse_creator::ImageMetadataCheck::NoGpsFound).collect();
+        ]
+        .into_iter()
+        .filter(|warning| warning.check != synapse_creator::ImageMetadataCheck::NoGpsFound)
+        .collect();
         let options = CreatorBeginOptions {
             repository: repository_path,
             session: request.session,
@@ -1393,7 +1396,12 @@ impl LocalService {
         self.ready_pending(project_key, &snapshot)?
             .into_iter()
             .find(|pending| pending.review_id == review_id)
-            .map(|pending| pending_session(&repository, &snapshot, pending).map(|mut response| { response.metadata_warnings = metadata_warnings; response }))
+            .map(|pending| {
+                pending_session(&repository, &snapshot, pending).map(|mut response| {
+                    response.metadata_warnings = metadata_warnings;
+                    response
+                })
+            })
             .transpose()?
             .ok_or_else(ServiceError::outcome_unknown)
     }

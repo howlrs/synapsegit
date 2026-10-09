@@ -28,9 +28,9 @@ pub use inbox::{
     put_import_inbox_candidate, retain_import_inbox_candidate,
 };
 mod io;
-mod notes;
 mod metadata;
-pub use metadata::{image_metadata_warning, ImageMetadataCheck, ImageMetadataWarning};
+mod notes;
+pub use metadata::{ImageMetadataCheck, ImageMetadataWarning, image_metadata_warning};
 mod overview;
 pub use notes::{CreatorGenerationNote, GENERATION_NOTE_KEY};
 pub use overview::{

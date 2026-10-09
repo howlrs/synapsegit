@@ -200,11 +200,15 @@ path family; they do not identify each extension within that family. Keep the
 `-draft` suffix while the application contract remains a Stage 0 draft. Neither
 a revision bump nor the `v1` path promises stable protocol compatibility.
 
-The current contract is `0.6.9-draft`: the public-text form can request only a
+The current contract is `0.6.10-draft`. It adds optional bounded image metadata
+warnings on a newly created pending review, and rationale provenance on a
+verified report. No metadata coordinates are returned, files are unchanged,
+and `legacy_default_or_creator` deliberately preserves ambiguity about an old
+default rationale. `0.6.9-draft` added the suggestions endpoint: the public-text form can request only a
 verified complete session's Subject and Creator as opt-in suggestions; it does
 not expose private notes or make those values public without confirmation. The
-previous `0.6.8-draft` revision added the suggested session name of a staged
-import-inbox preview always fits the 64-byte session grammar. It is
+previous `0.6.8-draft` revision made the suggested session name of a staged
+import-inbox preview always fit the 64-byte session grammar. It is
 `inbox-<slug>` when that fits. A longer slug keeps its first 49 bytes without
 trailing hyphens and ends with `-` and the first eight lowercase hexadecimal
 digits of the slug's SHA-256, so slugs with a long shared prefix still get
