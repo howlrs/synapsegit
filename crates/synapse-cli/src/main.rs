@@ -13,9 +13,9 @@ use synapse_core::{Repository, RepositoryError};
 use synapse_creator::{
     CreatorDisposition, CreatorError, CreatorGenerationNote, CreatorReport, CreatorRunOptions,
     CreatorSessionState, ImportInboxCandidate, creator_report, discover_creator_sessions,
-    image_metadata_warning, put_import_inbox_candidate, read_creator_session_overview,
-    retain_import_inbox_candidate, run_creator_session_with_note,
-    run_creator_session_with_note_and_metadata_review, suggested_import_inbox_session,
+    put_import_inbox_candidate_with_metadata_review, read_creator_session_overview,
+    retain_import_inbox_candidate, run_creator_session_with_note_and_metadata_review,
+    suggested_import_inbox_session,
 };
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
 
@@ -657,22 +657,27 @@ fn inbox_command(args: &[String]) -> Result<(), CliError> {
         .as_deref()
         .map(read_generation_note_file)
         .transpose()?;
-    let metadata_warnings = [
-        image_metadata_warning("original", Path::new(&args[4])),
-        image_metadata_warning("current", Path::new(&args[5])),
-        image_metadata_warning("ai_output", Path::new(&args[6])),
-    ];
-    let receipt = put_import_inbox_candidate(&ImportInboxCandidate {
-        inbox_root: Path::new(&args[2]),
-        slug: &args[3],
-        original: Path::new(&args[4]),
-        current: Path::new(&args[5]),
-        ai_output: Path::new(&args[6]),
-        subject_label: &subject,
-        creator_name: &creator,
-        generation_note: generation_note.as_ref(),
-    })?;
-    emit_metadata_warnings(&metadata_warnings);
+    let mut metadata_warnings = Vec::new();
+    let receipt = put_import_inbox_candidate_with_metadata_review(
+        &ImportInboxCandidate {
+            inbox_root: Path::new(&args[2]),
+            slug: &args[3],
+            original: Path::new(&args[4]),
+            current: Path::new(&args[5]),
+            ai_output: Path::new(&args[6]),
+            subject_label: &subject,
+            creator_name: &creator,
+            generation_note: generation_note.as_ref(),
+        },
+        |warnings| {
+            emit_metadata_warnings(warnings);
+            metadata_warnings = warnings
+                .iter()
+                .filter(|warning| warning.check != synapse_creator::ImageMetadataCheck::NoGpsFound)
+                .cloned()
+                .collect();
+        },
+    )?;
     let manifest = &receipt.manifest;
     match format.unwrap_or(CreatorReportFormat::Text) {
         CreatorReportFormat::Text => {
@@ -780,9 +785,10 @@ fn inbox_decide(args: &[String]) -> Result<(), CliError> {
             .ok_or_else(|| CliError::Usage("inbox decide requires --decision".into()))?,
         rationale,
     };
-    let receipt = run_creator_session_with_note(
+    let receipt = run_creator_session_with_note_and_metadata_review(
         &options,
         retained.manifest.metadata.generation_note.as_ref(),
+        |warnings| emit_metadata_warnings(warnings),
     )?;
     let _report = creator_report(&options.repository, &options.session).map_err(|source| {
         CliError::CreatorReportUnavailableAfterCommit {

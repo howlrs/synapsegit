@@ -438,6 +438,19 @@ fn retained_staging_directory() -> Result<PathBuf> {
 pub fn put_import_inbox_candidate(
     candidate: &ImportInboxCandidate<'_>,
 ) -> Result<ImportInboxReceipt> {
+    put_import_inbox_candidate_with_metadata_review(candidate, |_| {})
+}
+
+/// Retain the three supplied bytes in the hidden Inbox staging directory,
+/// invoke `review` on metadata read from those copies, then publish manifest
+/// last. The callback runs before the candidate becomes visible.
+pub fn put_import_inbox_candidate_with_metadata_review<F>(
+    candidate: &ImportInboxCandidate<'_>,
+    mut review: F,
+) -> Result<ImportInboxReceipt>
+where
+    F: FnMut(&[crate::ImageMetadataWarning]),
+{
     if !is_import_inbox_slug(candidate.slug) {
         return Err(CreatorError::InvalidArgument(
             "inbox slug must match [a-z][a-z0-9-]{0,63}".into(),
@@ -500,6 +513,19 @@ pub fn put_import_inbox_candidate(
     }
     let [original, current, ai_output]: [ImportInboxFile; 3] =
         files.try_into().expect("three inbox files");
+    let warnings = [
+        ("original", staging.path.join(IMPORT_INBOX_ORIGINAL_NAME)),
+        ("current", staging.path.join(IMPORT_INBOX_CURRENT_NAME)),
+        ("ai_output", staging.path.join(IMPORT_INBOX_AI_OUTPUT_NAME)),
+    ]
+    .into_iter()
+    .map(|(role, path)| {
+        let bytes = fs::read(&path)
+            .map_err(|error| CreatorError::io("read retained inbox staging", &path, error))?;
+        Ok(crate::metadata_warning_from_bytes(role, &bytes))
+    })
+    .collect::<Result<Vec<_>>>()?;
+    review(&warnings);
     let manifest = ImportInboxManifest {
         version: IMPORT_INBOX_MANIFEST_VERSION.to_owned(),
         original,

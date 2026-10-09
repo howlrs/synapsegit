@@ -1194,6 +1194,22 @@ where
         &options.current_image,
         &options.ai_output,
     )?;
+    // Preserve the stable no-advisory failure for an already occupied
+    // session before notifying about otherwise valid input metadata.
+    if options.repository.exists() {
+        let repository = Repository::open_existing(&options.repository)?;
+        if repository
+            .refs()
+            .get(&decision_ref(&options.session))?
+            .is_some()
+            || repository
+                .refs()
+                .get(&proposal_ref(&options.session))?
+                .is_some()
+        {
+            return Err(CreatorError::SessionExists(options.session.clone()));
+        }
+    }
     let retained = crate::retain_creator_input_files(
         &options.original_image,
         &options.current_image,
