@@ -111,9 +111,9 @@ fn open_metadata_file(path: &Path) -> std::io::Result<File> {
     File::open(path)
 }
 
-/// `truncated` means the file continues beyond `b`. JPEG metadata segments
-/// precede the first scan, so reaching it completes the header check; PNG
-/// ancillary chunks may follow image data, so a truncated PNG stays unknown.
+/// `truncated` means the file continues beyond `b`. The public JPEG entry
+/// points pass the complete bounded input to its structural scanner; a
+/// truncated PNG cannot establish the absence of metadata after image data.
 fn inspect(b: &[u8], truncated: bool) -> ImageMetadataCheck {
     if b.starts_with(&[0xff, 0xd8]) {
         return jpeg(b);
@@ -151,6 +151,9 @@ where
 {
     let position = std::cell::Cell::new(0usize);
     let mut byte = || {
+        if position.get() >= length {
+            return None;
+        }
         position.set(position.get().checked_add(1)?);
         next()
     };
@@ -956,7 +959,7 @@ mod tests {
         );
     }
     #[test]
-    fn a_complete_jpeg_header_is_checked_even_when_image_data_continues() {
+    fn a_multi_megabyte_clean_jpeg_is_checked_through_its_eoi() {
         assert_eq!(
             inspect(&jpeg(&tiff(true, false)), true),
             ImageMetadataCheck::GpsFound
@@ -966,13 +969,39 @@ mod tests {
         let mut large = jpeg(&tiff(false, false));
         large.truncate(large.len() - 2);
         large.extend_from_slice(&[0xff, 0xda, 0, 8, 1, 1, 0, 0, 0x3f, 0]);
-        large.resize(METADATA_SCAN_BYTES + 1024, 0x11);
+        large.resize(4 * 1024 * 1024, 0x11);
         let end = large.len();
         large[end - 2..].copy_from_slice(&[0xff, 0xd9]);
         assert_eq!(
             metadata_warning_from_bytes("original", &large).check,
             ImageMetadataCheck::NoGpsFound
         );
+        let path = std::env::temp_dir().join(format!(
+            "synapsegit-large-jpeg-{}-{}.jpg",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        std::fs::write(&path, &large).unwrap();
+        assert_eq!(
+            image_metadata_warning("original", &path).check,
+            ImageMetadataCheck::NoGpsFound
+        );
+        std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn a_jpeg_stream_cannot_read_past_its_declared_length() {
+        let prefix = [0xff, 0xd8, 0xff, 0xda, 0, 8, 1, 1, 0, 0, 0x3f, 0];
+        let mut growing_input = prefix.into_iter().chain(std::iter::repeat_n(0x11, 4096));
+        let mut reads = 0;
+        let check = jpeg_reader(
+            || {
+                reads += 1;
+                growing_input.next()
+            },
+            64,
+        );
+        assert_eq!(check, ImageMetadataCheck::CouldNotCheck);
+        assert_eq!(reads, 64);
     }
     #[test]
     fn appended_images_or_media_keep_jpeg_unknown() {
