@@ -144,7 +144,10 @@ fn render_story_session(output: &mut String, session: &PublicSession, locale: Pu
         output,
         "- {}: **{}**",
         key(locale, Key::HumanDisposition),
-        markdown_inline(&session.human_decision.disposition)
+        markdown_inline(&decision_disposition(
+            locale,
+            &session.human_decision.disposition
+        ))
     )
     .expect("writing to String cannot fail");
     writeln!(
@@ -186,17 +189,17 @@ fn render_story_session(output: &mut String, session: &PublicSession, locale: Pu
             PublicationLocale::En => writeln!(
                 output,
                 "The current comparison reports **{}** with comparability **{}**. {}\n",
-                markdown_inline(&comparison.outcome),
-                markdown_inline(&comparison.comparability),
+                markdown_inline(&comparison_outcome(locale, &comparison.outcome)),
+                markdown_inline(&comparison_comparability(locale, &comparison.comparability)),
                 markdown_inline(key(locale, Key::ComparisonInterpretationLimit))
             ),
             PublicationLocale::Ja => writeln!(
                 output,
                 "{} **{}**、{} **{}**。{}\n",
                 key(locale, Key::Outcome),
-                markdown_inline(&comparison.outcome),
+                markdown_inline(&comparison_outcome(locale, &comparison.outcome)),
                 key(locale, Key::Comparability),
-                markdown_inline(&comparison.comparability),
+                markdown_inline(&comparison_comparability(locale, &comparison.comparability)),
                 markdown_inline(key(locale, Key::ComparisonInterpretationLimit))
             ),
         }
@@ -367,7 +370,7 @@ fn render_html_session(output: &mut String, session: &PublicSession, locale: Pub
     write!(
         output,
         "<section class=\"decision\"><p class=\"eyebrow\">{}</p><h3>{}</h3><p>{}: <strong>{}</strong></p><p>{}: <strong>{}</strong></p>", key(locale, Key::HumanDecision),
-        html(&session.human_decision.disposition),
+        html(&decision_disposition(locale, &session.human_decision.disposition)),
         key(locale, Key::SelectedRole), html(role_label(locale, selected)),
         key(locale, Key::ProposalRetained),
         session.proposal.retained_when_unselected
@@ -395,9 +398,9 @@ fn render_html_session(output: &mut String, session: &PublicSession, locale: Pub
         write!(
             output,
             "<section><h3>{}</h3><p>{}: <strong>{}</strong>; {}: <strong>{}</strong>.</p><p>{}</p></section>", key(locale, Key::Evidence), key(locale, Key::Outcome),
-            html(&comparison.outcome),
+            html(&comparison_outcome(locale, &comparison.outcome)),
             key(locale, Key::Comparability),
-            html(&comparison.comparability),
+            html(&comparison_comparability(locale, &comparison.comparability)),
             html(key(locale, Key::ComparisonInterpretationLimit))
         )
         .expect("writing to String cannot fail");
@@ -599,7 +602,7 @@ fn key(locale: PublicationLocale, value: Key) -> &'static str {
         (PublicationLocale::En, Key::HumanDecision) => "Human decision",
         (PublicationLocale::Ja, Key::HumanDecision) => "人間の判断",
         (PublicationLocale::En, Key::Session) => "Session",
-        (PublicationLocale::Ja, Key::Session) => "Session",
+        (PublicationLocale::Ja, Key::Session) => "セッション",
         (PublicationLocale::En, Key::WorkHistory) => "Work history",
         (PublicationLocale::Ja, Key::WorkHistory) => "作業履歴",
         (PublicationLocale::En, Key::Role) => "Role",
@@ -661,6 +664,53 @@ fn role_label(locale: PublicationLocale, role: &str) -> &str {
         (PublicationLocale::Ja, "Current") => "Current",
         (PublicationLocale::Ja, "AI-attributed proposal") => "AIに帰属する提案",
         _ => role,
+    }
+}
+
+fn decision_disposition(locale: PublicationLocale, disposition: &str) -> Cow<'_, str> {
+    localized_raw_value(
+        locale,
+        disposition,
+        match disposition {
+            "adopt" => Some("採用"),
+            "reject" => Some("却下"),
+            "defer" => Some("保留"),
+            _ => None,
+        },
+    )
+}
+
+fn comparison_outcome(locale: PublicationLocale, outcome: &str) -> Cow<'_, str> {
+    localized_raw_value(
+        locale,
+        outcome,
+        match outcome {
+            "identical" => Some("同一"),
+            "different" => Some("異なる"),
+            _ => None,
+        },
+    )
+}
+
+fn comparison_comparability(locale: PublicationLocale, comparability: &str) -> Cow<'_, str> {
+    localized_raw_value(
+        locale,
+        comparability,
+        match comparability {
+            "partial" => Some("一部比較可能"),
+            _ => None,
+        },
+    )
+}
+
+fn localized_raw_value<'a>(
+    locale: PublicationLocale,
+    raw: &'a str,
+    japanese_explanation: Option<&str>,
+) -> Cow<'a, str> {
+    match (locale, japanese_explanation) {
+        (PublicationLocale::Ja, Some(explanation)) => Cow::Owned(format!("{explanation}（{raw}）")),
+        _ => Cow::Borrowed(raw),
     }
 }
 
@@ -851,8 +901,8 @@ const STYLE: &str = r#"<style>
 
 #[cfg(test)]
 mod tests {
-    use super::{ALL_KEYS, html, key, markdown_inline};
-    use crate::model::PublicationLocale;
+    use super::{ALL_KEYS, html, key, markdown_inline, render_html, render_story};
+    use crate::model::{PublicProjection, PublicationLocale};
 
     #[test]
     fn escapes_active_markup() {
@@ -865,6 +915,40 @@ mod tests {
         for value in ALL_KEYS {
             assert!(!key(PublicationLocale::En, *value).is_empty());
             assert!(!key(PublicationLocale::Ja, *value).is_empty());
+        }
+    }
+
+    #[test]
+    fn japanese_typed_values_explain_every_allowed_raw_value_from_the_golden_projection() {
+        let projection: PublicProjection = serde_json::from_slice(include_bytes!(
+            "../../../docs/evaluation/publication-comprehension/v1/bundles/complete/projection.json"
+        ))
+        .unwrap();
+        for (disposition, japanese_disposition) in
+            [("adopt", "採用"), ("reject", "却下"), ("defer", "保留")]
+        {
+            for (outcome, japanese_outcome) in [("identical", "同一"), ("different", "異なる")]
+            {
+                let mut localized = projection.clone();
+                localized.sessions[0].human_decision.disposition = disposition.into();
+                localized.sessions[0].comparison.as_mut().unwrap().outcome = outcome.into();
+                let story = render_story(&localized, PublicationLocale::Ja);
+                let html = render_html(&localized, PublicationLocale::Ja);
+                for rendered in [&story, &html] {
+                    assert!(rendered.contains(&format!("{japanese_disposition}（{disposition}）")));
+                    assert!(rendered.contains(&format!("{japanese_outcome}（{outcome}）")));
+                    assert!(rendered.contains("一部比較可能（partial）"));
+                    assert!(rendered.contains("セッション"));
+                }
+            }
+        }
+
+        let story = render_story(&projection, PublicationLocale::En);
+        let html = render_html(&projection, PublicationLocale::En);
+        for rendered in [&story, &html] {
+            assert!(rendered.contains("**adopt**") || rendered.contains(">adopt<"));
+            assert!(rendered.contains("different"));
+            assert!(!rendered.contains("Adopt (adopt)"));
         }
     }
 }
