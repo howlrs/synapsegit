@@ -8,10 +8,10 @@ Without `--locale`, export writes the frozen creator bundle v1: the v1 `PublicPr
 
 `--locale en` or `--locale ja` opts into a localized **container schema 2** and matching renderer profile version 2. It changes only rendered `story.md` and `index.html`; `projection.json` keeps PublicProjection semantic profile v1. A localized manifest carries the selected locale and matching v2 renderer identity. Verification rejects a missing, unknown, or mismatched locale/renderer identity. This is not semantic projection v2.
 
-Localized renderer v2 is still unreleased development output. Its rendered views
-may change before the first release, so a localized bundle exported from an
-earlier development revision may need re-export before `preview` can verify it.
-Released renderer profiles remain selected by their manifest identity.
+Localized renderer v2 is first published in v1.1.0. A localized bundle exported
+from an earlier development revision may need re-export before `preview` can
+verify it against the released renderer. Released renderer profiles remain
+selected by their manifest identity.
 
 ## Public boundary
 
