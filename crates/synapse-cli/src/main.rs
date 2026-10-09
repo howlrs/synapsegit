@@ -20,7 +20,7 @@ use synapse_creator::{
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
 
 mod report_json;
-use report_json::CreatorReportDocument;
+use report_json::{CreatorDecisionDocument, CreatorReportDocument};
 
 const USAGE: &str = "\
 SynapseGit Core
@@ -37,11 +37,11 @@ Usage:
   synapse fsck <repo>
   synapse export <repo> <archive-dir>
   synapse restore <archive-dir> <repo>
-  synapse creator-run <repo> <session> <original> <current> <ai-output> --subject <label> --creator <name> --decision <adopt|reject|defer> [--rationale <text>] [--generation-note-file <path>]
+  synapse creator-run <repo> <session> <original> <current> <ai-output> --subject <label> --creator <name> --decision <adopt|reject|defer> [--rationale <text>] [--generation-note-file <path>] [--format text|json]
   synapse creator-report <repo> <session> [--format text|json]
   synapse creator-list <repo> [--format text|json]
   synapse inbox put <inbox-dir> <slug> <original> <current> <ai-output> --subject <label> --creator <name> [--generation-note-file <path>] [--format text|json]
-  synapse inbox decide <inbox-dir> <slug> <repo> --decision <adopt|reject|defer> [--rationale <text>] [--session <name>] [--creator <name>]
+  synapse inbox decide <inbox-dir> <slug> <repo> --decision <adopt|reject|defer> [--rationale <text>] [--session <name>] [--creator <name>] [--format text|json]
 
 creator-report --format json prints one private, LOCAL-only JSON document to
 stdout, tagged \"format\": \"synapsegit-cli-creator-report-v1\" and
@@ -50,7 +50,9 @@ generation notes, decision pins, and internal identifiers, and it is a
 separate contract from the public projection bundle. It is not for sharing;
 for a shareable bundle use `synapse-present export ... --public`. Omitting
 --format, or passing --format text, keeps the existing line-oriented text
-output unchanged.
+output unchanged. `creator-run --format json` and `inbox decide --format json`
+print one `synapsegit-cli-creator-decision-v1` private-local document containing
+the receipt, verified report, and metadata warnings.
 
 creator-run --generation-note-file accepts a UTF-8 JSON object with optional
 \"tool\", \"model\", \"prompt\", and \"intent\" strings. It records a private,
@@ -73,7 +75,7 @@ an explicit decision to `synapse inbox decide`. Run
 const INBOX_USAGE: &str = "\
 Usage:
   synapse inbox put <inbox-dir> <slug> <original> <current> <ai-output> --subject <label> --creator <name> [--generation-note-file <path>] [--format text|json]
-  synapse inbox decide <inbox-dir> <slug> <repo> --decision <adopt|reject|defer> [--rationale <text>] [--session <name>] [--creator <name>]
+  synapse inbox decide <inbox-dir> <slug> <repo> --decision <adopt|reject|defer> [--rationale <text>] [--session <name>] [--creator <name>] [--format text|json]
 
 Write one candidate for the synapse-local import inbox without recording a
 decision. The command copies the three files to <inbox-dir>/<slug>/ as
@@ -374,6 +376,7 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
     let mut decision = None;
     let mut rationale = None;
     let mut generation_note_file = None;
+    let mut format = None;
     let mut index = 6;
     while index < args.len() {
         let value = args
@@ -388,6 +391,9 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
             "--rationale" if rationale.is_none() => rationale = Some(value.clone()),
             "--generation-note-file" if generation_note_file.is_none() => {
                 generation_note_file = Some(PathBuf::from(value));
+            }
+            "--format" if format.is_none() => {
+                format = Some(parse_creator_format(value, "creator-run")?);
             }
             other => {
                 return Err(CliError::Usage(format!(
@@ -415,10 +421,14 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
             .ok_or_else(|| CliError::Usage("creator-run requires --decision".into()))?,
         rationale,
     };
+    let mut metadata_warnings = Vec::new();
     let receipt = run_creator_session_with_note_and_metadata_review(
         &options,
         generation_note.as_ref(),
-        emit_metadata_warnings,
+        |warnings| {
+            emit_metadata_warnings(warnings);
+            metadata_warnings = retained_metadata_warnings(warnings);
+        },
     )?;
     let report = creator_report(&options.repository, &options.session).map_err(|source| {
         CliError::CreatorReportUnavailableAfterCommit {
@@ -426,7 +436,12 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
             source,
         }
     })?;
-    print_creator_run_result(&receipt, &report)
+    match format.unwrap_or(CreatorReportFormat::Text) {
+        CreatorReportFormat::Text => print_creator_run_result(&receipt, &report),
+        CreatorReportFormat::Json => {
+            print_creator_decision_json("creator_run", None, &receipt, &report, &metadata_warnings)
+        }
+    }
 }
 
 /// The receipt and verified report printed by every route that records a
@@ -452,6 +467,26 @@ fn print_creator_run_result(
     );
     outln!("disposition={}", receipt.disposition.as_cli_str());
     print_creator_report(report)
+}
+
+fn print_creator_decision_json(
+    route: &str,
+    inbox_candidate: Option<&str>,
+    receipt: &CreatorRunReceipt,
+    report: &CreatorReport,
+    metadata_warnings: &[synapse_creator::ImageMetadataWarning],
+) -> Result<(), CliError> {
+    let text = CreatorDecisionDocument::from_result(
+        route,
+        inbox_candidate,
+        receipt,
+        report,
+        metadata_warnings,
+    )
+    .to_pretty_string()
+    .expect("creator decision JSON document is always serializable");
+    out!("{text}");
+    Ok(())
 }
 
 /// Usage and a short description for one command, or `None` when unknown.
@@ -731,6 +766,26 @@ fn emit_metadata_warnings(warnings: &[synapse_creator::ImageMetadataWarning]) {
     }
 }
 
+fn retained_metadata_warnings(
+    warnings: &[synapse_creator::ImageMetadataWarning],
+) -> Vec<synapse_creator::ImageMetadataWarning> {
+    warnings
+        .iter()
+        .filter(|warning| warning.check != synapse_creator::ImageMetadataCheck::NoGpsFound)
+        .cloned()
+        .collect()
+}
+
+fn parse_creator_format(value: &str, command: &str) -> Result<CreatorReportFormat, CliError> {
+    match value {
+        "text" => Ok(CreatorReportFormat::Text),
+        "json" => Ok(CreatorReportFormat::Json),
+        other => Err(CliError::Usage(format!(
+            "invalid {command} --format value {other:?}; expected text or json"
+        ))),
+    }
+}
+
 fn read_generation_note_file(path: &Path) -> Result<CreatorGenerationNote, CliError> {
     let bytes = read_structured(path)?;
     let note: CreatorGenerationNote = serde_json::from_slice(&bytes).map_err(|error| {
@@ -753,6 +808,7 @@ fn inbox_decide(args: &[String]) -> Result<(), CliError> {
     let mut rationale = None;
     let mut session = None;
     let mut creator = None;
+    let mut format = None;
     let mut index = 4;
     while index < args.len() {
         let value = args
@@ -765,6 +821,9 @@ fn inbox_decide(args: &[String]) -> Result<(), CliError> {
             "--rationale" if rationale.is_none() => rationale = Some(value.clone()),
             "--session" if session.is_none() => session = Some(value.clone()),
             "--creator" if creator.is_none() => creator = Some(value.clone()),
+            "--format" if format.is_none() => {
+                format = Some(parse_creator_format(value, "inbox decide")?);
+            }
             other => {
                 return Err(CliError::Usage(format!(
                     "invalid or duplicate inbox decide option {other:?}"
@@ -793,10 +852,14 @@ fn inbox_decide(args: &[String]) -> Result<(), CliError> {
             .ok_or_else(|| CliError::Usage("inbox decide requires --decision".into()))?,
         rationale,
     };
+    let mut metadata_warnings = Vec::new();
     let receipt = run_creator_session_with_note_and_metadata_review(
         &options,
         retained.manifest.metadata.generation_note.as_ref(),
-        emit_metadata_warnings,
+        |warnings| {
+            emit_metadata_warnings(warnings);
+            metadata_warnings = retained_metadata_warnings(warnings);
+        },
     )?;
     let report = creator_report(&options.repository, &options.session).map_err(|source| {
         CliError::CreatorReportUnavailableAfterCommit {
@@ -804,8 +867,19 @@ fn inbox_decide(args: &[String]) -> Result<(), CliError> {
             source,
         }
     })?;
-    outln!("inbox_candidate={slug}");
-    print_creator_run_result(&receipt, &report)
+    match format.unwrap_or(CreatorReportFormat::Text) {
+        CreatorReportFormat::Text => {
+            outln!("inbox_candidate={slug}");
+            print_creator_run_result(&receipt, &report)
+        }
+        CreatorReportFormat::Json => print_creator_decision_json(
+            "inbox_decide",
+            Some(slug),
+            &receipt,
+            &report,
+            &metadata_warnings,
+        ),
+    }
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

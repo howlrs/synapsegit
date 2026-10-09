@@ -24,7 +24,7 @@ SynapseGit makes two promises for v1.x:
 | Directory archive | `synapsegit-core-archive-v0.1` ([profile](../spec/core/v0.1/archive-profile.md)) | Frozen | Add a new archive profile and keep restoring the old one. |
 | Import inbox manifest | `synapsegit-import-inbox-v1` ([spec](../spec/application/import-inbox/v1/README.md)) | Frozen | Add a new version identifier and keep accepting v1. |
 | Private report JSON | `synapsegit-cli-creator-report-v1` | Frozen with additive fields | Add fields within `-v1`; removal, renaming, or a meaning change needs `-v2`. |
-| CLI list and inbox JSON | `synapsegit-cli-creator-list-v1`, `synapsegit-cli-inbox-put-v1` | Frozen with additive fields | As above. |
+| CLI list, inbox, and decision JSON | `synapsegit-cli-creator-list-v1`, `synapsegit-cli-inbox-put-v1`, `synapsegit-cli-creator-decision-v1` | Frozen with additive fields | As above. |
 | Creator publication bundle | PublicProjection semantic profile v1; no-flag container/renderer v1 | Frozen | `--locale` uses a distinct container/renderer v2 while retaining semantic profile v1; keep verifying v1 bundles. |
 | Generic artifact contracts | `generic-artifact` v1, `generic-artifact-publication` v1 | Frozen | As above. |
 | CLI | command names, arguments, exit codes, machine-readable error codes | Stable | Deprecate for at least one minor version before removing or changing. Text output wording may change; use JSON for automation. |

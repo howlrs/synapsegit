@@ -25,15 +25,114 @@
 use serde::Serialize;
 use synapse_creator::{
     CreatorComparisonReport, CreatorDisposition, CreatorGenerationNote, CreatorPin, CreatorReport,
-    CreatorReuseSourceBinding, CreatorSourceBinding, CreatorTimelineEntry,
+    CreatorReuseSourceBinding, CreatorRunReceipt, CreatorSourceBinding, CreatorTimelineEntry,
+    ImageMetadataWarning,
 };
 
 /// Format identifier for this CLI-owned JSON contract. See module docs.
 pub const CREATOR_REPORT_JSON_FORMAT: &str = "synapsegit-cli-creator-report-v1";
+pub const CREATOR_DECISION_JSON_FORMAT: &str = "synapsegit-cli-creator-decision-v1";
 
 /// Machine-visible marker that this document is a private, local report and
 /// not the public projection bundle.
 const SCOPE_PRIVATE_LOCAL: &str = "private_local";
+
+#[derive(Serialize)]
+pub struct CreatorDecisionReceiptDocument {
+    pub session: String,
+    pub project_id: String,
+    pub subject_id: String,
+    pub proposal_ref: RefPointerJson,
+    pub decision_ref: RefPointerJson,
+    pub disposition: String,
+    pub blobs: BlobRefsJson,
+}
+
+impl CreatorDecisionReceiptDocument {
+    fn from_receipt(receipt: &CreatorRunReceipt) -> Self {
+        Self {
+            session: receipt.session.clone(),
+            project_id: receipt.project_id.clone(),
+            subject_id: receipt.subject_id.clone(),
+            proposal_ref: RefPointerJson {
+                name: receipt.proposal_ref.clone(),
+                head: receipt.proposal_head.clone(),
+            },
+            decision_ref: RefPointerJson {
+                name: receipt.decision_ref.clone(),
+                head: receipt.decision_head.clone(),
+            },
+            disposition: disposition_str(receipt.disposition),
+            blobs: BlobRefsJson {
+                original: receipt.original_blob_oid.clone(),
+                current: receipt.current_blob_oid.clone(),
+                ai_output: receipt.ai_output_blob_oid.clone(),
+            },
+        }
+    }
+}
+
+#[derive(Serialize)]
+pub struct MetadataWarningDocument {
+    pub role: String,
+    pub check: String,
+    pub message: String,
+}
+
+impl From<&ImageMetadataWarning> for MetadataWarningDocument {
+    fn from(warning: &ImageMetadataWarning) -> Self {
+        Self {
+            role: warning.role.clone(),
+            check: match warning.check {
+                synapse_creator::ImageMetadataCheck::GpsFound => "gps_found",
+                synapse_creator::ImageMetadataCheck::NoGpsFound => "no_gps_found",
+                synapse_creator::ImageMetadataCheck::CouldNotCheck => "could_not_check",
+            }
+            .to_owned(),
+            message: warning.message.clone(),
+        }
+    }
+}
+
+#[derive(Serialize)]
+pub struct CreatorDecisionDocument {
+    pub format: String,
+    pub scope: String,
+    pub route: String,
+    pub inbox_candidate: Option<String>,
+    pub receipt: CreatorDecisionReceiptDocument,
+    pub report: CreatorReportDocument,
+    pub metadata_warnings: Vec<MetadataWarningDocument>,
+}
+
+impl CreatorDecisionDocument {
+    pub fn from_result(
+        route: &str,
+        inbox_candidate: Option<&str>,
+        receipt: &CreatorRunReceipt,
+        report: &CreatorReport,
+        metadata_warnings: &[ImageMetadataWarning],
+    ) -> Self {
+        Self {
+            format: CREATOR_DECISION_JSON_FORMAT.to_owned(),
+            scope: SCOPE_PRIVATE_LOCAL.to_owned(),
+            route: route.to_owned(),
+            inbox_candidate: inbox_candidate.map(str::to_owned),
+            receipt: CreatorDecisionReceiptDocument::from_receipt(receipt),
+            report: CreatorReportDocument::from_report(report),
+            metadata_warnings: metadata_warnings
+                .iter()
+                .map(MetadataWarningDocument::from)
+                .collect(),
+        }
+    }
+
+    pub fn to_pretty_string(&self) -> serde_json::Result<String> {
+        let mut text = serde_json::to_string_pretty(self)?;
+        text.push('\n');
+        Ok(text)
+    }
+}
 
 /// Distinguishes "never recorded" from "recorded but could not be loaded or
 /// is in an unsupported shape" from "recorded and present below".

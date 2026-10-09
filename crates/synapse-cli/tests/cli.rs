@@ -1715,6 +1715,99 @@ fn inbox_decide_binds_manifest_bytes_and_retains_manifest_metadata() {
 }
 
 #[test]
+fn decision_commands_emit_one_private_json_document_when_requested() {
+    let temp = TempDirectory::new();
+    let inbox = temp.join("inbox");
+    let repository = temp.join("repository");
+    fs::create_dir(&inbox).unwrap();
+    for name in ["original", "current", "proposal"] {
+        fs::write(temp.join(name), format!("{name} bytes")).unwrap();
+    }
+    assert_success(&run_owned(vec![
+        "inbox".into(),
+        "put".into(),
+        inbox.display().to_string(),
+        "json-candidate".into(),
+        temp.join("original").display().to_string(),
+        temp.join("current").display().to_string(),
+        temp.join("proposal").display().to_string(),
+        "--subject".into(),
+        "Subject".into(),
+        "--creator".into(),
+        "Aki".into(),
+    ]));
+    let decided = run_owned(vec![
+        "inbox".into(),
+        "decide".into(),
+        inbox.display().to_string(),
+        "json-candidate".into(),
+        repository.display().to_string(),
+        "--decision".into(),
+        "defer".into(),
+        "--format".into(),
+        "json".into(),
+    ]);
+    let document = json_stdout(&decided);
+    assert_eq!(document["format"], "synapsegit-cli-creator-decision-v1");
+    assert_eq!(document["scope"], "private_local");
+    assert_eq!(document["route"], "inbox_decide");
+    assert_eq!(document["inbox_candidate"], "json-candidate");
+    assert_eq!(document["receipt"]["session"], "inbox-json-candidate");
+    assert_eq!(
+        document["receipt"]["decision_ref"],
+        document["report"]["decision_ref"]
+    );
+    assert_eq!(
+        document["report"]["format"],
+        "synapsegit-cli-creator-report-v1"
+    );
+    assert!(document["metadata_warnings"].is_array());
+
+    let run_repository = temp.join("creator-run-repository");
+    let created = run_owned(vec![
+        "creator-run".into(),
+        run_repository.display().to_string(),
+        "json-run".into(),
+        temp.join("original").display().to_string(),
+        temp.join("current").display().to_string(),
+        temp.join("proposal").display().to_string(),
+        "--subject".into(),
+        "Subject".into(),
+        "--creator".into(),
+        "Aki".into(),
+        "--decision".into(),
+        "adopt".into(),
+        "--format".into(),
+        "json".into(),
+    ]);
+    let document = json_stdout(&created);
+    assert_eq!(document["route"], "creator_run");
+    assert!(document["inbox_candidate"].is_null());
+    assert_eq!(document["receipt"]["session"], "json-run");
+
+    let rejected_repository = temp.join("invalid-format-repository");
+    let bad_format = run_owned(vec![
+        "creator-run".into(),
+        rejected_repository.display().to_string(),
+        "bad-format".into(),
+        temp.join("original").display().to_string(),
+        temp.join("current").display().to_string(),
+        temp.join("proposal").display().to_string(),
+        "--subject".into(),
+        "Subject".into(),
+        "--creator".into(),
+        "Aki".into(),
+        "--decision".into(),
+        "defer".into(),
+        "--format".into(),
+        "yaml".into(),
+    ]);
+    assert_eq!(bad_format.status.code(), Some(1));
+    assert!(bad_format.stdout.is_empty());
+    assert!(!rejected_repository.exists());
+}
+
+#[test]
 fn inbox_decide_uses_the_canonical_long_slug_session_and_allows_an_explicit_override() {
     let temp = TempDirectory::new();
     let inbox = temp.join("inbox");
