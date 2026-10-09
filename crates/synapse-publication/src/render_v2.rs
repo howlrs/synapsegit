@@ -1,11 +1,12 @@
 use crate::model::{
     PresentedText, PublicProjection, PublicSession, PublicationLocale, ValueOrigin,
 };
+use std::borrow::Cow;
 use std::fmt::Write as _;
 
 pub(crate) fn render_story(projection: &PublicProjection, locale: PublicationLocale) -> String {
     let mut output = String::new();
-    let title = markdown_inline(presented(locale, &projection.presentation.title));
+    let title = markdown_inline(&presented(locale, &projection.presentation.title));
     writeln!(output, "# {title}\n").expect("writing to String cannot fail");
     writeln!(
         output,
@@ -94,7 +95,7 @@ fn render_story_session(output: &mut String, session: &PublicSession, locale: Pu
     writeln!(
         output,
         "## {}\n",
-        markdown_inline(presented(locale, &session.title))
+        markdown_inline(&presented(locale, &session.title))
     )
     .expect("writing to String cannot fail");
     writeln!(
@@ -122,7 +123,7 @@ fn render_story_session(output: &mut String, session: &PublicSession, locale: Pu
             output,
             "| {} | {} | `{}` | {} |",
             markdown_table(role_label(locale, artifact.role.label())),
-            markdown_table(presented(locale, &artifact.caption)),
+            markdown_table(&presented(locale, &artifact.caption)),
             markdown_code(&artifact.oid),
             markdown_table(key(locale, Key::AssetBytesOmitted))
         )
@@ -238,7 +239,7 @@ pub(crate) fn render_html(projection: &PublicProjection, locale: PublicationLoca
     writeln!(
         output,
         "<title>{}</title>",
-        html(presented(locale, &projection.presentation.title))
+        html(&presented(locale, &projection.presentation.title))
     )
     .expect("writing to String cannot fail");
     output.push_str(STYLE);
@@ -247,7 +248,7 @@ pub(crate) fn render_html(projection: &PublicProjection, locale: PublicationLoca
         output,
         "<header><p class=\"eyebrow\">{}</p><h1>{}</h1><p class=\"lead\">{}</p><div class=\"badges\"><span>{}</span><span>{}: 0</span></div>",
         key(locale, Key::ProviderNeutralView),
-        html(presented(locale, &projection.presentation.title)),
+        html(&presented(locale, &projection.presentation.title)),
         html(&summary_value(locale, &projection.presentation.summary)),
         html(projection.publication.visibility.as_str()), key(locale, Key::Network)
     )
@@ -346,7 +347,7 @@ fn render_html_session(output: &mut String, session: &PublicSession, locale: Pub
         output,
         "<article><p class=\"eyebrow\">{} <code>{}</code></p><h2>{}</h2><div class=\"artifact-grid\">", key(locale, Key::Session),
         html(&session.session),
-        html(presented(locale, &session.title))
+        html(&presented(locale, &session.title))
     )
     .expect("writing to String cannot fail");
     for artifact in &session.history {
@@ -354,7 +355,7 @@ fn render_html_session(output: &mut String, session: &PublicSession, locale: Pub
             output,
             "<section class=\"artifact\"><p class=\"role\">{}</p><h3>{}</h3><div class=\"placeholder\" aria-label=\"{}\">{}</div><p>{}</p><code class=\"oid\">{}</code></section>",
             html(role_label(locale, artifact.role.label())),
-            html(presented(locale, &artifact.caption)),
+            html(&presented(locale, &artifact.caption)),
             key(locale, Key::AssetBytesOmitted), key(locale, Key::AssetBytesOmitted),
             key(locale, Key::AssetBytesOmitted),
             html(&artifact.oid)
@@ -663,18 +664,20 @@ fn role_label(locale: PublicationLocale, role: &str) -> &str {
     }
 }
 
-fn presented(locale: PublicationLocale, value: &PresentedText) -> &str {
+fn presented(locale: PublicationLocale, value: &PresentedText) -> Cow<'_, str> {
     if value.origin != ValueOrigin::DerivedSummary || locale == PublicationLocale::En {
-        return &value.value;
+        return Cow::Borrowed(&value.value);
     }
-    match value.value.as_str() {
+    if let Some(session) = value.value.strip_prefix("Session ") {
+        return Cow::Owned(format!("セッション {session}"));
+    }
+    Cow::Borrowed(match value.value.as_str() {
         "SynapseGit creative history" => "SynapseGit 制作履歴",
         "Recorded original source" => "記録されたOriginal source",
         "Recorded current state" => "記録されたCurrent state",
         "AI-attributed proposal" => "AIに帰属する提案",
-        value if value.starts_with("Session ") => "Session（記録済み識別子）",
         _ => &value.value,
-    }
+    })
 }
 
 fn attribution_scope(locale: PublicationLocale, session: &PublicSession) -> &str {
@@ -694,7 +697,7 @@ fn summary_value(locale: PublicationLocale, value: &PresentedText) -> String {
         && value.origin == ValueOrigin::DerivedSummary
         && value.value.starts_with("A reviewable history of ")
     {
-        let count = value.value.split_whitespace().nth(5).unwrap_or("0");
+        let count = value.value.split_whitespace().nth(4).unwrap_or("0");
         format!(
             "完了したCreator sessionは{count}件です。AIに帰属する提案と人間の判断を保持し、raw source assetを公開しない確認可能な制作履歴です。"
         )

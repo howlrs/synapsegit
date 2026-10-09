@@ -1205,3 +1205,39 @@ fn sidecar_serializer_reuses_field_control_and_file_limits() {
     input.sessions.insert("bad\"key".into(), Default::default());
     assert!(synapse_publication::serialize_presentation(&input).is_err());
 }
+
+#[test]
+fn japanese_default_summaries_preserve_zero_and_multiple_session_counts() {
+    for count in [0, 3] {
+        let temporary = TempDirectory::new();
+        let repository = temporary.join("repo");
+        if count == 0 {
+            drop(Repository::open(&repository).unwrap());
+        } else {
+            create_three_decision_fixture(&temporary.0);
+        }
+        let destination = temporary.join("ja-defaults");
+        export_bundle(&ExportOptions {
+            projection: ProjectionOptions::new(&repository),
+            destination: destination.clone(),
+            target: OutputTarget::Github,
+            locale: Some(PublicationLocale::Ja),
+            replace: false,
+        })
+        .unwrap();
+        let verified = verify_bundle(&destination).unwrap();
+        assert_eq!(verified.projection.sessions.len(), count);
+        for path in ["story.md", "index.html", "target/README.md"] {
+            let rendered = fs::read_to_string(destination.join(path)).unwrap();
+            assert!(
+                rendered.contains(&format!("Creator sessionは{count}件")),
+                "{path}: missing count"
+            );
+            assert!(!rendered.contains("sessionはcomplete件"));
+            if count > 0 {
+                assert!(rendered.contains("セッション adopt-story"));
+                assert!(rendered.contains("セッション reject-story"));
+            }
+        }
+    }
+}
