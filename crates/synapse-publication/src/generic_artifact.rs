@@ -1,6 +1,6 @@
 use super::{
     PublicationError, canonical_json_bytes, collect_bundle_files, publish_files_atomically,
-    read_regular_file, reject_symlink_components, require_real_directory,
+    read_regular_file, reject_symlink_components, require_real_directory, sync_directory,
     validate_bundle_relative_path,
 };
 use crate::generic_artifact_render::render_generic_artifact_views;
@@ -807,7 +807,7 @@ pub fn export_generic_artifact_bundle(
             .collect(),
     };
     files.insert("checksums.json".into(), canonical_generic_json(&checksums)?);
-    let _ = publish_files_atomically(&destination, &files, false, None)?;
+    let _ = publish_files_atomically(&destination, &files, false, None, sync_directory)?;
     Ok(GenericArtifactExportReceipt {
         destination,
         target: options.target,

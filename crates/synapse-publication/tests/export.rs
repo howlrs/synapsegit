@@ -17,7 +17,7 @@ use synapse_publication::{
     BundleManifest, ChecksumsDocument, DEFAULT_MAX_SESSIONS, ExportOptions, OutputTarget,
     PresentationInput, ProjectionOptions, PublicationError, PublicationLocale,
     PublicationVisibility, SessionPresentationInput, ValueOrigin, build_public_projection,
-    export_bundle, verify_bundle,
+    export_bundle, export_bundle_with_post_exchange_sync_failure_for_test, verify_bundle,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -601,6 +601,25 @@ fn replace_retains_valid_recovery_for_both_targets() {
         assert!(verify_bundle(&destination).is_ok());
         assert!(verify_bundle(&receipt.replacement_recovery_path.unwrap()).is_ok());
     }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn replace_reports_sync_warning_after_committed_exchange() {
+    let temporary = TempDirectory::new();
+    create_three_decision_fixture(&temporary.0);
+    let destination = export(&temporary, "bundle", OutputTarget::Github);
+    let receipt = export_bundle_with_post_exchange_sync_failure_for_test(&ExportOptions {
+        projection: projection_options(temporary.join("repo")),
+        destination: destination.clone(),
+        target: OutputTarget::Github,
+        locale: Some(PublicationLocale::Ja),
+        replace: true,
+    })
+    .unwrap();
+    assert!(receipt.sync_warning.is_some());
+    assert!(verify_bundle(&destination).is_ok());
+    assert!(verify_bundle(&receipt.replacement_recovery_path.unwrap()).is_ok());
 }
 
 #[test]

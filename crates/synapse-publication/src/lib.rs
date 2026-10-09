@@ -506,6 +506,26 @@ pub fn build_public_projection(options: &ProjectionOptions) -> Result<PublicProj
 /// Generate a deterministic local bundle through a staged, atomic no-replace
 /// directory publication. Path safety is checked before the source is opened.
 pub fn export_bundle(options: &ExportOptions) -> Result<ExportReceipt> {
+    export_bundle_inner(options, sync_directory)
+}
+
+#[doc(hidden)]
+pub fn export_bundle_with_post_exchange_sync_failure_for_test(
+    options: &ExportOptions,
+) -> Result<ExportReceipt> {
+    export_bundle_inner(options, |_| {
+        Err(PublicationError::io(
+            "injected post-exchange sync",
+            ".",
+            io::Error::other("injected sync failure"),
+        ))
+    })
+}
+
+fn export_bundle_inner(
+    options: &ExportOptions,
+    post_exchange_sync: fn(&Path) -> Result<()>,
+) -> Result<ExportReceipt> {
     let destination = validate_export_paths(
         &options.projection.repository,
         &options.destination,
@@ -577,8 +597,13 @@ pub fn export_bundle(options: &ExportOptions) -> Result<ExportReceipt> {
             .collect(),
     };
     files.insert("checksums.json".into(), canonical_json_bytes(&checksums)?);
-    let publication =
-        publish_files_atomically(&destination, &files, options.replace, destination_identity)?;
+    let publication = publish_files_atomically(
+        &destination,
+        &files,
+        options.replace,
+        destination_identity,
+        post_exchange_sync,
+    )?;
 
     Ok(ExportReceipt {
         destination,
@@ -1652,6 +1677,7 @@ fn publish_files_atomically(
     files: &BTreeMap<String, Vec<u8>>,
     replace: bool,
     expected_identity: Option<BundleIdentity>,
+    post_exchange_sync: fn(&Path) -> Result<()>,
 ) -> Result<PublicationCommit> {
     let parent = destination
         .parent()
@@ -1705,7 +1731,9 @@ fn publish_files_atomically(
         // Deliberately retain the old verified bundle. Once EXCHANGE returns,
         // publication is committed and neither cleanup nor fsync may turn the
         // command into an ordinary failure or delete concurrent foreign data.
-        let warning = sync_directory(parent).err().map(|error| error.to_string());
+        let warning = post_exchange_sync(parent)
+            .err()
+            .map(|error| error.to_string());
         return Ok(PublicationCommit {
             recovery_path: Some(staging),
             sync_warning: warning,
