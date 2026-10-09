@@ -503,6 +503,8 @@ fn export_public_synapse_bundle(
         projection,
         destination,
         target: OutputTarget::Synapse,
+        locale: None,
+        replace: false,
     })?;
     Ok(())
 }

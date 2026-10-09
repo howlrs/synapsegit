@@ -11,11 +11,13 @@ mod generic_artifact;
 mod generic_artifact_render;
 mod model;
 mod render;
+mod render_v2;
 
 pub use generic_artifact::*;
 pub use model::*;
 
-use render::{render_html, render_story};
+use render::{render_html as render_html_v1, render_story as render_story_v1};
+use render_v2::{render_html as render_html_v2, render_story as render_story_v2};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet};
@@ -85,6 +87,10 @@ pub struct ExportOptions {
     pub projection: ProjectionOptions,
     pub destination: PathBuf,
     pub target: OutputTarget,
+    /// `None` intentionally emits the frozen v1 bytes.  An explicit locale
+    /// opts into the identified v2 localized container.
+    pub locale: Option<PublicationLocale>,
+    pub replace: bool,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -95,6 +101,12 @@ pub struct ExportReceipt {
     pub sessions_exported: usize,
     pub incomplete_sessions: usize,
     pub projection_sha256: String,
+    /// After `--replace`, the verified prior bundle remains here for explicit
+    /// human review and manual cleanup.
+    pub replacement_recovery_path: Option<PathBuf>,
+    /// A directory sync attempted after the atomic commit failed. The new
+    /// bundle is already visible; retain the recovery copy and report this.
+    pub sync_warning: Option<String>,
 }
 
 #[derive(Debug)]
@@ -494,16 +506,40 @@ pub fn build_public_projection(options: &ProjectionOptions) -> Result<PublicProj
 /// Generate a deterministic local bundle through a staged, atomic no-replace
 /// directory publication. Path safety is checked before the source is opened.
 pub fn export_bundle(options: &ExportOptions) -> Result<ExportReceipt> {
-    let destination = validate_export_paths(&options.projection.repository, &options.destination)?;
+    let destination = validate_export_paths(
+        &options.projection.repository,
+        &options.destination,
+        options.replace,
+    )?;
+    let destination_identity = if options.replace {
+        verify_bundle(&destination)?;
+        Some(bundle_identity(&destination)?)
+    } else {
+        None
+    };
     let projection = build_public_projection(&options.projection)?;
     let projection_bytes = canonical_json_bytes(&projection)?;
     let projection_sha256 = sha256_hex(&projection_bytes);
-    let (story_bytes, html_bytes) = render_views(ResolvedRendererProfile::V1, &projection);
+    let localized = options.locale.is_some();
+    let profile = if localized {
+        ResolvedRendererProfile::V2(options.locale.expect("checked"))
+    } else {
+        ResolvedRendererProfile::V1
+    };
+    let (story_bytes, html_bytes) = render_views(profile, &projection);
 
     let manifest = BundleManifest {
-        schema: schema(BUNDLE_SCHEMA, BUNDLE_SCHEMA_VERSION),
+        schema: schema(
+            BUNDLE_SCHEMA,
+            if localized {
+                LOCALIZED_BUNDLE_SCHEMA_VERSION
+            } else {
+                BUNDLE_SCHEMA_VERSION
+            },
+        ),
         generator: generator(),
-        renderer_profile: Some(renderer_profile()),
+        renderer_profile: Some(renderer_profile(profile)),
+        locale: options.locale,
         target: options.target,
         visibility: options.projection.visibility,
         publication_state: "local_preview".into(),
@@ -541,7 +577,8 @@ pub fn export_bundle(options: &ExportOptions) -> Result<ExportReceipt> {
             .collect(),
     };
     files.insert("checksums.json".into(), canonical_json_bytes(&checksums)?);
-    publish_files_atomically(&destination, &files)?;
+    let publication =
+        publish_files_atomically(&destination, &files, options.replace, destination_identity)?;
 
     Ok(ExportReceipt {
         destination,
@@ -550,6 +587,8 @@ pub fn export_bundle(options: &ExportOptions) -> Result<ExportReceipt> {
         sessions_exported: projection.sessions.len(),
         incomplete_sessions: projection.incomplete_sessions.len(),
         projection_sha256,
+        replacement_recovery_path: publication.recovery_path,
+        sync_warning: publication.sync_warning,
     })
 }
 
@@ -568,12 +607,17 @@ pub fn verify_bundle(root: impl AsRef<Path>) -> Result<VerifiedBundle> {
             "manifest.json and checksums.json must be canonical Synapse JSON".into(),
         ));
     }
-    if manifest.schema != schema(BUNDLE_SCHEMA, BUNDLE_SCHEMA_VERSION) {
+    let localized = manifest.schema == schema(BUNDLE_SCHEMA, LOCALIZED_BUNDLE_SCHEMA_VERSION);
+    if !localized && manifest.schema != schema(BUNDLE_SCHEMA, BUNDLE_SCHEMA_VERSION) {
         return Err(PublicationError::InvalidBundle(
             "unsupported publication bundle schema".into(),
         ));
     }
-    let resolved_renderer = resolve_renderer_profile(manifest.renderer_profile.as_ref())?;
+    let resolved_renderer = resolve_renderer_profile(
+        manifest.renderer_profile.as_ref(),
+        manifest.locale,
+        localized,
+    )?;
     if manifest.projection_path != "projection.json"
         || manifest.story_path != "story.md"
         || manifest.html_path != "index.html"
@@ -751,21 +795,51 @@ fn target_content<'a>(
     }
 }
 
-fn renderer_profile() -> SchemaIdentity {
-    schema(RENDERER_PROFILE, RENDERER_PROFILE_VERSION)
+fn renderer_profile(profile: ResolvedRendererProfile) -> SchemaIdentity {
+    schema(
+        RENDERER_PROFILE,
+        match profile {
+            ResolvedRendererProfile::V1 => RENDERER_PROFILE_VERSION,
+            ResolvedRendererProfile::V2(_) => LOCALIZED_RENDERER_PROFILE_VERSION,
+        },
+    )
 }
 
 #[derive(Clone, Copy)]
 enum ResolvedRendererProfile {
     V1,
+    V2(PublicationLocale),
 }
 
-fn resolve_renderer_profile(profile: Option<&SchemaIdentity>) -> Result<ResolvedRendererProfile> {
+fn resolve_renderer_profile(
+    profile: Option<&SchemaIdentity>,
+    locale: Option<PublicationLocale>,
+    localized: bool,
+) -> Result<ResolvedRendererProfile> {
+    if localized {
+        return match (profile, locale) {
+            (Some(profile), Some(locale))
+                if profile == &renderer_profile(ResolvedRendererProfile::V2(locale)) =>
+            {
+                Ok(ResolvedRendererProfile::V2(locale))
+            }
+            _ => Err(PublicationError::InvalidBundle(
+                "localized bundle requires a matching v2 renderer profile and locale".into(),
+            )),
+        };
+    }
+    if locale.is_some() {
+        return Err(PublicationError::InvalidBundle(
+            "v1 bundle must not declare a locale".into(),
+        ));
+    }
     match profile {
         // Bundles created before the profile field was added used this exact
         // v1 renderer under bundle schema v1.
         None => Ok(ResolvedRendererProfile::V1),
-        Some(profile) if profile == &renderer_profile() => Ok(ResolvedRendererProfile::V1),
+        Some(profile) if profile == &renderer_profile(ResolvedRendererProfile::V1) => {
+            Ok(ResolvedRendererProfile::V1)
+        }
         Some(_) => Err(PublicationError::InvalidBundle(
             "unsupported publication renderer profile".into(),
         )),
@@ -780,8 +854,12 @@ fn render_views(
     // and retain an explicit verifier dispatch for bundles created with v1.
     match profile {
         ResolvedRendererProfile::V1 => (
-            render_story(projection).into_bytes(),
-            render_html(projection).into_bytes(),
+            render_story_v1(projection).into_bytes(),
+            render_html_v1(projection).into_bytes(),
+        ),
+        ResolvedRendererProfile::V2(locale) => (
+            render_story_v2(projection, locale).into_bytes(),
+            render_html_v2(projection, locale).into_bytes(),
         ),
     }
 }
@@ -1476,13 +1554,20 @@ fn validate_existing_repository_path(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn validate_export_paths(source: &Path, destination: &Path) -> Result<PathBuf> {
+fn validate_export_paths(source: &Path, destination: &Path, replace: bool) -> Result<PathBuf> {
     validate_existing_repository_path(source)?;
     match fs::symlink_metadata(destination) {
-        Ok(_) => {
+        Ok(_metadata) if !replace => {
             return Err(PublicationError::DestinationExists(
                 destination.to_path_buf(),
             ));
+        }
+        Ok(metadata) => {
+            if metadata.file_type().is_symlink() || !metadata.is_dir() {
+                return Err(PublicationError::UnsafePath(
+                    "replacement destination must be a real directory".into(),
+                ));
+            }
         }
         Err(error) if error.kind() == io::ErrorKind::NotFound => {}
         Err(error) => {
@@ -1557,7 +1642,17 @@ fn reject_symlink_components(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn publish_files_atomically(destination: &Path, files: &BTreeMap<String, Vec<u8>>) -> Result<()> {
+struct PublicationCommit {
+    recovery_path: Option<PathBuf>,
+    sync_warning: Option<String>,
+}
+
+fn publish_files_atomically(
+    destination: &Path,
+    files: &BTreeMap<String, Vec<u8>>,
+    replace: bool,
+    expected_identity: Option<BundleIdentity>,
+) -> Result<PublicationCommit> {
     let parent = destination
         .parent()
         .expect("validated destination has a parent");
@@ -1594,10 +1689,96 @@ fn publish_files_atomically(destination: &Path, files: &BTreeMap<String, Vec<u8>
             .map_err(|error| PublicationError::io("sync publication bundle file", &path, error))?;
     }
     sync_tree_directories(&staging)?;
-    rename_directory_no_replace(&staging, destination)?;
-    guard.armed = false;
+    if replace {
+        // The old target was verified before staging. Verify it again directly
+        // before the exchange so a concurrent replacement cannot cause us to
+        // swap an arbitrary directory.  Linux renameat2 exchange is the
+        // linearization point; the old verified bundle is retained at staging.
+        verify_bundle(destination)?;
+        if Some(bundle_identity(destination)?) != expected_identity {
+            return Err(PublicationError::UnsafePath(
+                "replacement destination changed before atomic exchange".into(),
+            ));
+        }
+        rename_directory_exchange(&staging, destination)?;
+        guard.armed = false;
+        // Deliberately retain the old verified bundle. Once EXCHANGE returns,
+        // publication is committed and neither cleanup nor fsync may turn the
+        // command into an ordinary failure or delete concurrent foreign data.
+        let warning = sync_directory(parent).err().map(|error| error.to_string());
+        return Ok(PublicationCommit {
+            recovery_path: Some(staging),
+            sync_warning: warning,
+        });
+    } else {
+        rename_directory_no_replace(&staging, destination)?;
+        guard.armed = false;
+    }
     sync_directory(parent)?;
-    Ok(())
+    Ok(PublicationCommit {
+        recovery_path: None,
+        sync_warning: None,
+    })
+}
+
+#[cfg(unix)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct BundleIdentity {
+    device: u64,
+    inode: u64,
+}
+
+#[cfg(unix)]
+fn bundle_identity(path: &Path) -> Result<BundleIdentity> {
+    use std::os::unix::fs::MetadataExt;
+    let metadata = fs::symlink_metadata(path).map_err(|error| {
+        PublicationError::io("inspect replacement destination identity", path, error)
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_dir() {
+        return Err(PublicationError::UnsafePath(
+            "replacement destination must remain a real directory".into(),
+        ));
+    }
+    Ok(BundleIdentity {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+    })
+}
+
+#[cfg(not(unix))]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+struct BundleIdentity;
+
+#[cfg(not(unix))]
+fn bundle_identity(path: &Path) -> Result<BundleIdentity> {
+    Err(PublicationError::UnsafePath(format!(
+        "replacement identity checks are unsupported for {}",
+        path.display()
+    )))
+}
+
+#[cfg(target_os = "linux")]
+fn rename_directory_exchange(source: &Path, destination: &Path) -> Result<()> {
+    use rustix::fs::{CWD, RenameFlags, renameat_with};
+    renameat_with(CWD, source, CWD, destination, RenameFlags::EXCHANGE).map_err(|error| {
+        PublicationError::io(
+            "atomically exchange verified publication bundle",
+            destination,
+            io::Error::from_raw_os_error(error.raw_os_error()),
+        )
+    })
+}
+
+#[cfg(not(target_os = "linux"))]
+fn rename_directory_exchange(_source: &Path, destination: &Path) -> Result<()> {
+    Err(PublicationError::io(
+        "atomically exchange verified publication bundle",
+        destination,
+        io::Error::new(
+            io::ErrorKind::Unsupported,
+            "--replace requires Linux renameat2 RENAME_EXCHANGE",
+        ),
+    ))
 }
 
 fn ensure_staging_directory(staging: &Path, directory: &Path) -> Result<()> {

@@ -61,6 +61,19 @@ synapse-present export <repo> <output-dir> [--session <id>]
 synapse-present preview <bundle-dir>
 ```
 
+`export` accepts `--locale en|ja` once. Omitting it preserves the frozen
+English v1 bytes; supplying either value selects the identified localized v2
+bundle and renderer profile, while `projection.json` stays the v1 semantic
+projection. This container v2 is not the separate semantic projection v2
+proposal tracked by #163. `preview` checks the locale/profile pair.
+
+`--replace` is Linux-only and only accepts an existing strict bundle with no
+extra files, directories, `.git`, or symlinks. It stages beside the target and
+atomically exchanges directories. The previous verified bundle is retained at
+the printed `replacement_recovery_path` for manual review and cleanup; a
+post-commit directory-sync problem is printed as `sync_warning` and does not
+turn the committed exchange into an ordinary failure.
+
 ### `export <repo> <output-dir> [options]`
 
 source repositoryを作成せず、CAS、Refs、reflogへ書き込まずにbundleを新規生成する。export前に

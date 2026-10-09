@@ -15,8 +15,9 @@ use synapse_creator::{
 };
 use synapse_publication::{
     BundleManifest, ChecksumsDocument, DEFAULT_MAX_SESSIONS, ExportOptions, OutputTarget,
-    PresentationInput, ProjectionOptions, PublicationError, PublicationVisibility,
-    SessionPresentationInput, ValueOrigin, build_public_projection, export_bundle, verify_bundle,
+    PresentationInput, ProjectionOptions, PublicationError, PublicationLocale,
+    PublicationVisibility, SessionPresentationInput, ValueOrigin, build_public_projection,
+    export_bundle, verify_bundle,
 };
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -157,6 +158,8 @@ fn export(root: &TempDirectory, name: &str, target: OutputTarget) -> PathBuf {
         projection: projection_options(root.join("repo")),
         destination: destination.clone(),
         target,
+        locale: None,
+        replace: false,
     })
     .unwrap();
     destination
@@ -202,6 +205,8 @@ fn frozen_v1_refuses_derived_sessions_without_writing_a_bundle() {
                 projection,
                 destination: destination.clone(),
                 target: OutputTarget::Github,
+                locale: None,
+                replace: false,
             })
             .unwrap_err();
             assert!(
@@ -257,6 +262,8 @@ fn frozen_v1_refuses_derived_sessions_without_writing_a_bundle() {
             projection,
             destination: destination.clone(),
             target: OutputTarget::Github,
+            locale: None,
+            replace: false,
         })
         .unwrap_err();
         assert!(
@@ -279,6 +286,8 @@ fn frozen_v1_refuses_derived_sessions_without_writing_a_bundle() {
         projection,
         destination: destination.clone(),
         target: OutputTarget::Github,
+        locale: None,
+        replace: false,
     })
     .unwrap();
     verify_bundle(&destination).unwrap();
@@ -450,10 +459,148 @@ fn repeated_exports_are_byte_deterministic_and_never_replace() {
         projection: projection_options(temporary.join("repo")),
         destination: sentinel.clone(),
         target: OutputTarget::Github,
+        locale: None,
+        replace: false,
     })
     .unwrap_err();
     assert!(matches!(error, PublicationError::DestinationExists(_)));
     assert_eq!(fs::read(sentinel.join("keep.txt")).unwrap(), b"keep");
+}
+
+#[test]
+fn explicit_locales_use_v2_views_without_changing_the_frozen_projection() {
+    let temporary = TempDirectory::new();
+    create_three_decision_fixture(&temporary.0);
+    let en = temporary.join("en");
+    let ja = temporary.join("ja");
+    for (destination, locale) in [(&en, PublicationLocale::En), (&ja, PublicationLocale::Ja)] {
+        export_bundle(&ExportOptions {
+            projection: projection_options(temporary.join("repo")),
+            destination: destination.clone(),
+            target: OutputTarget::Github,
+            locale: Some(locale),
+            replace: false,
+        })
+        .unwrap();
+        let verified = verify_bundle(destination).unwrap();
+        assert_eq!(verified.manifest.schema.version, 2);
+        assert_eq!(verified.manifest.locale, Some(locale));
+    }
+    assert_eq!(
+        fs::read(en.join("projection.json")).unwrap(),
+        fs::read(ja.join("projection.json")).unwrap()
+    );
+    assert!(
+        String::from_utf8(fs::read(ja.join("story.md")).unwrap())
+            .unwrap()
+            .contains("この履歴の読み方")
+    );
+    let mut manifest: BundleManifest =
+        serde_json::from_slice(&fs::read(ja.join("manifest.json")).unwrap()).unwrap();
+    manifest.locale = Some(PublicationLocale::En);
+    write_manifest_and_reconcile_checksums(&ja, &manifest);
+    assert!(matches!(
+        verify_bundle(&ja),
+        Err(PublicationError::InvalidBundle(_))
+    ));
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn replace_exchanges_only_a_verified_bundle() {
+    let temporary = TempDirectory::new();
+    create_three_decision_fixture(&temporary.0);
+    let destination = export(&temporary, "bundle", OutputTarget::Github);
+    let receipt = export_bundle(&ExportOptions {
+        projection: projection_options(temporary.join("repo")),
+        destination: destination.clone(),
+        target: OutputTarget::Github,
+        locale: Some(PublicationLocale::Ja),
+        replace: true,
+    })
+    .unwrap();
+    assert_eq!(
+        verify_bundle(&destination).unwrap().manifest.locale,
+        Some(PublicationLocale::Ja)
+    );
+    let recovery = receipt
+        .replacement_recovery_path
+        .expect("old bundle retained");
+    assert!(recovery.exists());
+    assert_eq!(verify_bundle(&recovery).unwrap().manifest.locale, None);
+    fs::write(destination.join("unlisted"), b"must remain").unwrap();
+    let error = export_bundle(&ExportOptions {
+        projection: projection_options(temporary.join("repo")),
+        destination: destination.clone(),
+        target: OutputTarget::Github,
+        locale: Some(PublicationLocale::En),
+        replace: true,
+    })
+    .unwrap_err();
+    assert!(matches!(error, PublicationError::InvalidBundle(_)));
+    assert_eq!(
+        fs::read(destination.join("unlisted")).unwrap(),
+        b"must remain"
+    );
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn replace_refuses_every_non_strict_old_inventory_without_touching_it() {
+    for kind in ["checksum", "git", "file", "directory", "symlink"] {
+        let temporary = TempDirectory::new();
+        create_three_decision_fixture(&temporary.0);
+        let destination = export(&temporary, "bundle", OutputTarget::Github);
+        match kind {
+            "checksum" => fs::write(destination.join("story.md"), b"corrupt").unwrap(),
+            "git" => fs::create_dir(destination.join(".git")).unwrap(),
+            "file" => fs::write(destination.join("foreign"), b"keep").unwrap(),
+            "directory" => fs::create_dir(destination.join("foreign-dir")).unwrap(),
+            "symlink" => {
+                std::os::unix::fs::symlink("story.md", destination.join("foreign-link")).unwrap()
+            }
+            _ => unreachable!(),
+        }
+        let before = snapshot_tree(&destination);
+        let error = export_bundle(&ExportOptions {
+            projection: projection_options(temporary.join("repo")),
+            destination: destination.clone(),
+            target: OutputTarget::Github,
+            locale: Some(PublicationLocale::Ja),
+            replace: true,
+        })
+        .unwrap_err();
+        assert!(matches!(error, PublicationError::InvalidBundle(_)));
+        assert_eq!(snapshot_tree(&destination), before, "{kind}");
+        assert!(
+            !temporary
+                .0
+                .read_dir()
+                .unwrap()
+                .flatten()
+                .any(|entry| entry.file_name().to_string_lossy().contains(".bundle.tmp-"))
+        );
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn replace_retains_valid_recovery_for_both_targets() {
+    for target in [OutputTarget::Github, OutputTarget::Synapse] {
+        let temporary = TempDirectory::new();
+        create_three_decision_fixture(&temporary.0);
+        let destination = export(&temporary, "bundle", target);
+        let receipt = export_bundle(&ExportOptions {
+            projection: projection_options(temporary.join("repo")),
+            destination: destination.clone(),
+            target,
+            locale: Some(PublicationLocale::Ja),
+            replace: true,
+        })
+        .unwrap();
+        assert!(verify_bundle(&destination).is_ok());
+        assert!(verify_bundle(&receipt.replacement_recovery_path.unwrap()).is_ok());
+    }
 }
 
 #[test]
@@ -747,6 +894,8 @@ fn rejects_output_inside_source_before_opening_it() {
         projection: projection_options(repository.clone()),
         destination: repository.join("public"),
         target: OutputTarget::Github,
+        locale: None,
+        replace: false,
     })
     .unwrap_err();
     assert!(matches!(error, PublicationError::UnsafePath(_)));
@@ -767,6 +916,8 @@ fn fails_closed_on_uncheckpointed_sqlite_sidecar_without_partial_output() {
         projection: projection_options(repository),
         destination: destination.clone(),
         target: OutputTarget::Github,
+        locale: None,
+        replace: false,
     })
     .unwrap_err();
     assert_eq!(error.code(), "read_only_source_busy");
@@ -791,6 +942,8 @@ fn rejects_symlink_destination_parent_without_touching_target() {
         projection: projection_options(temporary.join("repo")),
         destination: linked_parent.join("bundle"),
         target: OutputTarget::Github,
+        locale: None,
+        replace: false,
     })
     .unwrap_err();
     assert!(matches!(error, PublicationError::UnsafePath(_)));
@@ -818,6 +971,8 @@ fn rejects_symlinked_source_cas_root_without_publishing_destination() {
         projection: projection_options(repository),
         destination: destination.clone(),
         target: OutputTarget::Github,
+        locale: None,
+        replace: false,
     })
     .unwrap_err();
     assert_eq!(error.code(), "repository_error");

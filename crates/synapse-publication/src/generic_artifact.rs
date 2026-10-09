@@ -807,7 +807,7 @@ pub fn export_generic_artifact_bundle(
             .collect(),
     };
     files.insert("checksums.json".into(), canonical_generic_json(&checksums)?);
-    publish_files_atomically(&destination, &files)?;
+    let _ = publish_files_atomically(&destination, &files, false, None)?;
     Ok(GenericArtifactExportReceipt {
         destination,
         target: options.target,
