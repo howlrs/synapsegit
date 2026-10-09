@@ -248,6 +248,9 @@ assert.equal(await selectedImageLocationMetadata(asSelectedFile(nonXmpItextGps))
 const invalidLanguage = png(validChunk("iTXt", new TextEncoder().encode("Comment\0\0\0en--US\0\0text")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
 assert.equal(inspectImageLocationMetadata(invalidLanguage), "could_not_check");
 assert.equal(await selectedImageLocationMetadata(asSelectedFile(invalidLanguage)), "could_not_check");
+const numericLanguage = png(validChunk("iTXt", new TextEncoder().encode("Comment\0\0\0" + "1\0\0text")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+assert.equal(inspectImageLocationMetadata(numericLanguage), "could_not_check");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(numericLanguage)), "could_not_check");
 const repeatedExif = png(validChunk("eXIf", exif(false)), validChunk("eXIf", exif(false)), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
 assert.equal(inspectImageLocationMetadata(repeatedExif), "could_not_check");
 assert.equal(await selectedImageLocationMetadata(asSelectedFile(repeatedExif)), "could_not_check");

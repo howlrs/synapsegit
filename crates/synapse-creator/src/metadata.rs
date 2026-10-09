@@ -499,10 +499,18 @@ fn valid_png_text(payload: &[u8]) -> bool {
         .is_some_and(|end| valid_png_keyword(&payload[..end]) && !payload[end + 1..].contains(&0))
 }
 fn valid_png_language_tag(tag: &[u8]) -> bool {
-    tag.is_empty()
-        || tag
-            .split(|byte| *byte == b'-')
-            .all(|subtag| !subtag.is_empty() && subtag.iter().all(u8::is_ascii_alphanumeric))
+    if tag.is_empty() {
+        return true;
+    }
+    let mut subtags = tag.split(|byte| *byte == b'-');
+    let Some(primary) = subtags.next() else {
+        return false;
+    };
+    (2..=8).contains(&primary.len())
+        && primary.iter().all(u8::is_ascii_alphabetic)
+        && subtags.all(|subtag| {
+            (1..=8).contains(&subtag.len()) && subtag.iter().all(u8::is_ascii_alphanumeric)
+        })
 }
 fn has_xmp_gps(bytes: &[u8]) -> bool {
     contains_ignore_ascii_case(bytes, b"gpslatit") || contains_ignore_ascii_case(bytes, b"gpslongi")
@@ -946,6 +954,15 @@ mod tests {
         ]);
         assert_eq!(
             inspect(&invalid_language, false),
+            ImageMetadataCheck::CouldNotCheck
+        );
+        let numeric_language = png([
+            png_chunk(b"iTXt", b"Comment\0\0\0\x31\0\0text"),
+            png_chunk(b"IDAT", b""),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(
+            inspect(&numeric_language, false),
             ImageMetadataCheck::CouldNotCheck
         );
         let exif = tiff(false, false);
