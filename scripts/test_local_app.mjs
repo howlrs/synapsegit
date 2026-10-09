@@ -170,6 +170,7 @@ const {
   operationSuccessMessage,
   submitEnhancedForm,
   inspectImageLocationMetadata,
+  selectedImageLocationMetadata,
 } = await import("../crates/synapse-local-http/assets/app.js");
 
 const exif = (gps) => { const b = new Uint8Array(40); b.set([73,73,42,0,8,0,0,0,1,0]); b[10] = gps ? 0x25 : 0; b[11] = gps ? 0x88 : 1; b[12]=4; b[14]=1; b[18]=32; return b; };
@@ -197,6 +198,19 @@ assert.equal(inspectImageLocationMetadata(plainPng), "no_gps_found");
 assert.equal(inspectImageLocationMetadata(plainPng, true), "could_not_check");
 const rawProfilePng = new Uint8Array([137,80,78,71,13,10,26,10,...validChunk("zTXt", new TextEncoder().encode("Raw profile type exif\0\0x")),...validChunk("IEND", new Uint8Array())]);
 assert.equal(inspectImageLocationMetadata(rawProfilePng), "could_not_check");
+const asSelectedFile = (bytes) => ({ size: bytes.length, slice(start, end) { return new Blob([bytes.subarray(start, end)]); } });
+const xmpAfterIdat = new Uint8Array([137,80,78,71,13,10,26,10,...validChunk("IDAT", new Uint8Array(256 * 1024 + 1)),...validChunk("iTXt", new TextEncoder().encode("XML:com.adobe.xmp\0\0\0\0\0GPSLongitude")),...validChunk("IEND", new Uint8Array())]);
+assert.equal(inspectImageLocationMetadata(xmpAfterIdat), "gps_found");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(xmpAfterIdat)), "gps_found");
+const largeCleanPng = new Uint8Array([137,80,78,71,13,10,26,10,...validChunk("IDAT", new Uint8Array(256 * 1024 + 1)),...validChunk("IEND", new Uint8Array())]);
+assert.equal(inspectImageLocationMetadata(largeCleanPng), "no_gps_found");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(largeCleanPng)), "no_gps_found");
+const tooMuchPngMetadata = new Uint8Array([137,80,78,71,13,10,26,10,...validChunk("tEXt", new Uint8Array(256 * 1024 + 1)),...validChunk("IEND", new Uint8Array())]);
+assert.equal(inspectImageLocationMetadata(tooMuchPngMetadata), "could_not_check");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(tooMuchPngMetadata)), "could_not_check");
+const trailingPng = new Uint8Array(plainPng.length + 1); trailingPng.set(plainPng);
+assert.equal(inspectImageLocationMetadata(trailingPng), "could_not_check");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(trailingPng)), "could_not_check");
 
 // Keep the client catalog fail-closed: a new message must have both supported
 // languages and expose the same interpolation contract in each one.

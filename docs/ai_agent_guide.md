@@ -154,15 +154,15 @@ The person can also export from the project's Maintenance page while `synapse-lo
 ## Photo location metadata
 
 `inbox put`, `creator-run`, and localhost import (upload and Inbox review)
-inspect JPEG/PNG EXIF/XMP location metadata in only the first 256 KiB, without
-decoding or changing image bytes. When warned, tell the person that the recorded
-bytes may contain location data and let them choose whether to supply a
-metadata-stripped copy before recording. SynapseGit never removes it
-automatically. Malformed, unsupported, or limit-reached files are reported as
-not fully checked, never as location-free. A JPEG photo larger than 256 KiB is
-still fully checked when its metadata ends inside that range; a PNG larger than
-256 KiB is reported as not fully checked because PNG text can follow the image
-data.
+inspect JPEG/PNG EXIF/XMP location metadata without decoding or changing image
+bytes. JPEG headers are limited to the first 256 KiB. PNG is structurally
+traversed to `IEND`: it reads and CRC-checks only eXIf/text metadata chunks and
+skips image payload. The check accepts files up to 64 MiB, at most 4,096 PNG
+chunks, and at most 256 KiB of metadata payload in total. Malformed,
+unsupported, limit-reached, or trailing-data files are reported as not fully
+checked, never as location-free. SynapseGit does not validate CRCs for skipped
+image payload, so this is a bounded location-metadata check rather than a PNG
+integrity check.
 
 ### Choose the bytes before recording
 
