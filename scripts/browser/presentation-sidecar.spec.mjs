@@ -69,16 +69,18 @@ test("public text validation rejects byte and control limits and keeps omissions
   await expect(page.locator('[name="title"]')).toHaveValue("Comparison browser fixture");
   await page.locator('[name="creator_display_name"]').fill("");
   await page.locator('[name="title"]').fill("");
-  await page.getByRole("checkbox", { name: "候補を確認し、公開用の文章として使うことを確認しました。", exact: true }).check();
   await page.locator('[name="title"]').fill("あ".repeat(101));
+  await page.getByRole("checkbox", { name: "候補を確認し、公開用の文章として使うことを確認しました。", exact: true }).check();
   await page.getByRole("button", { name: "入力した文章を確認", exact: true }).click();
   await expect(page.locator("[data-presentation-status]")).toContainText("303 / 300");
   await expect(page.locator("[data-presentation-preview]")).toBeHidden();
   await page.locator('[name="title"]').fill("禁止\u202e文字");
+  await page.getByRole("checkbox", { name: "候補を確認し、公開用の文章として使うことを確認しました。", exact: true }).check();
   await page.getByRole("button", { name: "入力した文章を確認", exact: true }).click();
   await expect(page.locator("[data-presentation-status]")).toContainText("forbidden control");
   await expect(page.locator("[data-presentation-preview]")).toBeHidden();
   await page.locator('[name="title"]').fill("");
+  await page.getByRole("checkbox", { name: "候補を確認し、公開用の文章として使うことを確認しました。", exact: true }).check();
   await page.getByRole("button", { name: "入力した文章を確認", exact: true }).click();
   await expect(page.locator("[data-presentation-preview]")).toBeVisible();
   const downloaded = page.waitForEvent("download");
@@ -111,4 +113,19 @@ test("verified presentation suggestions ignore stale responses and preserve edit
   await expect(page.getByRole("checkbox", { name: "候補を確認し、公開用の文章として使うことを確認しました。", exact: true })).not.toBeChecked();
   await page.getByRole("button", { name: "入力した文章を確認", exact: true }).click();
   await expect(page.locator("[data-presentation-preview]")).toBeHidden();
+});
+
+test("editing a confirmed suggestion requires a new acknowledgement and rejects unknown suggestion fields", async ({ page, app }) => {
+  await page.goto(`${app.origin}/projects/complete/presentation`);
+  await page.getByLabel("完了したセッション", { exact: true }).selectOption("sample");
+  await expect(page.locator('[data-presentation-suggestions-help]')).toBeVisible();
+  await page.getByRole("checkbox", { name: "候補を確認し、公開用の文章として使うことを確認しました。", exact: true }).check();
+  await page.locator('[name="title"]').fill("Edited public title");
+  await expect(page.getByRole("checkbox", { name: "候補を確認し、公開用の文章として使うことを確認しました。", exact: true })).not.toBeChecked();
+  await page.getByRole("button", { name: "入力した文章を確認", exact: true }).click();
+  await expect(page.locator("[data-presentation-preview]")).toBeHidden();
+  await page.route("**/presentation-suggestions", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ title: "ok", creator_display_name: "ok", private_note: "no" }) }));
+  await page.getByLabel("完了したセッション", { exact: true }).selectOption("");
+  await page.getByLabel("完了したセッション", { exact: true }).selectOption("sample");
+  await expect(page.locator("[data-presentation-status]")).toContainText("公開用候補の応答が不正");
 });
