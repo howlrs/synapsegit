@@ -245,12 +245,20 @@ assert.equal(await selectedImageLocationMetadata(asSelectedFile(textGps)), "gps_
 const nonXmpItextGps = png(validChunk("iTXt", new TextEncoder().encode("Comment\0\0\0\0\0GPSLatitude")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
 assert.equal(inspectImageLocationMetadata(nonXmpItextGps), "gps_found");
 assert.equal(await selectedImageLocationMetadata(asSelectedFile(nonXmpItextGps)), "gps_found");
-const invalidLanguage = png(validChunk("iTXt", new TextEncoder().encode("Comment\0\0\0en--US\0\0text")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
-assert.equal(inspectImageLocationMetadata(invalidLanguage), "could_not_check");
-assert.equal(await selectedImageLocationMetadata(asSelectedFile(invalidLanguage)), "could_not_check");
-const numericLanguage = png(validChunk("iTXt", new TextEncoder().encode("Comment\0\0\0" + "1\0\0text")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
-assert.equal(inspectImageLocationMetadata(numericLanguage), "could_not_check");
-assert.equal(await selectedImageLocationMetadata(asSelectedFile(numericLanguage)), "could_not_check");
+const itxtWithLanguage = (language) => {
+  const languageBytes = typeof language === "string" ? new TextEncoder().encode(language) : language;
+  return png(validChunk("iTXt", new Uint8Array([...new TextEncoder().encode("Comment\0\0\0"), ...languageBytes, 0, 0, ...new TextEncoder().encode("text")])), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+};
+for (const language of ["", "en", "es-419", "zh-Hans-CN", "ar-AE-u-nu-latn", "x-private", "i-klingon", "en-GB-oed", "de-CH-1901", "sl-rozaj-biske", "zh-cmn-Hans-CN", "en-a-foo-x-private"]) {
+  const image = itxtWithLanguage(language);
+  assert.equal(inspectImageLocationMetadata(image), "no_gps_found", `${language} should be valid`);
+  assert.equal(await selectedImageLocationMetadata(asSelectedFile(image)), "no_gps_found", `${language} should be valid through File.slice()`);
+}
+for (const language of ["1", "en--US", "-en", "en-", "en-a", "en-x", "sl-rozaj-rozaj", "en-u-ca-gregory-u-nu-latn", "en-abcdefghi", new Uint8Array([101,110,45,255]), "de-419-Hans"]) {
+  const image = itxtWithLanguage(language);
+  assert.equal(inspectImageLocationMetadata(image), "could_not_check", `${language} should be invalid`);
+  assert.equal(await selectedImageLocationMetadata(asSelectedFile(image)), "could_not_check", `${language} should be invalid through File.slice()`);
+}
 const repeatedExif = png(validChunk("eXIf", exif(false)), validChunk("eXIf", exif(false)), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
 assert.equal(inspectImageLocationMetadata(repeatedExif), "could_not_check");
 assert.equal(await selectedImageLocationMetadata(asSelectedFile(repeatedExif)), "could_not_check");

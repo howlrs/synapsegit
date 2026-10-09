@@ -887,7 +887,61 @@ function u32at(bytes, offset, little) { if (offset + 4 > bytes.length) return nu
 function asciiContains(bytes, text) { const needle = new TextEncoder().encode(text.toLowerCase()); for(let i=0;i+needle.length<=bytes.length;i++){let ok=true;for(let j=0;j<needle.length;j++){let c=bytes[i+j]; if(c>=65&&c<=90)c+=32;if(c!==needle[j]){ok=false;break}}if(ok)return true}return false; }
 function validPngKeyword(keyword) { return keyword.length>0&&keyword.length<=79&&keyword[0]!==32&&keyword.at(-1)!==32&&!keyword.some((byte,index)=>byte===32&&keyword[index+1]===32)&&keyword.every(byte=>byte>=32&&byte<=126||byte>=161); }
 function validPngText(payload) { const end=payload.indexOf(0);return end>=0&&validPngKeyword(payload.subarray(0,end))&&!payload.subarray(end+1).includes(0); }
-function validPngLanguageTag(tag) { if(!tag.length)return true;const subtags=[];let last=0;for(let i=0;i<=tag.length;i++){if(i===tag.length||tag[i]===45){const part=tag.subarray(last,i);if(!part.length||part.length>8||!part.every(byte=>byte>=48&&byte<=57||byte>=65&&byte<=90||byte>=97&&byte<=122))return false;subtags.push(part);last=i+1;}}return subtags[0].length>=2&&subtags[0].every(byte=>byte>=65&&byte<=90||byte>=97&&byte<=122); }
+function validPngLanguageTag(tag) {
+  if (!tag.length) return true;
+  const grandfathered = ["art-lojban","cel-gaulish","en-gb-oed","i-ami","i-bnn","i-default","i-enochian","i-hak","i-klingon","i-lux","i-mingo","i-navajo","i-pwn","i-tao","i-tay","i-tsu","no-bok","no-nyn","sgn-be-fr","sgn-be-nl","sgn-ch-de","zh-guoyu","zh-hakka","zh-min","zh-min-nan","zh-xiang"];
+  const lower = (byte) => byte >= 65 && byte <= 90 ? byte + 32 : byte;
+  const alpha = (part) => part.every(byte => byte >= 65 && byte <= 90 || byte >= 97 && byte <= 122);
+  const digit = (part) => part.every(byte => byte >= 48 && byte <= 57);
+  const alphanumeric = (part) => part.every(byte => byte >= 48 && byte <= 57 || byte >= 65 && byte <= 90 || byte >= 97 && byte <= 122);
+  if (grandfathered.some(value => tag.length === value.length && tag.every((byte, index) => lower(byte) === value.charCodeAt(index)))) return true;
+  const subtags = [];
+  let last = 0;
+  for (let i = 0; i <= tag.length; i++) {
+    if (i === tag.length || tag[i] === 45) {
+      const part = tag.subarray(last, i);
+      if (!part.length || !alphanumeric(part)) return false;
+      subtags.push(part);
+      last = i + 1;
+    }
+  }
+  if (subtags[0].length === 1 && lower(subtags[0][0]) === 120) return subtags.length > 1 && subtags.slice(1).every(part => part.length <= 8);
+  let position;
+  if (subtags[0].length >= 2 && subtags[0].length <= 3 && alpha(subtags[0])) {
+    position = 1;
+    for (let count = 0; count < 3 && position < subtags.length && subtags[position].length === 3 && alpha(subtags[position]); count++) position++;
+  } else if (subtags[0].length >= 4 && subtags[0].length <= 8 && alpha(subtags[0])) position = 1;
+  else return false;
+  if (position < subtags.length && subtags[position].length === 4 && alpha(subtags[position])) position++;
+  if (position < subtags.length && (subtags[position].length === 2 && alpha(subtags[position]) || subtags[position].length === 3 && digit(subtags[position]))) position++;
+  const variants = [];
+  while (position < subtags.length) {
+    const part = subtags[position];
+    const variant = part.length >= 5 && part.length <= 8 || part.length === 4 && digit(part.subarray(0, 1));
+    if (!variant) break;
+    const value = String.fromCharCode(...part.map(lower));
+    if (variants.includes(value)) return false;
+    variants.push(value);
+    position++;
+  }
+  const extensionSingletons = [];
+  while (position < subtags.length && subtags[position].length === 1 && lower(subtags[position][0]) !== 120) {
+    const singleton = lower(subtags[position][0]);
+    if (extensionSingletons.includes(singleton)) return false;
+    position++;
+    const start = position;
+    while (position < subtags.length && subtags[position].length >= 2 && subtags[position].length <= 8) position++;
+    if (position === start) return false;
+    extensionSingletons.push(singleton);
+  }
+  if (position < subtags.length && subtags[position].length === 1 && lower(subtags[position][0]) === 120) {
+    position++;
+    const start = position;
+    while (position < subtags.length && subtags[position].length <= 8) position++;
+    if (position === start) return false;
+  }
+  return position === subtags.length;
+}
 function itxtXmp(bytes) { const end=bytes.indexOf(0); if(end<0||!validPngKeyword(bytes.subarray(0,end)))return "invalid";const rest=bytes.subarray(end+1);if(rest.length<2||rest[0]||rest[1])return "invalid";const languageAndRest=rest.subarray(2),language=languageAndRest.indexOf(0);if(language<0||!validPngLanguageTag(languageAndRest.subarray(0,language)))return "invalid";const translatedAndText=languageAndRest.subarray(language+1),translated=translatedAndText.indexOf(0);if(translated<0||translatedAndText.subarray(translated+1).includes(0))return "invalid";const decoder=new TextDecoder("utf-8",{fatal:true});try{decoder.decode(translatedAndText.subarray(0,translated));decoder.decode(translatedAndText.subarray(translated+1));}catch{return "invalid"}return translatedAndText.subarray(translated+1); }
 function pngCrc(kind, data) { let crc=0xffffffff;for(const byte of [...kind,...data]){crc^=byte;for(let i=0;i<8;i++)crc=crc&1?(crc>>>1)^0xedb88320:crc>>>1;}return (~crc)>>>0; }
 function exifMetadataCheck(bytes) { if(bytes.length<8)return "could_not_check"; const little=bytes[0]===73&&bytes[1]===73;if(!little&&!(bytes[0]===77&&bytes[1]===77)||u16at(bytes,2,little)!==42)return "could_not_check";const first=u32at(bytes,4,little);if(first===null)return "could_not_check";const pending=[[first,0]],seen=new Set();while(pending.length){const [offset,depth]=pending.pop();if(depth>4||seen.has(offset)||seen.size>=METADATA_MAX_IFDS||offset+2>bytes.length)return "could_not_check";seen.add(offset);const n=u16at(bytes,offset,little);if(n===null||offset+2+n*12+4>bytes.length)return "could_not_check";for(let i=0;i<n;i++){const e=offset+2+i*12,tag=u16at(bytes,e,little),value=u32at(bytes,e+8,little);if(value===null)return "could_not_check";if(tag===0x8825)return value>=bytes.length?"could_not_check":"gps_found";if(tag===0x8769||tag===0xa005)pending.push([value,depth+1]);else if(tag===0x014a){const count=u32at(bytes,e+4,little);if(count===null||count>METADATA_MAX_IFDS)return "could_not_check";if(count===1){pending.push([value,depth+1]);continue;}for(let j=0;j<count;j++){const child=u32at(bytes,value+j*4,little);if(child===null)return "could_not_check";pending.push([child,depth+1]);}}}const next=u32at(bytes,offset+2+n*12,little);if(next===null)return "could_not_check";if(next)pending.push([next,depth]);}return "no_gps_found"; }

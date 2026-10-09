@@ -502,15 +502,151 @@ fn valid_png_language_tag(tag: &[u8]) -> bool {
     if tag.is_empty() {
         return true;
     }
-    let mut subtags = tag.split(|byte| *byte == b'-');
-    let Some(primary) = subtags.next() else {
+    const GRANDFATHERED: [&[u8]; 26] = [
+        b"art-lojban",
+        b"cel-gaulish",
+        b"en-GB-oed",
+        b"i-ami",
+        b"i-bnn",
+        b"i-default",
+        b"i-enochian",
+        b"i-hak",
+        b"i-klingon",
+        b"i-lux",
+        b"i-mingo",
+        b"i-navajo",
+        b"i-pwn",
+        b"i-tao",
+        b"i-tay",
+        b"i-tsu",
+        b"no-bok",
+        b"no-nyn",
+        b"sgn-BE-FR",
+        b"sgn-BE-NL",
+        b"sgn-CH-DE",
+        b"zh-guoyu",
+        b"zh-hakka",
+        b"zh-min",
+        b"zh-min-nan",
+        b"zh-xiang",
+    ];
+    if GRANDFATHERED
+        .iter()
+        .any(|grandfathered| tag.eq_ignore_ascii_case(grandfathered))
+    {
+        return true;
+    }
+
+    let subtags: Vec<_> = tag.split(|byte| *byte == b'-').collect();
+    if subtags.is_empty()
+        || subtags
+            .iter()
+            .any(|subtag| subtag.is_empty() || !subtag.iter().all(u8::is_ascii_alphanumeric))
+    {
         return false;
+    }
+    let is_alpha = |subtag: &[u8]| subtag.iter().all(u8::is_ascii_alphabetic);
+    let is_digit = |subtag: &[u8]| subtag.iter().all(u8::is_ascii_digit);
+    let is_alphanumeric = |subtag: &[u8]| subtag.iter().all(u8::is_ascii_alphanumeric);
+
+    // RFC 5646 section 2.1: privateuse is a complete language tag by itself.
+    if subtags[0].eq_ignore_ascii_case(b"x") {
+        return subtags.len() > 1
+            && subtags[1..]
+                .iter()
+                .all(|subtag| (1..=8).contains(&subtag.len()) && is_alphanumeric(subtag));
+    }
+
+    let mut position = match subtags[0] {
+        primary if (2..=3).contains(&primary.len()) && is_alpha(primary) => {
+            let mut position = 1;
+            for _ in 0..3 {
+                if subtags
+                    .get(position)
+                    .is_some_and(|subtag| subtag.len() == 3 && is_alpha(subtag))
+                {
+                    position += 1;
+                } else {
+                    break;
+                }
+            }
+            position
+        }
+        primary if (4..=8).contains(&primary.len()) && is_alpha(primary) => 1,
+        _ => return false,
     };
-    (2..=8).contains(&primary.len())
-        && primary.iter().all(u8::is_ascii_alphabetic)
-        && subtags.all(|subtag| {
-            (1..=8).contains(&subtag.len()) && subtag.iter().all(u8::is_ascii_alphanumeric)
-        })
+    if subtags
+        .get(position)
+        .is_some_and(|subtag| subtag.len() == 4 && is_alpha(subtag))
+    {
+        position += 1;
+    }
+    if subtags.get(position).is_some_and(|subtag| {
+        (subtag.len() == 2 && is_alpha(subtag)) || (subtag.len() == 3 && is_digit(subtag))
+    }) {
+        position += 1;
+    }
+
+    let mut variants = Vec::new();
+    while let Some(subtag) = subtags.get(position) {
+        let variant = (5..=8).contains(&subtag.len()) && is_alphanumeric(subtag)
+            || (subtag.len() == 4 && subtag[0].is_ascii_digit() && is_alphanumeric(subtag));
+        if !variant {
+            break;
+        }
+        if variants
+            .iter()
+            .any(|previous: &&[u8]| previous.eq_ignore_ascii_case(subtag))
+        {
+            return false;
+        }
+        variants.push(*subtag);
+        position += 1;
+    }
+
+    let mut extension_singletons = Vec::new();
+    while let Some(singleton) = subtags.get(position) {
+        if singleton.len() != 1
+            || !is_alphanumeric(singleton)
+            || singleton[0].eq_ignore_ascii_case(&b'x')
+        {
+            break;
+        }
+        let singleton = singleton[0].to_ascii_lowercase();
+        if extension_singletons.contains(&singleton) {
+            return false;
+        }
+        position += 1;
+        let extension_start = position;
+        while subtags
+            .get(position)
+            .is_some_and(|subtag| (2..=8).contains(&subtag.len()) && is_alphanumeric(subtag))
+        {
+            position += 1;
+        }
+        if position == extension_start {
+            return false;
+        }
+        extension_singletons.push(singleton);
+    }
+
+    if subtags
+        .get(position)
+        .is_some_and(|subtag| subtag.eq_ignore_ascii_case(b"x"))
+    {
+        position += 1;
+        let privateuse_start = position;
+        while subtags
+            .get(position)
+            .is_some_and(|subtag| (1..=8).contains(&subtag.len()) && is_alphanumeric(subtag))
+        {
+            position += 1;
+        }
+        if position == privateuse_start {
+            return false;
+        }
+    }
+    position == subtags.len()
 }
 fn has_xmp_gps(bytes: &[u8]) -> bool {
     contains_ignore_ascii_case(bytes, b"gpslatit") || contains_ignore_ascii_case(bytes, b"gpslongi")
@@ -976,6 +1112,58 @@ mod tests {
             inspect(&repeated_exif, false),
             ImageMetadataCheck::CouldNotCheck
         );
+    }
+    #[test]
+    fn png_itxt_language_tags_follow_rfc_5646_lexical_syntax() {
+        let itxt = |language: &[u8]| {
+            let mut payload = b"Comment\0\0\0".to_vec();
+            payload.extend_from_slice(language);
+            payload.extend_from_slice(b"\0\0text");
+            png([
+                png_chunk(b"iTXt", &payload),
+                png_chunk(b"IDAT", b""),
+                png_chunk(b"IEND", b""),
+            ])
+        };
+        for language in [
+            b"".as_slice(),
+            b"en",
+            b"es-419",
+            b"zh-Hans-CN",
+            b"ar-AE-u-nu-latn",
+            b"x-private",
+            b"i-klingon",
+            b"en-GB-oed",
+            b"de-CH-1901",
+            b"sl-rozaj-biske",
+            b"zh-cmn-Hans-CN",
+            b"en-a-foo-x-private",
+        ] {
+            assert_eq!(
+                inspect(&itxt(language), false),
+                ImageMetadataCheck::NoGpsFound,
+                "{language:?} should be valid"
+            );
+        }
+        for language in [
+            b"1".as_slice(),
+            b"en--US",
+            b"-en",
+            b"en-",
+            b"en-a",
+            b"en-x",
+            b"sl-rozaj-rozaj",
+            b"en-u-ca-gregory-u-nu-latn",
+            b"en-abcdefghi",
+            b"en-\xff",
+            b"de-419-Hans",
+        ] {
+            assert_eq!(
+                inspect(&itxt(language), false),
+                ImageMetadataCheck::CouldNotCheck,
+                "{language:?} should be invalid"
+            );
+        }
     }
     #[test]
     fn a_single_sub_ifd_offset_is_read_inline() {
