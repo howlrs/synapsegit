@@ -290,7 +290,7 @@ project ACL／FIFO fenceを通して`HumanDecisionRuntime::publish_decision`を�
 再利用できるが、registrationとpermitはone-shotである。以下の`creator-run`はこのrouteをfixed local Pilotとして
 内部利用する限定commandである。
 
-### `creator-run <repo> <session> <original> <current> <ai-output> --subject <label> --creator <name> --decision <adopt|reject|defer> [--rationale <text>] [--generation-note-file <path>]`
+### `creator-run <repo> <session> <original> <current> <ai-output> --subject <label> --creator <name> --decision <adopt|reject|defer> [--rationale <text>] [--generation-note-file <path>] [--format text|json]`
 
 一つのlocal single-creator sessionをcreateする。生成メモを付ける場合だけ、手書きしたJSON objectをfileから渡す。
 
@@ -365,6 +365,8 @@ synapse creator-run .synapse-creator mural-1 \
 - archive export／restoreは自動実行しない。完了後に通常の`export`／`restore` commandを使う。
 
 成功時はsession receiptを出力した後、同じsessionの`creator-report`も続けて出力する。receipt部分は次の形式である。
+
+`--format json`はtextの代わりに一つのprivate-local `synapsegit-cli-creator-decision-v1` documentを出力する。`route`、receipt、検証済みの`CreatorReportDocument`、`metadata_warnings`を含む。省略時と`--format text`は既存textを維持する。
 
 ```text
 session=<session>
@@ -813,7 +815,7 @@ synapse-local \
   削除・rename・意味の変更には新しい識別子を使う。
 - `synapse inbox --help`と`synapse inbox put --help`は、この説明をstdoutへ出してexit code 0で終了する。
 
-### `inbox decide <inbox-dir> <slug> <repo> --decision adopt|reject|defer [--rationale <text>] [--session <name>] [--creator <name>]`
+### `inbox decide <inbox-dir> <slug> <repo> --decision adopt|reject|defer [--rationale <text>] [--session <name>] [--creator <name>] [--format text|json]`
 
 人が対象の3画像を確認し、判断を明示的に伝えた場合に限り、既存Inbox候補から通常のCreator
 Proposal・Human Decisionを記録する。AIエージェントが判断を選ぶcommandではない。
@@ -833,8 +835,9 @@ synapse inbox decide "$HOME/SynapseGit/inbox" mural-next "$HOME/SynapseGit/mural
   `--session`で別の有効な名前も指定できる。localhostの取り込み済み表示は既定の名前と照合する。
 - `synapse-local`を停止し、同じrepositoryへ他のwriterが書いていない状態で実行する。
   process間の排他を自動保証する機能はない。
-- 出力は通常の`creator-run`と同じreceipt/report項目を持つ。引数不備や候補の検証失敗では
-  repositoryへ記録しない。
+- 出力は通常の`creator-run`と同じreceipt/report項目を持つ。`--format json`は同じprivate-local decision documentに
+  `route="inbox_decide"`と`inbox_candidate`を加えて一件だけ出力し、metadata warningはstderrとdocumentの両方へ出す。
+  引数不備や候補の検証失敗ではrepositoryへ記録しない。
 
 ### 画像の位置情報警告
 
@@ -853,8 +856,10 @@ PNGはtext chunkを画像データの後ろにも置けるため、256 KiBを超
 | `no_gps_found` | 完了した上限内の検査でGPS項目を見つけなかった。その他のprivate metadataがない保証ではない。 |
 | `could_not_check` | 未対応形式、圧縮XMP、ImageMagickのraw profile、MPF／Motion Photo、不正なmetadata、256 KiBを超えるPNG、読み取り・IFD・深さの上限等で確認できなかった。GPSなしとは扱わない。 |
 
-CLIの警告はstderrへ出す。`inbox put --format json`の`metadata_warnings`はrole、check、messageを
-含み、stdoutはJSONのまま保つ。警告だけで成功・失敗やexit codeを変えない。localhostでは
+CLIの警告はstderrへ出す。`inbox put --format json`とdecision commandの`metadata_warnings`は、警告となる
+`gps_found`と`could_not_check`だけをrole、check、messageで含む。完了した確認である`no_gps_found`は
+advisory配列とstderrから省くため、上のtableは画像検査自体のcheck値を説明する。stdoutはJSONのまま保つ。
+警告だけで成功・失敗やexit codeを変えない。localhostでは
 upload時の選択画像と、Inbox候補の確認画面の各画像の横に警告を表示する。自動除去は行わない。
 
 ### `refs <repo>`
