@@ -52,11 +52,31 @@ impl CreatorDisposition {
         "unspecified"
     }
 
-    pub(crate) const fn default_rationale(self) -> &'static str {
+    pub(crate) const fn legacy_default_rationale(self) -> &'static str {
         match self {
             Self::Adopt => "The creator adopted the AI proposal unchanged.",
             Self::Reject => "The creator rejected the AI proposal.",
             Self::Defer => "The creator deferred the AI proposal for later review.",
+        }
+    }
+}
+
+/// How confidently a stored rationale can be attributed to the creator.
+///
+/// v1 did not record this provenance. A value equal to a former automatic
+/// sentence is therefore only *possibly* a legacy default: a creator could
+/// have supplied exactly the same text.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CreatorRationaleSource {
+    Creator,
+    LegacyDefaultOrCreator,
+}
+
+impl CreatorRationaleSource {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Creator => "creator",
+            Self::LegacyDefaultOrCreator => "legacy_default_or_creator",
         }
     }
 }
@@ -240,6 +260,8 @@ pub struct CreatorReport {
     pub disposition: CreatorDisposition,
     pub selected_ai_output: bool,
     pub rationale: Option<String>,
+    /// Present only when a rationale was stored. See [`CreatorRationaleSource`].
+    pub rationale_source: Option<CreatorRationaleSource>,
     pub original_blob_oid: String,
     pub current_blob_oid: String,
     pub ai_output_blob_oid: String,

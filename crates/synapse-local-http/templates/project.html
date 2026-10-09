@@ -142,6 +142,7 @@
         <input id="creator-original_image" type="file" name="original_image" required aria-describedby="creator-original_image-hint creator-original_image-info creator-original_image-status">
         <p id="creator-original_image-hint" class="field__hint">{{ m.project.raw_bytes_hint }}</p>
         <p id="creator-original_image-info" data-creator-file-info class="field__hint" hidden></p>
+        <p data-creator-metadata-warning class="field__hint" role="status" hidden></p>
         <img data-creator-preview class="upload-file__preview" alt="{{ m.local_preview_alt(m.project.original_image) }}" hidden>
         <p id="creator-original_image-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
         <button type="button" data-creator-file-clear data-variant="secondary" aria-label="{{ m.clear_selection_label(m.project.original_image) }}" hidden>{{ m.common.clear_selection }}</button>
@@ -151,6 +152,7 @@
         <input id="creator-current_image" type="file" name="current_image" required aria-describedby="creator-current_image-hint creator-current_image-info creator-current_image-status">
         <p id="creator-current_image-hint" class="field__hint">{{ m.project.raw_bytes_hint }}</p>
         <p id="creator-current_image-info" data-creator-file-info class="field__hint" hidden></p>
+        <p data-creator-metadata-warning class="field__hint" role="status" hidden></p>
         <img data-creator-preview class="upload-file__preview" alt="{{ m.local_preview_alt(m.project.current_image) }}" hidden>
         <p id="creator-current_image-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
         <button type="button" data-creator-file-clear data-variant="secondary" aria-label="{{ m.clear_selection_label(m.project.current_image) }}" hidden>{{ m.common.clear_selection }}</button>
@@ -160,6 +162,7 @@
         <input id="creator-ai_output" type="file" name="ai_output" required aria-describedby="creator-ai_output-hint creator-ai_output-info creator-ai_output-status">
         <p id="creator-ai_output-hint" class="field__hint">{{ m.project.raw_bytes_hint }}</p>
         <p id="creator-ai_output-info" data-creator-file-info class="field__hint" hidden></p>
+        <p data-creator-metadata-warning class="field__hint" role="status" hidden></p>
         <img data-creator-preview class="upload-file__preview" alt="{{ m.local_preview_alt(m.project.ai_output_file) }}" hidden>
         <p id="creator-ai_output-status" data-creator-preview-status class="field__hint" role="status" hidden></p>
         <button type="button" data-creator-file-clear data-variant="secondary" aria-label="{{ m.clear_selection_label(m.project.ai_output_file) }}" hidden>{{ m.common.clear_selection }}</button>

@@ -61,6 +61,24 @@ synapse-present export <repo> <output-dir> [--session <id>]
 synapse-present preview <bundle-dir>
 ```
 
+`export` accepts `--locale en|ja` once. Omitting it preserves the frozen
+English v1 bytes; supplying either value selects the identified localized v2
+bundle and renderer profile, while `projection.json` stays the v1 semantic
+projection. This container v2 is not the separate semantic projection v2
+proposal tracked by #163. `preview` checks the locale/profile pair.
+
+`--replace` is Linux-only and only accepts an existing strict bundle with no
+extra files, directories, `.git`, or symlinks. It stages beside the target and
+atomically exchanges directories. The previous verified bundle is retained at
+the printed `replacement_recovery_path` for manual review and cleanup; a
+post-commit directory-sync problem is printed as `sync_warning` and does not
+turn the committed exchange into an ordinary failure.
+
+Replacement assumes one cooperative writer for the destination parent. Path
+validation, inode rechecks, and atomic exchange narrow races but are not a
+filesystem compare-and-swap guarantee against another process running as the
+same user. Do not run concurrent exports to the same output directory.
+
 ### `export <repo> <output-dir> [options]`
 
 source repositoryを作成せず、CAS、Refs、reflogへ書き込まずにbundleを新規生成する。export前に
@@ -114,6 +132,11 @@ proposal_caption = "Alternative retained in history"
 sidecarは64 KiB以下のregular UTF-8 fileに限定し、symlinkとunknown fieldを拒否する。stored Human
 rationale、internal Actor ID、repository path、raw asset bytesはsidecarや`--public`の有無にかかわらず
 出力しない。`public_decision_note`はsource rationaleの公開化ではなく、別途authorが供給した公開文である。
+
+公開bundleにはsession名、disposition、selected role、OID／Refなど相関し得るidentifierが含まれ得る。
+記録された`--subject`と`--creator`は自動公開しない。表示したい場合はsidecarに
+`title = "Public work title"`と`creator_display_name = "Public creator"`をauthor-supplied textとして書く。
+generation note、rationale、decision pinはprivateのままである。
 
 bundle rootは次を含む。
 
@@ -303,7 +326,11 @@ synapse creator-run .synapse-creator mural-1 \
   同じ`--creator`をsession横断で識別するglobal ID、credential、identity registryではない。
 - 両Observationは同じCaptureProfileを参照する。初版は`profile_level=imported`、
   `allowed_claims=[reference_only]`、verified required conditionなしであり、repeatable／calibrated captureを主張しない。
-- `--rationale`は任意で最大5,000 UTF-8 bytes。省略時はdecision別の既定rationaleを記録する。
+- `--rationale`は任意で最大5,000 UTF-8 bytes。省略時はrationaleを記録しない。
+  `creator-report`ではtextの`rationale=-`とJSONの`rationale: null`で表す。v1.0.0以前に
+  自動記録された3つの英文と完全一致する既存textは`rationale_source=legacy_default_or_creator`
+  （JSONも同値）として表示する。旧形式には出所の記録がないため、制作者が偶然同じ文を入力した
+  可能性を除外できない。
   DecisionFeedbackの既定は`reason_codes=["unspecified"]`、`visibility=private`、
   `training_use_policy=prohibited`である。
 - `--generation-note-file`は、`tool`、`model`、`prompt`、`intent`だけを任意のstring fieldとして持つ
@@ -397,7 +424,8 @@ decision_ref=<ref><TAB><commit-oid>
 proposal_ref=<ref><TAB><commit-oid>
 disposition=<adopt|reject|defer>
 decision_recorded_at=<timestamp>        # present when stored
-rationale=<quoted-text>                 # present when stored
+rationale=<quoted-text|->                # - when no rationale was stored
+rationale_source=<creator|legacy_default_or_creator> # present with rationale
 original=<blob-oid>
 current=<blob-oid>
 ai_output=<blob-oid>
@@ -641,6 +669,7 @@ verifyしてから一つの完全なdocumentへ組み立て、それを丸ごと
 | `disposition` | string | `"adopt"` \| `"reject"` \| `"defer"`。 |
 | `decision_recorded_at` | string? | Human DecisionFeedbackの`recorded_at`。記録した時刻であり、人が判断した時刻の証明ではない。記録がなければ`null`。 |
 | `rationale` | string? | 記録されたHuman rationale。未記録なら`null`。 |
+| `rationale_source` | string? | `creator`は既定文と一致しない保存text。`legacy_default_or_creator`は旧自動既定文と一致するtextであり、旧形式では制作者入力との区別が不可能。未記録なら`null`。 |
 | `base_head` | string | base Commit OID。 |
 | `base_snapshot` | string | base Tree OID。 |
 | `proposal_snapshot` | string | proposal Tree OID。 |
@@ -772,9 +801,48 @@ synapse-local \
 - repositoryに触れないため、`synapse-local`の起動中でも実行できる。
 - text出力（既定）は`inbox_candidate=`、`path=`、各fileの`<role>_size=`と`<role>_sha256=`、`decision_recorded=false`、
   `next=`の行である。`--format json`は`"format": "synapsegit-cli-inbox-put-v1"`、`slug`、`path`、`manifest`、
-  `decision_recorded`（常に`false`）、`next`を持つJSON documentを1件出力する。fieldの追加は`-v1`のまま行い、
+  `decision_recorded`（常に`false`）、`metadata_warnings`、`next`を持つJSON documentを1件出力する。fieldの追加は`-v1`のまま行い、
   削除・rename・意味の変更には新しい識別子を使う。
 - `synapse inbox --help`と`synapse inbox put --help`は、この説明をstdoutへ出してexit code 0で終了する。
+
+### `inbox decide <inbox-dir> <slug> <repo> --decision adopt|reject|defer [--rationale <text>] [--session <name>] [--creator <name>]`
+
+人が対象の3画像を確認し、判断を明示的に伝えた場合に限り、既存Inbox候補から通常のCreator
+Proposal・Human Decisionを記録する。AIエージェントが判断を選ぶcommandではない。
+
+```bash
+synapse inbox decide "$HOME/SynapseGit/inbox" mural-next "$HOME/SynapseGit/mural" \
+  --decision adopt --rationale "この候補を次の作業の指針として選ぶ"
+```
+
+- manifestと3つの通常fileを保持したdescriptorから読み、size・SHA-256・byte上限を照合する。
+  候補やleafのsymlink、不足、差し替え、不一致は記録前に拒否する。検証したbyteのprivate copyを
+  Creatorへ渡し、元のInbox pathを開き直して別のbyteを記録しない。Inboxは変更しない。
+- Subject、Creator、generation noteはmanifestから引き継ぐ。Creatorだけを変える場合は
+  `--creator`で明示する。理由の省略は未記録であり、定型文を作らない。
+- session名の既定はlocalhostと同じ。58文字以内のslugなら`inbox-<slug>`、長いslugなら末尾の
+  hyphenを除いた先頭49文字と`-`とslugのSHA-256先頭8桁で、64文字以内になる。
+  `--session`で別の有効な名前も指定できる。localhostの取り込み済み表示は既定の名前と照合する。
+- `synapse-local`を停止し、同じrepositoryへ他のwriterが書いていない状態で実行する。
+  process間の排他を自動保証する機能はない。
+- 出力は通常の`creator-run`と同じreceipt/report項目を持つ。引数不備や候補の検証失敗では
+  repositoryへ記録しない。
+
+### 画像の位置情報警告
+
+`creator-run`、`inbox put`、localhostの画像取り込みは、JPEGのAPP1 Exif/XMPとPNGのeXIf/iTXtを
+decodeせずに検査する。読む領域は先頭256 KiBまで、TIFF IFDは16個まで、ネストは深さ4まで。
+検査はbyteを変更せず、GPS座標を出力・公開しない。
+
+| check | 意味 |
+| --- | --- |
+| `gps_found` | 位置情報の項目を検出した。記録前に、metadataを除いたcopyを使うか制作者が判断する。 |
+| `no_gps_found` | 完了した上限内の検査でGPS項目を見つけなかった。その他のprivate metadataがない保証ではない。 |
+| `could_not_check` | 未対応形式、圧縮XMP、不正なmetadata、読み取り・IFD・深さの上限等で確認できなかった。GPSなしとは扱わない。 |
+
+CLIの警告はstderrへ出す。`inbox put --format json`の`metadata_warnings`はrole、check、messageを
+含み、stdoutはJSONのまま保つ。警告だけで成功・失敗やexit codeを変えない。localhostでは
+選択画像の横に警告を表示する。自動除去は行わない。
 
 ### `refs <repo>`
 

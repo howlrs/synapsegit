@@ -428,24 +428,33 @@ pub(crate) fn feedback_record(
     subject_id: &str,
     proposal_head: &str,
     disposition: CreatorDisposition,
-    rationale: &str,
+    rationale: Option<&str>,
     recorded_at: &str,
 ) -> JsonValue {
+    let mut payload = serde_json::Map::from_iter([
+        ("proposal_ref".into(), json!(proposal_head)),
+        ("disposition".into(), json!(disposition.as_protocol_str())),
+        (
+            "reason_codes".into(),
+            JsonValue::Array(canonical_set(vec![json!(disposition.reason_code())])),
+        ),
+        (
+            "applies_to_subjects".into(),
+            JsonValue::Array(canonical_set(vec![json!(subject_id)])),
+        ),
+        ("visibility".into(), json!("private")),
+        ("training_use_policy".into(), json!("prohibited")),
+    ]);
+    if let Some(rationale) = rationale {
+        payload.insert("human_rationale".into(), json!(rationale));
+    }
     envelope(
         "decision_feedback",
         entity_id,
         recorded_at,
         creator_id,
         "self_declared",
-        json!({
-            "proposal_ref": proposal_head,
-            "disposition": disposition.as_protocol_str(),
-            "reason_codes": canonical_set(vec![json!(disposition.reason_code())]),
-            "human_rationale": rationale,
-            "applies_to_subjects": canonical_set(vec![json!(subject_id)]),
-            "visibility": "private",
-            "training_use_policy": "prohibited"
-        }),
+        JsonValue::Object(payload),
     )
 }
 

@@ -1,6 +1,6 @@
 use super::{
     PublicationError, canonical_json_bytes, collect_bundle_files, publish_files_atomically,
-    read_regular_file, reject_symlink_components, require_real_directory,
+    read_regular_file, reject_symlink_components, require_real_directory, sync_directory,
     validate_bundle_relative_path,
 };
 use crate::generic_artifact_render::render_generic_artifact_views;
@@ -807,7 +807,14 @@ pub fn export_generic_artifact_bundle(
             .collect(),
     };
     files.insert("checksums.json".into(), canonical_generic_json(&checksums)?);
-    publish_files_atomically(&destination, &files)?;
+    let _ = publish_files_atomically(
+        &destination,
+        &files,
+        false,
+        None,
+        sync_directory,
+        verify_staged_generic_bundle,
+    )?;
     Ok(GenericArtifactExportReceipt {
         destination,
         target: options.target,
@@ -815,6 +822,14 @@ pub fn export_generic_artifact_bundle(
         outcome_state: options.projection.outcome.state,
         projection_sha256,
     })
+}
+
+fn verify_staged_generic_bundle(path: &Path) -> crate::Result<()> {
+    verify_generic_artifact_bundle(path)
+        .map(|_| ())
+        .map_err(|error| {
+            PublicationError::InvalidBundle(format!("staged generic artifact bundle: {error}"))
+        })
 }
 
 /// Verify only the explicitly versioned generic-artifact bundle profile.

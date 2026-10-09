@@ -1363,6 +1363,7 @@ dependencies = [
 name = "synapse-publication"
 version = "1.0.1"
 dependencies = [
+ "getrandom 0.4.3",
  "jsonschema",
  "rustix",
  "serde",

@@ -216,6 +216,23 @@ fn default_and_explicit_target_aliases_are_deterministic() {
 }
 
 #[test]
+fn locale_is_strict_and_may_be_selected_once() {
+    let temporary = TempDirectory::new("locale-options");
+    let repository = temporary.join("repository");
+    empty_repository(&repository);
+    for tail in [
+        vec!["--locale", "jp"],
+        vec!["--locale", "ja", "--locale", "en"],
+    ] {
+        let output = temporary.join(format!("out-{}", tail.len()));
+        let result = run(&export_arguments(&repository, &output, &tail));
+        assert!(!result.status.success());
+        assert!(String::from_utf8_lossy(&result.stderr).contains("usage_error"));
+        assert!(!output.exists());
+    }
+}
+
+#[test]
 fn repeated_or_combined_target_selectors_fail_before_source_or_output_access() {
     let temporary = TempDirectory::new("target-conflicts");
     let missing_repository = temporary.join("missing-repository");

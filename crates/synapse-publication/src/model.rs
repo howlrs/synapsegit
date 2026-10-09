@@ -8,6 +8,27 @@ pub const BUNDLE_SCHEMA_VERSION: u32 = 1;
 pub const RENDERER_PROFILE: &str = "org.synapsegit.publication-renderer";
 pub const RENDERER_PROFILE_VERSION: u32 = 1;
 
+/// The v2 container carries localized human views.  The projection remains
+/// the frozen v1, provider-neutral semantic document.
+pub const LOCALIZED_BUNDLE_SCHEMA_VERSION: u32 = 2;
+pub const LOCALIZED_RENDERER_PROFILE_VERSION: u32 = 2;
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PublicationLocale {
+    En,
+    Ja,
+}
+
+impl PublicationLocale {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::En => "en",
+            Self::Ja => "ja",
+        }
+    }
+}
+
 #[non_exhaustive]
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -287,6 +308,8 @@ pub struct BundleManifest {
     pub generator: GeneratorIdentity,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub renderer_profile: Option<SchemaIdentity>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub locale: Option<PublicationLocale>,
     pub target: OutputTarget,
     pub visibility: PublicationVisibility,
     pub publication_state: String,

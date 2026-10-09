@@ -250,6 +250,7 @@ fn sample_creator_report() -> CreatorReport {
         ai_output_source: "caller_supplied".into(),
         reviewed_by_human: "creator:sg-oid-v1:opaque-1".into(),
         rationale: Some("Reviewed through the openapi shape fixture.".into()),
+        rationale_source: Some("creator".into()),
         original_blob_oid: blob_oid("4"),
         current_blob_oid: blob_oid("5"),
         ai_output_blob_oid: blob_oid("6"),
@@ -737,6 +738,11 @@ fn creator_session_detail_pending_variant_matches_the_openapi_schema() {
         ai_output_blob_oid: format!("blob:sg-oid-v1:sha256:{}", "4".repeat(64)),
         ai_output_source: "caller_supplied".into(),
         comparison: sample_comparison_evidence(),
+        metadata_warnings: vec![synapse_creator::ImageMetadataWarning {
+            role: "original".into(),
+            check: synapse_creator::ImageMetadataCheck::GpsFound,
+            message: "Location metadata may be included in the recorded bytes.".into(),
+        }],
     };
     assert_matches_openapi_schema(
         &document,

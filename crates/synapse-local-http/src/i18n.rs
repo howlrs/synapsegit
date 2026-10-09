@@ -488,6 +488,7 @@ message_section! {
         recorded_decision: "記録した判断", "Recorded decision";
         recorded_rationale: "記録された理由", "Recorded rationale";
         no_rationale: "理由は記録されていません。", "No rationale was recorded.";
+        legacy_rationale_warning: "旧版の既定文と一致しています。制作者が書いた文かどうかは記録から判別できません。", "This matches a legacy default. The record does not distinguish it from creator-supplied text.";
         recorded_hint: "保存された履歴から確認した記録です。理由は記録されたテキストで、その内容が正しいことは確認していません。", "This record was checked against the stored history. The rationale is recorded text; its content has not been checked for correctness.";
         private_report_heading: "記録を保存", "Save this record";
         private_report_noscript: "記録を保存するにはJavaScriptを有効にしてください。", "Enable JavaScript to save this record.";
@@ -650,6 +651,8 @@ message_section! {
         current_caption_label: "Currentのcaption（任意）", "Current caption (optional)";
         proposal_caption_label: "Proposalのcaption（任意）", "Proposal caption (optional)";
         decision_note_label: "公開用の判断メモ（任意）", "Public decision note (optional)";
+        suggestions_help: "選択した完了セッションのSubjectとCreatorを初期候補として利用できます。編集済みの値は保持します。公開するのは現在の入力内容です。", "The verified Subject and Creator from the selected complete session are initial suggestions. Edited values are retained. Review the current visible values you will make public.";
+        suggestions_acknowledgement: "現在表示中の値を確認し、公開用の文章として使うことを確認しました。", "I reviewed the current visible values and confirm that I want to use them as public text.";
         check_submit: "入力した文章を確認", "Check the entered text";
         noscript: "説明文の確認とダウンロードにはJavaScriptが必要です。", "Checking and downloading the description file requires JavaScript.";
         preview_heading: "公開用文章の確認", "Review the public text";

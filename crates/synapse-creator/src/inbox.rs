@@ -129,10 +129,10 @@ impl ImportInboxFile {
         {
             return Err(ImportInboxManifestError::InvalidFile);
         }
-        if let Some(hash) = &self.sha256 {
-            if hash.len() != 64 || !hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-                return Err(ImportInboxManifestError::InvalidSha256);
-            }
+        if let Some(hash) = &self.sha256
+            && (hash.len() != 64 || !hash.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        {
+            return Err(ImportInboxManifestError::InvalidSha256);
         }
         Ok(())
     }
@@ -150,6 +150,30 @@ pub fn is_import_inbox_slug(value: &str) -> bool {
         && bytes
             .iter()
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'-')
+}
+
+/// Canonical session suggestion shared by the localhost Inbox view and direct
+/// Inbox decision clients. Long slugs retain a readable prefix plus a digest
+/// suffix so distinct candidates stay distinct within the session grammar.
+pub fn suggested_import_inbox_session(slug: &str) -> Result<String> {
+    if !is_import_inbox_slug(slug) {
+        return Err(CreatorError::InvalidArgument(
+            "inbox slug must match [a-z][a-z0-9-]{0,63}".into(),
+        ));
+    }
+    let session = format!("inbox-{slug}");
+    if session.len() <= 64 {
+        return Ok(session);
+    }
+    let digest = Sha256::digest(slug.as_bytes());
+    Ok(format!(
+        "inbox-{}-{:02x}{:02x}{:02x}{:02x}",
+        slug[..49].trim_end_matches('-'),
+        digest[0],
+        digest[1],
+        digest[2],
+        digest[3]
+    ))
 }
 
 /// Inputs for [`put_import_inbox_candidate`].
@@ -173,6 +197,244 @@ pub struct ImportInboxReceipt {
     pub manifest: ImportInboxManifest,
 }
 
+/// Exact bytes and metadata admitted from a manifest-last Inbox candidate.
+/// The source Inbox is never consulted again after this value is returned.
+#[derive(Debug)]
+pub struct RetainedInboxCandidate {
+    pub manifest: ImportInboxManifest,
+    pub original: PathBuf,
+    pub current: PathBuf,
+    pub ai_output: PathBuf,
+    directory: PathBuf,
+}
+
+/// Private retained copies of three caller input files.
+#[derive(Debug)]
+pub struct RetainedCreatorInputs {
+    pub original: PathBuf,
+    pub current: PathBuf,
+    pub ai_output: PathBuf,
+    directory: PathBuf,
+}
+
+impl Drop for RetainedCreatorInputs {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.directory);
+    }
+}
+
+impl RetainedCreatorInputs {
+    pub fn metadata_warnings(&self) -> Result<Vec<crate::ImageMetadataWarning>> {
+        Ok([
+            ("original", &self.original),
+            ("current", &self.current),
+            ("ai_output", &self.ai_output),
+        ]
+        .into_iter()
+        .map(|(role, path)| crate::image_metadata_warning(role, path))
+        .collect())
+    }
+}
+
+pub fn retain_creator_input_files(
+    original: &Path,
+    current: &Path,
+    ai_output: &Path,
+) -> Result<RetainedCreatorInputs> {
+    let directory = retained_staging_directory()?;
+    let result = (|| {
+        let original_copy = directory.join("original");
+        let current_copy = directory.join("current");
+        let output_copy = directory.join("ai-output");
+        copy_hashed(original, &original_copy, "original")?;
+        copy_hashed(current, &current_copy, "current")?;
+        copy_hashed(ai_output, &output_copy, "ai-output")?;
+        Ok(RetainedCreatorInputs {
+            original: original_copy,
+            current: current_copy,
+            ai_output: output_copy,
+            directory: directory.clone(),
+        })
+    })();
+    if result.is_err() {
+        let _ = fs::remove_dir_all(&directory);
+    }
+    result
+}
+
+impl Drop for RetainedInboxCandidate {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.directory);
+    }
+}
+
+/// Verify a manifest-last candidate and retain the exact verified bytes before
+/// any repository mutation. Callers must use the returned paths, never Inbox.
+#[cfg(unix)]
+pub fn retain_import_inbox_candidate(root: &Path, slug: &str) -> Result<RetainedInboxCandidate> {
+    if !is_import_inbox_slug(slug) {
+        return Err(CreatorError::InvalidArgument(
+            "inbox slug must match [a-z][a-z0-9-]{0,63}".into(),
+        ));
+    }
+    use rustix::fs::{CWD, Mode, OFlags, openat};
+    let root_file = File::from(
+        openat(
+            CWD,
+            root,
+            OFlags::RDONLY
+                | OFlags::DIRECTORY
+                | OFlags::NOFOLLOW
+                | OFlags::NONBLOCK
+                | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|error| {
+            CreatorError::InvalidArgument(format!("inbox root cannot be opened safely: {error}"))
+        })?,
+    );
+    let directory = File::from(
+        openat(
+            &root_file,
+            slug,
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| {
+            CreatorError::InvalidArgument(format!("inbox candidate cannot be opened safely: {e}"))
+        })?,
+    );
+    let manifest_bytes = read_inbox_leaf(
+        &directory,
+        IMPORT_INBOX_MANIFEST_NAME,
+        IMPORT_INBOX_MANIFEST_MAX_BYTES,
+    )?;
+    let manifest: ImportInboxManifest = serde_json::from_slice(&manifest_bytes).map_err(|_| {
+        CreatorError::InvalidArgument("inbox manifest is not valid strict JSON".into())
+    })?;
+    manifest
+        .validate()
+        .map_err(|e| CreatorError::InvalidArgument(e.to_string()))?;
+    let staging = retained_staging_directory()?;
+    let result = (|| {
+        let original = staging.join("original");
+        let current = staging.join("current");
+        let ai_output = staging.join("ai-output");
+        retain_inbox_leaf(&directory, &manifest.original, &original)?;
+        retain_inbox_leaf(&directory, &manifest.current, &current)?;
+        retain_inbox_leaf(&directory, &manifest.ai_output, &ai_output)?;
+        Ok(RetainedInboxCandidate {
+            manifest,
+            original,
+            current,
+            ai_output,
+            directory: staging.clone(),
+        })
+    })();
+    if result.is_err() {
+        let _ = fs::remove_dir_all(&staging);
+    }
+    result
+}
+
+#[cfg(not(unix))]
+pub fn retain_import_inbox_candidate(_root: &Path, _slug: &str) -> Result<RetainedInboxCandidate> {
+    Err(CreatorError::InvalidArgument(
+        "safe Inbox retention is unsupported on this platform".into(),
+    ))
+}
+
+#[cfg(unix)]
+fn read_inbox_leaf(directory: &File, name: &str, maximum: u64) -> Result<Vec<u8>> {
+    use rustix::fs::{Mode, OFlags, openat};
+    let mut file = File::from(
+        openat(
+            directory,
+            name,
+            OFlags::RDONLY | OFlags::NOFOLLOW | OFlags::NONBLOCK | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|e| {
+            CreatorError::InvalidArgument(format!("inbox file cannot be opened safely: {e}"))
+        })?,
+    );
+    let metadata = file
+        .metadata()
+        .map_err(|e| CreatorError::io("inspect inbox file", Path::new(name), e))?;
+    if !metadata.is_file() || metadata.len() > maximum {
+        return Err(CreatorError::InvalidArgument(
+            "inbox file is not a bounded regular file".into(),
+        ));
+    }
+    let mut bytes = Vec::with_capacity(metadata.len() as usize);
+    Read::by_ref(&mut file)
+        .take(metadata.len() + 1)
+        .read_to_end(&mut bytes)
+        .map_err(|e| CreatorError::io("read inbox file", Path::new(name), e))?;
+    if bytes.len() as u64 != metadata.len() {
+        return Err(CreatorError::InvalidArgument(
+            "inbox file changed while it was read".into(),
+        ));
+    }
+    Ok(bytes)
+}
+
+#[cfg(unix)]
+fn retain_inbox_leaf(
+    directory: &File,
+    expected: &ImportInboxFile,
+    destination: &Path,
+) -> Result<()> {
+    let bytes = read_inbox_leaf(directory, &expected.name, IMPORT_INBOX_FILE_MAX_BYTES)?;
+    if bytes.len() as u64 != expected.size {
+        return Err(CreatorError::InvalidArgument(
+            "inbox file does not match manifest size".into(),
+        ));
+    }
+    let actual = Sha256::digest(&bytes)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+    if expected
+        .sha256
+        .as_deref()
+        .is_none_or(|hash| !actual.eq_ignore_ascii_case(hash))
+    {
+        return Err(CreatorError::InvalidArgument(
+            "inbox file does not match manifest SHA-256".into(),
+        ));
+    }
+    fs::write(destination, bytes)
+        .map_err(|e| CreatorError::io("stage retained inbox file", destination, e))
+}
+
+fn retained_staging_directory() -> Result<PathBuf> {
+    for _ in 0..32 {
+        let mut nonce = [0_u8; 16];
+        getrandom::fill(&mut nonce).map_err(|error| {
+            CreatorError::ResourceLimit(format!(
+                "could not allocate retained inbox staging: {error}"
+            ))
+        })?;
+        let suffix = nonce
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let path = std::env::temp_dir().join(format!("synapsegit-inbox-{suffix}"));
+        let mut builder = fs::DirBuilder::new();
+        #[cfg(unix)]
+        std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+        match builder.create(&path) {
+            Ok(()) => return Ok(path),
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(CreatorError::io("create retained inbox staging", &path, e)),
+        }
+    }
+    Err(CreatorError::ResourceLimit(
+        "could not allocate retained inbox staging".into(),
+    ))
+}
+
 /// Write one candidate below `inbox_root/slug` without replacing anything.
 ///
 /// The three files and the manifest are written and flushed inside a hidden
@@ -186,6 +448,19 @@ pub struct ImportInboxReceipt {
 pub fn put_import_inbox_candidate(
     candidate: &ImportInboxCandidate<'_>,
 ) -> Result<ImportInboxReceipt> {
+    put_import_inbox_candidate_with_metadata_review(candidate, |_| {})
+}
+
+/// Retain the three supplied bytes in the hidden Inbox staging directory,
+/// invoke `review` on metadata read from those copies, then publish manifest
+/// last. The callback runs before the candidate becomes visible.
+pub fn put_import_inbox_candidate_with_metadata_review<F>(
+    candidate: &ImportInboxCandidate<'_>,
+    mut review: F,
+) -> Result<ImportInboxReceipt>
+where
+    F: FnMut(&[crate::ImageMetadataWarning]),
+{
     if !is_import_inbox_slug(candidate.slug) {
         return Err(CreatorError::InvalidArgument(
             "inbox slug must match [a-z][a-z0-9-]{0,63}".into(),
@@ -248,6 +523,15 @@ pub fn put_import_inbox_candidate(
     }
     let [original, current, ai_output]: [ImportInboxFile; 3] =
         files.try_into().expect("three inbox files");
+    let warnings = [
+        ("original", staging.path.join(IMPORT_INBOX_ORIGINAL_NAME)),
+        ("current", staging.path.join(IMPORT_INBOX_CURRENT_NAME)),
+        ("ai_output", staging.path.join(IMPORT_INBOX_AI_OUTPUT_NAME)),
+    ]
+    .into_iter()
+    .map(|(role, path)| crate::image_metadata_warning(role, &path))
+    .collect::<Vec<_>>();
+    review(&warnings);
     let manifest = ImportInboxManifest {
         version: IMPORT_INBOX_MANIFEST_VERSION.to_owned(),
         original,
@@ -259,6 +543,10 @@ pub fn put_import_inbox_candidate(
             generation_note: candidate.generation_note.cloned(),
         },
     };
+    // `review` intentionally runs before publication. Re-read the private
+    // leaves through no-follow descriptors afterwards so a callback cannot
+    // make the manifest describe bytes different from those we publish.
+    validate_staged_manifest_files(&staging.path, &manifest)?;
     manifest
         .validate()
         .map_err(|error| CreatorError::InvalidArgument(error.to_string()))?;
@@ -279,6 +567,69 @@ pub fn put_import_inbox_candidate(
         directory: destination,
         manifest,
     })
+}
+
+#[cfg(unix)]
+fn validate_staged_manifest_files(staging: &Path, manifest: &ImportInboxManifest) -> Result<()> {
+    use rustix::fs::{CWD, Mode, OFlags, openat};
+    let directory = File::from(
+        openat(
+            CWD,
+            staging,
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|error| {
+            CreatorError::InvalidArgument(format!(
+                "inbox staging directory cannot be opened safely: {error}"
+            ))
+        })?,
+    );
+    for expected in [&manifest.original, &manifest.current, &manifest.ai_output] {
+        let bytes = read_inbox_leaf(&directory, &expected.name, IMPORT_INBOX_FILE_MAX_BYTES)?;
+        if bytes.len() as u64 != expected.size {
+            return Err(CreatorError::InvalidArgument(
+                "staged inbox file does not match manifest size".into(),
+            ));
+        }
+        let digest = Sha256::digest(&bytes);
+        let actual = hex(&digest);
+        if expected
+            .sha256
+            .as_deref()
+            .is_none_or(|hash| !actual.eq_ignore_ascii_case(hash))
+        {
+            return Err(CreatorError::InvalidArgument(
+                "staged inbox file does not match manifest SHA-256".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn validate_staged_manifest_files(staging: &Path, manifest: &ImportInboxManifest) -> Result<()> {
+    for expected in [&manifest.original, &manifest.current, &manifest.ai_output] {
+        let path = staging.join(&expected.name);
+        let bytes = fs::read(&path)
+            .map_err(|error| CreatorError::io("read inbox staging file", &path, error))?;
+        if bytes.len() as u64 != expected.size {
+            return Err(CreatorError::InvalidArgument(
+                "staged inbox file does not match manifest size".into(),
+            ));
+        }
+        let digest = Sha256::digest(&bytes);
+        if expected
+            .sha256
+            .as_deref()
+            .is_none_or(|hash| !hex(&digest).eq_ignore_ascii_case(hash))
+        {
+            return Err(CreatorError::InvalidArgument(
+                "staged inbox file does not match manifest SHA-256".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn check_input(path: &Path) -> Result<()> {
@@ -396,7 +747,14 @@ impl Staging {
         // A leading dot keeps the name outside the slug grammar, so the
         // service never lists an unfinished candidate.
         let path = root.join(format!(".{slug}.partial-{}", hex(&nonce)));
-        fs::create_dir(&path)
+        let mut builder = fs::DirBuilder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder
+            .create(&path)
             .map_err(|error| CreatorError::io("create inbox staging directory", &path, error))?;
         Ok(Self {
             path,
@@ -546,6 +904,70 @@ mod tests {
             .collect();
         names.sort();
         names
+    }
+
+    #[test]
+    fn metadata_review_precedes_manifest_publication_and_binds_staged_bytes() {
+        let fixture = fixture("metadata-review");
+        let mut tiff = b"II*\0\x08\0\0\0".to_vec();
+        tiff.extend_from_slice(&1u16.to_le_bytes());
+        tiff.extend_from_slice(&0x8825u16.to_le_bytes());
+        tiff.extend_from_slice(&4u16.to_le_bytes());
+        tiff.extend_from_slice(&1u32.to_le_bytes());
+        tiff.extend_from_slice(&32u32.to_le_bytes());
+        tiff.extend_from_slice(&0u32.to_le_bytes());
+        tiff.resize(40, 0);
+        let mut original = vec![0xff, 0xd8, 0xff, 0xe1];
+        original.extend_from_slice(&((tiff.len() + 8) as u16).to_be_bytes());
+        original.extend_from_slice(b"Exif\0\0");
+        original.extend_from_slice(&tiff);
+        original.extend_from_slice(&[0xff, 0xd9]);
+        fs::write(&fixture.original, &original).unwrap();
+        let receipt = put_import_inbox_candidate_with_metadata_review(
+            &candidate(&fixture, "gps"),
+            |warnings| {
+                assert!(!fixture.inbox.join("gps").exists());
+                assert!(
+                    warnings
+                        .iter()
+                        .any(|warning| warning.check == crate::ImageMetadataCheck::GpsFound)
+                );
+                fs::write(&fixture.original, b"changed-after-copy").unwrap();
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read(receipt.directory.join("original")).unwrap(),
+            original
+        );
+        assert!(receipt.directory.join("manifest.json").is_file());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn metadata_review_cannot_publish_a_mutated_staged_leaf() {
+        let fixture = fixture("staged-leaf-mutation");
+        let source_before = fs::read(&fixture.original).unwrap();
+        let error = put_import_inbox_candidate_with_metadata_review(
+            &candidate(&fixture, "candidate"),
+            |_| {
+                let staging = fs::read_dir(&fixture.inbox)
+                    .unwrap()
+                    .map(|entry| entry.unwrap().path())
+                    .find(|path| {
+                        path.file_name()
+                            .and_then(|name| name.to_str())
+                            .is_some_and(|name| name.starts_with(".candidate.partial-"))
+                    })
+                    .expect("hidden staging directory exists during review");
+                fs::write(staging.join(IMPORT_INBOX_ORIGINAL_NAME), b"tampered").unwrap();
+            },
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, CreatorError::InvalidArgument(_)));
+        assert!(!fixture.inbox.join("candidate").exists());
+        assert_eq!(fs::read(&fixture.original).unwrap(), source_before);
     }
 
     #[test]
@@ -765,6 +1187,24 @@ mod tests {
         .unwrap_err();
         assert_eq!(error.code(), "usage_error");
         assert!(entries(&fixture.inbox).is_empty());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_fifo_inbox_root_is_refused_without_blocking() {
+        let fixture = fixture("fifo-root");
+        let fifo = fixture.directory.0.join("fifo-root");
+        rustix::fs::mknodat(
+            rustix::fs::CWD,
+            &fifo,
+            rustix::fs::FileType::Fifo,
+            rustix::fs::Mode::from_raw_mode(0o600),
+            0,
+        )
+        .unwrap();
+
+        let error = retain_import_inbox_candidate(&fifo, "candidate").unwrap_err();
+        assert_eq!(error.code(), "usage_error");
     }
 
     #[test]

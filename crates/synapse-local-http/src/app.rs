@@ -15,10 +15,10 @@ use crate::handlers::{
     api_creator_reuse, api_creator_reuse_source, api_creator_session,
     api_creator_session_diagnostics, api_creator_sessions, api_creator_source,
     api_decide_creator_session, api_health, api_import_inbox, api_operation,
-    api_presentation_sidecar, api_project_reflog, api_project_refs, api_project_status,
-    api_projects, api_stage_import_inbox, api_staged_import_image, api_start_archive_export,
-    api_start_archive_restore, api_start_fsck, derive_page, index_page, method_not_allowed,
-    not_found, presentation_page, project_history_page, project_import_page,
+    api_presentation_sidecar, api_presentation_suggestions, api_project_reflog, api_project_refs,
+    api_project_status, api_projects, api_stage_import_inbox, api_staged_import_image,
+    api_start_archive_export, api_start_archive_restore, api_start_fsck, derive_page, index_page,
+    method_not_allowed, not_found, presentation_page, project_history_page, project_import_page,
     project_maintenance_page, project_page, reuse_page, session_page,
 };
 use crate::i18n::negotiate_page_language;
@@ -125,6 +125,10 @@ pub(crate) fn build_with_identity(
         .route(
             "/api/v1/projects/{project_key}/presentation-sidecars",
             axum::routing::post(api_presentation_sidecar).layer(DefaultBodyLimit::max(128 * 1024)),
+        )
+        .route(
+            "/api/v1/projects/{project_key}/creator-sessions/{session}/presentation-suggestions",
+            get(api_presentation_suggestions),
         )
         .route(
             "/projects/{project_key}/creator-sessions/{session}",

@@ -7,15 +7,15 @@ use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use synapse_publication::{
-    ExportOptions, OutputTarget, ProjectionOptions, PublicationError, PublicationVisibility,
-    export_bundle, load_presentation, verify_bundle,
+    ExportOptions, OutputTarget, ProjectionOptions, PublicationError, PublicationLocale,
+    PublicationVisibility, export_bundle, load_presentation, verify_bundle,
 };
 
 const USAGE: &str = "\
 SynapseGit local publication bundle
 
 Usage:
-  synapse-present export <repo> <output-dir> [--session <id>] [--presentation <presentation.toml>] [--public] [--target <synapse|github> | --synapse | --github]
+  synapse-present export <repo> <output-dir> [--session <id>] [--presentation <presentation.toml>] [--public] [--locale <en|ja>] [--replace] [--target <synapse|github> | --synapse | --github]
   synapse-present preview <bundle-dir>
 ";
 const VERSION: &str = concat!("synapse-present ", env!("CARGO_PKG_VERSION"));
@@ -135,6 +135,8 @@ fn export(args: &[String]) -> Result<(), CliError> {
     let mut visibility = PublicationVisibility::PrivateReview;
     let mut public_selected = false;
     let mut target = None::<OutputTarget>;
+    let mut locale = None::<PublicationLocale>;
+    let mut replace = false;
     let mut index = 3;
     while index < args.len() {
         match args[index].as_str() {
@@ -179,6 +181,29 @@ fn export(args: &[String]) -> Result<(), CliError> {
                 select_target(&mut target, OutputTarget::Github, "--github")?;
                 index += 1;
             }
+            "--locale" => {
+                let value = option_value(args, index, "--locale")?;
+                let parsed = match value {
+                    "en" => PublicationLocale::En,
+                    "ja" => PublicationLocale::Ja,
+                    _ => return Err(CliError::Usage("--locale must be en or ja".into())),
+                };
+                if locale.replace(parsed).is_some() {
+                    return Err(CliError::Usage(
+                        "duplicate export option \"--locale\"".into(),
+                    ));
+                }
+                index += 2;
+            }
+            "--replace" => {
+                if replace {
+                    return Err(CliError::Usage(
+                        "duplicate export option \"--replace\"".into(),
+                    ));
+                }
+                replace = true;
+                index += 1;
+            }
             other => {
                 return Err(CliError::Usage(format!("unknown export option {other:?}")));
             }
@@ -195,6 +220,8 @@ fn export(args: &[String]) -> Result<(), CliError> {
         projection,
         destination: PathBuf::from(&args[2]),
         target: target.unwrap_or(OutputTarget::Synapse),
+        locale,
+        replace,
     })?;
     outln!("exported={}", receipt.destination.display());
     outln!("target={}", receipt.target.as_str());
@@ -202,6 +229,12 @@ fn export(args: &[String]) -> Result<(), CliError> {
     outln!("projection_sha256={}", receipt.projection_sha256);
     outln!("sessions={}", receipt.sessions_exported);
     outln!("incomplete_sessions={}", receipt.incomplete_sessions);
+    if let Some(path) = receipt.replacement_recovery_path {
+        outln!("replacement_recovery_path={}", path.display());
+    }
+    if let Some(warning) = receipt.sync_warning {
+        outln!("sync_warning={warning}");
+    }
     Ok(())
 }
 

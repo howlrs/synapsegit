@@ -168,6 +168,26 @@ v1.0.0 revision, five Human `adopt` decisions and a public bundle are present.
 Adopt selects the recorded proposal bytes; it does not claim a physical painting
 followed the map.
 
+## Record a physical work with photographs
+
+For a painting or other physical work, use one session per proposed stage:
+Original is the before-work reference photo, Current is the photo taken before
+that stage, and AI output is the proposed stage map. Never promote a photo of
+the creator's result to AI output; after capture, it can be Current for the
+next stage. `adopt` selects the supplied proposal bytes unchanged. It does not
+certify physical guidance, outcome, a modified output, or a physical change.
+
+Capture the whole work front-on at each stage boundary, with repeatable distance
+and lighting. Before recording, apply EXIF orientation and make a separate copy
+with GPS metadata removed; keep the original private. Phone correction and
+light can change apparent values. SynapseGit checks recorded byte identity, not
+visual similarity or physical change. If a boundary photograph is missing, use
+the closest earlier Current only with an explicit note in the generation-note
+intent. Stage continuity is not yet recorded across sessions ([#178](https://github.com/howlrs/synapsegit/issues/178)).
+
+The [developer-led Starry Night case](./examples/starry-night/README.md) is a
+concrete v1.0.0 example, not an independent participant study or customer result.
+
 ## Prepare public text separately
 
 [![Private prompts, decision reasons and image notes stay separate from freshly written public title, work description and creator credit](./assets/private-public-notes.en.png)](./assets/private-public-notes.en.png)

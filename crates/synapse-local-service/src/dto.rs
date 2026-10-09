@@ -297,6 +297,7 @@ pub struct BeginCreatorSessionRequest {
     pub original_image: PathBuf,
     pub current_image: PathBuf,
     pub ai_output: PathBuf,
+    pub metadata_warnings: Vec<synapse_creator::ImageMetadataWarning>,
 }
 
 /// A manifest-last candidate discovered below a server-owned import root.
@@ -437,6 +438,8 @@ pub struct CreatorReport {
     pub ai_output_source: String,
     pub reviewed_by_human: String,
     pub rationale: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rationale_source: Option<String>,
     pub original_blob_oid: String,
     pub current_blob_oid: String,
     pub ai_output_blob_oid: String,
@@ -564,6 +567,8 @@ pub struct PendingCreatorSession {
     pub ai_output_blob_oid: String,
     pub ai_output_source: String,
     pub comparison: ComparisonEvidence,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub metadata_warnings: Vec<synapse_creator::ImageMetadataWarning>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
@@ -795,4 +800,16 @@ pub struct PresentationSidecarRequest {
 #[serde(deny_unknown_fields)]
 pub struct PresentationSidecar {
     pub toml: String,
+}
+
+/// Public-text suggestions read from the verified record of one complete
+/// session. These are deliberately limited to the creator's self-declared
+/// display name and the subject label; no private review material is exposed.
+#[derive(Clone, Debug, Default, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct PresentationSuggestions {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub creator_display_name: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
 }

@@ -28,6 +28,8 @@ const CREATOR_UPLOADS = new Map();
 const CREATOR_FILE_FIELDS = new Set(["original_image", "current_image", "ai_output"]);
 const UTF8_ENCODER = new TextEncoder();
 const CREATOR_SESSION_SLUG = /^[a-z][a-z0-9-]{0,63}$/u;
+const METADATA_SCAN_BYTES = 256 * 1024;
+const METADATA_MAX_IFDS = 16;
 
 // Interface messages keyed by stable identifiers. Each entry keeps Japanese
 // and English together; `node scripts/test_local_app.mjs` checks that both
@@ -105,6 +107,9 @@ const MESSAGE_ENTRIES = [
   ["upload.previewUnsupported", "この形式はプレビューできません。ファイルはそのまま取り込めます。", "This format cannot be previewed. The file can still be imported as is."],
   ["upload.previewReady", "{width} × {height} px · ローカルプレビュー", "{width} × {height} px · local preview"],
   ["upload.previewFailed", "プレビューを表示できません。ファイルの内容を確認してください。そのまま取り込むこともできます。", "The preview cannot be shown. Check the file contents. You can still import it as is."],
+  ["upload.locationChecking", "位置情報を確認しています。検査が終わってから送信してください。", "Checking location metadata. Wait for the check to finish before submitting."],
+  ["upload.locationFound", "このファイルには位置情報が含まれる可能性があります。記録するbyteは変更されません。除く場合は、記録前に位置情報を除いたcopyを選んでください。", "This file may contain location metadata. The recorded bytes will not be changed. To remove it, choose a metadata-stripped copy before recording."],
+  ["upload.locationUnknown", "このファイルの位置情報は確認しきれませんでした。位置情報がないことは示しません。", "Location metadata could not be fully checked in this file. This does not mean it has no location data."],
   ["form.fileNeedsUpload", "ファイルを含むフォームには専用のupload処理が必要です。", "File forms require the dedicated upload enhancement."],
   ["form.fieldOnce", "項目「{name}」はちょうど1回だけ指定してください。", "The field “{name}” must occur exactly once."],
   ["form.fieldTooLong", "項目「{name}」がUTF-8のbyte上限を超えています。", "The field “{name}” exceeds its UTF-8 byte limit."],
@@ -177,6 +182,9 @@ const MESSAGE_ENTRIES = [
   ["inbox.proposalInvalid", "提案の応答が不正です。", "The proposal response is invalid."],
   ["presentation.tooLong", "{label}: {bytes} / {limit} UTF-8 bytes。上限を超えています。", "{label}: {bytes} / {limit} UTF-8 bytes. This exceeds the limit."],
   ["presentation.validating", "文章を検証しています…", "Validating the text…"],
+  ["presentation.loadingSuggestions", "確認済みの公開用候補を読み込んでいます…", "Loading verified public-text suggestions…"],
+  ["presentation.suggestionsUnavailable", "公開用候補を読み込めないため、内容を確認できません。別の完了したセッションを選ぶか、もう一度選択してください。", "Public-text suggestions could not be loaded, so the content cannot be reviewed. Choose another completed session or select this one again."],
+  ["presentation.suggestionsInvalid", "公開用候補の応答が不正です。", "The public-text suggestion response is invalid."],
   ["presentation.responseInvalid", "説明文ファイルの応答が不正です。", "The description file response is invalid."],
   ["presentation.emptyLabel", "説明文", "Description"],
   ["presentation.emptyValue", "未入力。既存の省略時動作を使用します。", "Nothing entered. The existing default behavior is used."],
@@ -871,6 +879,17 @@ function fileSizeLabel(bytes) {
   return `${bytes.toLocaleString("en-US")} bytes (${(bytes / 1024 / 1024).toFixed(2)} MiB)`;
 }
 
+function u16at(bytes, offset, little) { if (offset + 2 > bytes.length) return null; return little ? bytes[offset] | bytes[offset + 1] << 8 : bytes[offset] << 8 | bytes[offset + 1]; }
+function u32at(bytes, offset, little) { if (offset + 4 > bytes.length) return null; return little ? (bytes[offset] | bytes[offset+1]<<8 | bytes[offset+2]<<16 | bytes[offset+3]<<24) >>> 0 : (bytes[offset]<<24 | bytes[offset+1]<<16 | bytes[offset+2]<<8 | bytes[offset+3]) >>> 0; }
+function asciiContains(bytes, text) { const needle = new TextEncoder().encode(text.toLowerCase()); for(let i=0;i+needle.length<=bytes.length;i++){let ok=true;for(let j=0;j<needle.length;j++){let c=bytes[i+j]; if(c>=65&&c<=90)c+=32;if(c!==needle[j]){ok=false;break}}if(ok)return true}return false; }
+function itxtXmp(bytes) { const end=bytes.indexOf(0), key=new TextEncoder().encode("xml:com.adobe.xmp"); if(end<0)return "invalid";if(end!==key.length)return null;for(let i=0;i<key.length;i++){let c=bytes[i];if(c>=65&&c<=90)c+=32;if(c!==key[i])return null}const rest=bytes.subarray(end+1);if(rest.length<2||rest[0]||rest[1])return "invalid";const language=rest.subarray(2).indexOf(0);if(language<0)return "invalid";const translated=rest.subarray(language+3).indexOf(0);if(translated<0)return "invalid";return rest.subarray(language+4+translated); }
+function pngCrc(kind, data) { let crc=0xffffffff;for(const byte of [...kind,...data]){crc^=byte;for(let i=0;i<8;i++)crc=crc&1?(crc>>>1)^0xedb88320:crc>>>1;}return (~crc)>>>0; }
+function exifMetadataCheck(bytes) { if(bytes.length<8)return "could_not_check"; const little=bytes[0]===73&&bytes[1]===73;if(!little&&!(bytes[0]===77&&bytes[1]===77)||u16at(bytes,2,little)!==42)return "could_not_check";const first=u32at(bytes,4,little);if(first===null)return "could_not_check";const pending=[[first,0]],seen=new Set();while(pending.length){const [offset,depth]=pending.pop();if(depth>4||seen.has(offset)||seen.size>=METADATA_MAX_IFDS||offset+2>bytes.length)return "could_not_check";seen.add(offset);const n=u16at(bytes,offset,little);if(n===null||offset+2+n*12+4>bytes.length)return "could_not_check";for(let i=0;i<n;i++){const e=offset+2+i*12,tag=u16at(bytes,e,little),value=u32at(bytes,e+8,little);if(value===null)return "could_not_check";if(tag===0x8825)return value>=bytes.length?"could_not_check":"gps_found";if(tag===0x8769||tag===0xa005)pending.push([value,depth+1]);else if(tag===0x014a){const count=u32at(bytes,e+4,little);if(count===null||count>METADATA_MAX_IFDS)return "could_not_check";for(let j=0;j<count;j++){const child=u32at(bytes,value+j*4,little);if(child===null)return "could_not_check";pending.push([child,depth+1]);}}}const next=u32at(bytes,offset+2+n*12,little);if(next===null)return "could_not_check";if(next)pending.push([next,depth]);}return "no_gps_found"; }
+/** Bounded, non-decoding check of opaque selected bytes. */
+export function inspectImageLocationMetadata(bytes, truncated = false) { const finish=v=>v==="gps_found"||!truncated?v:"could_not_check";if(bytes[0]===255&&bytes[1]===216){let p=2;while(p<bytes.length){if(bytes[p++]!==255)return "could_not_check";while(bytes[p]===255)p++;if(p>=bytes.length)return "could_not_check";const m=bytes[p++];if(m===217||m===218)return finish("no_gps_found");if((m>=208&&m<=215)||m===1)continue;if(p+2>bytes.length)return "could_not_check";const n=(bytes[p]<<8)|bytes[p+1];p+=2;if(n<2||p+n-2>bytes.length)return "could_not_check";const x=bytes.subarray(p,p+n-2);p+=n-2;if(m===225){const exif=x.length>=6&&x[0]===69&&x[1]===120&&x[2]===105&&x[3]===102&&x[4]===0&&x[5]===0;if(exif){const v=exifMetadataCheck(x.subarray(6));if(v!=="no_gps_found")return v}else if(asciiContains(x,"gpslatit")||asciiContains(x,"gpslongi"))return "gps_found"}}return "could_not_check"}if(bytes.length>=8&&bytes[0]===137&&bytes[1]===80&&bytes[2]===78&&bytes[3]===71&&bytes[4]===13&&bytes[5]===10&&bytes[6]===26&&bytes[7]===10){let p=8;while(p+12<=bytes.length){const n=u32at(bytes,p,false);if(p+12+n>bytes.length)return "could_not_check";const kind=bytes.subarray(p+4,p+8),k=String.fromCharCode(...kind),x=bytes.subarray(p+8,p+8+n);if(pngCrc(kind,x)!==u32at(bytes,p+8+n,false))return "could_not_check";p+=12+n;if(k==="eXIf"){const v=exifMetadataCheck(x);if(v!=="no_gps_found")return v}if(k==="iTXt"){const text=itxtXmp(x);if(text==="invalid")return "could_not_check";if(text&&(asciiContains(text,"gpslatit")||asciiContains(text,"gpslongi")))return "gps_found"}if(k==="IEND")return finish("no_gps_found")}}return "could_not_check"; }
+
+async function selectedImageLocationMetadata(file) { const bytes = new Uint8Array(await file.slice(0, Math.min(file.size, METADATA_SCAN_BYTES)).arrayBuffer()); return inspectImageLocationMetadata(bytes, file.size > METADATA_SCAN_BYTES); }
+
 function updateUtf8Counter(input, counter, limit) {
   const count = UTF8_ENCODER.encode(input.value).byteLength;
   const error = count > limit ? t("text.tooLong", { limit, count }) : "";
@@ -893,6 +912,7 @@ export function enhanceCreatorUploads(root = document) {
       image: field.querySelector("[data-creator-preview]"),
       info: field.querySelector("[data-creator-file-info]"),
       status: field.querySelector("[data-creator-preview-status]"),
+      metadata: field.querySelector("[data-creator-metadata-warning]"),
       clear: field.querySelector("[data-creator-file-clear]"),
     }));
     const release = (field) => {
@@ -924,6 +944,7 @@ export function enhanceCreatorUploads(root = document) {
       field.info.textContent = file ? `${file.name} · ${fileSizeLabel(file.size)}` : "";
       field.clear.hidden = !file;
       field.status.hidden = !file;
+      if (field.metadata) { field.metadata.hidden = true; field.metadata.textContent = ""; }
       field.status.textContent = "";
       delete field.status.dataset.tone;
       const error = file?.size > MAX_IMAGE_BYTES ? t("upload.fileTooLarge") : "";
@@ -936,6 +957,9 @@ export function enhanceCreatorUploads(root = document) {
         field.status.dataset.tone = "error";
         return;
       }
+      field.input.setCustomValidity(t("upload.locationChecking"));
+      field.input.setAttribute("aria-invalid", "true");
+      try { const result = await selectedImageLocationMetadata(file); if (!isCurrent()) return; if (field.metadata && result !== "no_gps_found") { field.metadata.textContent = t(result === "gps_found" ? "upload.locationFound" : "upload.locationUnknown"); field.metadata.dataset.tone = "warning"; field.metadata.hidden = false; } } catch { if (isCurrent() && field.metadata) { field.metadata.textContent = t("upload.locationUnknown"); field.metadata.dataset.tone = "warning"; field.metadata.hidden = false; } } finally { if (isCurrent()) { field.input.setCustomValidity(""); field.input.setAttribute("aria-invalid", "false"); } }
       field.status.textContent = t("upload.previewLoading");
       try {
         // Read only the signature before allocating a URL. File.type and the
@@ -1959,9 +1983,17 @@ function enhancePresentationForm() {
   const preview = document.querySelector("[data-presentation-preview]");
   const status = form.querySelector("[data-presentation-status]");
   const download = preview.querySelector("[data-presentation-download]");
+  const session = form.elements.namedItem("session");
+  const suggestionSection = form.querySelector("[data-presentation-suggestions]");
+  const suggestionHelp = form.querySelector("[data-presentation-suggestions-help]");
+  const suggestionAcknowledgement = form.querySelector("[data-presentation-suggestions-ack]");
+  const suggestionControls = ["creator_display_name", "title"].map(name => form.elements.namedItem(name));
   let validatedToml = null;
   let revision = 0;
   let busy = false;
+  let suggestionRevision = 0;
+  let suggestionState = "idle";
+  let suggestionAbort;
   const clearPreview = () => {
     revision += 1;
     validatedToml = null;
@@ -1971,13 +2003,66 @@ function enhancePresentationForm() {
   };
   form.addEventListener("input", event => {
     clearPreview();
+    if (suggestionControls.includes(event.target)) {
+      event.target.dataset.presentationEdited = "true";
+      if (suggestionAcknowledgement.required) suggestionAcknowledgement.checked = false;
+    }
     event.target.setCustomValidity?.("");
     status.textContent = "";
   });
   form.addEventListener("change", clearPreview);
+  const resetSuggestions = () => {
+    suggestionRevision += 1;
+    suggestionAbort?.abort();
+    suggestionAbort = undefined;
+    suggestionState = "idle";
+    suggestionSection.hidden = true;
+    suggestionHelp.hidden = true;
+    suggestionAcknowledgement.checked = false;
+    suggestionAcknowledgement.required = false;
+  };
+  const applySuggestion = (control, value) => {
+    const prior = control.dataset.presentationSuggested;
+    if (control.dataset.presentationEdited !== "true" && (prior === undefined || control.value === prior)) control.value = value ?? "";
+    control.dataset.presentationSuggested = value ?? "";
+  };
+  const loadSuggestions = async () => {
+    resetSuggestions();
+    if (!(session instanceof HTMLSelectElement) || !session.value) return;
+    const selectedSession = session.value;
+    const currentSuggestionRevision = suggestionRevision;
+    suggestionState = "loading";
+    status.textContent = t("presentation.loadingSuggestions");
+    suggestionAbort = new AbortController();
+    try {
+      const endpoint = form.dataset.suggestionsEndpoint.replace("{session}", encodeURIComponent(selectedSession));
+      const result = await apiJson(endpoint, { signal: suggestionAbort.signal });
+      if (suggestionRevision !== currentSuggestionRevision || session.value !== selectedSession) return;
+      if (result === null || Array.isArray(result) || typeof result !== "object" || Object.keys(result).some(key => !["creator_display_name", "title"].includes(key))) throw new TypeError(t("presentation.suggestionsInvalid"));
+      const values = [result.creator_display_name, result.title].map(value => value === null ? undefined : value);
+      if (values.some(value => value !== undefined && (typeof value !== "string" || UTF8_ENCODER.encode(value).length > 300))) throw new TypeError(t("presentation.suggestionsInvalid"));
+      suggestionControls.forEach((control, index) => applySuggestion(control, values[index]));
+      const hasSuggestions = values.some(value => typeof value === "string" && value.length > 0);
+      suggestionState = "ready";
+      suggestionSection.hidden = !hasSuggestions;
+      suggestionHelp.hidden = !hasSuggestions;
+      suggestionAcknowledgement.checked = false;
+      suggestionAcknowledgement.required = hasSuggestions;
+      status.textContent = "";
+    } catch (error) {
+      if (error?.name === "AbortError" || suggestionRevision !== currentSuggestionRevision) return;
+      suggestionState = "failed";
+      status.textContent = error instanceof TypeError ? error.message : t("presentation.suggestionsUnavailable");
+    }
+  };
+  session?.addEventListener("change", () => void loadSuggestions());
   form.addEventListener("submit", async event => {
     event.preventDefault();
-    if (busy || !form.reportValidity()) return;
+    if (busy || suggestionState === "loading" || suggestionState === "failed") {
+      if (suggestionState !== "loading") status.textContent = t("presentation.suggestionsUnavailable");
+      return;
+    }
+    if (!form.reportValidity()) return;
     clearPreview();
     const input = { session: form.elements.namedItem("session").value };
     const entries = [];
@@ -2022,7 +2107,7 @@ function enhancePresentationForm() {
     }
   });
   download.addEventListener("click", () => {
-    if (validatedToml === null) return;
+    if (validatedToml === null || (suggestionAcknowledgement.required && !suggestionAcknowledgement.checked)) return;
     const url = URL.createObjectURL(new Blob([validatedToml], { type: "application/toml;charset=utf-8" }));
     const link = document.createElement("a"); link.href = url; link.download = "presentation.toml";
     document.body.append(link); link.click(); link.remove();

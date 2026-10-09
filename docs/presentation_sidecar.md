@@ -13,6 +13,13 @@ localhostのプロジェクト画面で「公開用の制作ノートを作る�
 3画像のcaption、公開用の判断メモを入力できます。すべて任意で、初期値は空欄です。
 保存済みのprivate rationale、プロンプト、生成メモ、画像上の判断メモは自動転記しません。
 
+## 公開bundleに入るもの・入らないもの
+
+bundleにはsession名、判断、選択roleの事実、Blob／Ref OIDなど相関し得るtechnical identifierが入ります。
+記録した件名や制作者名、生成メモ、rationale、decision pin、internal Actor ID、repository path、raw asset bytesは
+自動では入りません。作品名・制作者表記を出すには`title = "作品名"`、
+`creator_display_name = "公開用表示名"`を明示します。どちらもauthor-suppliedな公開文で、記録値の検証済みcopyではありません。
+
 「入力した文章を確認」でサーバーが既存のPresentationInput validatorを適用します。
 確認画面は自分で入力した文章のみを表示し、最終bundleの検証済みプレビューではありません。
 内容を編集すると前の確認は解除されます。「説明文ファイルを書き出す」で

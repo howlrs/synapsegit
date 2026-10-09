@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "SynapseGit localhost application API",
-    "version": "0.6.8-draft",
+    "version": "0.6.10-draft",
     "description": "Single-user, loopback-only application contract. A configured per-project import inbox accepts only manifest-last candidates, stages verified bytes in this process, and creates a later Human-review proposal from those staged bytes. Confirmed reuse creates a new review from an interrupted or deferred proposal without restoring prior authority. This is not the public Core protocol."
   },
   "servers": [
@@ -892,6 +892,19 @@
           }
         }
       }
+    },
+    "/projects/{projectKey}/creator-sessions/{session}/presentation-suggestions": {
+      "get": {
+        "operationId": "getPresentationSuggestions",
+        "tags": ["creator-sessions"],
+        "summary": "Read two verified record labels as explicit public-text suggestions",
+        "x-synapse-implementation-slice": 8,
+        "parameters": [{"$ref":"#/components/parameters/ProjectKey"},{"$ref":"#/components/parameters/Session"}],
+        "responses": {
+          "200": {"description":"Verified selected complete session's subject and creator only; response is not public text","content":{"application/json":{"schema":{"$ref":"#/components/schemas/PresentationSuggestions"}}}},
+          "default": {"$ref":"#/components/responses/Problem"}
+        }
+      }
     }
   },
   "components": {
@@ -975,6 +988,7 @@
       }
     },
     "schemas": {
+      "ImageMetadataWarning": {"type": "object", "additionalProperties": false, "required": ["role", "check", "message"], "properties": {"role": {"type": "string", "enum": ["original", "current", "ai_output"]}, "check": {"type": "string", "enum": ["gps_found", "no_gps_found", "could_not_check"]}, "message": {"type": "string", "description": "Advisory text only. No GPS coordinates are returned."}}},
       "Slug": {
         "type": "string",
         "minLength": 1,
@@ -1779,6 +1793,7 @@
           "comparison"
         ],
         "properties": {
+          "metadata_warnings": {"type": "array", "items": {"$ref": "#/components/schemas/ImageMetadataWarning"}, "description": "Bounded opaque-byte JPEG/PNG location-metadata warnings. Never strips or modifies bytes; absent when no warning was found. Not a guarantee that a file contains no private metadata."},
           "state": {
             "type": "string",
             "const": "pending_review"
@@ -1871,6 +1886,7 @@
           "fsck_objects"
         ],
         "properties": {
+          "rationale_source": {"type": "string", "enum": ["creator", "legacy_default_or_creator"], "description": "Origin of present rationale. legacy_default_or_creator is ambiguous: an old default string may also have been supplied by the creator; it is not evidence of creator authorship. Omitted when rationale is absent."},
           "snapshot": {
             "$ref": "#/components/schemas/SnapshotContext"
           },
@@ -2980,6 +2996,14 @@
             "x-synapse-max-utf8-bytes": 65536,
             "description": "Validated presentation.toml text for explicit browser download. No raw assets or automatically copied private text."
           }
+        }
+      },
+      "PresentationSuggestions": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {"type": ["string", "null"], "maxLength": 300, "x-synapse-max-utf8-bytes": 300, "description": "Verified recorded subject label offered only as a public-text suggestion."},
+          "creator_display_name": {"type": ["string", "null"], "maxLength": 300, "x-synapse-max-utf8-bytes": 300, "description": "Verified recorded creator label offered only as a public-text suggestion."}
         }
       }
     }

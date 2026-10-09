@@ -867,7 +867,7 @@ fn creator_report_prints_private_user_declared_notes_separately_and_escaped() {
         &mut pending,
         &CreatorDecisionOptions {
             disposition: CreatorDisposition::Reject,
-            rationale: Some("別の判断理由".into()),
+            rationale: Some("別の判断理由\nforged=decision\u{1b}[31m".into()),
         },
     )
     .unwrap();
@@ -880,7 +880,9 @@ fn creator_report_prints_private_user_declared_notes_separately_and_escaped() {
     let text = String::from_utf8(report.stdout).unwrap();
     assert!(text.contains("generation_note_user_declared="));
     assert!(text.contains("日本語\\nPRIVATE_NOTE\\u{1b}[31m"));
-    assert!(text.contains("rationale=\"別の判断理由\""));
+    assert!(text.contains("rationale=\"別の判断理由\\nforged=decision\\u{1b}[31m\""));
+    assert!(!text.contains("\nrationale=forged=decision"));
+    assert!(text.contains("rationale_source=creator"));
     assert!(!text.contains('\u{1b}'));
 }
 
@@ -1533,6 +1535,8 @@ fn inbox_put_writes_a_manifest_last_candidate_without_a_repository_or_decision()
     assert_eq!(json["slug"], "second");
     assert_eq!(json["decision_recorded"], false);
     assert_eq!(json["manifest"]["original"]["size"], 8);
+    assert_eq!(json["metadata_warnings"].as_array().unwrap().len(), 3);
+    assert_eq!(json["metadata_warnings"][0]["check"], "could_not_check");
 
     // Only the two candidates exist: no repository, staging, or other files.
     let mut names: Vec<_> = fs::read_dir(&inbox)
@@ -1581,6 +1585,152 @@ fn inbox_put_refuses_a_missing_inbox_directory_and_prints_help() {
     }
     let usage = run(&["--help"]);
     assert!(String::from_utf8_lossy(&usage.stdout).contains("synapse inbox put"));
+}
+
+#[test]
+fn inbox_decide_binds_manifest_bytes_and_retains_manifest_metadata() {
+    let temp = TempDirectory::new();
+    let inbox = temp.join("inbox");
+    fs::create_dir(&inbox).unwrap();
+    for (name, bytes) in [
+        ("original", b"original".as_slice()),
+        ("current", b"current"),
+        ("proposal", b"proposal"),
+    ] {
+        fs::write(temp.join(name), bytes).unwrap();
+    }
+    let note = temp.join("note.json");
+    fs::write(&note, br#"{"tool":"tool","intent":"intent"}"#).unwrap();
+    assert_success(&run_owned(vec![
+        "inbox".into(),
+        "put".into(),
+        inbox.display().to_string(),
+        "candidate".into(),
+        temp.join("original").display().to_string(),
+        temp.join("current").display().to_string(),
+        temp.join("proposal").display().to_string(),
+        "--subject".into(),
+        "Subject".into(),
+        "--creator".into(),
+        "Creator".into(),
+        "--generation-note-file".into(),
+        note.display().to_string(),
+    ]));
+    fs::write(inbox.join("candidate/current"), b"changed").unwrap();
+    let repository = temp.join("repo");
+    let changed = run(&[
+        "inbox",
+        "decide",
+        inbox.to_str().unwrap(),
+        "candidate",
+        repository.to_str().unwrap(),
+        "--decision",
+        "adopt",
+    ]);
+    assert_eq!(changed.status.code(), Some(1));
+    assert!(
+        !repository.exists(),
+        "Inbox mismatch must precede repository mutation"
+    );
+    // Restore a manifest-matching candidate and confirm metadata and the
+    // localhost-recognized default session survive the direct route.
+    fs::write(inbox.join("candidate/current"), b"current").unwrap();
+    assert_success(&run(&[
+        "inbox",
+        "decide",
+        inbox.to_str().unwrap(),
+        "candidate",
+        repository.to_str().unwrap(),
+        "--decision",
+        "adopt",
+    ]));
+    let report = json_stdout(&run(&[
+        "creator-report",
+        repository.to_str().unwrap(),
+        "inbox-candidate",
+        "--format",
+        "json",
+    ]));
+    assert_eq!(report["subject_label"], "Subject");
+    assert_eq!(report["creator_name"], "Creator");
+    assert_eq!(report["generation_note"]["tool"], "tool");
+    assert!(inbox.join("candidate/manifest.json").is_file());
+}
+
+#[test]
+fn inbox_decide_uses_the_canonical_long_slug_session_and_allows_an_explicit_override() {
+    let temp = TempDirectory::new();
+    let inbox = temp.join("inbox");
+    fs::create_dir(&inbox).unwrap();
+    let input = temp.join("input");
+    fs::write(&input, b"bytes").unwrap();
+    let slug = format!("a{}", "b".repeat(63));
+    assert_success(&run(&[
+        "inbox",
+        "put",
+        inbox.to_str().unwrap(),
+        &slug,
+        input.to_str().unwrap(),
+        input.to_str().unwrap(),
+        input.to_str().unwrap(),
+        "--subject",
+        "S",
+        "--creator",
+        "C",
+    ]));
+    let repository = temp.join("repo");
+    assert_success(&run(&[
+        "inbox",
+        "decide",
+        inbox.to_str().unwrap(),
+        &slug,
+        repository.to_str().unwrap(),
+        "--decision",
+        "adopt",
+    ]));
+    let canonical = synapse_creator::suggested_import_inbox_session(&slug).unwrap();
+    assert!(canonical.len() <= 64);
+    assert_success(&run(&[
+        "creator-report",
+        repository.to_str().unwrap(),
+        &canonical,
+    ]));
+    let second = temp.join("repo-override");
+    assert_success(&run(&[
+        "inbox",
+        "decide",
+        inbox.to_str().unwrap(),
+        &slug,
+        second.to_str().unwrap(),
+        "--decision",
+        "adopt",
+        "--session",
+        "custom-session",
+    ]));
+    assert_success(&run(&[
+        "creator-report",
+        second.to_str().unwrap(),
+        "custom-session",
+    ]));
+}
+
+#[test]
+fn inbox_decide_rejects_an_invalid_unicode_slug_without_panicking() {
+    let temp = TempDirectory::new();
+    let inbox = temp.join("inbox");
+    fs::create_dir(&inbox).unwrap();
+    let slug = format!("a{}", "あ".repeat(30));
+    let output = run(&[
+        "inbox",
+        "decide",
+        inbox.to_str().unwrap(),
+        &slug,
+        temp.join("repo").to_str().unwrap(),
+        "--decision",
+        "adopt",
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).starts_with("usage_error: inbox slug"));
 }
 
 #[test]
@@ -1649,6 +1799,7 @@ fn creator_report_names_the_subject_creator_and_decision_time() {
     );
     assert!(text.contains("\ncreator_name=\"Aki\"\n"));
     assert!(text.contains("\ndecision_recorded_at=20"));
+    assert!(text.contains("\nrationale=-\n"), "{text}");
     let json = json_stdout(&run(&[
         "creator-report",
         repository.to_str().unwrap(),
@@ -1656,6 +1807,8 @@ fn creator_report_names_the_subject_creator_and_decision_time() {
         "--format",
         "json",
     ]));
+    assert_eq!(json["rationale"], serde_json::Value::Null);
+    assert_eq!(json["rationale_source"], serde_json::Value::Null);
     assert_eq!(json["subject_label"], "North \"wall\" mural");
     assert_eq!(json["creator_name"], "Aki");
     assert!(
@@ -1974,11 +2127,15 @@ fn a_closed_stdout_discards_output_and_keeps_the_exit_status() {
             "{arguments:?}: {}",
             String::from_utf8_lossy(&output.stderr)
         );
-        assert!(
-            output.stderr.is_empty(),
-            "{arguments:?}: {}",
-            String::from_utf8_lossy(&output.stderr)
-        );
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if arguments == ["creator-run"] {
+            assert!(
+                stderr.contains("warning [original]:"),
+                "{arguments:?}: {stderr}"
+            );
+        } else {
+            assert!(stderr.is_empty(), "{arguments:?}: {stderr}");
+        }
     }
     let report = run(&["creator-report", repository, "piped"]);
     assert_success(&report);

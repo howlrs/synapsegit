@@ -993,10 +993,9 @@ fn decide_creator_session_with_annotations_and_limits(
         }
     }
 
-    let rationale = decision
-        .rationale
-        .as_deref()
-        .unwrap_or_else(|| decision.disposition.default_rationale());
+    // An omitted optional rationale is evidence of no supplied rationale. Do
+    // not manufacture prose that would look like a creator statement.
+    let rationale = decision.rationale.as_deref();
     let decision_recorded_at = pending.recording_clock.tick()?;
     let repository = open_creator_repository(
         &pending.repository_path,
@@ -1160,6 +1159,19 @@ pub fn run_creator_session_with_note(
     options: &CreatorRunOptions,
     note: Option<&crate::CreatorGenerationNote>,
 ) -> Result<CreatorRunReceipt> {
+    run_creator_session_with_note_and_metadata_review(options, note, |_| {})
+}
+
+/// Retain the exact caller input bytes, report their bounded metadata before
+/// publishing the proposal and decision, then record only those retained copies.
+pub fn run_creator_session_with_note_and_metadata_review<F>(
+    options: &CreatorRunOptions,
+    note: Option<&crate::CreatorGenerationNote>,
+    mut review: F,
+) -> Result<CreatorRunReceipt>
+where
+    F: FnMut(&[crate::ImageMetadataWarning]),
+{
     let decision = CreatorDecisionOptions {
         disposition: options.disposition,
         rationale: options.rationale.clone(),
@@ -1168,12 +1180,76 @@ pub fn run_creator_session_with_note(
     if let Some(note) = note {
         note.validate()?;
     }
-    let begin = CreatorBeginOptions {
+    validate_begin_metadata(&CreatorBeginOptions {
         repository: options.repository.clone(),
         session: options.session.clone(),
         original_image: options.original_image.clone(),
         current_image: options.current_image.clone(),
         ai_output: options.ai_output.clone(),
+        subject_label: options.subject_label.clone(),
+        creator_name: options.creator_name.clone(),
+    })?;
+    // Preserve the stable no-advisory failure for an already occupied
+    // session before notifying about otherwise valid input metadata.
+    let refs_path = options.repository.join("refs.sqlite3");
+    let has_ref_store = match std::fs::symlink_metadata(&refs_path) {
+        Ok(_) => true,
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => false,
+        Err(error) => {
+            return Err(CreatorError::io(
+                "inspect creator ref store",
+                refs_path,
+                error,
+            ));
+        }
+    };
+    if has_ref_store {
+        let repository = match Repository::open_existing_read_only(&options.repository) {
+            Ok(repository) => Some(repository),
+            // A same-process writer may legitimately keep a WAL open. Leave
+            // admission to the original begin path in that case.
+            Err(error) if error.code() == "read_only_source_busy" => None,
+            Err(error) => return Err(error.into()),
+        };
+        if let Some(repository) = repository {
+            let decision = repository.refs().get(&decision_ref(&options.session))?;
+            let proposal = repository.refs().get(&proposal_ref(&options.session))?;
+            if decision.is_some() || proposal.is_some() {
+                let complete = match (&decision, &proposal) {
+                    (Some(decision), Some(_)) => {
+                        read_json(&repository, &decision.head)?
+                            .get("commit_kind")
+                            .and_then(JsonValue::as_str)
+                            == Some("decision")
+                    }
+                    _ => false,
+                };
+                return Err(if complete {
+                    CreatorError::SessionExists(options.session.clone())
+                } else {
+                    CreatorError::SessionIncomplete(options.session.clone())
+                });
+            }
+        }
+    }
+    validate_input_files(
+        &options.original_image,
+        &options.current_image,
+        &options.ai_output,
+    )?;
+    let retained = crate::retain_creator_input_files(
+        &options.original_image,
+        &options.current_image,
+        &options.ai_output,
+    )?;
+    let warnings = retained.metadata_warnings()?;
+    review(&warnings);
+    let begin = CreatorBeginOptions {
+        repository: options.repository.clone(),
+        session: options.session.clone(),
+        original_image: retained.original.clone(),
+        current_image: retained.current.clone(),
+        ai_output: retained.ai_output.clone(),
         subject_label: options.subject_label.clone(),
         creator_name: options.creator_name.clone(),
     };

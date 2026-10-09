@@ -409,6 +409,7 @@ pub struct CreatorReportDocument {
     pub disposition: String,
     pub decision_recorded_at: Option<String>,
     pub rationale: Option<String>,
+    pub rationale_source: Option<String>,
     pub base_head: String,
     pub base_snapshot: String,
     pub proposal_snapshot: String,
@@ -443,6 +444,9 @@ impl CreatorReportDocument {
             disposition: disposition_str(report.disposition),
             decision_recorded_at: report.decision_recorded_at.clone(),
             rationale: report.rationale.clone(),
+            rationale_source: report
+                .rationale_source
+                .map(|source| source.as_str().to_owned()),
             base_head: report.base_head.clone(),
             base_snapshot: report.base_snapshot.clone(),
             proposal_snapshot: report.proposal_snapshot.clone(),

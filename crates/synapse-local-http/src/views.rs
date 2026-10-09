@@ -446,7 +446,13 @@ impl SessionPageView {
             review_id: String::new(),
             decision_url: String::new(),
             decision_outcome: m.decision_outcome(&report.disposition).into(),
-            rationale: report.rationale.unwrap_or_default(),
+            rationale: match (report.rationale, report.rationale_source.as_deref()) {
+                (Some(rationale), Some("legacy_default_or_creator")) => {
+                    format!("{}\n\n{}", rationale, m.session.legacy_rationale_warning)
+                }
+                (Some(rationale), _) => rationale,
+                (None, _) => String::new(),
+            },
             subject_label: report
                 .subject_label
                 .unwrap_or_else(|| m.session.not_recorded.into()),

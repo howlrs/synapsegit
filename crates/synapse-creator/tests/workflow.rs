@@ -8,6 +8,7 @@ use synapse_creator::{
     CreatorRunOptions, CreatorSessionState, PreparedCreatorReportReader, begin_creator_session,
     begin_creator_session_existing, creator_report, creator_report_from_snapshot,
     decide_creator_session, discover_creator_sessions, run_creator_session,
+    run_creator_session_with_note_and_metadata_review,
 };
 use synapse_projection::{ProjectionLimits, SqliteProjectionStore};
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
@@ -53,6 +54,61 @@ fn stored_object_path(repository: &Path, oid: &str) -> PathBuf {
         .join(kind)
         .join(&digest[..2])
         .join(&digest[2..])
+}
+
+fn gps_jpeg() -> Vec<u8> {
+    let mut tiff = b"II*\0\x08\0\0\0".to_vec();
+    tiff.extend_from_slice(&1u16.to_le_bytes());
+    tiff.extend_from_slice(&0x8825u16.to_le_bytes());
+    tiff.extend_from_slice(&4u16.to_le_bytes());
+    tiff.extend_from_slice(&1u32.to_le_bytes());
+    tiff.extend_from_slice(&32u32.to_le_bytes());
+    tiff.extend_from_slice(&0u32.to_le_bytes());
+    tiff.resize(40, 0);
+    let mut jpeg = vec![0xff, 0xd8, 0xff, 0xe1];
+    jpeg.extend_from_slice(&((tiff.len() + 8) as u16).to_be_bytes());
+    jpeg.extend_from_slice(b"Exif\0\0");
+    jpeg.extend_from_slice(&tiff);
+    jpeg.extend_from_slice(&[0xff, 0xd9]);
+    jpeg
+}
+
+#[test]
+fn metadata_review_uses_retained_gps_bytes_before_repository_mutation() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.join("callback-repo");
+    let original = temporary.join("gps.jpg");
+    let bytes = gps_jpeg();
+    fs::write(&original, &bytes).unwrap();
+    let current = temporary.join("current");
+    let proposal = temporary.join("proposal");
+    fs::write(&current, b"current").unwrap();
+    fs::write(&proposal, b"proposal").unwrap();
+    let options = CreatorRunOptions {
+        repository: repository.clone(),
+        session: "callback".into(),
+        original_image: original.clone(),
+        current_image: current,
+        ai_output: proposal,
+        subject_label: "S".into(),
+        creator_name: "C".into(),
+        disposition: CreatorDisposition::Adopt,
+        rationale: None,
+    };
+    let receipt = run_creator_session_with_note_and_metadata_review(&options, None, |warnings| {
+        assert!(!repository.exists());
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.check == synapse_creator::ImageMetadataCheck::GpsFound)
+        );
+        fs::write(&original, b"changed-after-retention").unwrap();
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read(stored_object_path(&repository, &receipt.original_blob_oid)).unwrap(),
+        bytes
+    );
 }
 
 #[test]
@@ -470,6 +526,51 @@ fn creator_workflow_uses_ai_and_human_routes_and_survives_restore() {
 }
 
 #[test]
+fn omitted_rationale_is_absent_from_feedback_for_every_disposition_and_legacy_defaults_remain_ambiguous()
+ {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repo");
+    for (session, disposition) in [
+        ("no-rationale-adopt", CreatorDisposition::Adopt),
+        ("no-rationale-reject", CreatorDisposition::Reject),
+        ("no-rationale-defer", CreatorDisposition::Defer),
+    ] {
+        let mut run = options(&temporary, &repository_path, session, disposition);
+        run.rationale = None;
+        let receipt = run_creator_session(&run).unwrap();
+        let feedback: serde_json::Value = serde_json::from_slice(
+            &fs::read(stored_object_path(
+                &repository_path,
+                &receipt.decision_feedback_oid,
+            ))
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(feedback["payload"].get("human_rationale").is_none());
+        let report = creator_report(&repository_path, session).unwrap();
+        assert_eq!(report.rationale, None);
+        assert_eq!(report.rationale_source, None);
+    }
+    let mut legacy = options(
+        &temporary,
+        &repository_path,
+        "legacy-default",
+        CreatorDisposition::Adopt,
+    );
+    legacy.rationale = Some("The creator adopted the AI proposal unchanged.".into());
+    run_creator_session(&legacy).unwrap();
+    let report = creator_report(&repository_path, "legacy-default").unwrap();
+    assert_eq!(
+        report.rationale.as_deref(),
+        Some("The creator adopted the AI proposal unchanged.")
+    );
+    assert_eq!(
+        report.rationale_source,
+        Some(synapse_creator::CreatorRationaleSource::LegacyDefaultOrCreator)
+    );
+}
+
+#[test]
 fn identical_imports_are_reported_only_as_byte_identity() {
     let temporary = TempDirectory::new();
     let repository_path = temporary.join("repo");
@@ -564,6 +665,42 @@ fn creator_session_is_create_only() {
     assert!(
         matches!(error, CreatorError::SessionIncomplete(session) if session == "incomplete-session")
     );
+}
+
+#[test]
+fn metadata_preflight_allows_empty_roots_and_refuses_damaged_existing_repositories() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repo");
+    fs::create_dir(&repository_path).unwrap();
+    let first = options(
+        &temporary,
+        &repository_path,
+        "empty-root",
+        CreatorDisposition::Defer,
+    );
+    let mut reviewed = false;
+    run_creator_session_with_note_and_metadata_review(&first, None, |_| {
+        reviewed = true;
+        assert!(!repository_path.join("refs.sqlite3").exists());
+        assert!(!repository_path.join("cas").exists());
+    })
+    .unwrap();
+    assert!(reviewed);
+
+    fs::remove_dir_all(repository_path.join("cas")).unwrap();
+    let next = options(
+        &temporary,
+        &repository_path,
+        "damaged-root",
+        CreatorDisposition::Defer,
+    );
+    let mut reviewed = false;
+    assert!(
+        run_creator_session_with_note_and_metadata_review(&next, None, |_| reviewed = true)
+            .is_err()
+    );
+    assert!(!reviewed);
+    assert!(!repository_path.join("cas").exists());
 }
 
 #[test]

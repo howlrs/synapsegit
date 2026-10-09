@@ -24,10 +24,17 @@ pub use inbox::{
     IMPORT_INBOX_FILE_MAX_BYTES, IMPORT_INBOX_MANIFEST_MAX_BYTES, IMPORT_INBOX_MANIFEST_NAME,
     IMPORT_INBOX_MANIFEST_VERSION, IMPORT_INBOX_ORIGINAL_NAME, IMPORT_INBOX_SUBJECT_MAX_BYTES,
     ImportInboxCandidate, ImportInboxFile, ImportInboxManifest, ImportInboxManifestError,
-    ImportInboxMetadata, ImportInboxReceipt, is_import_inbox_slug, put_import_inbox_candidate,
+    ImportInboxMetadata, ImportInboxReceipt, RetainedCreatorInputs, RetainedInboxCandidate,
+    is_import_inbox_slug, put_import_inbox_candidate,
+    put_import_inbox_candidate_with_metadata_review, retain_creator_input_files,
+    retain_import_inbox_candidate, suggested_import_inbox_session,
 };
 mod io;
+mod metadata;
 mod notes;
+pub use metadata::{
+    ImageMetadataCheck, ImageMetadataWarning, image_metadata_warning, metadata_warning_from_bytes,
+};
 mod overview;
 pub use notes::{CreatorGenerationNote, GENERATION_NOTE_KEY};
 pub use overview::{
@@ -62,12 +69,12 @@ pub use session::{
     begin_creator_session_with_reuse_source, begin_creator_session_with_reuse_source_existing,
     begin_creator_session_with_source, begin_creator_session_with_source_existing,
     decide_creator_session, decide_creator_session_with_annotations, run_creator_session,
-    run_creator_session_with_note,
+    run_creator_session_with_note, run_creator_session_with_note_and_metadata_review,
 };
 pub use synapse_observation::{AnalysisComparability, AnalysisStatus, ByteIdentityOutcome};
 pub use types::{
     CreatorBeginOptions, CreatorComparisonReport, CreatorDecisionOptions, CreatorDisposition,
-    CreatorPendingDecisionState, CreatorPendingReceipt, CreatorReport, CreatorRunOptions,
-    CreatorRunReceipt, CreatorSessionState, CreatorSessionSummary, CreatorSnapshotReport,
-    CreatorTimelineEntry,
+    CreatorPendingDecisionState, CreatorPendingReceipt, CreatorRationaleSource, CreatorReport,
+    CreatorRunOptions, CreatorRunReceipt, CreatorSessionState, CreatorSessionSummary,
+    CreatorSnapshotReport, CreatorTimelineEntry,
 };
