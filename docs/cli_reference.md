@@ -67,8 +67,9 @@ bundle and renderer profile, while `projection.json` stays the v1 semantic
 projection. This container v2 is not the separate semantic projection v2
 proposal tracked by #163. `preview` checks the locale/profile pair.
 
-`--replace` is available on Linux and macOS. When the destination is absent it
-uses the ordinary atomic no-replace creation path; if another file, directory,
+Replacing an existing destination with `--replace` requires Linux or macOS.
+When the destination is absent, `--replace` uses ordinary atomic no-replace
+creation wherever that export path is supported; if another file, directory,
 or symlink appears before publication, it fails without overwriting it. When
 the destination exists it must be a strict bundle with no extra files,
 directories, `.git`, or symlinks. It stages beside the target and atomically
@@ -844,7 +845,7 @@ synapse inbox decide "$HOME/SynapseGit/inbox" mural-next "$HOME/SynapseGit/mural
 
 ### 画像の位置情報警告
 
-`creator-run`、`inbox put`、localhostの画像取り込みは、JPEGのAPP1 Exif/XMPとPNGのeXIf/iTXtを
+`creator-run`、`inbox put`、localhostの画像取り込みは、JPEGのAPP1 Exif/XMPとPNGのeXIf・tEXt・iTXtを
 decodeせずに検査する。JPEGのmetadata prefixは先頭256 KiBまでで、その後はentropy-coded scanを実際のEOIまで構造的に辿る。fileは64 MiB、TIFF IFDは16個まで、ネストは深さ4まで。
 PNGは`IEND`までchunk headerを辿り、固定長のIHDRとmetadata chunkだけを読み、metadataのCRCを確認する。fileは64 MiB、chunk数は
 4,096、metadata payload合計は256 KiBまでであり、IDATなどの画像payloadとそのCRCは検査しない。
@@ -859,9 +860,14 @@ bit depth・color type、chunk名、critical chunk、PLTE、連続したIDATを�
 deflateはdecodeしない。途中切断、構造不正（unknown critical chunkやindexed colorのPLTE不足を含む）、
 metadata CRC不一致、上限超過、全ての圧縮text（`zTXt`）、または`IEND`後の未検査dataは`could_not_check`とする。
 
+PNGのeXIfではGPS IFDを確認し、構文を確認できた非圧縮のtEXt／iTXtでは既知のGPS markerを検出する。
+keywordがXMP以外でも検出対象とし、圧縮textや不正なtext構文は`could_not_check`とする。
+iTXtのlanguage tagは[RFC 5646](https://www.rfc-editor.org/rfc/rfc5646)の字句構文を確認するが、
+language registryやXML内容の妥当性は検証しない。
+
 | check | 意味 |
 | --- | --- |
-| `gps_found` | 位置情報の項目を検出した。記録前に、metadataを除いたcopyを使うか制作者が判断する。 |
+| `gps_found` | 位置情報の項目または既知のGPS markerを検出した。記録前に、metadataを除いたcopyを使うか制作者が判断する。 |
 | `no_gps_found` | 完了した上限内の検査でGPS項目を見つけなかった。その他のprivate metadataがない保証ではない。 |
 | `could_not_check` | 未対応形式、圧縮text（`zTXt`）、ImageMagickのraw profile、MPF／Motion Photo、不正なmetadataやPNG構造、PNGのmetadata CRC不一致・末尾data、file／chunk／metadata／読み取り・IFD・深さの上限等で確認できなかった。GPSなしとは扱わない。 |
 

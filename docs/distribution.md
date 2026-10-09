@@ -2,8 +2,8 @@
 
 Audience: maintainer、release担当、公開文書を更新するcontributor
 Status: release運用runbook
-Applies to: v1.0.1 release preparation
-Last verified: 2026-10-03
+Applies to: v1.1.0 release preparation
+Last verified: 2026-10-10
 
 この文書は、SynapseGitを「GitHub上で見つける」「現在の用途を判断する」「安全に試す」までの
 公開導線とrelease手順を定義する。protocolの規範仕様ではない。
@@ -56,7 +56,10 @@ strict slugで、小文字から始まり小文字英数字とハイフンだけ
 名前は既存のsession-not-found errorになる。操作にはJavaScriptが必要で、無効時も一覧は読めるが名前で
 古いsessionを開くことはできない。
 
-公開文面では、将来の利用構想とv1.0.1で実行できる能力を同じものとして表示しない。
+v1.1.0はnon-regular Creator inputを記録前に拒否し、判断記録のprivate-local JSON出力、bounded metadata
+warning、Linux/macOSの安全なpublication replacementを追加する。三binary構成と配布channelは変えない。
+
+公開文面では、将来の利用構想とv1.1.0で実行できる能力を同じものとして表示しない。
 
 ## 公開surface
 
@@ -141,7 +144,7 @@ archive作成、展開後smoke（`scripts/smoke_release_archive.sh`）、build p
 利用者は`sha256sum --check --ignore-missing SHA256SUMS`（macOSでは該当行を`shasum -a 256 --check`へ渡す）で、
 downloadしたarchiveだけを検証する。main／Pull RequestのCIも、同じmacOS jobと両archiveの組み立てを毎回検証する。
 
-v1.0.1 archiveは、v0.11.1、v0.10.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
+v1.1.0 archiveは、v0.11.1、v0.10.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
 generic-artifact v1のworkflow／schema／local projectionはtagged sourceに含まれるworkspace libraryであり、
 archiveへ第四のbinaryや既存binaryのgeneric HTTP／CLI／UI surfaceを追加しない。
 公開済みv0.6.0 archiveも同じ三binary構成であり、後から内容を変更しない。
@@ -390,7 +393,7 @@ license変更時は少なくとも次を同じPull Requestで更新する。
 
 - [Installation](./install.md)
 - [Project status](./project_status.md)
-- [Release notes](./releases/v1.0.1.md)
+- [Release notes](./releases/v1.1.0.md)
 - [Security model](./security_model.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Documentation index](./README.md)

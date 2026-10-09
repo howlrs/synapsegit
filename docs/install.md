@@ -1,9 +1,9 @@
 # Installing SynapseGit
 
 Audience: local single-user users and evaluators
-Status: v1.0.1 release installation
-Applies to: v1.0.1
-Last verified: 2026-10-03
+Status: v1.1.0 release installation
+Applies to: v1.1.0
+Last verified: 2026-10-10
 
 SynapseGit currently has one prebuilt distribution and one source-install path.
 It is not published to crates.io, Homebrew, a Linux package repository, or a
@@ -20,35 +20,35 @@ has no release-tested prebuilt artifact yet; use a tagged source build. The Dock
 in this repository is for a private, one-shot GCP packaging smoke test; it is
 not an end-user SynapseGit image.
 
-The tagged v1.0.1 source also contains the frozen generic-artifact v1
+The tagged v1.1.0 source also contains the frozen generic-artifact v1
 contracts and their sequential, durable, checkout, and local-projection Rust
 libraries. Those are workspace libraries for an embedding application. The
 release archive still contains exactly the three binaries listed above; it does
 not add a generic-artifact HTTP, CLI, browser UI, executable, or remote publish
 path.
 
-Use the fixed v1.0.1 commands below for both published archive platforms.
+Use the fixed v1.1.0 commands below for both published archive platforms.
 
 ## Install the Linux x86-64 release
 
 Download the archive and checksum from the fixed release URL:
 
 ```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.0.1/synapsegit-v1.0.1-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.0.1/SHA256SUMS
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.1.0/synapsegit-v1.1.0-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.1.0/SHA256SUMS
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
 `SHA256SUMS` lists every archive of the release; `--ignore-missing` checks the
 one you downloaded. It detects accidental or malicious byte changes relative to the file
 published on the same Release. It does not authenticate the project owner by
-itself. Verify the v1.0.1 archive's build provenance with GitHub CLI as well:
+itself. Verify the v1.1.0 archive's build provenance with GitHub CLI as well:
 
 ```bash
-gh attestation verify synapsegit-v1.0.1-x86_64-unknown-linux-gnu.tar.gz \
+gh attestation verify synapsegit-v1.1.0-x86_64-unknown-linux-gnu.tar.gz \
   --repo howlrs/synapsegit \
   --signer-workflow howlrs/synapsegit/.github/workflows/release.yml \
-  --source-ref refs/tags/v1.0.1 \
+  --source-ref refs/tags/v1.1.0 \
   --deny-self-hosted-runners
 ```
 
@@ -60,13 +60,13 @@ Inspect the extracted release notes before installing. Then copy all three
 binaries to a user-owned directory:
 
 ```bash
-tar -xzf synapsegit-v1.0.1-x86_64-unknown-linux-gnu.tar.gz
-less synapsegit-v1.0.1-x86_64-unknown-linux-gnu/README.md
+tar -xzf synapsegit-v1.1.0-x86_64-unknown-linux-gnu.tar.gz
+less synapsegit-v1.1.0-x86_64-unknown-linux-gnu/README.md
 
 mkdir -p "$HOME/.local/bin"
-install -m 0755 synapsegit-v1.0.1-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
-install -m 0755 synapsegit-v1.0.1-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
-install -m 0755 synapsegit-v1.0.1-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
+install -m 0755 synapsegit-v1.1.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
+install -m 0755 synapsegit-v1.1.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
+install -m 0755 synapsegit-v1.1.0-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
 export PATH="$HOME/.local/bin:$PATH"
 
 synapse --version
@@ -81,7 +81,7 @@ used by that terminal:
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-The v1.0.1 archive also bundles the mural tutorial runner
+The v1.1.0 archive also bundles the mural tutorial runner
 (`scripts/run_mural_tutorial.sh`), its three sample images
 (`docs/tutorial/assets/`), and a self-contained guide (`TUTORIAL.md` at the
 archive root, next to this bundle's `README.md`), so you can try the tutorial
@@ -91,12 +91,12 @@ the tutorial instead.
 
 ## Install the macOS arm64 release
 
-`v1.0.1` includes an archive for macOS on Apple Silicon. It is built and
+`v1.1.0` includes an archive for macOS on Apple Silicon. It is built and
 smoke-tested on macOS 14 by the same tag workflow, with the same checksum and
 build-provenance attestation:
 
 ```bash
-TAG=v1.0.1
+TAG=v1.1.0
 curl -LO "https://github.com/howlrs/synapsegit/releases/download/$TAG/synapsegit-$TAG-aarch64-apple-darwin.tar.gz"
 curl -LO "https://github.com/howlrs/synapsegit/releases/download/$TAG/SHA256SUMS"
 grep "synapsegit-$TAG-aarch64-apple-darwin.tar.gz" SHA256SUMS | shasum -a 256 --check
@@ -136,24 +136,24 @@ xattr -d com.apple.quarantine "$HOME/.local/bin/synapse" "$HOME/.local/bin/synap
 ## Build from a tagged source release
 
 Install Rust 1.88 or newer, a C toolchain, and SQLite build prerequisites for
-the host. Install directly from the immutable v1.0.1 tag:
+the host. Install directly from the immutable v1.1.0 tag:
 
 ```bash
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v1.0.1 \
+  --tag v1.1.0 \
   --locked \
   synapse-cli
 
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v1.0.1 \
+  --tag v1.1.0 \
   --locked \
   synapse-local-http
 
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v1.0.1 \
+  --tag v1.1.0 \
   --locked \
   synapse-publication
 
@@ -168,7 +168,7 @@ not a moving branch, when installing software you plan to evaluate or retain.
 To inspect and test the source before installing:
 
 ```bash
-git clone --branch v1.0.1 --depth 1 https://github.com/howlrs/synapsegit.git
+git clone --branch v1.1.0 --depth 1 https://github.com/howlrs/synapsegit.git
 cd synapsegit
 cargo test --workspace --all-targets --locked
 cargo install --path crates/synapse-cli --locked
@@ -187,19 +187,19 @@ The workspace crates are intentionally marked `publish = false` during Stage
 ```bash
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v1.0.1 \
+  --tag v1.1.0 \
   --locked \
   synapse-cli
 
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v1.0.1 \
+  --tag v1.1.0 \
   --locked \
   synapse-local-http
 
 cargo install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v1.0.1 \
+  --tag v1.1.0 \
   --locked \
   synapse-publication
 ```
@@ -244,7 +244,7 @@ need the recorded data.
 
 ## Next steps
 
-- [Read the v1.0.1 release notes](./releases/v1.0.1.md)
+- [Read the v1.1.0 release notes](./releases/v1.1.0.md)
 - [Complete the illustrated 15-minute mural tutorial](./tutorial/README.md)
 - [画像付き15分 壁画チュートリアルを実行する](./tutorial/README.ja.md)
 - [Get started from the README](../README.md#get-started)
