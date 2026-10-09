@@ -842,14 +842,15 @@ synapse inbox decide "$HOME/SynapseGit/inbox" mural-next "$HOME/SynapseGit/mural
 ### 画像の位置情報警告
 
 `creator-run`、`inbox put`、localhostの画像取り込みは、JPEGのAPP1 Exif/XMPとPNGのeXIf/iTXtを
-decodeせずに検査する。JPEGの読む領域は先頭256 KiBまで、TIFF IFDは16個まで、ネストは深さ4まで。
+decodeせずに検査する。JPEGのmetadata prefixは先頭256 KiBまでで、その後はentropy-coded scanを実際のEOIまで構造的に辿る。fileは64 MiB、TIFF IFDは16個まで、ネストは深さ4まで。
 PNGは`IEND`までchunk headerを辿り、固定長のIHDRとmetadata chunkだけを読み、metadataのCRCを確認する。fileは64 MiB、chunk数は
 4,096、metadata payload合計は256 KiBまでであり、IDATなどの画像payloadとそのCRCは検査しない。
 検査はbyteを変更せず、GPS座標を出力・公開しない。
 
-JPEGのmetadata segmentは最初のscan（SOS）より前にあるため、SOSまでが256 KiB以内に収まれば、
-画像データが続く大きな写真でも検査を完了する。ただしMPF（APP2）やMotion Photo／container
-XMPがある場合は、主画像の後ろに別の画像・動画とそのmetadataが続き得るため`could_not_check`とする。
+JPEGのmetadata segmentは最初のscan（SOS）より前にあり、SOSまでが256 KiB以内に収まる必要がある。
+その後はbyte stuffing、restart marker、複数scanを含むentropy-coded scanを実際のEOIまで構造的に辿る。
+EOI後にbyteがある場合、またはMPF（APP2）やMotion Photo／container XMPがある場合は、主画像の後ろに
+別の画像・動画とそのmetadataが続き得るため`could_not_check`とする。追加videoのmetadataは解析しない。
 PNGはtext chunkを画像データの後ろにも置けるため、上記の上限内で`IEND`まで確認する。IHDRの寸法・
 bit depth・color type、chunk名、critical chunk、PLTE、連続したIDATを構造として確認するが、pixelや
 deflateはdecodeしない。途中切断、構造不正（unknown critical chunkやindexed colorのPLTE不足を含む）、
