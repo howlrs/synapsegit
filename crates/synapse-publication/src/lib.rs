@@ -538,7 +538,7 @@ fn export_bundle_inner(
     verify_staging: fn(&Path) -> Result<()>,
     exchange_directories: fn(&Path, &Path) -> Result<()>,
 ) -> Result<ExportReceipt> {
-    let destination = validate_export_paths(
+    let (destination, replace_existing) = validate_export_paths(
         &options.projection.repository,
         &options.destination,
         options.replace,
@@ -546,10 +546,10 @@ fn export_bundle_inner(
     // Refuse before building a staging tree when an existing bundle would
     // require an exchange that this platform cannot provide.  A staged tree
     // is deliberately never left behind for this capability error.
-    if options.replace {
+    if replace_existing {
         require_directory_exchange_support(&destination)?;
     }
-    let destination_identity = if options.replace {
+    let destination_identity = if replace_existing {
         verify_bundle(&destination)?;
         Some(bundle_identity(&destination)?)
     } else {
@@ -618,7 +618,7 @@ fn export_bundle_inner(
     let publication = publish_files_atomically(
         &destination,
         &files,
-        options.replace,
+        replace_existing,
         destination_identity,
         post_exchange_sync,
         verify_staging,
@@ -1599,9 +1599,17 @@ fn validate_existing_repository_path(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn validate_export_paths(source: &Path, destination: &Path, replace: bool) -> Result<PathBuf> {
+/// Returns the canonical destination and whether an existing verified bundle
+/// must be exchanged. `--replace` deliberately treats only a missing path as
+/// createable; files and symlinks (including dangling symlinks) are targets,
+/// not absence.
+fn validate_export_paths(
+    source: &Path,
+    destination: &Path,
+    replace: bool,
+) -> Result<(PathBuf, bool)> {
     validate_existing_repository_path(source)?;
-    match fs::symlink_metadata(destination) {
+    let replace_existing = match fs::symlink_metadata(destination) {
         Ok(_metadata) if !replace => {
             return Err(PublicationError::DestinationExists(
                 destination.to_path_buf(),
@@ -1613,8 +1621,9 @@ fn validate_export_paths(source: &Path, destination: &Path, replace: bool) -> Re
                     "replacement destination must be a real directory".into(),
                 ));
             }
+            true
         }
-        Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+        Err(error) if error.kind() == io::ErrorKind::NotFound => false,
         Err(error) => {
             return Err(PublicationError::io(
                 "inspect publication destination",
@@ -1622,7 +1631,7 @@ fn validate_export_paths(source: &Path, destination: &Path, replace: bool) -> Re
                 error,
             ));
         }
-    }
+    };
     if destination.as_os_str().is_empty() || destination.file_name().is_none() {
         return Err(PublicationError::UnsafePath(
             "publication destination must name a new directory".into(),
@@ -1657,7 +1666,7 @@ fn validate_export_paths(source: &Path, destination: &Path, replace: bool) -> Re
                 .into(),
         ));
     }
-    Ok(destination)
+    Ok((destination, replace_existing))
 }
 
 fn reject_symlink_components(path: &Path) -> Result<()> {
@@ -2300,6 +2309,13 @@ mod replacement_tests {
         verify_staged_publication_bundle(stage)
     }
 
+    fn create_competing_destination_at_stage(stage: &Path) -> Result<()> {
+        let destination = stage.parent().unwrap().join("bundle");
+        fs::create_dir(&destination).unwrap();
+        fs::write(destination.join("competitor.txt"), b"keep").unwrap();
+        verify_staged_publication_bundle(stage)
+    }
+
     fn fail_exchange(_source: &Path, destination: &Path) -> Result<()> {
         Err(PublicationError::io(
             "atomically exchange verified publication bundle",
@@ -2372,6 +2388,39 @@ mod replacement_tests {
         assert!(error.to_string().contains("injected exchange failure"));
         assert_eq!(fs::read(destination.join("manifest.json")).unwrap(), before);
         assert!(verify_bundle(&destination).is_ok());
+        assert!(
+            fs::read_dir(&root)
+                .unwrap()
+                .flatten()
+                .all(|entry| !entry.file_name().to_string_lossy().contains(".bundle.tmp-"))
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn absent_replace_refuses_a_destination_created_during_staging() {
+        let root = test_root("create-race");
+        let repository = root.join("repo");
+        drop(Repository::open(&repository).unwrap());
+        let destination = root.join("bundle");
+        let error = export_bundle_inner(
+            &ExportOptions {
+                projection: ProjectionOptions::new(&repository),
+                destination: destination.clone(),
+                target: OutputTarget::Github,
+                locale: None,
+                replace: true,
+            },
+            sync_directory,
+            create_competing_destination_at_stage,
+            rename_directory_exchange,
+        )
+        .unwrap_err();
+        assert!(matches!(error, PublicationError::DestinationExists(path) if path == destination));
+        assert_eq!(
+            fs::read(destination.join("competitor.txt")).unwrap(),
+            b"keep"
+        );
         assert!(
             fs::read_dir(&root)
                 .unwrap()
