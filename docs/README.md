@@ -98,6 +98,8 @@ Japanese document. Continue from the tutorial with these focused guides:
 5. [Implementation boundaries](./implementation_boundaries.en.md): for
    implementers, the boundaries of the packaged binaries and the features that
    exist only as Rust workspace libraries.
+6. [Starry Night case](./examples/starry-night/README.md): a developer-led,
+   pinned v1.0.0 case with five Human decisions and a public bundle.
 
 These documents are focused English paths, rather than translations of every
 technical document. Links from English documents identify Japanese-only
@@ -111,6 +113,7 @@ Japanese or mixed-language technical references unless a link says otherwise.
 | 目的 | 最初に読む資料 | 次に読む資料 |
 |---|---|---|
 | 生成sample画像と実画面で最初のDecisionを記録する | [15分 壁画チュートリアル](./tutorial/README.ja.md) | [English tutorial](./tutorial/README.md) |
+| 実制作の写真と提案、記録済みの判断を見る | [星月夜の上塗り事例](./examples/starry-night/README.ja.md) | [公開bundle](https://github.com/howlrs/synapsegit-starry-night/tree/45db60e3497f5392a9fb93135698021d23e42059/synapsegit/bundle) |
 | Releaseをinstallして始める | [Installation](./install.md) | [root README](../README.ja.md#始める) |
 | v1.0.1の変更と配布境界を確認する | [Release notes](./releases/v1.0.1.md) | [Project status](./project_status.md) |
 | sourceからCore全体を動かす | [Quickstart](./quickstart.md) | [使用ガイド](./usage_guide.md) |

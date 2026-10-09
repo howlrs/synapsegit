@@ -15,6 +15,10 @@ v1.0.1 release binaryを[install guide](install.md)から導入するか、
 `synapse-local --import-root KEY=PATH` を使う場合、producerは`PATH/<slug>`へ3つの画像を書き、strict manifestを最後に書く。ブラウザはpathではなくslugだけを送る。確認を閉じるとprocess-private stagingは直ちに破棄され、Proposal作成は確認した同じstaged bytesだけを使う。
 CLIやAIエージェントからは`synapse inbox put`でこの形式の候補を書き出せる。repositoryを開かず、判断も記録しない。判断は人がブラウザで行う。
 
+具体的な写真と工程地図の割り当ては、v1.0.0で記録した開発者本人の
+[星月夜の上塗り事例](./examples/starry-night/README.ja.md)を参照してください。
+参照した2026-10-09の記録には5件のHuman `adopt`判断と公開bundleがあります。採用は提案bytesを選んだ記録であり、制作が地図どおりに進んだことを示すものではありません。
+
 ## 1. 画像と生成メモを取り込む
 
 プロジェクトの「取り込む」ページで、新しいセッション名、表示名、Original／Current／AI outputの3画像を指定します。

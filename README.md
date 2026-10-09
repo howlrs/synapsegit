@@ -57,6 +57,15 @@ This repository uses the [2026-10-02 image revision](./docs/assets/image-generat
 The v1.0.1 archive bundles these three tutorial images. Earlier releases retain their bundled
 materials; record the release and material revision used for any session.
 
+## A real painting workflow
+
+[Painting over *The Starry Night*](./docs/examples/starry-night/README.md) shows a
+developer-led v1.0.0 workflow with five recorded Human `adopt` decisions and a
+[pinned public bundle](https://github.com/howlrs/synapsegit-starry-night/tree/45db60e3497f5392a9fb93135698021d23e42059/synapsegit/bundle).
+It demonstrates how physical-work photos and a stage map occupy Original,
+Current, and AI-output roles. An adopted map records selected proposal bytes;
+it does not establish that the painting followed the map or changed physically.
+
 ## Get started
 
 ### 1. Install

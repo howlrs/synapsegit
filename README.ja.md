@@ -53,6 +53,13 @@ SynapseGitは、それぞれを独立した記録として残し、最後に作�
 v1.0.1 archiveにはこの3枚のtutorial画像を同梱します。以前のreleaseはその版の素材を保持するため、
 sessionで使ったreleaseと素材の版を記録してください。
 
+## 実制作での使い方を見る
+
+[「星月夜の上塗り」事例](./docs/examples/starry-night/README.ja.md)は、開発者本人によるv1.0.0の
+制作で、5件のHuman `adopt`判断と[固定した公開bundle](https://github.com/howlrs/synapsegit-starry-night/tree/45db60e3497f5392a9fb93135698021d23e42059/synapsegit/bundle)を示します。
+現物写真と工程地図をOriginal・Current・AI outputへ割り当てる例です。採用は提案bytesを選んだ
+記録であり、その地図どおりに塗ったことや物理的変化を証明しません。
+
 ## 始める
 
 ### 1. installする
