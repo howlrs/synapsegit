@@ -28,6 +28,8 @@ const CREATOR_UPLOADS = new Map();
 const CREATOR_FILE_FIELDS = new Set(["original_image", "current_image", "ai_output"]);
 const UTF8_ENCODER = new TextEncoder();
 const CREATOR_SESSION_SLUG = /^[a-z][a-z0-9-]{0,63}$/u;
+const METADATA_SCAN_BYTES = 256 * 1024;
+const METADATA_MAX_IFDS = 16;
 
 // Interface messages keyed by stable identifiers. Each entry keeps Japanese
 // and English together; `node scripts/test_local_app.mjs` checks that both
@@ -105,6 +107,8 @@ const MESSAGE_ENTRIES = [
   ["upload.previewUnsupported", "この形式はプレビューできません。ファイルはそのまま取り込めます。", "This format cannot be previewed. The file can still be imported as is."],
   ["upload.previewReady", "{width} × {height} px · ローカルプレビュー", "{width} × {height} px · local preview"],
   ["upload.previewFailed", "プレビューを表示できません。ファイルの内容を確認してください。そのまま取り込むこともできます。", "The preview cannot be shown. Check the file contents. You can still import it as is."],
+  ["upload.locationFound", "このファイルには位置情報が含まれる可能性があります。記録するbyteは変更されません。除く場合は、記録前に位置情報を除いたcopyを選んでください。", "This file may contain location metadata. The recorded bytes will not be changed. To remove it, choose a metadata-stripped copy before recording."],
+  ["upload.locationUnknown", "このファイルの位置情報は確認しきれませんでした。位置情報がないことは示しません。", "Location metadata could not be fully checked in this file. This does not mean it has no location data."],
   ["form.fileNeedsUpload", "ファイルを含むフォームには専用のupload処理が必要です。", "File forms require the dedicated upload enhancement."],
   ["form.fieldOnce", "項目「{name}」はちょうど1回だけ指定してください。", "The field “{name}” must occur exactly once."],
   ["form.fieldTooLong", "項目「{name}」がUTF-8のbyte上限を超えています。", "The field “{name}” exceeds its UTF-8 byte limit."],
@@ -874,6 +878,15 @@ function fileSizeLabel(bytes) {
   return `${bytes.toLocaleString("en-US")} bytes (${(bytes / 1024 / 1024).toFixed(2)} MiB)`;
 }
 
+function u16at(bytes, offset, little) { if (offset + 2 > bytes.length) return null; return little ? bytes[offset] | bytes[offset + 1] << 8 : bytes[offset] << 8 | bytes[offset + 1]; }
+function u32at(bytes, offset, little) { if (offset + 4 > bytes.length) return null; return little ? (bytes[offset] | bytes[offset+1]<<8 | bytes[offset+2]<<16 | bytes[offset+3]<<24) >>> 0 : (bytes[offset]<<24 | bytes[offset+1]<<16 | bytes[offset+2]<<8 | bytes[offset+3]) >>> 0; }
+function asciiContains(bytes, text) { const needle = new TextEncoder().encode(text.toLowerCase()); for(let i=0;i+needle.length<=bytes.length;i++){let ok=true;for(let j=0;j<needle.length;j++){let c=bytes[i+j]; if(c>=65&&c<=90)c+=32;if(c!==needle[j]){ok=false;break}}if(ok)return true}return false; }
+function exifMetadataCheck(bytes) { if(bytes.length<8)return "could_not_check"; const little=bytes[0]===73&&bytes[1]===73; if(!little && !(bytes[0]===77&&bytes[1]===77))return "could_not_check"; if(u16at(bytes,2,little)!==42)return "could_not_check"; let offset=u32at(bytes,4,little), seen=new Set(); for(let count=0;count<METADATA_MAX_IFDS;count++){if(offset===null||seen.has(offset)||offset+2>bytes.length)return "could_not_check";seen.add(offset);const n=u16at(bytes,offset,little);if(n===null||n>METADATA_MAX_IFDS||offset+2+n*12+4>bytes.length)return "could_not_check";for(let i=0;i<n;i++)if(u16at(bytes,offset+2+i*12,little)===0x8825){const gps=u32at(bytes,offset+2+i*12+8,little);return gps===null||gps>=bytes.length?"could_not_check":"gps_found"}offset=u32at(bytes,offset+2+n*12,little);if(offset===0)return "no_gps_found"}return "could_not_check"; }
+/** Bounded, non-decoding check of opaque selected bytes. */
+export function inspectImageLocationMetadata(bytes, truncated = false) { if (truncated) return "could_not_check"; if (bytes[0] === 0xff && bytes[1] === 0xd8) { let p=2; while(p<bytes.length) { if(bytes[p++]!==0xff)return "could_not_check"; while(p<bytes.length&&bytes[p]===0xff)p++; if(p>=bytes.length)return "could_not_check"; const m=bytes[p++]; if(m===0xd9||m===0xda)return "no_gps_found"; if((m>=0xd0&&m<=0xd7)||m===1)continue; if(p+2>bytes.length)return "could_not_check";const n=(bytes[p]<<8)|bytes[p+1];p+=2;if(n<2||p+n-2>bytes.length)return "could_not_check";const x=bytes.subarray(p,p+n-2);p+=n-2;if(m===0xe1){if(x.length>=6&&asciiContains(x.subarray(0,6),"exif")){const v=exifMetadataCheck(x.subarray(6));if(v!=="no_gps_found")return v}else if(asciiContains(x,"gpslatit")||asciiContains(x,"gpslongi"))return "gps_found"}} return "could_not_check"; } if(bytes.length>=8&&bytes[0]===137&&bytes[1]===80&&bytes[2]===78&&bytes[3]===71&&bytes[4]===13&&bytes[5]===10&&bytes[6]===26&&bytes[7]===10){let p=8;while(p+12<=bytes.length){const n=u32at(bytes,p,false);if(n===null||p+12+n>bytes.length)return "could_not_check";const k=String.fromCharCode(...bytes.subarray(p+4,p+8)),x=bytes.subarray(p+8,p+8+n);p+=12+n;if(k==="eXIf"){const v=exifMetadataCheck(x);if(v!=="no_gps_found")return v}if(k==="iTXt"&&(asciiContains(x,"gpslatit")||asciiContains(x,"gpslongi")))return "gps_found";if(k==="IEND")return "no_gps_found"}return "could_not_check"} return "could_not_check"; }
+
+async function selectedImageLocationMetadata(file) { const limit = Math.min(file.size, METADATA_SCAN_BYTES + 1); const bytes = new Uint8Array(await file.slice(0, limit).arrayBuffer()); return inspectImageLocationMetadata(bytes, file.size > METADATA_SCAN_BYTES); }
+
 function updateUtf8Counter(input, counter, limit) {
   const count = UTF8_ENCODER.encode(input.value).byteLength;
   const error = count > limit ? t("text.tooLong", { limit, count }) : "";
@@ -896,6 +909,7 @@ export function enhanceCreatorUploads(root = document) {
       image: field.querySelector("[data-creator-preview]"),
       info: field.querySelector("[data-creator-file-info]"),
       status: field.querySelector("[data-creator-preview-status]"),
+      metadata: field.querySelector("[data-creator-metadata-warning]"),
       clear: field.querySelector("[data-creator-file-clear]"),
     }));
     const release = (field) => {
@@ -927,6 +941,8 @@ export function enhanceCreatorUploads(root = document) {
       field.info.textContent = file ? `${file.name} · ${fileSizeLabel(file.size)}` : "";
       field.clear.hidden = !file;
       field.status.hidden = !file;
+      field.metadata.hidden = true;
+      field.metadata.textContent = "";
       field.status.textContent = "";
       delete field.status.dataset.tone;
       const error = file?.size > MAX_IMAGE_BYTES ? t("upload.fileTooLarge") : "";
@@ -939,6 +955,7 @@ export function enhanceCreatorUploads(root = document) {
         field.status.dataset.tone = "error";
         return;
       }
+      try { const result = await selectedImageLocationMetadata(file); if (!isCurrent()) return; if (result !== "no_gps_found") { field.metadata.textContent = t(result === "gps_found" ? "upload.locationFound" : "upload.locationUnknown"); field.metadata.dataset.tone = "warning"; field.metadata.hidden = false; } } catch { if (isCurrent()) { field.metadata.textContent = t("upload.locationUnknown"); field.metadata.dataset.tone = "warning"; field.metadata.hidden = false; } }
       field.status.textContent = t("upload.previewLoading");
       try {
         // Read only the signature before allocating a URL. File.type and the

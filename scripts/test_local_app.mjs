@@ -169,7 +169,15 @@ const {
   formRequest,
   operationSuccessMessage,
   submitEnhancedForm,
+  inspectImageLocationMetadata,
 } = await import("../crates/synapse-local-http/assets/app.js");
+
+const exif = (gps) => { const b = new Uint8Array(40); b.set([73,73,42,0,8,0,0,0,1,0]); b[10] = gps ? 0x25 : 0; b[11] = gps ? 0x88 : 1; b[12]=4; b[14]=1; b[18]=32; return b; };
+const jpeg = (tiff) => { const b = new Uint8Array(tiff.length + 12); b.set([255,216,255,225,0, tiff.length + 8,69,120,105,102,0,0]); b.set(tiff,12); return b; };
+assert.equal(inspectImageLocationMetadata(jpeg(exif(true))), "gps_found");
+assert.equal(inspectImageLocationMetadata(new Uint8Array([255,216,255,217])), "no_gps_found");
+assert.equal(inspectImageLocationMetadata(new Uint8Array([71,73,70,56,57,97])), "could_not_check");
+assert.equal(inspectImageLocationMetadata(jpeg(exif(true)), true), "could_not_check");
 
 // Keep the client catalog fail-closed: a new message must have both supported
 // languages and expose the same interpolation contract in each one.
