@@ -485,6 +485,47 @@ fn explicit_locales_use_v2_views_without_changing_the_frozen_projection() {
         let verified = verify_bundle(destination).unwrap();
         assert_eq!(verified.manifest.schema.version, 2);
         assert_eq!(verified.manifest.locale, Some(locale));
+        let story = fs::read_to_string(destination.join("story.md")).unwrap();
+        let html = fs::read_to_string(destination.join("index.html")).unwrap();
+        let (authorship, truth, physical_change, comparison_limit, raw_limit) = match locale {
+            PublicationLocale::En => (
+                "authorship",
+                "truth",
+                "physical change",
+                "This compares primary Blob bytes only",
+                "Original, current, and proposal bytes are omitted",
+            ),
+            PublicationLocale::Ja => (
+                "著者性",
+                "真実",
+                "物理的な変化",
+                "primary Blobのバイトだけを比較します",
+                "Original、Current、Proposalのバイトは既定で省略されます",
+            ),
+        };
+        for rendered in [&story, &html] {
+            for required in [
+                authorship,
+                truth,
+                physical_change,
+                comparison_limit,
+                raw_limit,
+            ] {
+                assert!(
+                    rendered.contains(required),
+                    "missing proof/privacy limit: {required}"
+                );
+            }
+        }
+        if locale == PublicationLocale::Ja {
+            assert!(!story.contains("This compares primary Blob bytes only"));
+            assert!(!html.contains("This compares primary Blob bytes only"));
+            assert!(html.contains("lang=\"ja\""));
+        }
+        assert_eq!(
+            story,
+            fs::read_to_string(destination.join("target/README.md")).unwrap()
+        );
     }
     assert_eq!(
         fs::read(en.join("projection.json")).unwrap(),

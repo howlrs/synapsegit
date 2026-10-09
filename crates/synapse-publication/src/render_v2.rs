@@ -187,7 +187,7 @@ fn render_story_session(output: &mut String, session: &PublicSession, locale: Pu
                 "The current comparison reports **{}** with comparability **{}**. {}\n",
                 markdown_inline(&comparison.outcome),
                 markdown_inline(&comparison.comparability),
-                markdown_inline(&comparison.interpretation_limit)
+                markdown_inline(key(locale, Key::ComparisonInterpretationLimit))
             ),
             PublicationLocale::Ja => writeln!(
                 output,
@@ -196,7 +196,7 @@ fn render_story_session(output: &mut String, session: &PublicSession, locale: Pu
                 markdown_inline(&comparison.outcome),
                 key(locale, Key::Comparability),
                 markdown_inline(&comparison.comparability),
-                markdown_inline(&comparison.interpretation_limit)
+                markdown_inline(key(locale, Key::ComparisonInterpretationLimit))
             ),
         }
         .expect("writing to String cannot fail");
@@ -397,7 +397,7 @@ fn render_html_session(output: &mut String, session: &PublicSession, locale: Pub
             html(&comparison.outcome),
             key(locale, Key::Comparability),
             html(&comparison.comparability),
-            html(&comparison.interpretation_limit)
+            html(key(locale, Key::ComparisonInterpretationLimit))
         )
         .expect("writing to String cannot fail");
     }
@@ -463,6 +463,7 @@ enum Key {
     MachineSemanticsHtml,
     AssetBytesOmitted,
     HumanDecision,
+    ComparisonInterpretationLimit,
 }
 
 #[cfg(test)]
@@ -513,10 +514,17 @@ const ALL_KEYS: &[Key] = &[
     Key::MachineSemanticsHtml,
     Key::AssetBytesOmitted,
     Key::HumanDecision,
+    Key::ComparisonInterpretationLimit,
 ];
 
 fn key(locale: PublicationLocale, value: Key) -> &'static str {
     match (locale, value) {
+        (PublicationLocale::En, Key::ComparisonInterpretationLimit) => {
+            crate::COMPARISON_INTERPRETATION_LIMIT
+        }
+        (PublicationLocale::Ja, Key::ComparisonInterpretationLimit) => {
+            "primary Blobのバイトだけを比較します。ピクセル、意味、物理的な変化の解析ではありません。"
+        }
         (PublicationLocale::En, Key::ProviderNeutralView) => {
             "SynapseGit provider-neutral publication view"
         }

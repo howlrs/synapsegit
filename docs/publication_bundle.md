@@ -20,6 +20,8 @@ Export normally refuses an existing destination. `--replace` is available only o
 
 On non-Linux platforms `--replace` is rejected. Symlinks, a changed destination identity, unsafe parent paths, source descendants, and non-directory targets are rejected. Use a new destination when replacement is unavailable or unsafe.
 
+Run replacement with exclusive access to the destination and its parent. The final inventory and inode checks detect changes visible before exchange; they are not a filesystem compare-and-swap or a lock against another process running as the same user. Never edit either bundle during export. The exporter retains the exchanged directory rather than deleting it, including after a sync warning.
+
 ## Verify
 
 Run `synapse-present preview BUNDLE`. It checks the fixed inventory, checksums, container schema, renderer/locale identity, and semantic links before showing the local HTML entry point.

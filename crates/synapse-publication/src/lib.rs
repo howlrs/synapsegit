@@ -2184,6 +2184,43 @@ mod replacement_tests {
         verify_staged_publication_bundle(stage)
     }
 
+    fn corrupt_new_at_stage(stage: &Path) -> Result<()> {
+        fs::write(stage.join("story.md"), b"corrupt staged output").unwrap();
+        verify_staged_publication_bundle(stage)
+    }
+
+    #[test]
+    fn invalid_staged_bundle_preserves_the_verified_destination() {
+        let root = std::env::temp_dir().join(format!(
+            "synapse-publication-stage-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root).unwrap();
+        let repository = root.join("repo");
+        drop(Repository::open(&repository).unwrap());
+        let destination = root.join("bundle");
+        let mut options = ExportOptions {
+            projection: ProjectionOptions::new(&repository),
+            destination: destination.clone(),
+            target: OutputTarget::Github,
+            locale: None,
+            replace: false,
+        };
+        export_bundle(&options).unwrap();
+        let before = fs::read(destination.join("manifest.json")).unwrap();
+        options.replace = true;
+        options.locale = Some(PublicationLocale::Ja);
+        assert!(matches!(
+            export_bundle_inner(&options, sync_directory, corrupt_new_at_stage),
+            Err(PublicationError::InvalidBundle(_))
+        ));
+        assert_eq!(fs::read(destination.join("manifest.json")).unwrap(), before);
+        assert!(verify_bundle(&destination).is_ok());
+        assert_eq!(fs::read_dir(&root).unwrap().count(), 2);
+        fs::remove_dir_all(root).unwrap();
+    }
+
     #[test]
     fn post_exchange_sync_failure_is_a_successful_recovery_receipt() {
         let root = std::env::temp_dir().join(format!(
