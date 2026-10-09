@@ -506,25 +506,30 @@ pub fn build_public_projection(options: &ProjectionOptions) -> Result<PublicProj
 /// Generate a deterministic local bundle through a staged, atomic no-replace
 /// directory publication. Path safety is checked before the source is opened.
 pub fn export_bundle(options: &ExportOptions) -> Result<ExportReceipt> {
-    export_bundle_inner(options, sync_directory)
+    export_bundle_inner(options, sync_directory, verify_staged_publication_bundle)
 }
 
 #[cfg(test)]
 fn export_bundle_with_post_exchange_sync_failure_for_test(
     options: &ExportOptions,
 ) -> Result<ExportReceipt> {
-    export_bundle_inner(options, |_| {
-        Err(PublicationError::io(
-            "injected post-exchange sync",
-            ".",
-            io::Error::other("injected sync failure"),
-        ))
-    })
+    export_bundle_inner(
+        options,
+        |_| {
+            Err(PublicationError::io(
+                "injected post-exchange sync",
+                ".",
+                io::Error::other("injected sync failure"),
+            ))
+        },
+        verify_staged_publication_bundle,
+    )
 }
 
 fn export_bundle_inner(
     options: &ExportOptions,
     post_exchange_sync: fn(&Path) -> Result<()>,
+    verify_staging: fn(&Path) -> Result<()>,
 ) -> Result<ExportReceipt> {
     let destination = validate_export_paths(
         &options.projection.repository,
@@ -603,7 +608,7 @@ fn export_bundle_inner(
         options.replace,
         destination_identity,
         post_exchange_sync,
-        verify_staged_publication_bundle,
+        verify_staging,
     )?;
 
     Ok(ExportReceipt {
@@ -2170,6 +2175,15 @@ mod replacement_tests {
 
     static NEXT: AtomicU64 = AtomicU64::new(0);
 
+    fn corrupt_old_at_stage(stage: &Path) -> Result<()> {
+        fs::write(
+            stage.parent().unwrap().join("bundle").join(".git"),
+            b"foreign",
+        )
+        .unwrap();
+        verify_staged_publication_bundle(stage)
+    }
+
     #[test]
     fn post_exchange_sync_failure_is_a_successful_recovery_receipt() {
         let root = std::env::temp_dir().join(format!(
@@ -2201,6 +2215,43 @@ mod replacement_tests {
         assert!(receipt.sync_warning.is_some());
         assert!(verify_bundle(&destination).is_ok());
         assert!(verify_bundle(receipt.replacement_recovery_path.unwrap()).is_ok());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn stage_callback_cannot_exchange_a_modified_old_bundle() {
+        let root = std::env::temp_dir().join(format!(
+            "synapse-publication-race-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root).unwrap();
+        let repository = root.join("repo");
+        drop(Repository::open(&repository).unwrap());
+        let destination = root.join("bundle");
+        let projection = ProjectionOptions::new(&repository);
+        export_bundle(&ExportOptions {
+            projection: projection.clone(),
+            destination: destination.clone(),
+            target: OutputTarget::Github,
+            locale: None,
+            replace: false,
+        })
+        .unwrap();
+        let error = export_bundle_inner(
+            &ExportOptions {
+                projection,
+                destination: destination.clone(),
+                target: OutputTarget::Github,
+                locale: Some(PublicationLocale::Ja),
+                replace: true,
+            },
+            sync_directory,
+            corrupt_old_at_stage,
+        )
+        .unwrap_err();
+        assert!(matches!(error, PublicationError::InvalidBundle(_)));
+        assert_eq!(fs::read(destination.join(".git")).unwrap(), b"foreign");
         fs::remove_dir_all(root).unwrap();
     }
 }
