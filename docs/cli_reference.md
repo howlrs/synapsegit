@@ -74,6 +74,11 @@ the printed `replacement_recovery_path` for manual review and cleanup; a
 post-commit directory-sync problem is printed as `sync_warning` and does not
 turn the committed exchange into an ordinary failure.
 
+Replacement assumes one cooperative writer for the destination parent. Path
+validation, inode rechecks, and atomic exchange narrow races but are not a
+filesystem compare-and-swap guarantee against another process running as the
+same user. Do not run concurrent exports to the same output directory.
+
 ### `export <repo> <output-dir> [options]`
 
 source repositoryを作成せず、CAS、Refs、reflogへ書き込まずにbundleを新規生成する。export前に

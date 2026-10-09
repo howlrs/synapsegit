@@ -1684,11 +1684,7 @@ fn publish_files_atomically(
     let parent = destination
         .parent()
         .expect("validated destination has a parent");
-    let nonce = NEXT_STAGING.fetch_add(1, Ordering::Relaxed);
-    let staging = staging_path(destination, nonce);
-    fs::create_dir(&staging).map_err(|error| {
-        PublicationError::io("create publication staging directory", &staging, error)
-    })?;
+    let staging = create_private_staging_directory(destination)?;
     let mut guard = StagingGuard {
         path: staging.clone(),
         armed: true,
@@ -1863,6 +1859,56 @@ fn staging_path(destination: &Path, nonce: u64) -> PathBuf {
         .parent()
         .unwrap_or_else(|| Path::new("."))
         .join(name)
+}
+
+fn create_private_staging_directory(destination: &Path) -> Result<PathBuf> {
+    for _ in 0..16 {
+        let mut random = [0u8; 16];
+        getrandom::fill(&mut random).map_err(|error| {
+            PublicationError::io(
+                "obtain staging randomness",
+                destination,
+                io::Error::other(error),
+            )
+        })?;
+        let nonce = u64::from_be_bytes(random[..8].try_into().expect("fixed length"))
+            ^ NEXT_STAGING.fetch_add(1, Ordering::Relaxed);
+        let staging = staging_path(destination, nonce);
+        match fs::create_dir(&staging) {
+            Ok(()) => {
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+                    fs::set_permissions(&staging, fs::Permissions::from_mode(0o700)).map_err(
+                        |error| {
+                            PublicationError::io(
+                                "restrict publication staging directory",
+                                &staging,
+                                error,
+                            )
+                        },
+                    )?;
+                }
+                return Ok(staging);
+            }
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(error) => {
+                return Err(PublicationError::io(
+                    "create publication staging directory",
+                    &staging,
+                    error,
+                ));
+            }
+        }
+    }
+    Err(PublicationError::io(
+        "create unique publication staging directory",
+        destination,
+        io::Error::new(
+            io::ErrorKind::AlreadyExists,
+            "staging name collision limit reached",
+        ),
+    ))
 }
 
 #[cfg(any(
