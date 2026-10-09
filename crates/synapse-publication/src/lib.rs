@@ -509,8 +509,8 @@ pub fn export_bundle(options: &ExportOptions) -> Result<ExportReceipt> {
     export_bundle_inner(options, sync_directory)
 }
 
-#[doc(hidden)]
-pub fn export_bundle_with_post_exchange_sync_failure_for_test(
+#[cfg(test)]
+fn export_bundle_with_post_exchange_sync_failure_for_test(
     options: &ExportOptions,
 ) -> Result<ExportReceipt> {
     export_bundle_inner(options, |_| {
@@ -2108,4 +2108,46 @@ fn author_text(value: Option<&String>) -> Option<PresentedText> {
         value: value.clone(),
         origin: ValueOrigin::AuthorSupplied,
     })
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod replacement_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT: AtomicU64 = AtomicU64::new(0);
+
+    #[test]
+    fn post_exchange_sync_failure_is_a_successful_recovery_receipt() {
+        let root = std::env::temp_dir().join(format!(
+            "synapse-publication-sync-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root).unwrap();
+        let repository = root.join("repo");
+        drop(Repository::open(&repository).unwrap());
+        let destination = root.join("bundle");
+        let projection = ProjectionOptions::new(&repository);
+        export_bundle(&ExportOptions {
+            projection: projection.clone(),
+            destination: destination.clone(),
+            target: OutputTarget::Github,
+            locale: None,
+            replace: false,
+        })
+        .unwrap();
+        let receipt = export_bundle_with_post_exchange_sync_failure_for_test(&ExportOptions {
+            projection,
+            destination: destination.clone(),
+            target: OutputTarget::Github,
+            locale: Some(PublicationLocale::Ja),
+            replace: true,
+        })
+        .unwrap();
+        assert!(receipt.sync_warning.is_some());
+        assert!(verify_bundle(&destination).is_ok());
+        assert!(verify_bundle(receipt.replacement_recovery_path.unwrap()).is_ok());
+        fs::remove_dir_all(root).unwrap();
+    }
 }
