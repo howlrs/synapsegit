@@ -231,12 +231,8 @@ impl RetainedCreatorInputs {
             ("ai_output", &self.ai_output),
         ]
         .into_iter()
-        .map(|(role, path)| {
-            let bytes = fs::read(path)
-                .map_err(|e| CreatorError::io("read retained creator input", path, e))?;
-            Ok(crate::metadata_warning_from_bytes(role, &bytes))
-        })
-        .collect::<Result<Vec<_>>>()?)
+        .map(|(role, path)| crate::image_metadata_warning(role, path))
+        .collect())
     }
 }
 
@@ -519,12 +515,8 @@ where
         ("ai_output", staging.path.join(IMPORT_INBOX_AI_OUTPUT_NAME)),
     ]
     .into_iter()
-    .map(|(role, path)| {
-        let bytes = fs::read(&path)
-            .map_err(|error| CreatorError::io("read retained inbox staging", &path, error))?;
-        Ok(crate::metadata_warning_from_bytes(role, &bytes))
-    })
-    .collect::<Result<Vec<_>>>()?;
+    .map(|(role, path)| crate::image_metadata_warning(role, &path))
+    .collect::<Vec<_>>();
     review(&warnings);
     let manifest = ImportInboxManifest {
         version: IMPORT_INBOX_MANIFEST_VERSION.to_owned(),
