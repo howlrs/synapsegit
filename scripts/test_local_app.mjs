@@ -179,6 +179,10 @@ assert.equal(inspectImageLocationMetadata(new Uint8Array([255,216,255,217])), "n
 assert.equal(inspectImageLocationMetadata(new Uint8Array([71,73,70,56,57,97])), "could_not_check");
 assert.equal(inspectImageLocationMetadata(jpeg(exif(true)), true), "gps_found");
 assert.equal(inspectImageLocationMetadata(new Uint8Array([255,216,255,217]), true), "could_not_check");
+const pngChunk = (type, data) => new Uint8Array([0,0,0,data.length,...new TextEncoder().encode(type),...data,0,0,0,0]);
+const compressedXmp = new Uint8Array([...new TextEncoder().encode("XML:com.adobe.xmp"),0,1,0,0,0]);
+const pngCompressedXmp = new Uint8Array([137,80,78,71,13,10,26,10,...pngChunk("iTXt", compressedXmp),...pngChunk("IEND", new Uint8Array())]);
+assert.equal(inspectImageLocationMetadata(pngCompressedXmp), "could_not_check");
 
 // Keep the client catalog fail-closed: a new message must have both supported
 // languages and expose the same interpolation contract in each one.

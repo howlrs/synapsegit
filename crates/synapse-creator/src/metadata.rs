@@ -127,9 +127,7 @@ fn png(b: &[u8]) -> ImageMetadataCheck {
                 _ => {}
             }
         }
-        if k == b"iTXt" && has_xmp_gps(x) {
-            return ImageMetadataCheck::GpsFound;
-        }
+        if k == b"iTXt" { match itxt_xmp(x) { Some(Ok(payload)) if has_xmp_gps(payload) => return ImageMetadataCheck::GpsFound, Some(Ok(_)) => {}, Some(Err(())) => return ImageMetadataCheck::CouldNotCheck, None => {} } }
         if k == b"IEND" {
             return ImageMetadataCheck::NoGpsFound;
         }
@@ -144,6 +142,7 @@ fn has_xmp_gps(bytes: &[u8]) -> bool {
             .windows(8)
             .any(|v| v.eq_ignore_ascii_case(b"gpslongi"))
 }
+fn itxt_xmp(bytes: &[u8]) -> Option<Result<&[u8], ()>> { let key_end=bytes.iter().position(|b|*b==0)?; if !bytes[..key_end].eq_ignore_ascii_case(b"xml:com.adobe.xmp") {return None} let rest=&bytes[key_end+1..]; if rest.len()<2 || rest[0]!=0 || rest[1]!=0{return Some(Err(()))} let language_end=rest[2..].iter().position(|b|*b==0)?+2; let text_start=rest[language_end+1..].iter().position(|b|*b==0)?+language_end+2; Some(Ok(&rest[text_start..])) }
 fn exif(t: &[u8]) -> ImageMetadataCheck {
     if t.len() < 8 {
         return ImageMetadataCheck::CouldNotCheck;
