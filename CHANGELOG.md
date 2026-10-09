@@ -24,9 +24,9 @@ milestone.
 - Explicit `synapse-present export --locale en|ja` creates bundle container v2
   with renderer v2 while keeping the public projection v1 unchanged. Exports
   without this option retain the frozen English v1 bundle.
-- `synapse-present export --replace` exchanges a verified bundle on Linux and macOS,
-  and creates an absent output destination safely when requested.
-  with its completed replacement. The old bundle is then deleted only while it
+- `synapse-present export --replace` atomically exchanges a verified bundle
+  with its completed replacement on Linux and macOS, or safely creates an
+  absent output destination. The old bundle is then deleted only while it
   is still exactly the verified strict inventory; otherwise it is kept at a
   printed recovery path.
 - Verified Subject and Creator suggestions in the local public-text form,
