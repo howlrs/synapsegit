@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
-import { isolatedTest as test, expect, original, current, output } from "./fixtures.mjs";
+import { isolatedTest as test, expect, original, current, output, waitForCreatorUploadReady } from "./fixtures.mjs";
 
 const api = (page, route) => page.evaluate(async route => {
   const token = document.querySelector('meta[name="synapse-local-token"]').content;
@@ -15,6 +15,7 @@ test("fresh public text previews and downloads without private source text or Co
   for (const [name, file] of [["original_image", original], ["current_image", current], ["ai_output", output]]) await page.locator(`[name="${name}"]`).setInputFiles(file);
   await page.getByText("提案の生成メモ（任意）", { exact: true }).click();
   await page.locator('[name="generation_prompt"]').fill("PRIVATE_PROMPT_CANARY");
+  await waitForCreatorUploadReady(page);
   await page.getByRole("button", { name: "提案を作成", exact: true }).click();
   await page.waitForURL("**/creator-sessions/public-source");
   await page.getByLabel("理由（任意）", { exact: true }).fill("PRIVATE_RATIONALE_CANARY");

@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { isolatedTest as test, expect, decisionButton, original, current, output } from "./fixtures.mjs";
+import { isolatedTest as test, expect, decisionButton, original, current, output, waitForCreatorUploadReady } from "./fixtures.mjs";
 
 for (const disposition of ["Adopt", "Reject", "Defer"]) {
   test(`generation note survives ${disposition} and reload`, async ({ page, app }) => {
@@ -20,6 +20,7 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     const prompt = "PRIVATE_GENERATION_CANARY 日本語\n<script>window.noteInjected = true</script>";
     await page.getByLabel("プロンプト", { exact: true }).fill(prompt);
     await page.getByLabel("制作意図", { exact: true }).fill("配色の検討\n判断理由とは別");
+    await waitForCreatorUploadReady(page);
     await page.getByRole("button", { name: "提案を作成" }).click();
     await page.waitForURL(`**/creator-sessions/${session}`);
     await expect(page.locator("[data-generation-note]")).toContainText(prompt);
