@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.1.0] - 2026-10-10
+
+- Hardened Creator input retention against FIFO, directory, and socket paths;
+  failures are non-blocking, occur before repository creation or mutation, and
+  report a creator-input `storage_error` with a hint. The v1.0.1 release could
+  block on a FIFO and create the repository before the input was rejected.
+- Added private-local, versioned JSON receipts for `creator-run` and `inbox decide`.
+- Improved bounded PNG/JPEG metadata parsing and clarified that it is not
+  real-device GPS evidence.
+- Added safe Linux/macOS publication replacement handling and Japanese
+  renderer-v2 projection/re-export support.
+
+
 All notable user-visible changes are recorded here. SynapseGit uses semantic
 version tags for release identification. The v1 formats are frozen for v1.x;
 see docs/compatibility.md. Formal Core Stage 1 is a separate research
@@ -883,6 +896,7 @@ First Stage 0 preview.
   source-available license; the original archive remains unchanged.
 
 [Unreleased]: https://github.com/howlrs/synapsegit/compare/v1.0.1...HEAD
+[1.1.0]: https://github.com/howlrs/synapsegit/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/howlrs/synapsegit/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/howlrs/synapsegit/compare/v1.0.0-rc.1...v1.0.0
 [1.0.0-rc.1]: https://github.com/howlrs/synapsegit/compare/v0.13.1...v1.0.0-rc.1

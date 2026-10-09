@@ -55,7 +55,7 @@ replaces an existing repository.
 ## 1. Record the proposal and Human Decision
 
 Run this command from the cloned SynapseGit repository, or from the extracted
-v1.0.1 release archive (it bundles the same
+v1.1.0 release archive (it bundles the same
 `docs/tutorial/assets/` paths; see `TUTORIAL.md` at the archive root), so the
 sample paths resolve:
 

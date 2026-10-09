@@ -1,6 +1,6 @@
 [package]
 name = "synapse-application"
-version = "1.0.1"
+version = "1.1.0"
 description = "Authenticated one-shot Creative AI and narrow Human Decision application boundary for SynapseGit Core"
 edition.workspace = true
 rust-version.workspace = true
