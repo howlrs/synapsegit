@@ -277,8 +277,22 @@ pub fn retain_import_inbox_candidate(root: &Path, slug: &str) -> Result<Retained
             "inbox slug must match [a-z][a-z0-9-]{0,63}".into(),
         ));
     }
-    use rustix::fs::{Mode, OFlags, openat};
-    let root_file = File::open(root).map_err(|e| CreatorError::io("open inbox root", root, e))?;
+    use rustix::fs::{CWD, Mode, OFlags, openat};
+    let root_file = File::from(
+        openat(
+            CWD,
+            root,
+            OFlags::RDONLY
+                | OFlags::DIRECTORY
+                | OFlags::NOFOLLOW
+                | OFlags::NONBLOCK
+                | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|error| {
+            CreatorError::InvalidArgument(format!("inbox root cannot be opened safely: {error}"))
+        })?,
+    );
     let directory = File::from(
         openat(
             &root_file,
@@ -1173,6 +1187,24 @@ mod tests {
         .unwrap_err();
         assert_eq!(error.code(), "usage_error");
         assert!(entries(&fixture.inbox).is_empty());
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn a_fifo_inbox_root_is_refused_without_blocking() {
+        let fixture = fixture("fifo-root");
+        let fifo = fixture.directory.0.join("fifo-root");
+        rustix::fs::mknodat(
+            rustix::fs::CWD,
+            &fifo,
+            rustix::fs::FileType::Fifo,
+            rustix::fs::Mode::from_raw_mode(0o600),
+            0,
+        )
+        .unwrap();
+
+        let error = retain_import_inbox_candidate(&fifo, "candidate").unwrap_err();
+        assert_eq!(error.code(), "usage_error");
     }
 
     #[test]
