@@ -546,7 +546,7 @@ fn explicit_locales_use_v2_views_without_changing_the_frozen_projection() {
     ));
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn replace_exchanges_only_a_verified_bundle() {
     let temporary = TempDirectory::new();
@@ -592,7 +592,7 @@ fn replace_exchanges_only_a_verified_bundle() {
     );
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn replace_refuses_every_non_strict_old_inventory_without_touching_it() {
     for kind in ["checksum", "git", "file", "directory", "symlink"] {
@@ -631,7 +631,7 @@ fn replace_refuses_every_non_strict_old_inventory_without_touching_it() {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn replace_removes_the_verified_old_bundle_for_both_targets() {
     for target in [OutputTarget::Github, OutputTarget::Synapse] {
@@ -673,7 +673,7 @@ fn exported_bundle_root_keeps_the_ordinary_directory_mode() {
     // Staging is private while it is written; the published bundle is not.
     assert_eq!(mode(&destination), expected);
     assert_eq!(mode(&destination.join("target")), expected);
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", target_os = "macos"))]
     {
         export_bundle(&ExportOptions {
             projection: projection_options(temporary.join("repo")),
@@ -687,7 +687,7 @@ fn exported_bundle_root_keeps_the_ordinary_directory_mode() {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 #[test]
 fn replace_invalid_source_preserves_old_bundle_before_staging() {
     let temporary = TempDirectory::new();

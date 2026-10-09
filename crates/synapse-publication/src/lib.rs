@@ -506,10 +506,15 @@ pub fn build_public_projection(options: &ProjectionOptions) -> Result<PublicProj
 /// Generate a deterministic local bundle through a staged, atomic no-replace
 /// directory publication. Path safety is checked before the source is opened.
 pub fn export_bundle(options: &ExportOptions) -> Result<ExportReceipt> {
-    export_bundle_inner(options, sync_directory, verify_staged_publication_bundle)
+    export_bundle_inner(
+        options,
+        sync_directory,
+        verify_staged_publication_bundle,
+        rename_directory_exchange,
+    )
 }
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 fn export_bundle_with_post_exchange_sync_failure_for_test(
     options: &ExportOptions,
 ) -> Result<ExportReceipt> {
@@ -523,6 +528,7 @@ fn export_bundle_with_post_exchange_sync_failure_for_test(
             ))
         },
         verify_staged_publication_bundle,
+        rename_directory_exchange,
     )
 }
 
@@ -530,12 +536,19 @@ fn export_bundle_inner(
     options: &ExportOptions,
     post_exchange_sync: fn(&Path) -> Result<()>,
     verify_staging: fn(&Path) -> Result<()>,
+    exchange_directories: fn(&Path, &Path) -> Result<()>,
 ) -> Result<ExportReceipt> {
     let destination = validate_export_paths(
         &options.projection.repository,
         &options.destination,
         options.replace,
     )?;
+    // Refuse before building a staging tree when an existing bundle would
+    // require an exchange that this platform cannot provide.  A staged tree
+    // is deliberately never left behind for this capability error.
+    if options.replace {
+        require_directory_exchange_support(&destination)?;
+    }
     let destination_identity = if options.replace {
         verify_bundle(&destination)?;
         Some(bundle_identity(&destination)?)
@@ -609,6 +622,7 @@ fn export_bundle_inner(
         destination_identity,
         post_exchange_sync,
         verify_staging,
+        exchange_directories,
     )?;
 
     Ok(ExportReceipt {
@@ -1685,6 +1699,7 @@ fn publish_files_atomically(
     expected_identity: Option<BundleIdentity>,
     post_exchange_sync: fn(&Path) -> Result<()>,
     verify_staging: fn(&Path) -> Result<()>,
+    exchange_directories: fn(&Path, &Path) -> Result<()>,
 ) -> Result<PublicationCommit> {
     let parent = destination
         .parent()
@@ -1722,7 +1737,7 @@ fn publish_files_atomically(
     if replace {
         // The old target was verified before staging. Verify it again directly
         // before the exchange so a concurrent replacement cannot cause us to
-        // swap an arbitrary directory.  Linux renameat2 exchange is the
+        // swap an arbitrary directory. The platform exchange is the
         // linearization point; the old verified bundle then sits at staging.
         verify_bundle(destination)?;
         if Some(bundle_identity(destination)?) != expected_identity {
@@ -1731,7 +1746,7 @@ fn publish_files_atomically(
             ));
         }
         restore_published_mode(&staging, published_mode)?;
-        rename_directory_exchange(&staging, destination)?;
+        exchange_directories(&staging, destination)?;
         guard.armed = false;
         // Once EXCHANGE returns, publication is committed and neither cleanup
         // nor fsync may turn the command into an ordinary failure. The old
@@ -1836,7 +1851,7 @@ fn bundle_identity(path: &Path) -> Result<BundleIdentity> {
     )))
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn rename_directory_exchange(source: &Path, destination: &Path) -> Result<()> {
     use rustix::fs::{CWD, RenameFlags, renameat_with};
     renameat_with(CWD, source, CWD, destination, RenameFlags::EXCHANGE).map_err(|error| {
@@ -1848,14 +1863,31 @@ fn rename_directory_exchange(source: &Path, destination: &Path) -> Result<()> {
     })
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 fn rename_directory_exchange(_source: &Path, destination: &Path) -> Result<()> {
     Err(PublicationError::io(
         "atomically exchange verified publication bundle",
         destination,
         io::Error::new(
             io::ErrorKind::Unsupported,
-            "--replace requires Linux renameat2 RENAME_EXCHANGE",
+            "--replace requires an atomic directory exchange supported on Linux or macOS",
+        ),
+    ))
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn require_directory_exchange_support(_destination: &Path) -> Result<()> {
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn require_directory_exchange_support(destination: &Path) -> Result<()> {
+    Err(PublicationError::io(
+        "prepare atomic publication bundle replacement",
+        destination,
+        io::Error::new(
+            io::ErrorKind::Unsupported,
+            "--replace requires an atomic directory exchange supported on Linux or macOS",
         ),
     ))
 }
@@ -2235,12 +2267,24 @@ fn author_text(value: Option<&String>) -> Option<PresentedText> {
     })
 }
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 mod replacement_tests {
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
 
     static NEXT: AtomicU64 = AtomicU64::new(0);
+
+    fn test_root(label: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "synapse-publication-{label}-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root).unwrap();
+        // macOS exposes its temporary directory through /var, a symlink that
+        // production intentionally rejects in publication parent paths.
+        root.canonicalize().unwrap()
+    }
 
     fn corrupt_old_at_stage(stage: &Path) -> Result<()> {
         fs::write(
@@ -2256,14 +2300,17 @@ mod replacement_tests {
         verify_staged_publication_bundle(stage)
     }
 
+    fn fail_exchange(_source: &Path, destination: &Path) -> Result<()> {
+        Err(PublicationError::io(
+            "atomically exchange verified publication bundle",
+            destination,
+            io::Error::new(io::ErrorKind::Unsupported, "injected exchange failure"),
+        ))
+    }
+
     #[test]
     fn invalid_staged_bundle_preserves_the_verified_destination() {
-        let root = std::env::temp_dir().join(format!(
-            "synapse-publication-stage-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
+        let root = test_root("stage");
         let repository = root.join("repo");
         drop(Repository::open(&repository).unwrap());
         let destination = root.join("bundle");
@@ -2279,7 +2326,12 @@ mod replacement_tests {
         options.replace = true;
         options.locale = Some(PublicationLocale::Ja);
         assert!(matches!(
-            export_bundle_inner(&options, sync_directory, corrupt_new_at_stage),
+            export_bundle_inner(
+                &options,
+                sync_directory,
+                corrupt_new_at_stage,
+                rename_directory_exchange,
+            ),
             Err(PublicationError::InvalidBundle(_))
         ));
         assert_eq!(fs::read(destination.join("manifest.json")).unwrap(), before);
@@ -2289,13 +2341,49 @@ mod replacement_tests {
     }
 
     #[test]
+    fn exchange_failure_preserves_the_old_bundle_and_removes_staging() {
+        let root = test_root("exchange-failure");
+        let repository = root.join("repo");
+        drop(Repository::open(&repository).unwrap());
+        let destination = root.join("bundle");
+        let projection = ProjectionOptions::new(&repository);
+        export_bundle(&ExportOptions {
+            projection: projection.clone(),
+            destination: destination.clone(),
+            target: OutputTarget::Github,
+            locale: None,
+            replace: false,
+        })
+        .unwrap();
+        let before = fs::read(destination.join("manifest.json")).unwrap();
+        let error = export_bundle_inner(
+            &ExportOptions {
+                projection,
+                destination: destination.clone(),
+                target: OutputTarget::Github,
+                locale: Some(PublicationLocale::Ja),
+                replace: true,
+            },
+            sync_directory,
+            verify_staged_publication_bundle,
+            fail_exchange,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("injected exchange failure"));
+        assert_eq!(fs::read(destination.join("manifest.json")).unwrap(), before);
+        assert!(verify_bundle(&destination).is_ok());
+        assert!(
+            fs::read_dir(&root)
+                .unwrap()
+                .flatten()
+                .all(|entry| !entry.file_name().to_string_lossy().contains(".bundle.tmp-"))
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
     fn post_exchange_sync_failure_is_a_successful_recovery_receipt() {
-        let root = std::env::temp_dir().join(format!(
-            "synapse-publication-sync-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
+        let root = test_root("sync");
         let repository = root.join("repo");
         drop(Repository::open(&repository).unwrap());
         let destination = root.join("bundle");
@@ -2337,12 +2425,7 @@ mod replacement_tests {
 
     #[test]
     fn cleanup_never_deletes_unexpected_content_in_the_former_bundle() {
-        let root = std::env::temp_dir().join(format!(
-            "synapse-publication-cleanup-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
+        let root = test_root("cleanup");
         let repository = root.join("repo");
         drop(Repository::open(&repository).unwrap());
         let destination = root.join("bundle");
@@ -2365,6 +2448,7 @@ mod replacement_tests {
             },
             add_foreign_file_to_recovery,
             verify_staged_publication_bundle,
+            rename_directory_exchange,
         )
         .unwrap();
         assert_eq!(receipt.sync_warning, None);
@@ -2377,12 +2461,7 @@ mod replacement_tests {
 
     #[test]
     fn stage_callback_cannot_exchange_a_modified_old_bundle() {
-        let root = std::env::temp_dir().join(format!(
-            "synapse-publication-race-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
+        let root = test_root("race");
         let repository = root.join("repo");
         drop(Repository::open(&repository).unwrap());
         let destination = root.join("bundle");
@@ -2405,6 +2484,7 @@ mod replacement_tests {
             },
             sync_directory,
             corrupt_old_at_stage,
+            rename_directory_exchange,
         )
         .unwrap_err();
         assert!(matches!(error, PublicationError::InvalidBundle(_)));
