@@ -74,7 +74,7 @@ test("a pending metadata preflight prevents a fast proposal POST", async ({ page
     const slice = File.prototype.slice;
     File.prototype.slice = function (...args) {
       const blob = slice.apply(this, args);
-      if (args.length !== 2 || args[0] !== 0 || args[1] !== Math.min(this.size, 256 * 1024)) return blob;
+      if (args.length !== 2 || args[0] !== 0 || args[1] !== Math.min(this.size, 64 * 1024)) return blob;
       return { arrayBuffer: () => new Promise(resolve => {
         window.releaseMetadataReads.push(async () => resolve(await blob.arrayBuffer()));
       }) };
