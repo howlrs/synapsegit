@@ -8,7 +8,7 @@ function tiff(gps) {
   bytes.writeUInt16LE(gps ? 0x8825 : 0x0100, 10); bytes.writeUInt16LE(4, 12);
   bytes.writeUInt32LE(1, 14); bytes.writeUInt32LE(32, 18); return bytes;
 }
-function jpeg(gps) { const exif = tiff(gps); return Buffer.concat([Buffer.from([255,216,255,225,0,exif.length + 8]), Buffer.from("Exif\0\0"), exif, Buffer.from([255,217])]); }
+function jpeg(gps) { const exif = tiff(gps); return Buffer.concat([Buffer.from([255,216,255,225,0,exif.length + 8]), Buffer.from("Exif\0\0"), exif, Buffer.from([255,218,0,8,1,1,0,0,63,0,0,255,217])]); }
 function crc(type, data) { let value=0xffffffff;for(const byte of Buffer.concat([Buffer.from(type),data])){value^=byte;for(let i=0;i<8;i++)value=value&1?(value>>>1)^0xedb88320:value>>>1;}return (~value)>>>0; }
 function chunk(type, data) { const out=Buffer.alloc(12+data.length);out.writeUInt32BE(data.length);out.write(type,4);data.copy(out,8);out.writeUInt32BE(crc(type,data),8+data.length);return out; }
 function png(...metadata) {
