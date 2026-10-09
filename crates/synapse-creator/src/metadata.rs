@@ -58,9 +58,10 @@ pub fn image_metadata_warning(role: &str, path: &Path) -> ImageMetadataWarning {
             ));
         }
         let mut signature = [0; 8];
-        f.read_exact(&mut signature)?;
+        let signature_len = length.len().min(signature.len() as u64) as usize;
+        f.read_exact(&mut signature[..signature_len])?;
         f.seek(SeekFrom::Start(0))?;
-        if signature == *b"\x89PNG\r\n\x1a\n" {
+        if signature_len == signature.len() && signature == *b"\x89PNG\r\n\x1a\n" {
             Ok(png_file(&mut f, length.len()))
         } else {
             let mut bytes = Vec::with_capacity(METADATA_SCAN_BYTES + 1);
@@ -605,6 +606,25 @@ mod tests {
         assert_eq!(
             image_metadata_warning("original", &path).check,
             ImageMetadataCheck::GpsFound
+        );
+        std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn short_complete_jpeg_file_matches_the_byte_check() {
+        let bytes = [0xff, 0xd8, 0xff, 0xd9];
+        assert_eq!(
+            metadata_warning_from_bytes("original", &bytes).check,
+            ImageMetadataCheck::NoGpsFound
+        );
+        let path = std::env::temp_dir().join(format!(
+            "synapsegit-short-jpeg-{}-{}.jpg",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        std::fs::write(&path, bytes).unwrap();
+        assert_eq!(
+            image_metadata_warning("original", &path).check,
+            ImageMetadataCheck::NoGpsFound
         );
         std::fs::remove_file(path).unwrap();
     }
