@@ -509,7 +509,7 @@ pub fn export_bundle(options: &ExportOptions) -> Result<ExportReceipt> {
     export_bundle_inner(options, sync_directory, verify_staged_publication_bundle)
 }
 
-#[cfg(test)]
+#[cfg(all(test, target_os = "linux"))]
 fn export_bundle_with_post_exchange_sync_failure_for_test(
     options: &ExportOptions,
 ) -> Result<ExportReceipt> {

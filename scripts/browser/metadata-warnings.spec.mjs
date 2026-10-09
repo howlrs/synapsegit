@@ -52,7 +52,7 @@ test("a pending metadata preflight prevents a fast proposal POST", async ({ page
     const slice = File.prototype.slice;
     File.prototype.slice = function (...args) {
       const blob = slice.apply(this, args);
-      if (args[1] !== 256 * 1024) return blob;
+      if (args.length !== 2 || args[0] !== 0 || args[1] !== Math.min(this.size, 256 * 1024)) return blob;
       return { arrayBuffer: () => new Promise(resolve => {
         window.releaseMetadataReads.push(async () => resolve(await blob.arrayBuffer()));
       }) };
@@ -60,6 +60,7 @@ test("a pending metadata preflight prevents a fast proposal POST", async ({ page
   });
   let posts=0; page.on("request", request=>{if(request.method()==="POST"&&request.url().includes("creator-sessions"))posts++;});
   for (const name of ["original_image","current_image","ai_output"]) await page.locator(`[name="${name}"]`).setInputFiles(file(`${name}.jpg`,jpeg(true)));
+  await expect.poll(() => page.evaluate(() => window.releaseMetadataReads.length)).toBe(3);
   await page.getByRole("button",{name:"提案を作成"}).click();
   expect(posts).toBe(0);
   await expect(page.locator('[name="ai_output"]')).toHaveAttribute("aria-invalid", "true");

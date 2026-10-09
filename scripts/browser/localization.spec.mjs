@@ -124,8 +124,10 @@ test("English public text form checks author supplied text on a narrow screen", 
   await page.goto(`${app.origin}/projects/complete/presentation?lang=en`);
   await expect(page.getByRole("heading", { name: "Create public production notes", exact: true })).toBeVisible();
   await page.getByLabel("Completed session", { exact: true }).selectOption("sample");
+  await expect(page.locator('[name="creator_display_name"]')).toHaveValue("Browser tester");
   await page.getByLabel("Work title (optional)", { exact: true }).fill("English public title");
   await page.getByLabel("Summary (optional)", { exact: true }).fill("Text entered for publication review only.");
+  await page.getByRole("checkbox", { name: "I reviewed the current visible values and confirm that I want to use them as public text.", exact: true }).check();
   const check = page.getByRole("button", { name: "Check the entered text", exact: true });
   await check.focus();
   await page.keyboard.press("Enter");
