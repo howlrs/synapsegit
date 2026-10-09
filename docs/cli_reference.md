@@ -67,8 +67,9 @@ bundle and renderer profile, while `projection.json` stays the v1 semantic
 projection. This container v2 is not the separate semantic projection v2
 proposal tracked by #163. `preview` checks the locale/profile pair.
 
-`--replace` is available on Linux and macOS. When the destination is absent it
-uses the ordinary atomic no-replace creation path; if another file, directory,
+Replacing an existing destination with `--replace` requires Linux or macOS.
+When the destination is absent, `--replace` uses ordinary atomic no-replace
+creation wherever that export path is supported; if another file, directory,
 or symlink appears before publication, it fails without overwriting it. When
 the destination exists it must be a strict bundle with no extra files,
 directories, `.git`, or symlinks. It stages beside the target and atomically
