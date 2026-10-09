@@ -506,7 +506,12 @@ pub fn build_public_projection(options: &ProjectionOptions) -> Result<PublicProj
 /// Generate a deterministic local bundle through a staged, atomic no-replace
 /// directory publication. Path safety is checked before the source is opened.
 pub fn export_bundle(options: &ExportOptions) -> Result<ExportReceipt> {
-    export_bundle_inner(options, sync_directory, verify_staged_publication_bundle)
+    export_bundle_inner(
+        options,
+        sync_directory,
+        verify_staged_publication_bundle,
+        rename_directory_exchange,
+    )
 }
 
 #[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
@@ -523,6 +528,7 @@ fn export_bundle_with_post_exchange_sync_failure_for_test(
             ))
         },
         verify_staged_publication_bundle,
+        rename_directory_exchange,
     )
 }
 
@@ -530,6 +536,7 @@ fn export_bundle_inner(
     options: &ExportOptions,
     post_exchange_sync: fn(&Path) -> Result<()>,
     verify_staging: fn(&Path) -> Result<()>,
+    exchange_directories: fn(&Path, &Path) -> Result<()>,
 ) -> Result<ExportReceipt> {
     let destination = validate_export_paths(
         &options.projection.repository,
@@ -615,6 +622,7 @@ fn export_bundle_inner(
         destination_identity,
         post_exchange_sync,
         verify_staging,
+        exchange_directories,
     )?;
 
     Ok(ExportReceipt {
@@ -1691,6 +1699,7 @@ fn publish_files_atomically(
     expected_identity: Option<BundleIdentity>,
     post_exchange_sync: fn(&Path) -> Result<()>,
     verify_staging: fn(&Path) -> Result<()>,
+    exchange_directories: fn(&Path, &Path) -> Result<()>,
 ) -> Result<PublicationCommit> {
     let parent = destination
         .parent()
@@ -1737,7 +1746,7 @@ fn publish_files_atomically(
             ));
         }
         restore_published_mode(&staging, published_mode)?;
-        rename_directory_exchange(&staging, destination)?;
+        exchange_directories(&staging, destination)?;
         guard.armed = false;
         // Once EXCHANGE returns, publication is committed and neither cleanup
         // nor fsync may turn the command into an ordinary failure. The old
@@ -2279,6 +2288,14 @@ mod replacement_tests {
         verify_staged_publication_bundle(stage)
     }
 
+    fn fail_exchange(_source: &Path, destination: &Path) -> Result<()> {
+        Err(PublicationError::io(
+            "atomically exchange verified publication bundle",
+            destination,
+            io::Error::new(io::ErrorKind::Unsupported, "injected exchange failure"),
+        ))
+    }
+
     #[test]
     fn invalid_staged_bundle_preserves_the_verified_destination() {
         let root = std::env::temp_dir().join(format!(
@@ -2302,12 +2319,63 @@ mod replacement_tests {
         options.replace = true;
         options.locale = Some(PublicationLocale::Ja);
         assert!(matches!(
-            export_bundle_inner(&options, sync_directory, corrupt_new_at_stage),
+            export_bundle_inner(
+                &options,
+                sync_directory,
+                corrupt_new_at_stage,
+                rename_directory_exchange,
+            ),
             Err(PublicationError::InvalidBundle(_))
         ));
         assert_eq!(fs::read(destination.join("manifest.json")).unwrap(), before);
         assert!(verify_bundle(&destination).is_ok());
         assert_eq!(fs::read_dir(&root).unwrap().count(), 2);
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn exchange_failure_preserves_the_old_bundle_and_removes_staging() {
+        let root = std::env::temp_dir().join(format!(
+            "synapse-publication-exchange-failure-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root).unwrap();
+        let repository = root.join("repo");
+        drop(Repository::open(&repository).unwrap());
+        let destination = root.join("bundle");
+        let projection = ProjectionOptions::new(&repository);
+        export_bundle(&ExportOptions {
+            projection: projection.clone(),
+            destination: destination.clone(),
+            target: OutputTarget::Github,
+            locale: None,
+            replace: false,
+        })
+        .unwrap();
+        let before = fs::read(destination.join("manifest.json")).unwrap();
+        let error = export_bundle_inner(
+            &ExportOptions {
+                projection,
+                destination: destination.clone(),
+                target: OutputTarget::Github,
+                locale: Some(PublicationLocale::Ja),
+                replace: true,
+            },
+            sync_directory,
+            verify_staged_publication_bundle,
+            fail_exchange,
+        )
+        .unwrap_err();
+        assert!(error.to_string().contains("injected exchange failure"));
+        assert_eq!(fs::read(destination.join("manifest.json")).unwrap(), before);
+        assert!(verify_bundle(&destination).is_ok());
+        assert!(
+            fs::read_dir(&root)
+                .unwrap()
+                .flatten()
+                .all(|entry| !entry.file_name().to_string_lossy().contains(".bundle.tmp-"))
+        );
         fs::remove_dir_all(root).unwrap();
     }
 
@@ -2388,6 +2456,7 @@ mod replacement_tests {
             },
             add_foreign_file_to_recovery,
             verify_staged_publication_bundle,
+            rename_directory_exchange,
         )
         .unwrap();
         assert_eq!(receipt.sync_warning, None);
@@ -2428,6 +2497,7 @@ mod replacement_tests {
             },
             sync_directory,
             corrupt_old_at_stage,
+            rename_directory_exchange,
         )
         .unwrap_err();
         assert!(matches!(error, PublicationError::InvalidBundle(_)));

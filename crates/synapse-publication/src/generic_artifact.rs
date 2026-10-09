@@ -1,7 +1,7 @@
 use super::{
     PublicationError, canonical_json_bytes, collect_bundle_files, publish_files_atomically,
-    read_regular_file, reject_symlink_components, require_real_directory, sync_directory,
-    validate_bundle_relative_path,
+    read_regular_file, reject_symlink_components, rename_directory_exchange,
+    require_real_directory, sync_directory, validate_bundle_relative_path,
 };
 use crate::generic_artifact_render::render_generic_artifact_views;
 use serde::{Deserialize, Serialize};
@@ -814,6 +814,7 @@ pub fn export_generic_artifact_bundle(
         None,
         sync_directory,
         verify_staged_generic_bundle,
+        rename_directory_exchange,
     )?;
     Ok(GenericArtifactExportReceipt {
         destination,
