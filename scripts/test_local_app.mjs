@@ -239,6 +239,15 @@ for (const malformedText of [
   assert.equal(inspectImageLocationMetadata(malformedText), "could_not_check");
   assert.equal(await selectedImageLocationMetadata(asSelectedFile(malformedText)), "could_not_check");
 }
+const textGps = png(validChunk("tEXt", new TextEncoder().encode("XML:com.adobe.xmp\0exif:GPSLatitude")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+assert.equal(inspectImageLocationMetadata(textGps), "gps_found");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(textGps)), "gps_found");
+const invalidLanguage = png(validChunk("iTXt", new TextEncoder().encode("Comment\0\0\0en--US\0\0text")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+assert.equal(inspectImageLocationMetadata(invalidLanguage), "could_not_check");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(invalidLanguage)), "could_not_check");
+const repeatedExif = png(validChunk("eXIf", exif(false)), validChunk("eXIf", exif(false)), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+assert.equal(inspectImageLocationMetadata(repeatedExif), "could_not_check");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(repeatedExif)), "could_not_check");
 
 // Keep the client catalog fail-closed: a new message must have both supported
 // languages and expose the same interpolation contract in each one.

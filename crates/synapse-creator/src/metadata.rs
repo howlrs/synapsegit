@@ -202,6 +202,7 @@ fn png(b: &[u8]) -> ImageMetadataCheck {
     let mut saw_plte = false;
     let mut bit_depth = 0u8;
     let mut color_type = 0u8;
+    let mut saw_exif = false;
     while p + 12 <= b.len() {
         chunks += 1;
         if chunks > MAX_PNG_CHUNKS {
@@ -243,6 +244,11 @@ fn png(b: &[u8]) -> ImageMetadataCheck {
                 return ImageMetadataCheck::CouldNotCheck;
             }
             saw_plte = true;
+        } else if k == b"eXIf" {
+            if saw_idat || saw_exif {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            saw_exif = true;
         } else if k == b"IDAT" {
             if indexed && !saw_plte {
                 return ImageMetadataCheck::CouldNotCheck;
@@ -301,6 +307,7 @@ fn png_file(file: &mut File, length: u64) -> ImageMetadataCheck {
     let mut saw_plte = false;
     let mut bit_depth = 0u8;
     let mut color_type = 0u8;
+    let mut saw_exif = false;
     loop {
         chunks += 1;
         if chunks > MAX_PNG_CHUNKS || position.checked_add(12).is_none_or(|end| end > length) {
@@ -352,6 +359,11 @@ fn png_file(file: &mut File, length: u64) -> ImageMetadataCheck {
                 return ImageMetadataCheck::CouldNotCheck;
             }
             saw_plte = true;
+        } else if kind == b"eXIf" {
+            if saw_idat || saw_exif {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            saw_exif = true;
         } else if kind == b"IDAT" {
             if indexed && !saw_plte {
                 return ImageMetadataCheck::CouldNotCheck;
@@ -413,6 +425,9 @@ fn png_metadata_check(kind: &[u8], payload: &[u8]) -> ImageMetadataCheck {
     }
     if kind == b"tEXt" && !valid_png_text(payload) {
         return ImageMetadataCheck::CouldNotCheck;
+    }
+    if kind == b"tEXt" && has_xmp_gps(payload) {
+        return ImageMetadataCheck::GpsFound;
     }
     if kind == b"iTXt" {
         return match itxt_xmp(payload) {
@@ -486,8 +501,8 @@ fn valid_png_text(payload: &[u8]) -> bool {
 fn valid_png_language_tag(tag: &[u8]) -> bool {
     tag.is_empty()
         || tag
-            .iter()
-            .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'-')
+            .split(|byte| *byte == b'-')
+            .all(|subtag| !subtag.is_empty() && subtag.iter().all(u8::is_ascii_alphanumeric))
 }
 fn has_xmp_gps(bytes: &[u8]) -> bool {
     contains_ignore_ascii_case(bytes, b"gpslatit") || contains_ignore_ascii_case(bytes, b"gpslongi")
@@ -913,6 +928,32 @@ mod tests {
                 ImageMetadataCheck::CouldNotCheck
             );
         }
+        let text_gps = png([
+            png_chunk(b"tEXt", b"XML:com.adobe.xmp\0exif:GPSLatitude"),
+            png_chunk(b"IDAT", b""),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(inspect(&text_gps, false), ImageMetadataCheck::GpsFound);
+        let invalid_language = png([
+            png_chunk(b"iTXt", b"Comment\0\0\0en--US\0\0text"),
+            png_chunk(b"IDAT", b""),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(
+            inspect(&invalid_language, false),
+            ImageMetadataCheck::CouldNotCheck
+        );
+        let exif = tiff(false, false);
+        let repeated_exif = png([
+            png_chunk(b"eXIf", &exif),
+            png_chunk(b"eXIf", &exif),
+            png_chunk(b"IDAT", b""),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(
+            inspect(&repeated_exif, false),
+            ImageMetadataCheck::CouldNotCheck
+        );
     }
     #[test]
     fn a_single_sub_ifd_offset_is_read_inline() {
