@@ -411,6 +411,9 @@ fn png_metadata_check(kind: &[u8], payload: &[u8]) -> ImageMetadataCheck {
     if kind == b"zTXt" {
         return ImageMetadataCheck::CouldNotCheck;
     }
+    if kind == b"tEXt" && !valid_png_text(payload) {
+        return ImageMetadataCheck::CouldNotCheck;
+    }
     if kind == b"iTXt" {
         return match itxt_xmp(payload) {
             Some(Ok(payload)) if has_xmp_gps(payload) => ImageMetadataCheck::GpsFound,
@@ -464,6 +467,22 @@ fn is_raw_metadata_profile(chunk: &[u8]) -> bool {
     .iter()
     .any(|name| keyword.eq_ignore_ascii_case(name))
 }
+fn valid_png_keyword(keyword: &[u8]) -> bool {
+    !keyword.is_empty()
+        && keyword.len() <= 79
+        && keyword[0] != b' '
+        && keyword.last() != Some(&b' ')
+        && !keyword.windows(2).any(|pair| pair == b"  ")
+        && keyword
+            .iter()
+            .all(|byte| matches!(*byte, 32..=126 | 161..=255))
+}
+fn valid_png_text(payload: &[u8]) -> bool {
+    payload
+        .iter()
+        .position(|byte| *byte == 0)
+        .is_some_and(|end| valid_png_keyword(&payload[..end]))
+}
 fn has_xmp_gps(bytes: &[u8]) -> bool {
     contains_ignore_ascii_case(bytes, b"gpslatit") || contains_ignore_ascii_case(bytes, b"gpslongi")
 }
@@ -471,8 +490,8 @@ fn itxt_xmp(bytes: &[u8]) -> Option<Result<&[u8], ()>> {
     let Some(key_end) = bytes.iter().position(|b| *b == 0) else {
         return Some(Err(()));
     };
-    if !bytes[..key_end].eq_ignore_ascii_case(b"xml:com.adobe.xmp") {
-        return None;
+    if !valid_png_keyword(&bytes[..key_end]) {
+        return Some(Err(()));
     }
     let rest = &bytes[key_end + 1..];
     if rest.len() < 2 || rest[0] != 0 || rest[1] != 0 {
@@ -486,7 +505,11 @@ fn itxt_xmp(bytes: &[u8]) -> Option<Result<&[u8], ()>> {
         return Some(Err(()));
     };
     let text_start = translated_end + language_end + 2;
-    Some(Ok(&rest[text_start..]))
+    if bytes[..key_end].eq_ignore_ascii_case(b"xml:com.adobe.xmp") {
+        Some(Ok(&rest[text_start..]))
+    } else {
+        None
+    }
 }
 fn exif(t: &[u8]) -> ImageMetadataCheck {
     if t.len() < 8 {
@@ -846,6 +869,23 @@ mod tests {
             inspect(&grayscale_sixteen_bit, false),
             ImageMetadataCheck::NoGpsFound
         );
+        for malformed_text in [
+            png([
+                png_chunk(b"tEXt", b"Comment without a separator"),
+                png_chunk(b"IDAT", b""),
+                png_chunk(b"IEND", b""),
+            ]),
+            png([
+                png_chunk(b"iTXt", b"Comment\0"),
+                png_chunk(b"IDAT", b""),
+                png_chunk(b"IEND", b""),
+            ]),
+        ] {
+            assert_eq!(
+                inspect(&malformed_text, false),
+                ImageMetadataCheck::CouldNotCheck
+            );
+        }
     }
     #[test]
     fn a_single_sub_ifd_offset_is_read_inline() {

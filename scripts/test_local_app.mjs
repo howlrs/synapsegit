@@ -230,6 +230,13 @@ grayscaleSixteenBit[24] = 16;
 grayscaleSixteenBit[25] = 0;
 assert.equal(inspectImageLocationMetadata(grayscaleSixteenBit), "no_gps_found");
 assert.equal(await selectedImageLocationMetadata(asSelectedFile(grayscaleSixteenBit)), "no_gps_found");
+for (const malformedText of [
+  png(validChunk("tEXt", new TextEncoder().encode("Comment without a separator")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array())),
+  png(validChunk("iTXt", new TextEncoder().encode("Comment\0")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array())),
+]) {
+  assert.equal(inspectImageLocationMetadata(malformedText), "could_not_check");
+  assert.equal(await selectedImageLocationMetadata(asSelectedFile(malformedText)), "could_not_check");
+}
 
 // Keep the client catalog fail-closed: a new message must have both supported
 // languages and expose the same interpolation contract in each one.
