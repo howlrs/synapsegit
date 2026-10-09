@@ -537,11 +537,7 @@ fn itxt_xmp(bytes: &[u8]) -> Option<Result<&[u8], ()>> {
     {
         return Some(Err(()));
     }
-    if bytes[..key_end].eq_ignore_ascii_case(b"xml:com.adobe.xmp") {
-        Some(Ok(text))
-    } else {
-        None
-    }
+    Some(Ok(text))
 }
 fn exif(t: &[u8]) -> ImageMetadataCheck {
     if t.len() < 8 {
@@ -934,6 +930,15 @@ mod tests {
             png_chunk(b"IEND", b""),
         ]);
         assert_eq!(inspect(&text_gps, false), ImageMetadataCheck::GpsFound);
+        let non_xmp_itext_gps = png([
+            png_chunk(b"iTXt", b"Comment\0\0\0\0\0GPSLatitude"),
+            png_chunk(b"IDAT", b""),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(
+            inspect(&non_xmp_itext_gps, false),
+            ImageMetadataCheck::GpsFound
+        );
         let invalid_language = png([
             png_chunk(b"iTXt", b"Comment\0\0\0en--US\0\0text"),
             png_chunk(b"IDAT", b""),

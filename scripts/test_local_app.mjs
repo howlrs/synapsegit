@@ -242,6 +242,9 @@ for (const malformedText of [
 const textGps = png(validChunk("tEXt", new TextEncoder().encode("XML:com.adobe.xmp\0exif:GPSLatitude")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
 assert.equal(inspectImageLocationMetadata(textGps), "gps_found");
 assert.equal(await selectedImageLocationMetadata(asSelectedFile(textGps)), "gps_found");
+const nonXmpItextGps = png(validChunk("iTXt", new TextEncoder().encode("Comment\0\0\0\0\0GPSLatitude")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+assert.equal(inspectImageLocationMetadata(nonXmpItextGps), "gps_found");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(nonXmpItextGps)), "gps_found");
 const invalidLanguage = png(validChunk("iTXt", new TextEncoder().encode("Comment\0\0\0en--US\0\0text")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
 assert.equal(inspectImageLocationMetadata(invalidLanguage), "could_not_check");
 assert.equal(await selectedImageLocationMetadata(asSelectedFile(invalidLanguage)), "could_not_check");
