@@ -2274,6 +2274,18 @@ mod replacement_tests {
 
     static NEXT: AtomicU64 = AtomicU64::new(0);
 
+    fn test_root(label: &str) -> PathBuf {
+        let root = std::env::temp_dir().join(format!(
+            "synapse-publication-{label}-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root).unwrap();
+        // macOS exposes its temporary directory through /var, a symlink that
+        // production intentionally rejects in publication parent paths.
+        root.canonicalize().unwrap()
+    }
+
     fn corrupt_old_at_stage(stage: &Path) -> Result<()> {
         fs::write(
             stage.parent().unwrap().join("bundle").join(".git"),
@@ -2298,12 +2310,7 @@ mod replacement_tests {
 
     #[test]
     fn invalid_staged_bundle_preserves_the_verified_destination() {
-        let root = std::env::temp_dir().join(format!(
-            "synapse-publication-stage-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
+        let root = test_root("stage");
         let repository = root.join("repo");
         drop(Repository::open(&repository).unwrap());
         let destination = root.join("bundle");
@@ -2335,12 +2342,7 @@ mod replacement_tests {
 
     #[test]
     fn exchange_failure_preserves_the_old_bundle_and_removes_staging() {
-        let root = std::env::temp_dir().join(format!(
-            "synapse-publication-exchange-failure-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
+        let root = test_root("exchange-failure");
         let repository = root.join("repo");
         drop(Repository::open(&repository).unwrap());
         let destination = root.join("bundle");
@@ -2381,12 +2383,7 @@ mod replacement_tests {
 
     #[test]
     fn post_exchange_sync_failure_is_a_successful_recovery_receipt() {
-        let root = std::env::temp_dir().join(format!(
-            "synapse-publication-sync-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
+        let root = test_root("sync");
         let repository = root.join("repo");
         drop(Repository::open(&repository).unwrap());
         let destination = root.join("bundle");
@@ -2428,12 +2425,7 @@ mod replacement_tests {
 
     #[test]
     fn cleanup_never_deletes_unexpected_content_in_the_former_bundle() {
-        let root = std::env::temp_dir().join(format!(
-            "synapse-publication-cleanup-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
+        let root = test_root("cleanup");
         let repository = root.join("repo");
         drop(Repository::open(&repository).unwrap());
         let destination = root.join("bundle");
@@ -2469,12 +2461,7 @@ mod replacement_tests {
 
     #[test]
     fn stage_callback_cannot_exchange_a_modified_old_bundle() {
-        let root = std::env::temp_dir().join(format!(
-            "synapse-publication-race-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir(&root).unwrap();
+        let root = test_root("race");
         let repository = root.join("repo");
         drop(Repository::open(&repository).unwrap());
         let destination = root.join("bundle");
