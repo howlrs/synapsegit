@@ -715,11 +715,7 @@ fn inbox_command(args: &[String]) -> Result<(), CliError> {
         },
         |warnings| {
             emit_metadata_warnings(warnings);
-            metadata_warnings = warnings
-                .iter()
-                .filter(|warning| warning.check != synapse_creator::ImageMetadataCheck::NoGpsFound)
-                .cloned()
-                .collect();
+            metadata_warnings = retained_metadata_warnings(warnings);
         },
     )?;
     let manifest = &receipt.manifest;
