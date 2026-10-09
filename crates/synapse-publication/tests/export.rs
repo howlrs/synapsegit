@@ -1225,8 +1225,11 @@ fn japanese_default_summaries_preserve_zero_and_multiple_session_counts() {
             replace: false,
         })
         .unwrap();
-        let verified = verify_bundle(&destination).unwrap();
-        assert_eq!(verified.projection.sessions.len(), count);
+        verify_bundle(&destination).unwrap();
+        let projection: serde_json::Value =
+            serde_json::from_slice(&fs::read(destination.join("projection.json")).unwrap())
+                .unwrap();
+        assert_eq!(projection["sessions"].as_array().unwrap().len(), count);
         for path in ["story.md", "index.html", "target/README.md"] {
             let rendered = fs::read_to_string(destination.join(path)).unwrap();
             assert!(

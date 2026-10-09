@@ -1163,7 +1163,7 @@ pub fn run_creator_session_with_note(
 }
 
 /// Retain the exact caller input bytes, report their bounded metadata before
-/// opening the repository, then record only those retained copies.
+/// publishing the proposal and decision, then record only those retained copies.
 pub fn run_creator_session_with_note_and_metadata_review<F>(
     options: &CreatorRunOptions,
     note: Option<&crate::CreatorGenerationNote>,
@@ -1197,17 +1197,24 @@ where
     // Preserve the stable no-advisory failure for an already occupied
     // session before notifying about otherwise valid input metadata.
     if options.repository.exists() {
-        let repository = Repository::open_existing(&options.repository)?;
-        if repository
-            .refs()
-            .get(&decision_ref(&options.session))?
-            .is_some()
-            || repository
-                .refs()
-                .get(&proposal_ref(&options.session))?
-                .is_some()
-        {
-            return Err(CreatorError::SessionExists(options.session.clone()));
+        let repository = Repository::open_existing_read_only(&options.repository)?;
+        let decision = repository.refs().get(&decision_ref(&options.session))?;
+        let proposal = repository.refs().get(&proposal_ref(&options.session))?;
+        if decision.is_some() || proposal.is_some() {
+            let complete = match (&decision, &proposal) {
+                (Some(decision), Some(_)) => {
+                    read_json(&repository, &decision.head)?
+                        .get("commit_kind")
+                        .and_then(JsonValue::as_str)
+                        == Some("decision")
+                }
+                _ => false,
+            };
+            return Err(if complete {
+                CreatorError::SessionExists(options.session.clone())
+            } else {
+                CreatorError::SessionIncomplete(options.session.clone())
+            });
         }
     }
     let retained = crate::retain_creator_input_files(
