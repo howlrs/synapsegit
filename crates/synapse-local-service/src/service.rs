@@ -822,7 +822,6 @@ impl LocalService {
             subject_label: request.subject_label,
             creator_name: request.creator_name,
             generation_note: request.generation_note,
-            metadata_warnings: Vec::new(),
         };
         let _writer = self.acquire_project_writer(project_key)?;
         self.begin_creator_session_locked(project_key, server_instance, begin, None, None)
@@ -3960,7 +3959,6 @@ impl LocalService {
                 original_image: staging.0.join("original"),
                 current_image: staging.0.join("current"),
                 ai_output: staging.0.join("ai-output"),
-                metadata_warnings: Vec::new(),
             },
             None,
             Some(&confirmation.source),
@@ -4141,7 +4139,6 @@ impl LocalService {
                 original_image: staging.0.join("original"),
                 current_image: staging.0.join("current"),
                 ai_output: request.ai_output,
-                metadata_warnings: Vec::new(),
             },
             Some(&confirmation.source),
             None,

@@ -69,7 +69,6 @@ fn begin_request(temporary: &TempDirectory, session: &str) -> BeginCreatorSessio
         original_image,
         current_image,
         ai_output,
-        metadata_warnings: Vec::new(),
     }
 }
 

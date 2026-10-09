@@ -55,7 +55,6 @@ fn request(
             prompt: "private prompt".into(),
             intent: String::new(),
         }),
-        metadata_warnings: Vec::new(),
     }
 }
 

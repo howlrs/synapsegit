@@ -297,7 +297,6 @@ pub struct BeginCreatorSessionRequest {
     pub original_image: PathBuf,
     pub current_image: PathBuf,
     pub ai_output: PathBuf,
-    pub metadata_warnings: Vec<synapse_creator::ImageMetadataWarning>,
 }
 
 /// A manifest-last candidate discovered below a server-owned import root.
