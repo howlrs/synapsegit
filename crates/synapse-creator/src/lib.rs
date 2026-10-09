@@ -30,7 +30,7 @@ pub use inbox::{
 mod io;
 mod metadata;
 mod notes;
-pub use metadata::{ImageMetadataCheck, ImageMetadataWarning, image_metadata_warning};
+pub use metadata::{ImageMetadataCheck, ImageMetadataWarning, image_metadata_warning, metadata_warning_from_bytes};
 mod overview;
 pub use notes::{CreatorGenerationNote, GENERATION_NOTE_KEY};
 pub use overview::{

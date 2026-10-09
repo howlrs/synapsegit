@@ -21,6 +21,10 @@ pub struct ImageMetadataWarning {
     pub check: ImageMetadataCheck,
     pub message: String,
 }
+pub fn metadata_warning_from_bytes(role: &str, bytes: &[u8]) -> ImageMetadataWarning {
+    let check=inspect_prefix(&bytes[..bytes.len().min(METADATA_SCAN_BYTES)], bytes.len()>METADATA_SCAN_BYTES);
+    warning(role, check)
+}
 
 /// Inspect only the first 256 KiB. Unsupported, malformed, and budget-limited
 /// inputs are deliberately reported as `could_not_check`, never as GPS-free.
@@ -38,16 +42,15 @@ pub fn image_metadata_warning(role: &str, path: &Path) -> ImageMetadataWarning {
         ),
         Err(_) => ImageMetadataCheck::CouldNotCheck,
     };
+    warning(role, check)
+}
+fn warning(role: &str, check: ImageMetadataCheck) -> ImageMetadataWarning {
     let message = match check {
         ImageMetadataCheck::GpsFound => "Location metadata may be included in the recorded bytes. To remove it, choose a metadata-stripped copy before recording; SynapseGit does not alter the file.".into(),
         ImageMetadataCheck::NoGpsFound => "No location metadata was found in the bounded JPEG/PNG metadata check.".into(),
         ImageMetadataCheck::CouldNotCheck => "Location metadata could not be fully checked in this file; use a metadata-stripped copy if location privacy matters.".into(),
     };
-    ImageMetadataWarning {
-        role: role.into(),
-        check,
-        message,
-    }
+    ImageMetadataWarning { role: role.into(), check, message }
 }
 
 fn inspect(b: &[u8]) -> ImageMetadataCheck {
@@ -119,6 +122,8 @@ fn png(b: &[u8]) -> ImageMetadataCheck {
         };
         let k = &b[p + 4..p + 8];
         let x = &b[p + 8..p + 8 + n];
+        let expected=u32::from_be_bytes(b[p+8+n..p+12+n].try_into().unwrap());
+        if png_crc(k, x)!=expected {return ImageMetadataCheck::CouldNotCheck}
         p += 12 + n;
         if k == b"eXIf" {
             match exif(x) {
@@ -127,13 +132,21 @@ fn png(b: &[u8]) -> ImageMetadataCheck {
                 _ => {}
             }
         }
-        if k == b"iTXt" { match itxt_xmp(x) { Some(Ok(payload)) if has_xmp_gps(payload) => return ImageMetadataCheck::GpsFound, Some(Ok(_)) => {}, Some(Err(())) => return ImageMetadataCheck::CouldNotCheck, None => {} } }
+        if k == b"iTXt" {
+            match itxt_xmp(x) {
+                Some(Ok(payload)) if has_xmp_gps(payload) => return ImageMetadataCheck::GpsFound,
+                Some(Ok(_)) => {}
+                Some(Err(())) => return ImageMetadataCheck::CouldNotCheck,
+                None => {}
+            }
+        }
         if k == b"IEND" {
             return ImageMetadataCheck::NoGpsFound;
         }
     }
     ImageMetadataCheck::CouldNotCheck
 }
+fn png_crc(kind: &[u8], data: &[u8]) -> u32 { let mut crc=0xffff_ffffu32; for byte in kind.iter().chain(data) {crc^=*byte as u32;for _ in 0..8 {crc=if crc&1!=0 {(crc>>1)^0xedb8_8320}else{crc>>1};}} !crc }
 fn has_xmp_gps(bytes: &[u8]) -> bool {
     bytes
         .windows(8)
@@ -142,7 +155,19 @@ fn has_xmp_gps(bytes: &[u8]) -> bool {
             .windows(8)
             .any(|v| v.eq_ignore_ascii_case(b"gpslongi"))
 }
-fn itxt_xmp(bytes: &[u8]) -> Option<Result<&[u8], ()>> { let key_end=bytes.iter().position(|b|*b==0)?; if !bytes[..key_end].eq_ignore_ascii_case(b"xml:com.adobe.xmp") {return None} let rest=&bytes[key_end+1..]; if rest.len()<2 || rest[0]!=0 || rest[1]!=0{return Some(Err(()))} let language_end=rest[2..].iter().position(|b|*b==0)?+2; let text_start=rest[language_end+1..].iter().position(|b|*b==0)?+language_end+2; Some(Ok(&rest[text_start..])) }
+fn itxt_xmp(bytes: &[u8]) -> Option<Result<&[u8], ()>> {
+    let key_end = bytes.iter().position(|b| *b == 0)?;
+    if !bytes[..key_end].eq_ignore_ascii_case(b"xml:com.adobe.xmp") {
+        return None;
+    }
+    let rest = &bytes[key_end + 1..];
+    if rest.len() < 2 || rest[0] != 0 || rest[1] != 0 {
+        return Some(Err(()));
+    }
+    let language_end = rest[2..].iter().position(|b| *b == 0)? + 2;
+    let text_start = rest[language_end + 1..].iter().position(|b| *b == 0)? + language_end + 2;
+    Some(Ok(&rest[text_start..]))
+}
 fn exif(t: &[u8]) -> ImageMetadataCheck {
     if t.len() < 8 {
         return ImageMetadataCheck::CouldNotCheck;
@@ -321,10 +346,10 @@ mod tests {
         p.extend_from_slice(&(t.len() as u32).to_be_bytes());
         p.extend_from_slice(b"eXIf");
         p.extend_from_slice(&t);
-        p.extend_from_slice(&[0; 4]);
+        p.extend_from_slice(&png_crc(b"eXIf", &t).to_be_bytes());
         p.extend_from_slice(&0u32.to_be_bytes());
         p.extend_from_slice(b"IEND");
-        p.extend_from_slice(&[0; 4]);
+        p.extend_from_slice(&png_crc(b"IEND", b"").to_be_bytes());
         assert_eq!(inspect(&p), ImageMetadataCheck::GpsFound);
         assert_eq!(inspect(b"GIF89a"), ImageMetadataCheck::CouldNotCheck);
     }
