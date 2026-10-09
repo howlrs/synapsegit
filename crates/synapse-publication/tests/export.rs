@@ -1238,8 +1238,17 @@ fn japanese_default_summaries_preserve_zero_and_multiple_session_counts() {
             );
             assert!(!rendered.contains("sessionはcomplete件"));
             if count > 0 {
-                assert!(rendered.contains("セッション adopt-story"));
-                assert!(rendered.contains("セッション reject-story"));
+                for session in ["adopt-story", "reject-story"] {
+                    let displayed = if path.ends_with(".md") {
+                        session.replace('-', "\\-")
+                    } else {
+                        session.to_owned()
+                    };
+                    assert!(
+                        rendered.contains(&format!("セッション {displayed}")),
+                        "{path}: missing session identifier"
+                    );
+                }
             }
         }
     }
