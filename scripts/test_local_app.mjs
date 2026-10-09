@@ -174,17 +174,25 @@ const {
 } = await import("../crates/synapse-local-http/assets/app.js");
 
 const exif = (gps) => { const b = new Uint8Array(40); b.set([73,73,42,0,8,0,0,0,1,0]); b[10] = gps ? 0x25 : 0; b[11] = gps ? 0x88 : 1; b[12]=4; b[14]=1; b[18]=32; return b; };
-const jpeg = (tiff) => { const b = new Uint8Array(tiff.length + 12); b.set([255,216,255,225,0, tiff.length + 8,69,120,105,102,0,0]); b.set(tiff,12); return b; };
+const jpeg = (tiff) => { const b = new Uint8Array(tiff.length + 14); b.set([255,216,255,225,0, tiff.length + 8,69,120,105,102,0,0]); b.set(tiff,12); b.set([255,217],tiff.length+12); return b; };
 assert.equal(inspectImageLocationMetadata(jpeg(exif(true))), "gps_found");
 assert.equal(inspectImageLocationMetadata(new Uint8Array([255,216,255,217])), "no_gps_found");
 assert.equal(inspectImageLocationMetadata(new Uint8Array([71,73,70,56,57,97])), "could_not_check");
-assert.equal(inspectImageLocationMetadata(jpeg(exif(true)), true), "gps_found");
+assert.equal(inspectImageLocationMetadata(jpeg(exif(true)), true), "could_not_check");
 // A JPEG header that ends inside the scan prefix is complete even though the
 // image data of a phone photo continues; appended MPF/Motion Photo media is not.
-assert.equal(inspectImageLocationMetadata(new Uint8Array([255,216,255,217]), true), "no_gps_found");
+assert.equal(inspectImageLocationMetadata(new Uint8Array([255,216,255,217]), true), "could_not_check");
 assert.equal(inspectImageLocationMetadata(new Uint8Array([255,216,255,226,0,6,77,80,70,0,255,217])), "could_not_check");
 const motionXmp = new TextEncoder().encode("http://ns.adobe.com/xap/1.0/\0GCamera:MotionPhoto=\"1\"");
 assert.equal(inspectImageLocationMetadata(new Uint8Array([255,216,255,225,0,motionXmp.length + 2,...motionXmp,255,217])), "could_not_check");
+const scannedJpeg = new Uint8Array([255,216,255,218,0,8,1,1,0,0,63,0,18,255,0,52,255,208,86,255,217]);
+assert.equal(inspectImageLocationMetadata(scannedJpeg), "no_gps_found");
+assert.equal(await selectedImageLocationMetadata({ size: scannedJpeg.length, slice(start, end) { return new Blob([scannedJpeg.subarray(start, end)]); } }), "no_gps_found");
+const jpegTrailer = new Uint8Array(scannedJpeg.length + 1); jpegTrailer.set(scannedJpeg);
+assert.equal(inspectImageLocationMetadata(jpegTrailer), "could_not_check");
+assert.equal(await selectedImageLocationMetadata({ size: jpegTrailer.length, slice(start, end) { return new Blob([jpegTrailer.subarray(start, end)]); } }), "could_not_check");
+const multipleScanJpeg = new Uint8Array([255,216,255,218,0,8,1,1,0,0,63,0,18,255,196,0,2,255,218,0,8,1,1,0,0,63,0,52,255,217]);
+assert.equal(inspectImageLocationMetadata(multipleScanJpeg), "no_gps_found");
 const subIfd = exif(false); subIfd.set([0x4a,1,4,0,1,0,0,0,40,0,0,0], 10); const gpsIfd = new Uint8Array(80); gpsIfd.set(subIfd); gpsIfd.set([1,0,0x25,0x88,4,0,1,0,0,0,60,0,0,0], 40);
 assert.equal(inspectImageLocationMetadata(jpeg(gpsIfd)), "gps_found");
 const pngChunk = (type, data) => new Uint8Array([0,0,0,data.length,...new TextEncoder().encode(type),...data,0,0,0,0]);
