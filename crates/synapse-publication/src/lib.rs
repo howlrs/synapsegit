@@ -2309,6 +2309,13 @@ mod replacement_tests {
         verify_staged_publication_bundle(stage)
     }
 
+    fn create_competing_destination_at_stage(stage: &Path) -> Result<()> {
+        let destination = stage.parent().unwrap().join("bundle");
+        fs::create_dir(&destination).unwrap();
+        fs::write(destination.join("competitor.txt"), b"keep").unwrap();
+        verify_staged_publication_bundle(stage)
+    }
+
     fn fail_exchange(_source: &Path, destination: &Path) -> Result<()> {
         Err(PublicationError::io(
             "atomically exchange verified publication bundle",
@@ -2381,6 +2388,39 @@ mod replacement_tests {
         assert!(error.to_string().contains("injected exchange failure"));
         assert_eq!(fs::read(destination.join("manifest.json")).unwrap(), before);
         assert!(verify_bundle(&destination).is_ok());
+        assert!(
+            fs::read_dir(&root)
+                .unwrap()
+                .flatten()
+                .all(|entry| !entry.file_name().to_string_lossy().contains(".bundle.tmp-"))
+        );
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn absent_replace_refuses_a_destination_created_during_staging() {
+        let root = test_root("create-race");
+        let repository = root.join("repo");
+        drop(Repository::open(&repository).unwrap());
+        let destination = root.join("bundle");
+        let error = export_bundle_inner(
+            &ExportOptions {
+                projection: ProjectionOptions::new(&repository),
+                destination: destination.clone(),
+                target: OutputTarget::Github,
+                locale: None,
+                replace: true,
+            },
+            sync_directory,
+            create_competing_destination_at_stage,
+            rename_directory_exchange,
+        )
+        .unwrap_err();
+        assert!(matches!(error, PublicationError::DestinationExists(path) if path == destination));
+        assert_eq!(
+            fs::read(destination.join("competitor.txt")).unwrap(),
+            b"keep"
+        );
         assert!(
             fs::read_dir(&root)
                 .unwrap()
