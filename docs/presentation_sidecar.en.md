@@ -19,10 +19,15 @@ complete session made with the normal three-image import. A session derived by
 reusing Original and Current is refused by the frozen public v1 format, so
 that reused Current is not presented as a newly observed state.
 
-Start with empty fields and enter a work title, summary, public display name,
-session title, captions for the three images, and a public decision note. All
-fields are optional. The form never autofills a private rationale, prompt,
-generation note, or decision pin.
+Enter a work title, summary, public display name, session title, captions for
+the three images, and a public decision note. All fields are optional. When you
+choose a session, the work title and public display name are prefilled with the
+Subject and Creator recorded for that session as suggestions (a Subject longer
+than 300 bytes is not suggested). You can edit or clear them, and your own
+edits are not overwritten. While suggestions are shown, checking and downloading
+require the "I reviewed the current visible values" checkbox, and editing the
+title or display name clears it. The other fields start empty. The form never
+autofills a private rationale, prompt, generation note, or decision pin.
 
 ## What a public bundle includes
 

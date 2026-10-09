@@ -131,15 +131,17 @@ synapse export "$REPO" "$HOME/SynapseGit/backup-north-wall-2"
 
 `synapse-local`の起動中は、人がプロジェクトの「管理」ページから書き出すこともできます。
 
-## 出力とerror
-
 ## 写真の位置情報
 
-`inbox put`、`creator-run`、localhost の取り込みは、JPEG/PNG の先頭 256 KiB にある
-EXIF/XMP の位置情報を、画像をdecodeせずに確認します。警告が出たら、人に「記録される
-byteに位置情報が残る」ことを伝え、記録前にmetadataを除いたcopyを使うか決めてもらいます。
-SynapseGitが自動で除去することはありません。壊れた形式、未対応形式、または確認上限に達した
-場合は確認できなかったものとして扱い、位置情報がないとは判断しません。
+`inbox put`、`creator-run`、localhost の取り込み（uploadとInbox候補の確認）は、JPEG/PNG の
+先頭 256 KiB にある EXIF/XMP の位置情報を、画像をdecodeせずに確認します。警告が出たら、
+人に「記録されるbyteに位置情報が残る」ことを伝え、記録前にmetadataを除いたcopyを使うか
+決めてもらいます。SynapseGitが自動で除去することはありません。壊れた形式、未対応形式、
+または確認上限に達した場合は確認できなかったものとして扱い、位置情報がないとは判断しません。
+256 KiBを超えるJPEG写真でも、metadataがその範囲で終われば確認済みになります。256 KiBを
+超えるPNGは、画像データの後ろにもtextを置けるため、確認しきれなかったものとして扱います。
+
+## 出力とerror
 
 - exit code `0`は成功、`1`はerrorです。
 - errorのstderrの1行目は`<code>: <message>`です。2行目に`hint:`で始まる案内が付く場合があります。
