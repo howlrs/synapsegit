@@ -155,20 +155,25 @@ pub fn is_import_inbox_slug(value: &str) -> bool {
 /// Canonical session suggestion shared by the localhost Inbox view and direct
 /// Inbox decision clients. Long slugs retain a readable prefix plus a digest
 /// suffix so distinct candidates stay distinct within the session grammar.
-pub fn suggested_import_inbox_session(slug: &str) -> String {
+pub fn suggested_import_inbox_session(slug: &str) -> Result<String> {
+    if !is_import_inbox_slug(slug) {
+        return Err(CreatorError::InvalidArgument(
+            "inbox slug must match [a-z][a-z0-9-]{0,63}".into(),
+        ));
+    }
     let session = format!("inbox-{slug}");
     if session.len() <= 64 {
-        return session;
+        return Ok(session);
     }
     let digest = Sha256::digest(slug.as_bytes());
-    format!(
+    Ok(format!(
         "inbox-{}-{:02x}{:02x}{:02x}{:02x}",
         slug[..49].trim_end_matches('-'),
         digest[0],
         digest[1],
         digest[2],
         digest[3]
-    )
+    ))
 }
 
 /// Inputs for [`put_import_inbox_candidate`].

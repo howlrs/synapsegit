@@ -153,3 +153,36 @@ fn suggestions_reject_pending_and_omit_oversized_values_without_truncation() {
     assert_eq!(suggestions.creator_display_name.as_deref(), Some("Creator"));
     assert_eq!(suggestions.title, None);
 }
+
+#[test]
+fn blank_local_rationale_is_absent_from_the_committed_report() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    fs::create_dir(&repository).unwrap();
+    let service =
+        LocalService::new([ProjectRegistration::new("project", "Project", &repository)]).unwrap();
+    let pending = service
+        .begin_creator_session(
+            "project",
+            "instance",
+            request(&temp, "blank", "Title", "Creator"),
+        )
+        .unwrap();
+    let complete = service
+        .decide_creator_session(
+            "project",
+            "blank",
+            "instance",
+            CreatorDecisionRequest {
+                review_id: pending.review_id,
+                disposition: CreatorDecision::Adopt,
+                rationale: Some(String::new()),
+                annotations: None,
+            },
+        )
+        .unwrap()
+        .into_complete()
+        .unwrap();
+    assert_eq!(complete.report.rationale, None);
+    assert_eq!(complete.report.rationale_source, None);
+}

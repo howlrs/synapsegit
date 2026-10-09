@@ -1442,7 +1442,7 @@ impl LocalService {
         )?;
         let decision = CreatorDecisionOptions {
             disposition: core_disposition(request.disposition),
-            rationale: request.rationale,
+            rationale: request.rationale.filter(|value| !value.is_empty()),
         };
         let outcome = catch_unwind(AssertUnwindSafe(|| {
             core_decide(&mut pending, &decision, request.annotations.as_ref())

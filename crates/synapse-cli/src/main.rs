@@ -762,7 +762,10 @@ fn inbox_decide(args: &[String]) -> Result<(), CliError> {
         index += 2;
     }
     let slug = &args[2];
-    let session = session.unwrap_or_else(|| suggested_import_inbox_session(slug));
+    let session = match session {
+        Some(session) => session,
+        None => suggested_import_inbox_session(slug)?,
+    };
     // This binds the later ingest to exactly these retained bytes. No Inbox
     // path is passed to creator-run and no repository is opened on failure.
     let retained = retain_import_inbox_candidate(Path::new(&args[1]), slug)?;
@@ -930,10 +933,10 @@ fn print_creator_report(report: &CreatorReport) -> Result<(), CliError> {
     if let Some(note) = &report.generation_note {
         outln!("generation_note_user_declared={note:?}");
     }
-    outln!(
-        "rationale={}",
-        report.rationale.as_deref().map_or("-", |value| value)
-    );
+    match &report.rationale {
+        Some(value) => outln!("rationale={value:?}"),
+        None => outln!("rationale=-"),
+    }
     if let Some(source) = report.rationale_source {
         outln!("rationale_source={}", source.as_str());
     }

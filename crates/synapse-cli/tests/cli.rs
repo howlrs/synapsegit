@@ -867,7 +867,7 @@ fn creator_report_prints_private_user_declared_notes_separately_and_escaped() {
         &mut pending,
         &CreatorDecisionOptions {
             disposition: CreatorDisposition::Reject,
-            rationale: Some("別の判断理由".into()),
+            rationale: Some("別の判断理由\nforged=decision\u{1b}[31m".into()),
         },
     )
     .unwrap();
@@ -880,7 +880,8 @@ fn creator_report_prints_private_user_declared_notes_separately_and_escaped() {
     let text = String::from_utf8(report.stdout).unwrap();
     assert!(text.contains("generation_note_user_declared="));
     assert!(text.contains("日本語\\nPRIVATE_NOTE\\u{1b}[31m"));
-    assert!(text.contains("rationale=別の判断理由"));
+    assert!(text.contains("rationale=\"別の判断理由\\nforged=decision\\u{1b}[31m\""));
+    assert!(!text.contains("\nrationale=forged=decision"));
     assert!(text.contains("rationale_source=creator"));
     assert!(!text.contains('\u{1b}'));
 }
@@ -1687,7 +1688,7 @@ fn inbox_decide_uses_the_canonical_long_slug_session_and_allows_an_explicit_over
         "--decision",
         "adopt",
     ]));
-    let canonical = synapse_creator::suggested_import_inbox_session(&slug);
+    let canonical = synapse_creator::suggested_import_inbox_session(&slug).unwrap();
     assert!(canonical.len() <= 64);
     assert_success(&run(&[
         "creator-report",
@@ -1711,6 +1712,25 @@ fn inbox_decide_uses_the_canonical_long_slug_session_and_allows_an_explicit_over
         second.to_str().unwrap(),
         "custom-session",
     ]));
+}
+
+#[test]
+fn inbox_decide_rejects_an_invalid_unicode_slug_without_panicking() {
+    let temp = TempDirectory::new();
+    let inbox = temp.join("inbox");
+    fs::create_dir(&inbox).unwrap();
+    let slug = format!("a{}", "あ".repeat(30));
+    let output = run(&[
+        "inbox",
+        "decide",
+        inbox.to_str().unwrap(),
+        &slug,
+        temp.join("repo").to_str().unwrap(),
+        "--decision",
+        "adopt",
+    ]);
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stderr).starts_with("usage_error: inbox slug"));
 }
 
 #[test]
