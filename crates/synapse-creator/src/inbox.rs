@@ -827,6 +827,43 @@ mod tests {
     }
 
     #[test]
+    fn metadata_review_precedes_manifest_publication_and_binds_staged_bytes() {
+        let fixture = fixture("metadata-review");
+        let mut tiff = b"II*\0\x08\0\0\0".to_vec();
+        tiff.extend_from_slice(&1u16.to_le_bytes());
+        tiff.extend_from_slice(&0x8825u16.to_le_bytes());
+        tiff.extend_from_slice(&4u16.to_le_bytes());
+        tiff.extend_from_slice(&1u32.to_le_bytes());
+        tiff.extend_from_slice(&32u32.to_le_bytes());
+        tiff.extend_from_slice(&0u32.to_le_bytes());
+        tiff.resize(40, 0);
+        let mut original = vec![0xff, 0xd8, 0xff, 0xe1];
+        original.extend_from_slice(&((tiff.len() + 8) as u16).to_be_bytes());
+        original.extend_from_slice(b"Exif\0\0");
+        original.extend_from_slice(&tiff);
+        original.extend_from_slice(&[0xff, 0xd9]);
+        fs::write(&fixture.original, &original).unwrap();
+        let receipt = put_import_inbox_candidate_with_metadata_review(
+            &candidate(&fixture, "gps"),
+            |warnings| {
+                assert!(!fixture.inbox.join("gps").exists());
+                assert!(
+                    warnings
+                        .iter()
+                        .any(|warning| warning.check == crate::ImageMetadataCheck::GpsFound)
+                );
+                fs::write(&fixture.original, b"changed-after-copy").unwrap();
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            fs::read(receipt.directory.join("original")).unwrap(),
+            original
+        );
+        assert!(receipt.directory.join("manifest.json").is_file());
+    }
+
+    #[test]
     fn put_publishes_three_fixed_files_and_a_valid_manifest() {
         let fixture = fixture("put");
         let note = CreatorGenerationNote {

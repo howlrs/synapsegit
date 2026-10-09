@@ -8,6 +8,7 @@ use synapse_creator::{
     CreatorRunOptions, CreatorSessionState, PreparedCreatorReportReader, begin_creator_session,
     begin_creator_session_existing, creator_report, creator_report_from_snapshot,
     decide_creator_session, discover_creator_sessions, run_creator_session,
+    run_creator_session_with_note_and_metadata_review,
 };
 use synapse_projection::{ProjectionLimits, SqliteProjectionStore};
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
@@ -53,6 +54,61 @@ fn stored_object_path(repository: &Path, oid: &str) -> PathBuf {
         .join(kind)
         .join(&digest[..2])
         .join(&digest[2..])
+}
+
+fn gps_jpeg() -> Vec<u8> {
+    let mut tiff = b"II*\0\x08\0\0\0".to_vec();
+    tiff.extend_from_slice(&1u16.to_le_bytes());
+    tiff.extend_from_slice(&0x8825u16.to_le_bytes());
+    tiff.extend_from_slice(&4u16.to_le_bytes());
+    tiff.extend_from_slice(&1u32.to_le_bytes());
+    tiff.extend_from_slice(&32u32.to_le_bytes());
+    tiff.extend_from_slice(&0u32.to_le_bytes());
+    tiff.resize(40, 0);
+    let mut jpeg = vec![0xff, 0xd8, 0xff, 0xe1];
+    jpeg.extend_from_slice(&((tiff.len() + 8) as u16).to_be_bytes());
+    jpeg.extend_from_slice(b"Exif\0\0");
+    jpeg.extend_from_slice(&tiff);
+    jpeg.extend_from_slice(&[0xff, 0xd9]);
+    jpeg
+}
+
+#[test]
+fn metadata_review_uses_retained_gps_bytes_before_repository_mutation() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.join("callback-repo");
+    let original = temporary.join("gps.jpg");
+    let bytes = gps_jpeg();
+    fs::write(&original, &bytes).unwrap();
+    let current = temporary.join("current");
+    let proposal = temporary.join("proposal");
+    fs::write(&current, b"current").unwrap();
+    fs::write(&proposal, b"proposal").unwrap();
+    let options = CreatorRunOptions {
+        repository: repository.clone(),
+        session: "callback".into(),
+        original_image: original.clone(),
+        current_image: current,
+        ai_output: proposal,
+        subject_label: "S".into(),
+        creator_name: "C".into(),
+        disposition: CreatorDisposition::Adopt,
+        rationale: None,
+    };
+    let receipt = run_creator_session_with_note_and_metadata_review(&options, None, |warnings| {
+        assert!(!repository.exists());
+        assert!(
+            warnings
+                .iter()
+                .any(|warning| warning.check == synapse_creator::ImageMetadataCheck::GpsFound)
+        );
+        fs::write(&original, b"changed-after-retention").unwrap();
+    })
+    .unwrap();
+    assert_eq!(
+        fs::read(stored_object_path(&repository, &receipt.original_blob_oid)).unwrap(),
+        bytes
+    );
 }
 
 #[test]
