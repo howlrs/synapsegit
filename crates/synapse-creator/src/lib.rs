@@ -25,7 +25,7 @@ pub use inbox::{
     IMPORT_INBOX_MANIFEST_VERSION, IMPORT_INBOX_ORIGINAL_NAME, IMPORT_INBOX_SUBJECT_MAX_BYTES,
     ImportInboxCandidate, ImportInboxFile, ImportInboxManifest, ImportInboxManifestError,
     ImportInboxMetadata, ImportInboxReceipt, RetainedInboxCandidate, is_import_inbox_slug,
-    put_import_inbox_candidate, retain_import_inbox_candidate,
+    put_import_inbox_candidate, retain_import_inbox_candidate, suggested_import_inbox_session,
 };
 mod io;
 mod metadata;

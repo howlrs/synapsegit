@@ -14,7 +14,7 @@ use synapse_creator::{
     CreatorDisposition, CreatorError, CreatorGenerationNote, CreatorReport, CreatorRunOptions,
     CreatorSessionState, ImportInboxCandidate, creator_report, discover_creator_sessions,
     image_metadata_warning, put_import_inbox_candidate, read_creator_session_overview,
-    retain_import_inbox_candidate, run_creator_session_with_note,
+    retain_import_inbox_candidate, run_creator_session_with_note, suggested_import_inbox_session,
 };
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
 
@@ -94,8 +94,9 @@ limits. --format json prints one JSON document tagged
 person reviewed the exact three images. It verifies and retains the Inbox
 bytes before opening the repository, then records the manifest subject,
 creator, and generation note. `--creator` is the only metadata override.
-The default session is `inbox-<slug>` when it fits the session grammar; a
-longer slug requires explicit `--session`. It never changes Inbox. Do not run
+The default session is the same canonical suggestion as synapse-local:
+`inbox-<slug>` when it fits, otherwise a readable prefix plus a SHA-256 suffix.
+It never changes Inbox. Do not run
 it while synapse-local has the repository open.
 ";
 const VERSION: &str = concat!("synapse ", env!("CARGO_PKG_VERSION"));
@@ -761,13 +762,7 @@ fn inbox_decide(args: &[String]) -> Result<(), CliError> {
         index += 2;
     }
     let slug = &args[2];
-    let default_session = format!("inbox-{slug}");
-    let session = session.unwrap_or_else(|| default_session.clone());
-    if default_session.len() > 64 && session == default_session {
-        return Err(CliError::Usage(
-            "inbox slug requires explicit --session because inbox-<slug> exceeds 64 bytes".into(),
-        ));
-    }
+    let session = session.unwrap_or_else(|| suggested_import_inbox_session(slug));
     // This binds the later ingest to exactly these retained bytes. No Inbox
     // path is passed to creator-run and no repository is opened on failure.
     let retained = retain_import_inbox_candidate(Path::new(&args[1]), slug)?;

@@ -1657,7 +1657,7 @@ fn inbox_decide_binds_manifest_bytes_and_retains_manifest_metadata() {
 }
 
 #[test]
-fn inbox_decide_requires_an_explicit_session_when_inbox_slug_default_is_too_long() {
+fn inbox_decide_uses_the_canonical_long_slug_session_and_allows_an_explicit_override() {
     let temp = TempDirectory::new();
     let inbox = temp.join("inbox");
     fs::create_dir(&inbox).unwrap();
@@ -1678,7 +1678,7 @@ fn inbox_decide_requires_an_explicit_session_when_inbox_slug_default_is_too_long
         "C",
     ]));
     let repository = temp.join("repo");
-    let output = run(&[
+    assert_success(&run(&[
         "inbox",
         "decide",
         inbox.to_str().unwrap(),
@@ -1686,10 +1686,31 @@ fn inbox_decide_requires_an_explicit_session_when_inbox_slug_default_is_too_long
         repository.to_str().unwrap(),
         "--decision",
         "adopt",
-    ]);
-    assert_eq!(output.status.code(), Some(1));
-    assert!(String::from_utf8_lossy(&output.stderr).contains("requires explicit --session"));
-    assert!(!repository.exists());
+    ]));
+    let canonical = synapse_creator::suggested_import_inbox_session(&slug);
+    assert!(canonical.len() <= 64);
+    assert_success(&run(&[
+        "creator-report",
+        repository.to_str().unwrap(),
+        &canonical,
+    ]));
+    let second = temp.join("repo-override");
+    assert_success(&run(&[
+        "inbox",
+        "decide",
+        inbox.to_str().unwrap(),
+        &slug,
+        second.to_str().unwrap(),
+        "--decision",
+        "adopt",
+        "--session",
+        "custom-session",
+    ]));
+    assert_success(&run(&[
+        "creator-report",
+        second.to_str().unwrap(),
+        "custom-session",
+    ]));
 }
 
 #[test]

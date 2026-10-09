@@ -470,6 +470,51 @@ fn creator_workflow_uses_ai_and_human_routes_and_survives_restore() {
 }
 
 #[test]
+fn omitted_rationale_is_absent_from_feedback_for_every_disposition_and_legacy_defaults_remain_ambiguous()
+ {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.join("repo");
+    for (session, disposition) in [
+        ("no-rationale-adopt", CreatorDisposition::Adopt),
+        ("no-rationale-reject", CreatorDisposition::Reject),
+        ("no-rationale-defer", CreatorDisposition::Defer),
+    ] {
+        let mut run = options(&temporary, &repository_path, session, disposition);
+        run.rationale = None;
+        let receipt = run_creator_session(&run).unwrap();
+        let feedback: serde_json::Value = serde_json::from_slice(
+            &fs::read(stored_object_path(
+                &repository_path,
+                &receipt.decision_feedback_oid,
+            ))
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(feedback["payload"].get("human_rationale").is_none());
+        let report = creator_report(&repository_path, session).unwrap();
+        assert_eq!(report.rationale, None);
+        assert_eq!(report.rationale_source, None);
+    }
+    let mut legacy = options(
+        &temporary,
+        &repository_path,
+        "legacy-default",
+        CreatorDisposition::Adopt,
+    );
+    legacy.rationale = Some("The creator adopted the AI proposal unchanged.".into());
+    run_creator_session(&legacy).unwrap();
+    let report = creator_report(&repository_path, "legacy-default").unwrap();
+    assert_eq!(
+        report.rationale.as_deref(),
+        Some("The creator adopted the AI proposal unchanged.")
+    );
+    assert_eq!(
+        report.rationale_source,
+        Some(synapse_creator::CreatorRationaleSource::LegacyDefaultOrCreator)
+    );
+}
+
+#[test]
 fn identical_imports_are_reported_only_as_byte_identity() {
     let temporary = TempDirectory::new();
     let repository_path = temporary.join("repo");

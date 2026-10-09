@@ -152,6 +152,25 @@ pub fn is_import_inbox_slug(value: &str) -> bool {
             .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || *byte == b'-')
 }
 
+/// Canonical session suggestion shared by the localhost Inbox view and direct
+/// Inbox decision clients. Long slugs retain a readable prefix plus a digest
+/// suffix so distinct candidates stay distinct within the session grammar.
+pub fn suggested_import_inbox_session(slug: &str) -> String {
+    let session = format!("inbox-{slug}");
+    if session.len() <= 64 {
+        return session;
+    }
+    let digest = Sha256::digest(slug.as_bytes());
+    format!(
+        "inbox-{}-{:02x}{:02x}{:02x}{:02x}",
+        slug[..49].trim_end_matches('-'),
+        digest[0],
+        digest[1],
+        digest[2],
+        digest[3]
+    )
+}
+
 /// Inputs for [`put_import_inbox_candidate`].
 #[derive(Clone, Copy, Debug)]
 pub struct ImportInboxCandidate<'a> {
