@@ -574,6 +574,34 @@ fn unsafe_api_request(
         .unwrap()
 }
 
+#[tokio::test]
+async fn presentation_suggestions_require_token_and_return_only_two_public_fields() {
+    let (_directory, app, _fixture) = test_app_with_creator("Presentation suggestions");
+    let path = "/api/v1/projects/demo/creator-sessions/render-session/presentation-suggestions";
+    let denied = app
+        .clone()
+        .oneshot(request(path).body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(denied.status(), StatusCode::FORBIDDEN);
+    let response = app
+        .oneshot(
+            request(path)
+                .header("x-synapse-local-token", "a".repeat(64))
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    let bytes = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+    let value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+    let fields = value.as_object().unwrap();
+    assert_eq!(fields.len(), 2);
+    assert_eq!(value["title"], "HTTP fixture");
+    assert_eq!(value["creator_display_name"], "Test creator");
+}
+
 async fn assert_problem(response: Response, status: StatusCode, code: &str) {
     assert_eq!(response.status(), status);
     assert_eq!(
