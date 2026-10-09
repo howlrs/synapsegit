@@ -3,7 +3,7 @@
 Audience: users、contributors、maintainers
 Status: public project snapshot
 Applies to: v1.1.0 stable release
-Last verified: 2026-10-03
+Last verified: 2026-10-10
 
 v1.1.0は、AIエージェントがInboxへ候補を置き、人がlocalhost UIで画像を確認して判断する
 local single-user向けのreleaseである。v1形式は[互換性方針](./compatibility.md)に従って凍結済みで、
@@ -22,7 +22,7 @@ invocation、remote publish、durable identity／ACL、multi-process linearizabi
 
 ## 現在の成果
 
-- v1.0.1は長いInbox slugのsession名補正、生成メモ／Inbox manifestのobject-only JSON検証、CLIのstdout切断時の正常終了を修正する。Core／OID／archive形式とHuman Decision境界は変更しない
+- v1.1.0はnon-regular Creator inputの記録前拒否、decision JSON、bounded metadata warning、Linux/macOSの安全なpublication replacementを追加する。Core／OID／archive形式とHuman Decision境界は変更しない
 
 - [Creator pilot評価キットv2](./evaluation/creator-pilot/v2/)と合成素材でのrehearsal、および[4件のAIモック環境の実運用試験](./evaluation/creator-pilot/v2/rehearsals/2026-10-02-multi-ai-mock-evaluation.md)。後者はGemini・Claudeの独立reviewを経て受入済みである。実利用者評価は未実施で、公開後のフォローアップ候補として残る
 - sessionのSubject、Creator、判断日時、読みやすいTimelineとtechnical detailsの折りたたみ
@@ -157,15 +157,15 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 
 | Item | Status |
 |---|---|
-| Localhost Inbox and fresh interrupted/Defer review | Included in v1.0.1; explicit Human review, no source decision rewrite |
+| Localhost Inbox and fresh interrupted/Defer review | Included in v1.1.0; inspect retained Inbox bytes before a person supplies a decision; no source decision rewrite |
 | Public repository | Available |
-| v1.0.1 GitHub Release | [Release assets and notes](https://github.com/howlrs/synapsegit/releases/tag/v1.0.1) |
-| Linux x86_64 GNU binary | Release archive for glibc 2.34+; verify against the v1.0.1 `SHA256SUMS` |
+| v1.1.0 GitHub Release | [Release assets and notes](https://github.com/howlrs/synapsegit/releases/tag/v1.1.0) |
+| Linux x86_64 GNU binary | Release archive for glibc 2.34+; verify against the v1.1.0 `SHA256SUMS` |
 | macOS arm64 binary | Release archive built and smoke-tested on macOS 14; not signed or notarized |
-| Source build from fixed tag | Available from `v1.0.1`; Rust 1.88+ |
-| SHA-256 release checksum | The v1.0.1 `SHA256SUMS` lists both platform archives; verify before extraction |
-| Build provenance attestation | Verify the v1.0.1 archives against `refs/tags/v1.0.1`; the tag workflow checks the digest, tagged commit, and GitHub-hosted runner |
-| `synapse-present` binary | Included in v1.0.1; local generation only, with no remote publish |
+| Source build from fixed tag | Available from `v1.1.0`; Rust 1.88+ |
+| SHA-256 release checksum | The v1.1.0 `SHA256SUMS` lists both platform archives; verify before extraction |
+| Build provenance attestation | Verify the v1.1.0 archives against `refs/tags/v1.1.0`; the tag workflow checks the digest, tagged commit, and GitHub-hosted runner |
+| `synapse-present` binary | Included in v1.1.0; local generation only, with no remote publish |
 | Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v1.0.1 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
 | crates.io / GHCR / OS packages | Intentionally unavailable; GitHub Releases only |
 | Source use, Fork, and redistribution terms | Custom source-available license available; not open source |

@@ -1,18 +1,5 @@
 # Changelog
 
-## [1.1.0] - 2026-10-10
-
-- Hardened Creator input retention against FIFO, directory, and socket paths;
-  failures are non-blocking, occur before repository creation or mutation, and
-  report a creator-input `storage_error` with a hint. The v1.0.1 release could
-  block on a FIFO and create the repository before the input was rejected.
-- Added private-local, versioned JSON receipts for `creator-run` and `inbox decide`.
-- Improved bounded PNG/JPEG metadata parsing and clarified that it is not
-  real-device GPS evidence.
-- Added safe Linux/macOS publication replacement handling and Japanese
-  renderer-v2 projection/re-export support.
-
-
 All notable user-visible changes are recorded here. SynapseGit uses semantic
 version tags for release identification. The v1 formats are frozen for v1.x;
 see docs/compatibility.md. Formal Core Stage 1 is a separate research
@@ -20,14 +7,16 @@ milestone.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-10
+
 ### Added
 
 - Bounded JPEG/PNG location-metadata warnings before local image import
   (upload and Inbox review) and while recording CLI inputs. Files are never
   altered and an incomplete check is reported as unknown. A JPEG photo whose
-  metadata ends inside the 256 KiB scan is checked even when the file is
-  larger; MPF/Motion Photo containers, raw profiles, and PNG files larger than
-  the scan stay unknown.
+  metadata ends before its actual EOI is checked within the bounded 64 MiB
+  read; MPF/Motion Photo containers, raw profiles, malformed trailers, and
+  inputs beyond the bound stay unknown. This is not real-device GPS evidence.
 - `synapse inbox decide` records an explicitly supplied decision from the
   manifest's verified, retained bytes and metadata, and prints the same receipt
   and verified report as `creator-run`. It requires exclusive local writer use,
@@ -35,7 +24,8 @@ milestone.
 - Explicit `synapse-present export --locale en|ja` creates bundle container v2
   with renderer v2 while keeping the public projection v1 unchanged. Exports
   without this option retain the frozen English v1 bundle.
-- Linux-only `synapse-present export --replace` exchanges a verified bundle
+- `synapse-present export --replace` exchanges a verified bundle on Linux and macOS,
+  and creates an absent output destination safely when requested.
   with its completed replacement. The old bundle is then deleted only while it
   is still exactly the verified strict inventory; otherwise it is kept at a
   printed recovery path.
@@ -49,6 +39,14 @@ milestone.
   Creator pilot.
 
 ### Fixed
+
+- Creator input retention rejects FIFO, directory, and socket paths without
+  blocking and before repository creation or mutation. v1.0.1 could block on a
+  FIFO and create a repository first.
+- Added private-local `synapsegit-cli-creator-decision-v1` JSON output for
+  `creator-run` and `inbox decide`; `--format text` and the default remain text.
+- Removed an unused internal request field and documented Inbox inspection
+  before a person supplies a decision.
 
 - An omitted rationale remains absent in the recorded DecisionFeedback and
   null in report JSON. Older text equal to a previous default is marked
@@ -895,7 +893,7 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v1.0.1...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v1.1.0...HEAD
 [1.1.0]: https://github.com/howlrs/synapsegit/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/howlrs/synapsegit/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/howlrs/synapsegit/compare/v1.0.0-rc.1...v1.0.0
