@@ -603,6 +603,7 @@ fn export_bundle_inner(
         options.replace,
         destination_identity,
         post_exchange_sync,
+        verify_staged_publication_bundle,
     )?;
 
     Ok(ExportReceipt {
@@ -1678,6 +1679,7 @@ fn publish_files_atomically(
     replace: bool,
     expected_identity: Option<BundleIdentity>,
     post_exchange_sync: fn(&Path) -> Result<()>,
+    verify_staging: fn(&Path) -> Result<()>,
 ) -> Result<PublicationCommit> {
     let parent = destination
         .parent()
@@ -1715,6 +1717,7 @@ fn publish_files_atomically(
             .map_err(|error| PublicationError::io("sync publication bundle file", &path, error))?;
     }
     sync_tree_directories(&staging)?;
+    verify_staging(&staging)?;
     if replace {
         // The old target was verified before staging. Verify it again directly
         // before the exchange so a concurrent replacement cannot cause us to
@@ -1747,6 +1750,10 @@ fn publish_files_atomically(
         recovery_path: None,
         sync_warning: None,
     })
+}
+
+fn verify_staged_publication_bundle(path: &Path) -> Result<()> {
+    verify_bundle(path).map(|_| ())
 }
 
 #[cfg(unix)]
