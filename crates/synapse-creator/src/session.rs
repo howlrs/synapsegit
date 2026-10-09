@@ -1189,11 +1189,6 @@ where
         subject_label: options.subject_label.clone(),
         creator_name: options.creator_name.clone(),
     })?;
-    validate_input_files(
-        &options.original_image,
-        &options.current_image,
-        &options.ai_output,
-    )?;
     // Preserve the stable no-advisory failure for an already occupied
     // session before notifying about otherwise valid input metadata.
     if options.repository.exists() {
@@ -1225,6 +1220,11 @@ where
             }
         }
     }
+    validate_input_files(
+        &options.original_image,
+        &options.current_image,
+        &options.ai_output,
+    )?;
     let retained = crate::retain_creator_input_files(
         &options.original_image,
         &options.current_image,
