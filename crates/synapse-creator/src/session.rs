@@ -993,10 +993,9 @@ fn decide_creator_session_with_annotations_and_limits(
         }
     }
 
-    let rationale = decision
-        .rationale
-        .as_deref()
-        .unwrap_or_else(|| decision.disposition.default_rationale());
+    // An omitted optional rationale is evidence of no supplied rationale. Do
+    // not manufacture prose that would look like a creator statement.
+    let rationale = decision.rationale.as_deref();
     let decision_recorded_at = pending.recording_clock.tick()?;
     let repository = open_creator_repository(
         &pending.repository_path,

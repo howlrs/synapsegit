@@ -308,7 +308,11 @@ synapse creator-run .synapse-creator mural-1 \
   同じ`--creator`をsession横断で識別するglobal ID、credential、identity registryではない。
 - 両Observationは同じCaptureProfileを参照する。初版は`profile_level=imported`、
   `allowed_claims=[reference_only]`、verified required conditionなしであり、repeatable／calibrated captureを主張しない。
-- `--rationale`は任意で最大5,000 UTF-8 bytes。省略時はdecision別の既定rationaleを記録する。
+- `--rationale`は任意で最大5,000 UTF-8 bytes。省略時はrationaleを記録しない。
+  `creator-report`ではtextの`rationale=-`とJSONの`rationale: null`で表す。v1.0.0以前に
+  自動記録された3つの英文と完全一致する既存textは`rationale_source=legacy_default_or_creator`
+  （JSONも同値）として表示する。旧形式には出所の記録がないため、制作者が偶然同じ文を入力した
+  可能性を除外できない。
   DecisionFeedbackの既定は`reason_codes=["unspecified"]`、`visibility=private`、
   `training_use_policy=prohibited`である。
 - `--generation-note-file`は、`tool`、`model`、`prompt`、`intent`だけを任意のstring fieldとして持つ
@@ -402,7 +406,8 @@ decision_ref=<ref><TAB><commit-oid>
 proposal_ref=<ref><TAB><commit-oid>
 disposition=<adopt|reject|defer>
 decision_recorded_at=<timestamp>        # present when stored
-rationale=<quoted-text>                 # present when stored
+rationale=<quoted-text|->                # - when no rationale was stored
+rationale_source=<creator|legacy_default_or_creator> # present with rationale
 original=<blob-oid>
 current=<blob-oid>
 ai_output=<blob-oid>
@@ -646,6 +651,7 @@ verifyしてから一つの完全なdocumentへ組み立て、それを丸ごと
 | `disposition` | string | `"adopt"` \| `"reject"` \| `"defer"`。 |
 | `decision_recorded_at` | string? | Human DecisionFeedbackの`recorded_at`。記録した時刻であり、人が判断した時刻の証明ではない。記録がなければ`null`。 |
 | `rationale` | string? | 記録されたHuman rationale。未記録なら`null`。 |
+| `rationale_source` | string? | `creator`は既定文と一致しない保存text。`legacy_default_or_creator`は旧自動既定文と一致するtextであり、旧形式では制作者入力との区別が不可能。未記録なら`null`。 |
 | `base_head` | string | base Commit OID。 |
 | `base_snapshot` | string | base Tree OID。 |
 | `proposal_snapshot` | string | proposal Tree OID。 |

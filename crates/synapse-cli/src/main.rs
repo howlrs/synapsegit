@@ -822,8 +822,9 @@ fn print_creator_report(report: &CreatorReport) -> Result<(), CliError> {
     if let Some(note) = &report.generation_note {
         outln!("generation_note_user_declared={note:?}");
     }
-    if let Some(rationale) = &report.rationale {
-        outln!("rationale={rationale:?}");
+    outln!("rationale={}", report.rationale.as_deref().map_or("-", |value| value));
+    if let Some(source) = report.rationale_source {
+        outln!("rationale_source={}", source.as_str());
     }
     outln!("original={}", report.original_blob_oid);
     outln!("current={}", report.current_blob_oid);

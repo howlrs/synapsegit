@@ -1649,6 +1649,7 @@ fn creator_report_names_the_subject_creator_and_decision_time() {
     );
     assert!(text.contains("\ncreator_name=\"Aki\"\n"));
     assert!(text.contains("\ndecision_recorded_at=20"));
+    assert!(text.contains("\nrationale=-\n"), "{text}");
     let json = json_stdout(&run(&[
         "creator-report",
         repository.to_str().unwrap(),
@@ -1656,6 +1657,8 @@ fn creator_report_names_the_subject_creator_and_decision_time() {
         "--format",
         "json",
     ]));
+    assert_eq!(json["rationale"], serde_json::Value::Null);
+    assert_eq!(json["rationale_source"], serde_json::Value::Null);
     assert_eq!(json["subject_label"], "North \"wall\" mural");
     assert_eq!(json["creator_name"], "Aki");
     assert!(

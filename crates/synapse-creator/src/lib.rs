@@ -67,6 +67,7 @@ pub use session::{
 pub use synapse_observation::{AnalysisComparability, AnalysisStatus, ByteIdentityOutcome};
 pub use types::{
     CreatorBeginOptions, CreatorComparisonReport, CreatorDecisionOptions, CreatorDisposition,
+    CreatorRationaleSource,
     CreatorPendingDecisionState, CreatorPendingReceipt, CreatorReport, CreatorRunOptions,
     CreatorRunReceipt, CreatorSessionState, CreatorSessionSummary, CreatorSnapshotReport,
     CreatorTimelineEntry,

@@ -283,6 +283,7 @@ pub fn creator_reuse_source_from_snapshot(
             disposition: CreatorDisposition::Defer,
             selected_ai_output: false,
             rationale: None,
+            rationale_source: None,
             original_blob_oid: original,
             current_blob_oid: current,
             ai_output_blob_oid: ai_blob,
@@ -1009,7 +1010,8 @@ impl<'source> PreparedCreatorReportReader<'source> {
                 decision_snapshot,
                 disposition,
                 selected_ai_output: disposition == CreatorDisposition::Adopt,
-                rationale,
+                rationale: rationale.clone(),
+                rationale_source: rationale.as_deref().map(rationale_source),
                 original_blob_oid,
                 current_blob_oid,
                 ai_output_blob_oid,
@@ -1019,6 +1021,20 @@ impl<'source> PreparedCreatorReportReader<'source> {
             },
             projection_source_fingerprint: self.projection_source_fingerprint.clone(),
         })
+    }
+}
+
+fn rationale_source(rationale: &str) -> crate::CreatorRationaleSource {
+    if [
+        CreatorDisposition::Adopt.legacy_default_rationale(),
+        CreatorDisposition::Reject.legacy_default_rationale(),
+        CreatorDisposition::Defer.legacy_default_rationale(),
+    ]
+    .contains(&rationale)
+    {
+        crate::CreatorRationaleSource::LegacyDefaultOrCreator
+    } else {
+        crate::CreatorRationaleSource::Creator
     }
 }
 

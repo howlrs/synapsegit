@@ -437,6 +437,8 @@ pub struct CreatorReport {
     pub ai_output_source: String,
     pub reviewed_by_human: String,
     pub rationale: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub rationale_source: Option<String>,
     pub original_blob_oid: String,
     pub current_blob_oid: String,
     pub ai_output_blob_oid: String,

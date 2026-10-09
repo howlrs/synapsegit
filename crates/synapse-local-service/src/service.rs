@@ -3214,6 +3214,7 @@ fn creator_report(snapshot: SnapshotContext, report: CoreCreatorReport) -> Creat
         ai_output_source: "caller_supplied".into(),
         reviewed_by_human,
         rationale: report.rationale,
+        rationale_source: report.rationale_source.map(|source| source.as_str().to_owned()),
         annotations: report.annotations,
         annotations_unavailable: report.annotations_unavailable,
         generation_note: report.generation_note,
