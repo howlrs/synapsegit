@@ -170,6 +170,7 @@ const {
   operationSuccessMessage,
   submitEnhancedForm,
   inspectImageLocationMetadata,
+  selectedImageLocationMetadata,
 } = await import("../crates/synapse-local-http/assets/app.js");
 
 const exif = (gps) => { const b = new Uint8Array(40); b.set([73,73,42,0,8,0,0,0,1,0]); b[10] = gps ? 0x25 : 0; b[11] = gps ? 0x88 : 1; b[12]=4; b[14]=1; b[18]=32; return b; };
@@ -192,11 +193,75 @@ const pngCompressedXmp = new Uint8Array([137,80,78,71,13,10,26,10,...pngChunk("i
 assert.equal(inspectImageLocationMetadata(pngCompressedXmp), "could_not_check");
 const crc32 = (type, data) => { let value = 0xffffffff; for (const byte of [...new TextEncoder().encode(type), ...data]) { value ^= byte; for (let i = 0; i < 8; i++) value = value & 1 ? (value >>> 1) ^ 0xedb88320 : value >>> 1; } return (~value) >>> 0; };
 const validChunk = (type, data) => { const out = new Uint8Array(12 + data.length); new DataView(out.buffer).setUint32(0, data.length); out.set(new TextEncoder().encode(type), 4); out.set(data, 8); new DataView(out.buffer).setUint32(8 + data.length, crc32(type, data)); return out; };
-const plainPng = new Uint8Array([137,80,78,71,13,10,26,10,...validChunk("IEND", new Uint8Array())]);
+const png = (...chunks) => new Uint8Array([137,80,78,71,13,10,26,10,...validChunk("IHDR", new Uint8Array([0,0,0,1,0,0,0,1,8,2,0,0,0])),...chunks.flatMap(chunk => [...chunk])]);
+const plainPng = png(validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
 assert.equal(inspectImageLocationMetadata(plainPng), "no_gps_found");
 assert.equal(inspectImageLocationMetadata(plainPng, true), "could_not_check");
-const rawProfilePng = new Uint8Array([137,80,78,71,13,10,26,10,...validChunk("zTXt", new TextEncoder().encode("Raw profile type exif\0\0x")),...validChunk("IEND", new Uint8Array())]);
+const rawProfilePng = png(validChunk("zTXt", new TextEncoder().encode("Raw profile type exif\0\0x")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
 assert.equal(inspectImageLocationMetadata(rawProfilePng), "could_not_check");
+const asSelectedFile = (bytes) => ({ size: bytes.length, slice(start, end) { return new Blob([bytes.subarray(start, end)]); } });
+const xmpAfterIdat = png(validChunk("IDAT", new Uint8Array(256 * 1024 + 1)), validChunk("iTXt", new TextEncoder().encode("XML:com.adobe.xmp\0\0\0\0\0GPSLongitude")), validChunk("IEND", new Uint8Array()));
+assert.equal(inspectImageLocationMetadata(xmpAfterIdat), "gps_found");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(xmpAfterIdat)), "gps_found");
+const largeCleanPng = png(validChunk("IDAT", new Uint8Array(256 * 1024 + 1)), validChunk("IEND", new Uint8Array()));
+assert.equal(inspectImageLocationMetadata(largeCleanPng), "no_gps_found");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(largeCleanPng)), "no_gps_found");
+const tooMuchPngMetadata = png(validChunk("tEXt", new Uint8Array(256 * 1024 + 1)), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+assert.equal(inspectImageLocationMetadata(tooMuchPngMetadata), "could_not_check");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(tooMuchPngMetadata)), "could_not_check");
+const trailingPng = new Uint8Array(plainPng.length + 1); trailingPng.set(plainPng);
+assert.equal(inspectImageLocationMetadata(trailingPng), "could_not_check");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(trailingPng)), "could_not_check");
+const missingIhdr = new Uint8Array([137,80,78,71,13,10,26,10,...validChunk("IEND", new Uint8Array())]);
+assert.equal(inspectImageLocationMetadata(missingIhdr), "could_not_check");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(missingIhdr)), "could_not_check");
+const compressedZtxt = png(validChunk("zTXt", new TextEncoder().encode("XML:com.adobe.xmp\0\0compressed")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+assert.equal(inspectImageLocationMetadata(compressedZtxt), "could_not_check");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(compressedZtxt)), "could_not_check");
+const unknownCritical = png(validChunk("ABCD", new Uint8Array()), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+assert.equal(inspectImageLocationMetadata(unknownCritical), "could_not_check");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(unknownCritical)), "could_not_check");
+const indexedWithoutPalette = png(validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+indexedWithoutPalette[25] = 3;
+assert.equal(inspectImageLocationMetadata(indexedWithoutPalette), "could_not_check");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(indexedWithoutPalette)), "could_not_check");
+const grayscaleSixteenBit = png(validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+grayscaleSixteenBit[24] = 16;
+grayscaleSixteenBit[25] = 0;
+assert.equal(inspectImageLocationMetadata(grayscaleSixteenBit), "no_gps_found");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(grayscaleSixteenBit)), "no_gps_found");
+for (const malformedText of [
+  png(validChunk("tEXt", new TextEncoder().encode("Comment without a separator")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array())),
+  png(validChunk("iTXt", new TextEncoder().encode("Comment\0")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array())),
+  png(validChunk("tEXt", new Uint8Array([...new TextEncoder().encode("Comment\0text"), 0, ...new TextEncoder().encode("more")])), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array())),
+  png(validChunk("iTXt", new Uint8Array([...new TextEncoder().encode("Comment\0\0\0\0\0"), 0xff])), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array())),
+]) {
+  assert.equal(inspectImageLocationMetadata(malformedText), "could_not_check");
+  assert.equal(await selectedImageLocationMetadata(asSelectedFile(malformedText)), "could_not_check");
+}
+const textGps = png(validChunk("tEXt", new TextEncoder().encode("XML:com.adobe.xmp\0exif:GPSLatitude")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+assert.equal(inspectImageLocationMetadata(textGps), "gps_found");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(textGps)), "gps_found");
+const nonXmpItextGps = png(validChunk("iTXt", new TextEncoder().encode("Comment\0\0\0\0\0GPSLatitude")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+assert.equal(inspectImageLocationMetadata(nonXmpItextGps), "gps_found");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(nonXmpItextGps)), "gps_found");
+const itxtWithLanguage = (language) => {
+  const languageBytes = typeof language === "string" ? new TextEncoder().encode(language) : language;
+  return png(validChunk("iTXt", new Uint8Array([...new TextEncoder().encode("Comment\0\0\0"), ...languageBytes, 0, 0, ...new TextEncoder().encode("text")])), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+};
+for (const language of ["", "en", "es-419", "zh-Hans-CN", "ar-AE-u-nu-latn", "x-private", "i-klingon", "en-GB-oed", "de-CH-1901", "sl-rozaj-biske", "zh-cmn-Hans-CN", "en-a-foo-x-private"]) {
+  const image = itxtWithLanguage(language);
+  assert.equal(inspectImageLocationMetadata(image), "no_gps_found", `${language} should be valid`);
+  assert.equal(await selectedImageLocationMetadata(asSelectedFile(image)), "no_gps_found", `${language} should be valid through File.slice()`);
+}
+for (const language of ["1", "en--US", "-en", "en-", "en-a", "en-x", "sl-rozaj-rozaj", "en-u-ca-gregory-u-nu-latn", "en-abcdefghi", new Uint8Array([101,110,45,255]), "de-419-Hans"]) {
+  const image = itxtWithLanguage(language);
+  assert.equal(inspectImageLocationMetadata(image), "could_not_check", `${language} should be invalid`);
+  assert.equal(await selectedImageLocationMetadata(asSelectedFile(image)), "could_not_check", `${language} should be invalid through File.slice()`);
+}
+const repeatedExif = png(validChunk("eXIf", exif(false)), validChunk("eXIf", exif(false)), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array()));
+assert.equal(inspectImageLocationMetadata(repeatedExif), "could_not_check");
+assert.equal(await selectedImageLocationMetadata(asSelectedFile(repeatedExif)), "could_not_check");
 
 // Keep the client catalog fail-closed: a new message must have both supported
 // languages and expose the same interpolation contract in each one.

@@ -1,9 +1,18 @@
 //! Bounded, opaque-byte metadata inspection.  This intentionally does not
 //! decode a raster or modify the caller's file.
 use serde::{Deserialize, Serialize};
-use std::{fs::File, io::Read, path::Path};
+use std::{
+    fs::File,
+    io::{Read, Seek, SeekFrom},
+    path::Path,
+};
 
 pub const METADATA_SCAN_BYTES: usize = 256 * 1024;
+/// Creator inputs have a 64 MiB ceiling. Keep the advisory bounded by the
+/// same ceiling even when it is called independently of an ingest path.
+pub const METADATA_MAX_FILE_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_PNG_CHUNKS: usize = 4096;
+const MAX_PNG_METADATA_BYTES: usize = 256 * 1024;
 const MAX_IFDS: usize = 16;
 const MAX_IFD_DEPTH: usize = 4;
 
@@ -22,34 +31,51 @@ pub struct ImageMetadataWarning {
     pub message: String,
 }
 pub fn metadata_warning_from_bytes(role: &str, bytes: &[u8]) -> ImageMetadataWarning {
-    let check = inspect(
-        &bytes[..bytes.len().min(METADATA_SCAN_BYTES)],
-        bytes.len() > METADATA_SCAN_BYTES,
-    );
+    let check = if bytes.len() as u64 > METADATA_MAX_FILE_BYTES {
+        ImageMetadataCheck::CouldNotCheck
+    } else if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        png(bytes)
+    } else {
+        inspect(
+            &bytes[..bytes.len().min(METADATA_SCAN_BYTES)],
+            bytes.len() > METADATA_SCAN_BYTES,
+        )
+    };
     warning(role, check)
 }
 
-/// Inspect only the first 256 KiB. Unsupported, malformed, and budget-limited
-/// inputs are deliberately reported as `could_not_check`, never as GPS-free.
-/// A JPEG whose header segments end inside that prefix is fully checked even
-/// when entropy-coded image data continues beyond it.
+/// Inspect opaque image metadata without decoding or changing the file.
+/// JPEG headers are bounded to the first 256 KiB. PNG is structurally scanned
+/// to IEND: only metadata chunks are read and CRC-checked; image payload and
+/// other chunks are skipped. Unsupported, malformed, and budget-limited inputs
+/// are deliberately reported as `could_not_check`, never as GPS-free.
 pub fn image_metadata_warning(role: &str, path: &Path) -> ImageMetadataWarning {
-    let mut bytes = Vec::with_capacity(METADATA_SCAN_BYTES);
     let result = open_metadata_file(path).and_then(|mut f| {
-        if !f.metadata()?.is_file() {
+        let length = f.metadata()?;
+        if !length.is_file() || length.len() > METADATA_MAX_FILE_BYTES {
             return Err(std::io::Error::other(
-                "metadata input is not a regular file",
+                "metadata input is not a regular file within the input limit",
             ));
         }
-        f.by_ref()
-            .take((METADATA_SCAN_BYTES + 1) as u64)
-            .read_to_end(&mut bytes)
+        let mut signature = [0; 8];
+        let signature_len = length.len().min(signature.len() as u64) as usize;
+        f.read_exact(&mut signature[..signature_len])?;
+        f.seek(SeekFrom::Start(0))?;
+        if signature_len == signature.len() && signature == *b"\x89PNG\r\n\x1a\n" {
+            Ok(png_file(&mut f, length.len()))
+        } else {
+            let mut bytes = Vec::with_capacity(METADATA_SCAN_BYTES + 1);
+            f.by_ref()
+                .take((METADATA_SCAN_BYTES + 1) as u64)
+                .read_to_end(&mut bytes)?;
+            Ok(inspect(
+                &bytes[..bytes.len().min(METADATA_SCAN_BYTES)],
+                bytes.len() > METADATA_SCAN_BYTES,
+            ))
+        }
     });
     let check = match result {
-        Ok(_) => inspect(
-            &bytes[..bytes.len().min(METADATA_SCAN_BYTES)],
-            bytes.len() > METADATA_SCAN_BYTES,
-        ),
+        Ok(check) => check,
         Err(_) => ImageMetadataCheck::CouldNotCheck,
     };
     warning(role, check)
@@ -167,42 +193,270 @@ fn contains_ignore_ascii_case(bytes: &[u8], needle: &[u8]) -> bool {
 }
 fn png(b: &[u8]) -> ImageMetadataCheck {
     let mut p = 8;
+    let mut chunks = 0;
+    let mut metadata_bytes = 0usize;
+    let mut gps_found = false;
+    let mut saw_idat = false;
+    let mut after_idat = false;
+    let mut indexed = false;
+    let mut saw_plte = false;
+    let mut bit_depth = 0u8;
+    let mut color_type = 0u8;
+    let mut saw_exif = false;
     while p + 12 <= b.len() {
+        chunks += 1;
+        if chunks > MAX_PNG_CHUNKS {
+            return ImageMetadataCheck::CouldNotCheck;
+        }
         let n = u32::from_be_bytes(b[p..p + 4].try_into().unwrap()) as usize;
-        if p + 12 + n > b.len() {
+        let Some(end) = p.checked_add(12 + n) else {
+            return ImageMetadataCheck::CouldNotCheck;
+        };
+        if end > b.len() {
             return ImageMetadataCheck::CouldNotCheck;
         };
         let k = &b[p + 4..p + 8];
         let x = &b[p + 8..p + 8 + n];
-        let expected = u32::from_be_bytes(b[p + 8 + n..p + 12 + n].try_into().unwrap());
-        if png_crc(k, x) != expected {
+        if !valid_png_chunk_kind(k) {
             return ImageMetadataCheck::CouldNotCheck;
         }
-        p += 12 + n;
-        if k == b"eXIf" {
-            match exif(x) {
-                ImageMetadataCheck::GpsFound => return ImageMetadataCheck::GpsFound,
-                ImageMetadataCheck::CouldNotCheck => return ImageMetadataCheck::CouldNotCheck,
-                _ => {}
+        if chunks == 1 {
+            if k != b"IHDR" || !valid_png_ihdr(x) {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            indexed = x[9] == 3;
+            bit_depth = x[8];
+            color_type = x[9];
+        } else if k == b"IHDR"
+            || (k == b"IDAT" && after_idat)
+            || (k[0].is_ascii_uppercase() && !matches!(k, b"PLTE" | b"IDAT" | b"IEND"))
+        {
+            return ImageMetadataCheck::CouldNotCheck;
+        } else if k == b"PLTE" {
+            if saw_idat
+                || saw_plte
+                || matches!(color_type, 0 | 4)
+                || matches!(x.len(), 0..=2)
+                || x.len() % 3 != 0
+                || x.len() > 768
+                || (indexed && x.len() / 3 > 1usize << bit_depth)
+            {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            saw_plte = true;
+        } else if k == b"eXIf" {
+            if saw_idat || saw_exif {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            saw_exif = true;
+        } else if k == b"IDAT" {
+            if indexed && !saw_plte {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            saw_idat = true;
+        } else if saw_idat {
+            after_idat = true;
+        }
+        let metadata = matches!(k, b"eXIf" | b"tEXt" | b"zTXt" | b"iTXt");
+        if metadata {
+            metadata_bytes = match metadata_bytes.checked_add(n) {
+                Some(value) if value <= MAX_PNG_METADATA_BYTES => value,
+                _ => return ImageMetadataCheck::CouldNotCheck,
+            };
+            let expected = u32::from_be_bytes(b[p + 8 + n..end].try_into().unwrap());
+            if png_crc(k, x) != expected {
+                return ImageMetadataCheck::CouldNotCheck;
             }
         }
-        if matches!(k, b"tEXt" | b"zTXt" | b"iTXt") && is_raw_metadata_profile(x) {
-            // ImageMagick stores copied Exif/XMP as hex text, often compressed.
-            return ImageMetadataCheck::CouldNotCheck;
-        }
-        if k == b"iTXt" {
-            match itxt_xmp(x) {
-                Some(Ok(payload)) if has_xmp_gps(payload) => return ImageMetadataCheck::GpsFound,
-                Some(Ok(_)) => {}
-                Some(Err(())) => return ImageMetadataCheck::CouldNotCheck,
-                None => {}
+        p = end;
+        if metadata {
+            match png_metadata_check(k, x) {
+                ImageMetadataCheck::GpsFound => gps_found = true,
+                ImageMetadataCheck::CouldNotCheck => return ImageMetadataCheck::CouldNotCheck,
+                ImageMetadataCheck::NoGpsFound => {}
             }
         }
         if k == b"IEND" {
-            return ImageMetadataCheck::NoGpsFound;
+            return if n == 0 && saw_idat && (!indexed || saw_plte) && p == b.len() {
+                if gps_found {
+                    ImageMetadataCheck::GpsFound
+                } else {
+                    ImageMetadataCheck::NoGpsFound
+                }
+            } else {
+                ImageMetadataCheck::CouldNotCheck
+            };
         }
     }
     ImageMetadataCheck::CouldNotCheck
+}
+
+/// PNG structure is read by offset so a large IDAT never becomes an in-memory
+/// metadata scan. Only eXIf/text payloads and their CRCs are inspected.
+fn png_file(file: &mut File, length: u64) -> ImageMetadataCheck {
+    if length < 20 {
+        return ImageMetadataCheck::CouldNotCheck;
+    }
+    let mut position = 8u64;
+    let mut chunks = 0usize;
+    let mut metadata_bytes = 0usize;
+    let mut gps_found = false;
+    let mut saw_idat = false;
+    let mut after_idat = false;
+    let mut indexed = false;
+    let mut saw_plte = false;
+    let mut bit_depth = 0u8;
+    let mut color_type = 0u8;
+    let mut saw_exif = false;
+    loop {
+        chunks += 1;
+        if chunks > MAX_PNG_CHUNKS || position.checked_add(12).is_none_or(|end| end > length) {
+            return ImageMetadataCheck::CouldNotCheck;
+        }
+        if file.seek(SeekFrom::Start(position)).is_err() {
+            return ImageMetadataCheck::CouldNotCheck;
+        }
+        let mut header = [0; 8];
+        if file.read_exact(&mut header).is_err() {
+            return ImageMetadataCheck::CouldNotCheck;
+        }
+        let payload_length = u32::from_be_bytes(header[..4].try_into().unwrap()) as usize;
+        let kind = &header[4..];
+        if !valid_png_chunk_kind(kind) {
+            return ImageMetadataCheck::CouldNotCheck;
+        }
+        let Some(end) = position.checked_add(12 + payload_length as u64) else {
+            return ImageMetadataCheck::CouldNotCheck;
+        };
+        if end > length {
+            return ImageMetadataCheck::CouldNotCheck;
+        }
+        if chunks == 1 {
+            if kind != b"IHDR" || payload_length != 13 {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            let mut ihdr = [0; 13];
+            if file.read_exact(&mut ihdr).is_err() || !valid_png_ihdr(&ihdr) {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            indexed = ihdr[9] == 3;
+            bit_depth = ihdr[8];
+            color_type = ihdr[9];
+        } else if kind == b"IHDR"
+            || (kind == b"IDAT" && after_idat)
+            || (kind[0].is_ascii_uppercase() && !matches!(kind, b"PLTE" | b"IDAT" | b"IEND"))
+        {
+            return ImageMetadataCheck::CouldNotCheck;
+        } else if kind == b"PLTE" {
+            if saw_idat
+                || saw_plte
+                || matches!(color_type, 0 | 4)
+                || matches!(payload_length, 0..=2)
+                || payload_length % 3 != 0
+                || payload_length > 768
+                || (indexed && payload_length / 3 > 1usize << bit_depth)
+            {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            saw_plte = true;
+        } else if kind == b"eXIf" {
+            if saw_idat || saw_exif {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            saw_exif = true;
+        } else if kind == b"IDAT" {
+            if indexed && !saw_plte {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            saw_idat = true;
+        } else if saw_idat {
+            after_idat = true;
+        }
+        let metadata = matches!(kind, b"eXIf" | b"tEXt" | b"zTXt" | b"iTXt");
+        if metadata {
+            metadata_bytes = match metadata_bytes.checked_add(payload_length) {
+                Some(value) if value <= MAX_PNG_METADATA_BYTES => value,
+                _ => return ImageMetadataCheck::CouldNotCheck,
+            };
+            let mut payload = vec![0; payload_length];
+            let mut crc = [0; 4];
+            if file.read_exact(&mut payload).is_err()
+                || file.read_exact(&mut crc).is_err()
+                || png_crc(kind, &payload) != u32::from_be_bytes(crc)
+            {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            match png_metadata_check(kind, &payload) {
+                ImageMetadataCheck::GpsFound => gps_found = true,
+                ImageMetadataCheck::CouldNotCheck => return ImageMetadataCheck::CouldNotCheck,
+                ImageMetadataCheck::NoGpsFound => {}
+            }
+        }
+        position = end;
+        if kind == b"IEND" {
+            return if payload_length == 0
+                && saw_idat
+                && (!indexed || saw_plte)
+                && position == length
+            {
+                if gps_found {
+                    ImageMetadataCheck::GpsFound
+                } else {
+                    ImageMetadataCheck::NoGpsFound
+                }
+            } else {
+                ImageMetadataCheck::CouldNotCheck
+            };
+        }
+    }
+}
+
+fn png_metadata_check(kind: &[u8], payload: &[u8]) -> ImageMetadataCheck {
+    if kind == b"eXIf" {
+        return exif(payload);
+    }
+    if matches!(kind, b"tEXt" | b"zTXt" | b"iTXt") && is_raw_metadata_profile(payload) {
+        return ImageMetadataCheck::CouldNotCheck;
+    }
+    // zTXt carries compressed text. Without bounded decompression, its XMP
+    // cannot be classified as GPS-free.
+    if kind == b"zTXt" {
+        return ImageMetadataCheck::CouldNotCheck;
+    }
+    if kind == b"tEXt" && !valid_png_text(payload) {
+        return ImageMetadataCheck::CouldNotCheck;
+    }
+    if kind == b"tEXt" && has_xmp_gps(payload) {
+        return ImageMetadataCheck::GpsFound;
+    }
+    if kind == b"iTXt" {
+        return match itxt_xmp(payload) {
+            Some(Ok(payload)) if has_xmp_gps(payload) => ImageMetadataCheck::GpsFound,
+            Some(Ok(_)) | None => ImageMetadataCheck::NoGpsFound,
+            Some(Err(())) => ImageMetadataCheck::CouldNotCheck,
+        };
+    }
+    ImageMetadataCheck::NoGpsFound
+}
+fn valid_png_ihdr(payload: &[u8]) -> bool {
+    if payload.len() != 13
+        || payload[..4] == [0; 4]
+        || payload[4..8] == [0; 4]
+        || payload[0] & 0x80 != 0
+        || payload[4] & 0x80 != 0
+        || payload[10] != 0
+        || payload[11] != 0
+        || payload[12] > 1
+    {
+        return false;
+    }
+    matches!(
+        (payload[8], payload[9]),
+        (1 | 2 | 4 | 8, 0 | 3) | (8 | 16, 2 | 4 | 6) | (16, 0)
+    )
+}
+fn valid_png_chunk_kind(kind: &[u8]) -> bool {
+    kind.len() == 4 && kind.iter().all(u8::is_ascii_alphabetic) && kind[2].is_ascii_uppercase()
 }
 fn png_crc(kind: &[u8], data: &[u8]) -> u32 {
     let mut crc = 0xffff_ffffu32;
@@ -228,6 +482,172 @@ fn is_raw_metadata_profile(chunk: &[u8]) -> bool {
     .iter()
     .any(|name| keyword.eq_ignore_ascii_case(name))
 }
+fn valid_png_keyword(keyword: &[u8]) -> bool {
+    !keyword.is_empty()
+        && keyword.len() <= 79
+        && keyword[0] != b' '
+        && keyword.last() != Some(&b' ')
+        && !keyword.windows(2).any(|pair| pair == b"  ")
+        && keyword
+            .iter()
+            .all(|byte| matches!(*byte, 32..=126 | 161..=255))
+}
+fn valid_png_text(payload: &[u8]) -> bool {
+    payload
+        .iter()
+        .position(|byte| *byte == 0)
+        .is_some_and(|end| valid_png_keyword(&payload[..end]) && !payload[end + 1..].contains(&0))
+}
+fn valid_png_language_tag(tag: &[u8]) -> bool {
+    if tag.is_empty() {
+        return true;
+    }
+    const GRANDFATHERED: [&[u8]; 26] = [
+        b"art-lojban",
+        b"cel-gaulish",
+        b"en-GB-oed",
+        b"i-ami",
+        b"i-bnn",
+        b"i-default",
+        b"i-enochian",
+        b"i-hak",
+        b"i-klingon",
+        b"i-lux",
+        b"i-mingo",
+        b"i-navajo",
+        b"i-pwn",
+        b"i-tao",
+        b"i-tay",
+        b"i-tsu",
+        b"no-bok",
+        b"no-nyn",
+        b"sgn-BE-FR",
+        b"sgn-BE-NL",
+        b"sgn-CH-DE",
+        b"zh-guoyu",
+        b"zh-hakka",
+        b"zh-min",
+        b"zh-min-nan",
+        b"zh-xiang",
+    ];
+    if GRANDFATHERED
+        .iter()
+        .any(|grandfathered| tag.eq_ignore_ascii_case(grandfathered))
+    {
+        return true;
+    }
+
+    let subtags: Vec<_> = tag.split(|byte| *byte == b'-').collect();
+    if subtags.is_empty()
+        || subtags
+            .iter()
+            .any(|subtag| subtag.is_empty() || !subtag.iter().all(u8::is_ascii_alphanumeric))
+    {
+        return false;
+    }
+    let is_alpha = |subtag: &[u8]| subtag.iter().all(u8::is_ascii_alphabetic);
+    let is_digit = |subtag: &[u8]| subtag.iter().all(u8::is_ascii_digit);
+    let is_alphanumeric = |subtag: &[u8]| subtag.iter().all(u8::is_ascii_alphanumeric);
+
+    // RFC 5646 section 2.1: privateuse is a complete language tag by itself.
+    if subtags[0].eq_ignore_ascii_case(b"x") {
+        return subtags.len() > 1
+            && subtags[1..]
+                .iter()
+                .all(|subtag| (1..=8).contains(&subtag.len()) && is_alphanumeric(subtag));
+    }
+
+    let mut position = match subtags[0] {
+        primary if (2..=3).contains(&primary.len()) && is_alpha(primary) => {
+            let mut position = 1;
+            for _ in 0..3 {
+                if subtags
+                    .get(position)
+                    .is_some_and(|subtag| subtag.len() == 3 && is_alpha(subtag))
+                {
+                    position += 1;
+                } else {
+                    break;
+                }
+            }
+            position
+        }
+        primary if (4..=8).contains(&primary.len()) && is_alpha(primary) => 1,
+        _ => return false,
+    };
+    if subtags
+        .get(position)
+        .is_some_and(|subtag| subtag.len() == 4 && is_alpha(subtag))
+    {
+        position += 1;
+    }
+    if subtags.get(position).is_some_and(|subtag| {
+        (subtag.len() == 2 && is_alpha(subtag)) || (subtag.len() == 3 && is_digit(subtag))
+    }) {
+        position += 1;
+    }
+
+    let mut variants = Vec::new();
+    while let Some(subtag) = subtags.get(position) {
+        let variant = (5..=8).contains(&subtag.len()) && is_alphanumeric(subtag)
+            || (subtag.len() == 4 && subtag[0].is_ascii_digit() && is_alphanumeric(subtag));
+        if !variant {
+            break;
+        }
+        if variants
+            .iter()
+            .any(|previous: &&[u8]| previous.eq_ignore_ascii_case(subtag))
+        {
+            return false;
+        }
+        variants.push(*subtag);
+        position += 1;
+    }
+
+    let mut extension_singletons = Vec::new();
+    while let Some(singleton) = subtags.get(position) {
+        if singleton.len() != 1
+            || !is_alphanumeric(singleton)
+            || singleton[0].eq_ignore_ascii_case(&b'x')
+        {
+            break;
+        }
+        let singleton = singleton[0].to_ascii_lowercase();
+        if extension_singletons.contains(&singleton) {
+            return false;
+        }
+        position += 1;
+        let extension_start = position;
+        while subtags
+            .get(position)
+            .is_some_and(|subtag| (2..=8).contains(&subtag.len()) && is_alphanumeric(subtag))
+        {
+            position += 1;
+        }
+        if position == extension_start {
+            return false;
+        }
+        extension_singletons.push(singleton);
+    }
+
+    if subtags
+        .get(position)
+        .is_some_and(|subtag| subtag.eq_ignore_ascii_case(b"x"))
+    {
+        position += 1;
+        let privateuse_start = position;
+        while subtags
+            .get(position)
+            .is_some_and(|subtag| (1..=8).contains(&subtag.len()) && is_alphanumeric(subtag))
+        {
+            position += 1;
+        }
+        if position == privateuse_start {
+            return false;
+        }
+    }
+    position == subtags.len()
+}
 fn has_xmp_gps(bytes: &[u8]) -> bool {
     contains_ignore_ascii_case(bytes, b"gpslatit") || contains_ignore_ascii_case(bytes, b"gpslongi")
 }
@@ -235,22 +655,33 @@ fn itxt_xmp(bytes: &[u8]) -> Option<Result<&[u8], ()>> {
     let Some(key_end) = bytes.iter().position(|b| *b == 0) else {
         return Some(Err(()));
     };
-    if !bytes[..key_end].eq_ignore_ascii_case(b"xml:com.adobe.xmp") {
-        return None;
+    if !valid_png_keyword(&bytes[..key_end]) {
+        return Some(Err(()));
     }
     let rest = &bytes[key_end + 1..];
     if rest.len() < 2 || rest[0] != 0 || rest[1] != 0 {
         return Some(Err(()));
     }
-    let Some(language_end) = rest[2..].iter().position(|b| *b == 0) else {
+    let language = &rest[2..];
+    let Some(language_end) = language.iter().position(|b| *b == 0) else {
         return Some(Err(()));
     };
-    let language_end = language_end + 2;
-    let Some(translated_end) = rest[language_end + 1..].iter().position(|b| *b == 0) else {
+    if !valid_png_language_tag(&language[..language_end]) {
+        return Some(Err(()));
+    }
+    let translated_and_text = &language[language_end + 1..];
+    let Some(translated_end) = translated_and_text.iter().position(|b| *b == 0) else {
         return Some(Err(()));
     };
-    let text_start = translated_end + language_end + 2;
-    Some(Ok(&rest[text_start..]))
+    let translated = &translated_and_text[..translated_end];
+    let text = &translated_and_text[translated_end + 1..];
+    if std::str::from_utf8(translated).is_err()
+        || std::str::from_utf8(text).is_err()
+        || text.contains(&0)
+    {
+        return Some(Err(()));
+    }
+    Some(Ok(text))
 }
 fn exif(t: &[u8]) -> ImageMetadataCheck {
     if t.len() < 8 {
@@ -348,6 +779,24 @@ fn exif(t: &[u8]) -> ImageMetadataCheck {
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn png_chunk(kind: &[u8], data: &[u8]) -> Vec<u8> {
+        let mut bytes = (data.len() as u32).to_be_bytes().to_vec();
+        bytes.extend_from_slice(kind);
+        bytes.extend_from_slice(data);
+        bytes.extend_from_slice(&png_crc(kind, data).to_be_bytes());
+        bytes
+    }
+    fn png(chunks: impl IntoIterator<Item = Vec<u8>>) -> Vec<u8> {
+        let mut bytes = b"\x89PNG\r\n\x1a\n".to_vec();
+        bytes.extend_from_slice(&png_chunk(
+            b"IHDR",
+            &[0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0],
+        ));
+        for chunk in chunks {
+            bytes.extend_from_slice(&chunk);
+        }
+        bytes
+    }
     fn tiff(gps: bool, looped: bool) -> Vec<u8> {
         let mut b = b"II*\0\x08\0\0\0".to_vec();
         b.extend_from_slice(&1u16.to_le_bytes());
@@ -441,21 +890,280 @@ mod tests {
     }
     #[test]
     fn png_after_the_prefix_and_raw_profiles_stay_unknown() {
-        let chunk = |kind: &[u8], data: &[u8]| {
-            let mut bytes = (data.len() as u32).to_be_bytes().to_vec();
-            bytes.extend_from_slice(kind);
-            bytes.extend_from_slice(data);
-            bytes.extend_from_slice(&png_crc(kind, data).to_be_bytes());
-            bytes
-        };
-        let mut plain = b"\x89PNG\r\n\x1a\n".to_vec();
-        plain.extend_from_slice(&chunk(b"IEND", b""));
+        let plain = png([png_chunk(b"IDAT", b""), png_chunk(b"IEND", b"")]);
         assert_eq!(inspect(&plain, false), ImageMetadataCheck::NoGpsFound);
         assert_eq!(inspect(&plain, true), ImageMetadataCheck::CouldNotCheck);
-        let mut raw = b"\x89PNG\r\n\x1a\n".to_vec();
-        raw.extend_from_slice(&chunk(b"zTXt", b"Raw profile type exif\0\0x"));
-        raw.extend_from_slice(&chunk(b"IEND", b""));
+        let raw = png([
+            png_chunk(b"zTXt", b"Raw profile type exif\0\0x"),
+            png_chunk(b"IDAT", b""),
+            png_chunk(b"IEND", b""),
+        ]);
         assert_eq!(inspect(&raw, false), ImageMetadataCheck::CouldNotCheck);
+    }
+    #[test]
+    fn scans_large_png_metadata_after_idat_without_reading_image_payload() {
+        let xmp = b"XML:com.adobe.xmp\0\0\0\0\0GPSLatitude";
+        let bytes = png([
+            png_chunk(b"IDAT", &vec![0; METADATA_SCAN_BYTES + 1]),
+            png_chunk(b"iTXt", xmp),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(
+            metadata_warning_from_bytes("original", &bytes).check,
+            ImageMetadataCheck::GpsFound
+        );
+        let path = std::env::temp_dir().join(format!(
+            "synapsegit-metadata-{}-{}.png",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        std::fs::write(&path, &bytes).unwrap();
+        assert_eq!(
+            image_metadata_warning("original", &path).check,
+            ImageMetadataCheck::GpsFound
+        );
+        std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn short_complete_jpeg_file_matches_the_byte_check() {
+        let bytes = [0xff, 0xd8, 0xff, 0xd9];
+        assert_eq!(
+            metadata_warning_from_bytes("original", &bytes).check,
+            ImageMetadataCheck::NoGpsFound
+        );
+        let path = std::env::temp_dir().join(format!(
+            "synapsegit-short-jpeg-{}-{}.jpg",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        std::fs::write(&path, bytes).unwrap();
+        assert_eq!(
+            image_metadata_warning("original", &path).check,
+            ImageMetadataCheck::NoGpsFound
+        );
+        std::fs::remove_file(path).unwrap();
+    }
+    #[test]
+    fn png_limits_crc_and_trailing_bytes_are_not_gps_free() {
+        let clean = png([
+            png_chunk(b"IDAT", &vec![0; METADATA_SCAN_BYTES + 1]),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(
+            metadata_warning_from_bytes("original", &clean).check,
+            ImageMetadataCheck::NoGpsFound
+        );
+        let oversized = png([
+            png_chunk(b"tEXt", &vec![b'x'; MAX_PNG_METADATA_BYTES + 1]),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(
+            metadata_warning_from_bytes("original", &oversized).check,
+            ImageMetadataCheck::CouldNotCheck
+        );
+        let mut too_many_chunks = png(std::iter::empty());
+        for _ in 0..=MAX_PNG_CHUNKS {
+            too_many_chunks.extend_from_slice(&png_chunk(b"IDAT", b""));
+        }
+        too_many_chunks.extend_from_slice(&png_chunk(b"IEND", b""));
+        assert_eq!(
+            metadata_warning_from_bytes("original", &too_many_chunks).check,
+            ImageMetadataCheck::CouldNotCheck
+        );
+        let mut trailing = clean.clone();
+        trailing.push(0);
+        assert_eq!(inspect(&trailing, false), ImageMetadataCheck::CouldNotCheck);
+        let mut gps_with_trailing = png([
+            png_chunk(b"iTXt", b"XML:com.adobe.xmp\0\0\0\0\0GPSLatitude"),
+            png_chunk(b"IEND", b""),
+        ]);
+        gps_with_trailing.push(0);
+        assert_eq!(
+            inspect(&gps_with_trailing, false),
+            ImageMetadataCheck::CouldNotCheck
+        );
+        let mut corrupt_chunk = png_chunk(b"iTXt", b"XML:com.adobe.xmp\0\0\0\0\0x");
+        let last = corrupt_chunk.len() - 1;
+        corrupt_chunk[last] ^= 1;
+        let corrupt = png([corrupt_chunk, png_chunk(b"IEND", b"")]);
+        assert_eq!(inspect(&corrupt, false), ImageMetadataCheck::CouldNotCheck);
+    }
+    #[test]
+    fn png_requires_ihdr_idat_and_can_not_classify_compressed_text() {
+        let iend_only = b"\x89PNG\r\n\x1a\n"
+            .iter()
+            .copied()
+            .chain(png_chunk(b"IEND", b""))
+            .collect::<Vec<_>>();
+        assert_eq!(
+            inspect(&iend_only, false),
+            ImageMetadataCheck::CouldNotCheck
+        );
+        let compressed_xmp = png([
+            png_chunk(b"zTXt", b"XML:com.adobe.xmp\0\0not-inspected"),
+            png_chunk(b"IDAT", b""),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(
+            inspect(&compressed_xmp, false),
+            ImageMetadataCheck::CouldNotCheck
+        );
+        let unknown_critical = png([
+            png_chunk(b"ABCD", b""),
+            png_chunk(b"IDAT", b""),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(
+            inspect(&unknown_critical, false),
+            ImageMetadataCheck::CouldNotCheck
+        );
+        let path = std::env::temp_dir().join(format!(
+            "synapsegit-invalid-png-{}-{}.png",
+            std::process::id(),
+            std::thread::current().name().unwrap_or("test")
+        ));
+        std::fs::write(&path, &unknown_critical).unwrap();
+        assert_eq!(
+            image_metadata_warning("original", &path).check,
+            ImageMetadataCheck::CouldNotCheck
+        );
+        std::fs::remove_file(path).unwrap();
+        let mut indexed_without_palette = png([png_chunk(b"IDAT", b""), png_chunk(b"IEND", b"")]);
+        indexed_without_palette[25] = 3;
+        assert_eq!(
+            inspect(&indexed_without_palette, false),
+            ImageMetadataCheck::CouldNotCheck
+        );
+        let mut grayscale_sixteen_bit = png([png_chunk(b"IDAT", b""), png_chunk(b"IEND", b"")]);
+        grayscale_sixteen_bit[24] = 16;
+        grayscale_sixteen_bit[25] = 0;
+        assert_eq!(
+            inspect(&grayscale_sixteen_bit, false),
+            ImageMetadataCheck::NoGpsFound
+        );
+        for malformed_text in [
+            png([
+                png_chunk(b"tEXt", b"Comment without a separator"),
+                png_chunk(b"IDAT", b""),
+                png_chunk(b"IEND", b""),
+            ]),
+            png([
+                png_chunk(b"iTXt", b"Comment\0"),
+                png_chunk(b"IDAT", b""),
+                png_chunk(b"IEND", b""),
+            ]),
+            png([
+                png_chunk(b"tEXt", b"Comment\0text\0more"),
+                png_chunk(b"IDAT", b""),
+                png_chunk(b"IEND", b""),
+            ]),
+            png([
+                png_chunk(b"iTXt", b"Comment\0\0\0\0\0\xff"),
+                png_chunk(b"IDAT", b""),
+                png_chunk(b"IEND", b""),
+            ]),
+        ] {
+            assert_eq!(
+                inspect(&malformed_text, false),
+                ImageMetadataCheck::CouldNotCheck
+            );
+        }
+        let text_gps = png([
+            png_chunk(b"tEXt", b"XML:com.adobe.xmp\0exif:GPSLatitude"),
+            png_chunk(b"IDAT", b""),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(inspect(&text_gps, false), ImageMetadataCheck::GpsFound);
+        let non_xmp_itext_gps = png([
+            png_chunk(b"iTXt", b"Comment\0\0\0\0\0GPSLatitude"),
+            png_chunk(b"IDAT", b""),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(
+            inspect(&non_xmp_itext_gps, false),
+            ImageMetadataCheck::GpsFound
+        );
+        let invalid_language = png([
+            png_chunk(b"iTXt", b"Comment\0\0\0en--US\0\0text"),
+            png_chunk(b"IDAT", b""),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(
+            inspect(&invalid_language, false),
+            ImageMetadataCheck::CouldNotCheck
+        );
+        let numeric_language = png([
+            png_chunk(b"iTXt", b"Comment\0\0\0\x31\0\0text"),
+            png_chunk(b"IDAT", b""),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(
+            inspect(&numeric_language, false),
+            ImageMetadataCheck::CouldNotCheck
+        );
+        let exif = tiff(false, false);
+        let repeated_exif = png([
+            png_chunk(b"eXIf", &exif),
+            png_chunk(b"eXIf", &exif),
+            png_chunk(b"IDAT", b""),
+            png_chunk(b"IEND", b""),
+        ]);
+        assert_eq!(
+            inspect(&repeated_exif, false),
+            ImageMetadataCheck::CouldNotCheck
+        );
+    }
+    #[test]
+    fn png_itxt_language_tags_follow_rfc_5646_lexical_syntax() {
+        let itxt = |language: &[u8]| {
+            let mut payload = b"Comment\0\0\0".to_vec();
+            payload.extend_from_slice(language);
+            payload.extend_from_slice(b"\0\0text");
+            png([
+                png_chunk(b"iTXt", &payload),
+                png_chunk(b"IDAT", b""),
+                png_chunk(b"IEND", b""),
+            ])
+        };
+        for language in [
+            b"".as_slice(),
+            b"en",
+            b"es-419",
+            b"zh-Hans-CN",
+            b"ar-AE-u-nu-latn",
+            b"x-private",
+            b"i-klingon",
+            b"en-GB-oed",
+            b"de-CH-1901",
+            b"sl-rozaj-biske",
+            b"zh-cmn-Hans-CN",
+            b"en-a-foo-x-private",
+        ] {
+            assert_eq!(
+                inspect(&itxt(language), false),
+                ImageMetadataCheck::NoGpsFound,
+                "{language:?} should be valid"
+            );
+        }
+        for language in [
+            b"1".as_slice(),
+            b"en--US",
+            b"-en",
+            b"en-",
+            b"en-a",
+            b"en-x",
+            b"sl-rozaj-rozaj",
+            b"en-u-ca-gregory-u-nu-latn",
+            b"en-abcdefghi",
+            b"en-\xff",
+            b"de-419-Hans",
+        ] {
+            assert_eq!(
+                inspect(&itxt(language), false),
+                ImageMetadataCheck::CouldNotCheck,
+                "{language:?} should be invalid"
+            );
+        }
     }
     #[test]
     fn a_single_sub_ifd_offset_is_read_inline() {
@@ -496,15 +1204,12 @@ mod tests {
     }
     #[test]
     fn detects_png_exif_and_opaque_files_are_not_claimed_safe() {
-        let mut p = b"\x89PNG\r\n\x1a\n".to_vec();
         let t = tiff(true, false);
-        p.extend_from_slice(&(t.len() as u32).to_be_bytes());
-        p.extend_from_slice(b"eXIf");
-        p.extend_from_slice(&t);
-        p.extend_from_slice(&png_crc(b"eXIf", &t).to_be_bytes());
-        p.extend_from_slice(&0u32.to_be_bytes());
-        p.extend_from_slice(b"IEND");
-        p.extend_from_slice(&png_crc(b"IEND", b"").to_be_bytes());
+        let p = png([
+            png_chunk(b"eXIf", &t),
+            png_chunk(b"IDAT", b""),
+            png_chunk(b"IEND", b""),
+        ]);
         assert_eq!(inspect(&p, false), ImageMetadataCheck::GpsFound);
         assert_eq!(inspect(b"GIF89a", false), ImageMetadataCheck::CouldNotCheck);
     }

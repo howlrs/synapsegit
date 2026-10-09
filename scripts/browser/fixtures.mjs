@@ -98,6 +98,16 @@ async function appFixture({ archives = false, inbox = false }, use) {
     }
 }
 
+// Wait until every selected Creator upload has finished its observable
+// metadata preflight. This deliberately observes validity rather than using
+// a timing delay, so normal submissions cannot race the required preflight.
+export async function waitForCreatorUploadReady(page) {
+  await expect.poll(() => page.locator('[data-creator-file] input[type="file"]').evaluateAll((inputs) =>
+    inputs.some((input) => input.files?.length)
+      && inputs.filter((input) => input.files?.length).every((input) => input.getAttribute("aria-invalid") === "false"),
+  )).toBe(true);
+}
+
 export const test = base.extend({ app: [({}, use) => appFixture({ archives: false }, use), { scope: "worker" }] });
 // New multi-session workflows use their own repository so unrelated tests do not
 // change their bounded verification cost or leave records behind after failure.

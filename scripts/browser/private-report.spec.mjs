@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { isolatedTest as test, expect, original, current, output } from "./fixtures.mjs";
+import { isolatedTest as test, expect, original, current, output, waitForCreatorUploadReady } from "./fixtures.mjs";
 
 const routeFor = (origin) => `${origin}/api/v1/projects/complete/creator-sessions/sample`;
 
@@ -63,6 +63,7 @@ test("the saved JSON retains a private generation note, pin, and rationale", asy
   for (const [name, file] of [["original_image", original], ["current_image", current], ["ai_output", output]]) {
     await page.locator(`[name="${name}"]`).setInputFiles(file);
   }
+  await waitForCreatorUploadReady(page);
   await page.locator("details summary").click();
   await page.locator('[name="generation_prompt"]').fill(note);
   await page.getByRole("button", { name: "提案を作成", exact: true }).click();
@@ -112,6 +113,7 @@ test("pending sessions do not offer a private report save action", async ({ page
   for (const [name, file] of [["original_image", original], ["current_image", current], ["ai_output", output]]) {
     await page.locator(`[name="${name}"]`).setInputFiles(file);
   }
+  await waitForCreatorUploadReady(page);
   await page.getByRole("button", { name: "提案を作成", exact: true }).click();
   await page.waitForURL("**/creator-sessions/private-report-pending");
   await expect(page.locator("[data-private-report]")).toHaveCount(0);

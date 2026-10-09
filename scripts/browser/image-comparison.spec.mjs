@@ -1,4 +1,4 @@
-import { test, expect, original, current, output } from "./fixtures.mjs";
+import { test, expect, original, current, output, waitForCreatorUploadReady } from "./fixtures.mjs";
 import AxeBuilder from "@axe-core/playwright";
 
 const opener = (page) => page.getByRole("button", { name: "画像を拡大して比較" });
@@ -177,6 +177,7 @@ test("pending review: import, compare and explicitly defer from the review form"
   await page.locator('[name="original_image"]').setInputFiles(original);
   await page.locator('[name="current_image"]').setInputFiles(current);
   await page.locator('[name="ai_output"]').setInputFiles(output);
+  await waitForCreatorUploadReady(page);
   await page.getByRole("button", { name: "提案を作成" }).click();
   await page.waitForURL("**/creator-sessions/browser-review");
   await openComparison(page);

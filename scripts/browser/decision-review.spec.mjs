@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { isolatedTest as test, expect, original, current, output } from "./fixtures.mjs";
+import { isolatedTest as test, expect, original, current, output, waitForCreatorUploadReady } from "./fixtures.mjs";
 
 async function begin(page, app, session) {
   await page.goto(`${app.origin}/projects/reviews/import`);
@@ -9,6 +9,7 @@ async function begin(page, app, session) {
   await page.locator('[name="original_image"]').setInputFiles(original);
   await page.locator('[name="current_image"]').setInputFiles(current);
   await page.locator('[name="ai_output"]').setInputFiles(output);
+  await waitForCreatorUploadReady(page);
   await page.getByRole("button", { name: "提案を作成" }).click();
   await page.waitForURL(`**/creator-sessions/${session}`);
 }

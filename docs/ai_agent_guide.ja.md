@@ -134,12 +134,12 @@ synapse export "$REPO" "$HOME/SynapseGit/backup-north-wall-2"
 ## 写真の位置情報
 
 `inbox put`、`creator-run`、localhost の取り込み（uploadとInbox候補の確認）は、JPEG/PNG の
-先頭 256 KiB にある EXIF/XMP の位置情報を、画像をdecodeせずに確認します。警告が出たら、
-人に「記録されるbyteに位置情報が残る」ことを伝え、記録前にmetadataを除いたcopyを使うか
-決めてもらいます。SynapseGitが自動で除去することはありません。壊れた形式、未対応形式、
-または確認上限に達した場合は確認できなかったものとして扱い、位置情報がないとは判断しません。
-256 KiBを超えるJPEG写真でも、metadataがその範囲で終われば確認済みになります。256 KiBを
-超えるPNGは、画像データの後ろにもtextを置けるため、確認しきれなかったものとして扱います。
+EXIF/XMP の位置情報を画像をdecodeせずに確認します。JPEGのheaderは先頭256 KiBまでです。PNGは
+`IEND`まで構造を辿り、eXIf/text metadata chunkだけを読みCRC確認し、画像payloadは読み飛ばします。
+fileは64 MiB以下、PNGは4,096 chunk以下、metadata payload合計は256 KiB以下です。壊れた形式、
+未対応形式、上限到達、または末尾の未検査dataは確認できなかったものとして扱い、位置情報がないとは
+判断しません。読み飛ばす画像payloadのCRCは確認しないため、これはPNG全体の整合性確認ではなく、
+上限付きの位置情報metadata確認です。
 
 ### 記録前に使うbyteを選ぶ
 

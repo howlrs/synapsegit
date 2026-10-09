@@ -1,6 +1,7 @@
-import { isolatedTest as test, inboxTest, expect } from "./fixtures.mjs";
+import { isolatedTest as test, inboxTest, expect, original, current, output, waitForCreatorUploadReady } from "./fixtures.mjs";
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { deflateSync } from "node:zlib";
 
 function tiff(gps) {
   const bytes = Buffer.alloc(40); bytes.set([73, 73, 42, 0, 8, 0, 0, 0, 1, 0]);
@@ -10,8 +11,16 @@ function tiff(gps) {
 function jpeg(gps) { const exif = tiff(gps); return Buffer.concat([Buffer.from([255,216,255,225,0,exif.length + 8]), Buffer.from("Exif\0\0"), exif, Buffer.from([255,217])]); }
 function crc(type, data) { let value=0xffffffff;for(const byte of Buffer.concat([Buffer.from(type),data])){value^=byte;for(let i=0;i<8;i++)value=value&1?(value>>>1)^0xedb88320:value>>>1;}return (~value)>>>0; }
 function chunk(type, data) { const out=Buffer.alloc(12+data.length);out.writeUInt32BE(data.length);out.write(type,4);data.copy(out,8);out.writeUInt32BE(crc(type,data),8+data.length);return out; }
-function pngGps() { return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk("eXIf",tiff(true)),chunk("IEND",Buffer.alloc(0))]); }
-function pngCompressedXmp() { return Buffer.concat([Buffer.from([137,80,78,71,13,10,26,10]),chunk("iTXt",Buffer.concat([Buffer.from("XML:com.adobe.xmp\0"),Buffer.from([1,0,0,0])])),chunk("IEND",Buffer.alloc(0))]); }
+function png(...metadata) {
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(1, 0); ihdr.writeUInt32BE(1, 4); ihdr.set([8, 2, 0, 0, 0], 8);
+  return Buffer.concat([
+    Buffer.from([137,80,78,71,13,10,26,10]), chunk("IHDR", ihdr), ...metadata,
+    chunk("IDAT", deflateSync(Buffer.from([0, 0, 0, 0]))), chunk("IEND", Buffer.alloc(0)),
+  ]);
+}
+function pngGps() { return png(chunk("eXIf", tiff(true))); }
+function pngCompressedXmp() { return png(chunk("iTXt", Buffer.concat([Buffer.from("XML:com.adobe.xmp\0"), Buffer.from([1,0,0,0])]))); }
 const file = (name, buffer) => ({ name, mimeType: "application/octet-stream", buffer });
 
 test("location warnings appear before import and remain scoped to each selected file", async ({ page, app }) => {
@@ -44,6 +53,17 @@ test("compressed XMP warns as unchecked and derived upload keeps a warning targe
   await page.goto(`${app.origin}/projects/complete/creator-sessions/sample/derive`);
   await page.locator('[name="ai_output"]').setInputFiles(file("xmp.png", pngCompressedXmp()));
   await expect(page.locator("[data-creator-metadata-warning]")).toContainText("確認しきれ");
+});
+
+test("tutorial PNG uploads finish metadata preflight without location warnings", async ({ page, app }) => {
+  await page.goto(`${app.origin}/projects/reviews/import`);
+  for (const [name, image] of [["original_image", original], ["current_image", current], ["ai_output", output]]) {
+    await page.locator(`[name="${name}"]`).setInputFiles(image);
+  }
+  await waitForCreatorUploadReady(page);
+  for (const field of await page.locator("[data-creator-file]").all()) {
+    await expect(field.locator("[data-creator-metadata-warning]")).toBeHidden();
+  }
 });
 
 test("a pending metadata preflight prevents a fast proposal POST", async ({ page, app }) => {

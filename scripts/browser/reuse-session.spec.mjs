@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { isolatedTest as test, expect, original, current, output } from "./fixtures.mjs";
+import { isolatedTest as test, expect, original, current, output, waitForCreatorUploadReady } from "./fixtures.mjs";
 
 async function importProposal(page, app, project, session, generationNote = null) {
   await page.goto(`${app.origin}/projects/${project}/import`);
@@ -16,6 +16,7 @@ async function importProposal(page, app, project, session, generationNote = null
     await page.getByLabel("プロンプト", { exact: true }).fill(generationNote.prompt);
     await page.getByLabel("制作意図", { exact: true }).fill(generationNote.intent);
   }
+  await waitForCreatorUploadReady(page);
   await page.getByRole("button", { name: "提案を作成", exact: true }).click();
   await page.waitForURL(`**/creator-sessions/${session}`);
 }

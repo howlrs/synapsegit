@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { archiveTest, isolatedTest as test, expect, original, current, output } from "./fixtures.mjs";
+import { archiveTest, isolatedTest as test, expect, original, current, output, waitForCreatorUploadReady } from "./fixtures.mjs";
 
 async function beginEnglishReview(page, app, session) {
   await page.goto(`${app.origin}/projects/reviews/import?lang=en`);
@@ -9,6 +9,7 @@ async function beginEnglishReview(page, app, session) {
   for (const [name, file] of [["original_image", original], ["current_image", current], ["ai_output", output]]) {
     await page.locator(`[name="${name}"]`).setInputFiles(file);
   }
+  await waitForCreatorUploadReady(page);
   await page.getByRole("button", { name: "Create proposal", exact: true }).click();
   await page.waitForURL(`**/creator-sessions/${session}`);
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
@@ -35,6 +36,7 @@ test("English selection persists through import, decision, recorded rationale, a
   await page.locator('[name="original_image"]').setInputFiles(original);
   await page.locator('[name="current_image"]').setInputFiles(current);
   await page.locator('[name="ai_output"]').setInputFiles(output);
+  await waitForCreatorUploadReady(page);
   await page.getByRole("button", { name: "Create proposal", exact: true }).click();
   await page.waitForURL("**/creator-sessions/english-review");
   await expect(page.locator("html")).toHaveAttribute("lang", "en");
@@ -150,6 +152,7 @@ test("English derive carries reference images into a separate session", async ({
   await expect(page.getByRole("heading", { name: "Source and reused reference images", exact: true })).toBeVisible();
   await page.locator('[name="session"]').fill("english-derived");
   await page.locator('[name="ai_output"]').setInputFiles(output);
+  await waitForCreatorUploadReady(page);
   await page.getByRole("button", { name: "Create a proposal with the reference images", exact: true }).click();
   await page.waitForURL("**/creator-sessions/english-derived");
   await expect(page.locator("[data-creator-source]")).toContainText("english-derive-source");

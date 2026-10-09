@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { isolatedTest as test, expect, decisionButton, original, current, output } from "./fixtures.mjs";
+import { isolatedTest as test, expect, decisionButton, original, current, output, waitForCreatorUploadReady } from "./fixtures.mjs";
 
 for (const disposition of ["Adopt", "Reject", "Defer"]) {
   test(`derive from ${disposition} with one fresh candidate and unchanged reference bytes`, async ({ page, app }) => {
@@ -12,6 +12,7 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     for (const [name, file] of [["original_image", original], ["current_image", current], ["ai_output", output]]) await page.locator(`[name="${name}"]`).setInputFiles(file);
     await page.getByText("提案の生成メモ（任意）", { exact: true }).click();
     await page.getByLabel("プロンプト", { exact: true }).fill("OLD_SOURCE_PRIVATE_NOTE");
+    await waitForCreatorUploadReady(page);
     await page.getByRole("button", { name: "提案を作成", exact: true }).click();
     await page.waitForURL(`**/creator-sessions/${source}`);
     const oids = await page.locator("img[data-synapse-image]").evaluateAll(images => images.map(image => image.dataset.oid));
@@ -43,6 +44,7 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
       await page.setViewportSize({ width: 375, height: 900 });
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
     }
+    await waitForCreatorUploadReady(page);
     const button = page.getByRole("button", { name: "参照画像を引き継いで提案を作成", exact: true });
     await button.focus();
     await page.keyboard.press("Enter");

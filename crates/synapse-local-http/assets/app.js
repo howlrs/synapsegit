@@ -30,6 +30,9 @@ const UTF8_ENCODER = new TextEncoder();
 const CREATOR_SESSION_SLUG = /^[a-z][a-z0-9-]{0,63}$/u;
 const METADATA_SCAN_BYTES = 256 * 1024;
 const METADATA_MAX_IFDS = 16;
+const METADATA_MAX_FILE_BYTES = 64 * 1024 * 1024;
+const METADATA_MAX_PNG_CHUNKS = 4096;
+const METADATA_MAX_PNG_BYTES = 256 * 1024;
 
 // Interface messages keyed by stable identifiers. Each entry keeps Japanese
 // and English together; `node scripts/test_local_app.mjs` checks that both
@@ -882,15 +885,79 @@ function fileSizeLabel(bytes) {
 function u16at(bytes, offset, little) { if (offset + 2 > bytes.length) return null; return little ? bytes[offset] | bytes[offset + 1] << 8 : bytes[offset] << 8 | bytes[offset + 1]; }
 function u32at(bytes, offset, little) { if (offset + 4 > bytes.length) return null; return little ? (bytes[offset] | bytes[offset+1]<<8 | bytes[offset+2]<<16 | bytes[offset+3]<<24) >>> 0 : (bytes[offset]<<24 | bytes[offset+1]<<16 | bytes[offset+2]<<8 | bytes[offset+3]) >>> 0; }
 function asciiContains(bytes, text) { const needle = new TextEncoder().encode(text.toLowerCase()); for(let i=0;i+needle.length<=bytes.length;i++){let ok=true;for(let j=0;j<needle.length;j++){let c=bytes[i+j]; if(c>=65&&c<=90)c+=32;if(c!==needle[j]){ok=false;break}}if(ok)return true}return false; }
-function itxtXmp(bytes) { const end=bytes.indexOf(0), key=new TextEncoder().encode("xml:com.adobe.xmp"); if(end<0)return "invalid";if(end!==key.length)return null;for(let i=0;i<key.length;i++){let c=bytes[i];if(c>=65&&c<=90)c+=32;if(c!==key[i])return null}const rest=bytes.subarray(end+1);if(rest.length<2||rest[0]||rest[1])return "invalid";const language=rest.subarray(2).indexOf(0);if(language<0)return "invalid";const translated=rest.subarray(language+3).indexOf(0);if(translated<0)return "invalid";return rest.subarray(language+4+translated); }
+function validPngKeyword(keyword) { return keyword.length>0&&keyword.length<=79&&keyword[0]!==32&&keyword.at(-1)!==32&&!keyword.some((byte,index)=>byte===32&&keyword[index+1]===32)&&keyword.every(byte=>byte>=32&&byte<=126||byte>=161); }
+function validPngText(payload) { const end=payload.indexOf(0);return end>=0&&validPngKeyword(payload.subarray(0,end))&&!payload.subarray(end+1).includes(0); }
+function validPngLanguageTag(tag) {
+  if (!tag.length) return true;
+  const grandfathered = ["art-lojban","cel-gaulish","en-gb-oed","i-ami","i-bnn","i-default","i-enochian","i-hak","i-klingon","i-lux","i-mingo","i-navajo","i-pwn","i-tao","i-tay","i-tsu","no-bok","no-nyn","sgn-be-fr","sgn-be-nl","sgn-ch-de","zh-guoyu","zh-hakka","zh-min","zh-min-nan","zh-xiang"];
+  const lower = (byte) => byte >= 65 && byte <= 90 ? byte + 32 : byte;
+  const alpha = (part) => part.every(byte => byte >= 65 && byte <= 90 || byte >= 97 && byte <= 122);
+  const digit = (part) => part.every(byte => byte >= 48 && byte <= 57);
+  const alphanumeric = (part) => part.every(byte => byte >= 48 && byte <= 57 || byte >= 65 && byte <= 90 || byte >= 97 && byte <= 122);
+  if (grandfathered.some(value => tag.length === value.length && tag.every((byte, index) => lower(byte) === value.charCodeAt(index)))) return true;
+  const subtags = [];
+  let last = 0;
+  for (let i = 0; i <= tag.length; i++) {
+    if (i === tag.length || tag[i] === 45) {
+      const part = tag.subarray(last, i);
+      if (!part.length || !alphanumeric(part)) return false;
+      subtags.push(part);
+      last = i + 1;
+    }
+  }
+  if (subtags[0].length === 1 && lower(subtags[0][0]) === 120) return subtags.length > 1 && subtags.slice(1).every(part => part.length <= 8);
+  let position;
+  if (subtags[0].length >= 2 && subtags[0].length <= 3 && alpha(subtags[0])) {
+    position = 1;
+    for (let count = 0; count < 3 && position < subtags.length && subtags[position].length === 3 && alpha(subtags[position]); count++) position++;
+  } else if (subtags[0].length >= 4 && subtags[0].length <= 8 && alpha(subtags[0])) position = 1;
+  else return false;
+  if (position < subtags.length && subtags[position].length === 4 && alpha(subtags[position])) position++;
+  if (position < subtags.length && (subtags[position].length === 2 && alpha(subtags[position]) || subtags[position].length === 3 && digit(subtags[position]))) position++;
+  const variants = [];
+  while (position < subtags.length) {
+    const part = subtags[position];
+    const variant = part.length >= 5 && part.length <= 8 || part.length === 4 && digit(part.subarray(0, 1));
+    if (!variant) break;
+    const value = String.fromCharCode(...part.map(lower));
+    if (variants.includes(value)) return false;
+    variants.push(value);
+    position++;
+  }
+  const extensionSingletons = [];
+  while (position < subtags.length && subtags[position].length === 1 && lower(subtags[position][0]) !== 120) {
+    const singleton = lower(subtags[position][0]);
+    if (extensionSingletons.includes(singleton)) return false;
+    position++;
+    const start = position;
+    while (position < subtags.length && subtags[position].length >= 2 && subtags[position].length <= 8) position++;
+    if (position === start) return false;
+    extensionSingletons.push(singleton);
+  }
+  if (position < subtags.length && subtags[position].length === 1 && lower(subtags[position][0]) === 120) {
+    position++;
+    const start = position;
+    while (position < subtags.length && subtags[position].length <= 8) position++;
+    if (position === start) return false;
+  }
+  return position === subtags.length;
+}
+function itxtXmp(bytes) { const end=bytes.indexOf(0); if(end<0||!validPngKeyword(bytes.subarray(0,end)))return "invalid";const rest=bytes.subarray(end+1);if(rest.length<2||rest[0]||rest[1])return "invalid";const languageAndRest=rest.subarray(2),language=languageAndRest.indexOf(0);if(language<0||!validPngLanguageTag(languageAndRest.subarray(0,language)))return "invalid";const translatedAndText=languageAndRest.subarray(language+1),translated=translatedAndText.indexOf(0);if(translated<0||translatedAndText.subarray(translated+1).includes(0))return "invalid";const decoder=new TextDecoder("utf-8",{fatal:true});try{decoder.decode(translatedAndText.subarray(0,translated));decoder.decode(translatedAndText.subarray(translated+1));}catch{return "invalid"}return translatedAndText.subarray(translated+1); }
 function pngCrc(kind, data) { let crc=0xffffffff;for(const byte of [...kind,...data]){crc^=byte;for(let i=0;i<8;i++)crc=crc&1?(crc>>>1)^0xedb88320:crc>>>1;}return (~crc)>>>0; }
 function exifMetadataCheck(bytes) { if(bytes.length<8)return "could_not_check"; const little=bytes[0]===73&&bytes[1]===73;if(!little&&!(bytes[0]===77&&bytes[1]===77)||u16at(bytes,2,little)!==42)return "could_not_check";const first=u32at(bytes,4,little);if(first===null)return "could_not_check";const pending=[[first,0]],seen=new Set();while(pending.length){const [offset,depth]=pending.pop();if(depth>4||seen.has(offset)||seen.size>=METADATA_MAX_IFDS||offset+2>bytes.length)return "could_not_check";seen.add(offset);const n=u16at(bytes,offset,little);if(n===null||offset+2+n*12+4>bytes.length)return "could_not_check";for(let i=0;i<n;i++){const e=offset+2+i*12,tag=u16at(bytes,e,little),value=u32at(bytes,e+8,little);if(value===null)return "could_not_check";if(tag===0x8825)return value>=bytes.length?"could_not_check":"gps_found";if(tag===0x8769||tag===0xa005)pending.push([value,depth+1]);else if(tag===0x014a){const count=u32at(bytes,e+4,little);if(count===null||count>METADATA_MAX_IFDS)return "could_not_check";if(count===1){pending.push([value,depth+1]);continue;}for(let j=0;j<count;j++){const child=u32at(bytes,value+j*4,little);if(child===null)return "could_not_check";pending.push([child,depth+1]);}}}const next=u32at(bytes,offset+2+n*12,little);if(next===null)return "could_not_check";if(next)pending.push([next,depth]);}return "no_gps_found"; }
 function declaresAppendedMedia(xmp) { return asciiContains(xmp,"photos/1.0/container")||asciiContains(xmp,"motionphoto")||asciiContains(xmp,"microvideo"); }
 function isRawMetadataProfile(chunk) { const end=chunk.indexOf(0),keyword=new TextDecoder("latin1").decode(chunk.subarray(0,end<0?chunk.length:end)).toLowerCase();return ["raw profile type exif","raw profile type app1","raw profile type xmp"].includes(keyword); }
-/** Bounded, non-decoding check of opaque selected bytes. JPEG metadata ends at the first scan, so later image data does not make it unknown; PNG chunks may follow image data, so a truncated PNG stays unknown. MPF and Motion Photo containers can carry further metadata after the primary image. */
-export function inspectImageLocationMetadata(bytes, truncated = false) { if(bytes[0]===255&&bytes[1]===216){let p=2,appended=false;while(p<bytes.length){if(bytes[p++]!==255)return "could_not_check";while(bytes[p]===255)p++;if(p>=bytes.length)return "could_not_check";const m=bytes[p++];if(m===217||m===218)return appended?"could_not_check":"no_gps_found";if((m>=208&&m<=215)||m===1)continue;if(p+2>bytes.length)return "could_not_check";const n=(bytes[p]<<8)|bytes[p+1];p+=2;if(n<2||p+n-2>bytes.length)return "could_not_check";const x=bytes.subarray(p,p+n-2);p+=n-2;if(m===225){const exif=x.length>=6&&x[0]===69&&x[1]===120&&x[2]===105&&x[3]===102&&x[4]===0&&x[5]===0;if(exif){const v=exifMetadataCheck(x.subarray(6));if(v!=="no_gps_found")return v}else if(asciiContains(x,"gpslatit")||asciiContains(x,"gpslongi"))return "gps_found";else if(declaresAppendedMedia(x))appended=true}else if(m===226&&x.length>=4&&x[0]===77&&x[1]===80&&x[2]===70&&x[3]===0)appended=true}return "could_not_check"}if(bytes.length>=8&&bytes[0]===137&&bytes[1]===80&&bytes[2]===78&&bytes[3]===71&&bytes[4]===13&&bytes[5]===10&&bytes[6]===26&&bytes[7]===10){let p=8;while(p+12<=bytes.length){const n=u32at(bytes,p,false);if(p+12+n>bytes.length)return "could_not_check";const kind=bytes.subarray(p+4,p+8),k=String.fromCharCode(...kind),x=bytes.subarray(p+8,p+8+n);if(pngCrc(kind,x)!==u32at(bytes,p+8+n,false))return "could_not_check";p+=12+n;if(k==="eXIf"){const v=exifMetadataCheck(x);if(v!=="no_gps_found")return v}if((k==="tEXt"||k==="zTXt"||k==="iTXt")&&isRawMetadataProfile(x))return "could_not_check";if(k==="iTXt"){const text=itxtXmp(x);if(text==="invalid")return "could_not_check";if(text&&(asciiContains(text,"gpslatit")||asciiContains(text,"gpslongi")))return "gps_found"}if(k==="IEND")return truncated?"could_not_check":"no_gps_found"}}return "could_not_check"; }
+function isPngSignature(bytes) { return bytes.length >= 8 && bytes[0]===137 && bytes[1]===80 && bytes[2]===78 && bytes[3]===71 && bytes[4]===13 && bytes[5]===10 && bytes[6]===26 && bytes[7]===10; }
+function isPngMetadata(kind) { return kind === "eXIf" || kind === "tEXt" || kind === "zTXt" || kind === "iTXt"; }
+function validPngChunkKind(kind) { return kind.length===4&&[...kind].every(char=>(char>="A"&&char<="Z")||(char>="a"&&char<="z"))&&kind[2]>="A"&&kind[2]<="Z"; }
+function validPngIhdr(payload) { if(payload.length!==13||!payload.subarray(0,4).some(Boolean)||!payload.subarray(4,8).some(Boolean)||payload[0]&128||payload[4]&128||payload[10]!==0||payload[11]!==0||payload[12]>1)return false;return (payload[8]===1||payload[8]===2||payload[8]===4||payload[8]===8)&&(payload[9]===0||payload[9]===3)||(payload[8]===8||payload[8]===16)&&(payload[9]===2||payload[9]===4||payload[9]===6)||payload[8]===16&&payload[9]===0; }
+function pngMetadataCheck(kind, payload) { if(kind === "eXIf") return exifMetadataCheck(payload); if((kind === "tEXt" || kind === "zTXt" || kind === "iTXt") && isRawMetadataProfile(payload)) return "could_not_check"; if(kind === "zTXt") return "could_not_check"; if(kind === "tEXt"){if(!validPngText(payload))return "could_not_check";if(asciiContains(payload,"gpslatit")||asciiContains(payload,"gpslongi"))return "gps_found";} if(kind === "iTXt"){const text=itxtXmp(payload);if(text === "invalid")return "could_not_check";if(text && (asciiContains(text,"gpslatit") || asciiContains(text,"gpslongi")))return "gps_found";} return "no_gps_found"; }
+function inspectPng(bytes, truncated) { let p=8,chunks=0,metadataBytes=0,gpsFound=false,sawIdat=false,afterIdat=false,indexed=false,sawPlte=false,bitDepth=0,colorType=0,sawExif=false;while(p+12<=bytes.length){if(++chunks>METADATA_MAX_PNG_CHUNKS)return "could_not_check";const n=u32at(bytes,p,false),end=p+12+n;if(end>bytes.length||end<p)return "could_not_check";const kindBytes=bytes.subarray(p+4,p+8),kind=String.fromCharCode(...kindBytes),payload=bytes.subarray(p+8,p+8+n);if(!validPngChunkKind(kind))return "could_not_check";if(chunks===1){if(kind!=="IHDR"||!validPngIhdr(payload))return "could_not_check";indexed=payload[9]===3;bitDepth=payload[8];colorType=payload[9];}else if(kind==="IHDR"||(kind==="IDAT"&&afterIdat))return "could_not_check";else if(kind.charCodeAt(0)>=65&&kind.charCodeAt(0)<=90&&kind!=="PLTE"&&kind!=="IDAT"&&kind!=="IEND")return "could_not_check";else if(kind==="PLTE"){if(sawIdat||sawPlte||colorType===0||colorType===4||n<3||n%3||n>768||(indexed&&n/3>2**bitDepth))return "could_not_check";sawPlte=true;}else if(kind==="eXIf"){if(sawIdat||sawExif)return "could_not_check";sawExif=true;}else if(kind==="IDAT"){if(indexed&&!sawPlte)return "could_not_check";sawIdat=true;}else if(sawIdat)afterIdat=true;if(isPngMetadata(kind)){metadataBytes+=n;if(metadataBytes>METADATA_MAX_PNG_BYTES||pngCrc(kindBytes,payload)!==u32at(bytes,p+8+n,false))return "could_not_check";const check=pngMetadataCheck(kind,payload);if(check==="could_not_check")return check;if(check==="gps_found")gpsFound=true;}p=end;if(kind==="IEND")return n===0&&sawIdat&&(!indexed||sawPlte)&&p===bytes.length&&!truncated?(gpsFound?"gps_found":"no_gps_found"):"could_not_check";}return "could_not_check"; }
+/** Bounded, non-decoding check of opaque selected bytes. JPEG metadata ends at the first scan. PNG is traversed to IEND, validating only inspected metadata chunk CRCs. */
+export function inspectImageLocationMetadata(bytes, truncated = false) { if(bytes.length>METADATA_MAX_FILE_BYTES)return "could_not_check";if(bytes[0]===255&&bytes[1]===216){let p=2,appended=false;while(p<bytes.length){if(bytes[p++]!==255)return "could_not_check";while(bytes[p]===255)p++;if(p>=bytes.length)return "could_not_check";const m=bytes[p++];if(m===217||m===218)return appended?"could_not_check":"no_gps_found";if((m>=208&&m<=215)||m===1)continue;if(p+2>bytes.length)return "could_not_check";const n=(bytes[p]<<8)|bytes[p+1];p+=2;if(n<2||p+n-2>bytes.length)return "could_not_check";const x=bytes.subarray(p,p+n-2);p+=n-2;if(m===225){const exif=x.length>=6&&x[0]===69&&x[1]===120&&x[2]===105&&x[3]===102&&x[4]===0&&x[5]===0;if(exif){const v=exifMetadataCheck(x.subarray(6));if(v!=="no_gps_found")return v}else if(asciiContains(x,"gpslatit")||asciiContains(x,"gpslongi"))return "gps_found";else if(declaresAppendedMedia(x))appended=true}else if(m===226&&x.length>=4&&x[0]===77&&x[1]===80&&x[2]===70&&x[3]===0)appended=true}return "could_not_check"}if(isPngSignature(bytes))return inspectPng(bytes,truncated);return "could_not_check"; }
 
-async function selectedImageLocationMetadata(file) { const bytes = new Uint8Array(await file.slice(0, Math.min(file.size, METADATA_SCAN_BYTES)).arrayBuffer()); return inspectImageLocationMetadata(bytes, file.size > METADATA_SCAN_BYTES); }
+/** Reads PNG headers and metadata slices only, keeping browser preflight bounded like the Rust seek scanner. */
+export async function selectedImageLocationMetadata(file) { if(file.size>METADATA_MAX_FILE_BYTES)return "could_not_check";const signature=new Uint8Array(await file.slice(0,Math.min(file.size,8)).arrayBuffer());if(!isPngSignature(signature)){const bytes=new Uint8Array(await file.slice(0,Math.min(file.size,METADATA_SCAN_BYTES)).arrayBuffer());return inspectImageLocationMetadata(bytes,file.size>METADATA_SCAN_BYTES);}let p=8,chunks=0,metadataBytes=0,gpsFound=false,sawIdat=false,afterIdat=false,indexed=false,sawPlte=false,bitDepth=0,colorType=0,sawExif=false;while(p+12<=file.size){if(++chunks>METADATA_MAX_PNG_CHUNKS)return "could_not_check";const header=new Uint8Array(await file.slice(p,p+8).arrayBuffer());if(header.length!==8)return "could_not_check";const n=u32at(header,0,false),end=p+12+n;if(end>file.size||end<p)return "could_not_check";const kind=String.fromCharCode(...header.subarray(4));let payload;if(!validPngChunkKind(kind))return "could_not_check";if(chunks===1){if(kind!=="IHDR"||n!==13)return "could_not_check";payload=new Uint8Array(await file.slice(p+8,p+8+n).arrayBuffer());if(!validPngIhdr(payload))return "could_not_check";indexed=payload[9]===3;bitDepth=payload[8];colorType=payload[9];}else if(kind==="IHDR"||(kind==="IDAT"&&afterIdat))return "could_not_check";else if(kind.charCodeAt(0)>=65&&kind.charCodeAt(0)<=90&&kind!=="PLTE"&&kind!=="IDAT"&&kind!=="IEND")return "could_not_check";else if(kind==="PLTE"){if(sawIdat||sawPlte||colorType===0||colorType===4||n<3||n%3||n>768||(indexed&&n/3>2**bitDepth))return "could_not_check";sawPlte=true;}else if(kind==="eXIf"){if(sawIdat||sawExif)return "could_not_check";sawExif=true;}else if(kind==="IDAT"){if(indexed&&!sawPlte)return "could_not_check";sawIdat=true;}else if(sawIdat)afterIdat=true;if(isPngMetadata(kind)){metadataBytes+=n;if(metadataBytes>METADATA_MAX_PNG_BYTES)return "could_not_check";const bytes=new Uint8Array(await file.slice(p+8,end).arrayBuffer());if(bytes.length!==n+4)return "could_not_check";payload=bytes.subarray(0,n);if(pngCrc(header.subarray(4),payload)!==u32at(bytes,n,false))return "could_not_check";const check=pngMetadataCheck(kind,payload);if(check==="could_not_check")return check;if(check==="gps_found")gpsFound=true;}p=end;if(kind==="IEND")return n===0&&sawIdat&&(!indexed||sawPlte)&&p===file.size?(gpsFound?"gps_found":"no_gps_found"):"could_not_check";}return "could_not_check"; }
 
 function updateUtf8Counter(input, counter, limit) {
   const count = UTF8_ENCODER.encode(input.value).byteLength;

@@ -1,4 +1,4 @@
-import { test, expect, original, current, output } from "./fixtures.mjs";
+import { test, expect, original, current, output, waitForCreatorUploadReady } from "./fixtures.mjs";
 import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
 
@@ -124,6 +124,7 @@ test("untrusted filename and MIME do not authorize inline SVG; broken and opaque
   await expect(field(page, "ai_output").locator("[data-creator-preview-status]")).toContainText("そのまま取り込めます");
   expect(await form(page).evaluate((element) => element.checkValidity())).toBe(true);
   expect(await page.evaluate(() => window.previewInjected)).toBeUndefined();
+  await waitForCreatorUploadReady(page);
   await page.getByRole("button", { name: "提案を作成" }).click();
   await page.waitForURL("**/creator-sessions/opaque-preview");
   await expect(page.getByRole("button", { name: "保留", exact: true })).toBeVisible();
@@ -143,6 +144,7 @@ test("upload locks the selected content while pending, then preserves it when th
     });
   });
   try {
+    await waitForCreatorUploadReady(page);
     await page.getByRole("button", { name: "提案を作成" }).click();
     await requested;
     for (const control of await form(page).locator("input, button").all()) await expect(control).toBeDisabled();

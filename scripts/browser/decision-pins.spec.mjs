@@ -1,5 +1,5 @@
 import AxeBuilder from "@axe-core/playwright";
-import { isolatedTest as test, expect, decisionButton, original, current, output } from "./fixtures.mjs";
+import { isolatedTest as test, expect, decisionButton, original, current, output, waitForCreatorUploadReady } from "./fixtures.mjs";
 
 test.use({ hasTouch: true });
 
@@ -9,6 +9,7 @@ async function begin(page, app, session) {
   await page.locator('[name="creator_name"]').fill("Pin reviewer");
   await page.locator('[name="subject_label"]').fill("位置付きメモ");
   for (const [name, file] of [["original_image", original], ["current_image", current], ["ai_output", output]]) await page.locator(`[name="${name}"]`).setInputFiles(file);
+  await waitForCreatorUploadReady(page);
   await page.getByRole("button", { name: "提案を作成" }).click();
   await page.waitForURL(`**/creator-sessions/${session}`);
   await expect(page.getByRole("button", { name: "中央にピンを追加" })).toBeEnabled();
