@@ -141,6 +141,23 @@ synapse export "$REPO" "$HOME/SynapseGit/backup-north-wall-2"
 256 KiBを超えるJPEG写真でも、metadataがその範囲で終われば確認済みになります。256 KiBを
 超えるPNGは、画像データの後ろにもtextを置けるため、確認しきれなかったものとして扱います。
 
+### 記録前に使うbyteを選ぶ
+
+写真の位置情報警告を確認してから記録する場合は、`inbox put` → 人が画像と警告を確認 →
+人が明示した判断を `inbox decide` で記録、という二段階にします。確認中はCreator sessionを
+記録しません。`inbox put` のJSONでは `decision_recorded=false` です。
+
+`inbox put` は警告で停止せず、位置情報を含むcopyもInboxには保存されます。人が位置情報の
+除去を選んだ場合は、除去済みcopyを新しいslugで置いて再確認し、元の候補は判断の記録に
+使いません。元のInbox候補の削除は、人が不要と確認した後だけ行います。
+
+直接の `creator-run` は、入力byteと判断を人がすでに確認した一括実行に使います。警告は
+保持copyの作成後・repositoryへの記録前に表示しますが、人の返答を待たずに同じcommandで
+記録まで進みます。警告を見てから使うcopyを選び直す操作として実行しないでください。
+
+確認専用commandや警告時に拒否するflagはありません。確認不足も位置情報なしの保証には
+ならず、エージェントが人の代わりに「採用」「却下」「保留」を選ぶことはできません。
+
 ## 出力とerror
 
 - exit code `0`は成功、`1`はerrorです。
