@@ -2114,7 +2114,7 @@ fn creator_run_rejects_non_regular_inputs_for_every_role_without_mutating_the_re
             assert_eq!(failure.status.code(), Some(1));
             let stderr = String::from_utf8(failure.stderr).unwrap();
             assert!(
-                stderr.starts_with(&format!("storage_error: "))
+                stderr.starts_with("storage_error: ")
                     && stderr.contains(&format!("creator input {}:", path.display())),
                 "{stderr}"
             );
