@@ -417,7 +417,7 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
     let receipt = run_creator_session_with_note_and_metadata_review(
         &options,
         generation_note.as_ref(),
-        |warnings| emit_metadata_warnings(warnings),
+        emit_metadata_warnings,
     )?;
     let report = creator_report(&options.repository, &options.session).map_err(|source| {
         CliError::CreatorReportUnavailableAfterCommit {
@@ -713,8 +713,7 @@ fn inbox_command(args: &[String]) -> Result<(), CliError> {
     Ok(())
 }
 
-/// Advisories are emitted only once the command has completed successfully so
-/// every failure keeps its established error-code-first stderr contract.
+/// Emit advisories from retained input bytes before recording or publishing them.
 fn emit_metadata_warnings(warnings: &[synapse_creator::ImageMetadataWarning]) {
     for warning in warnings {
         if warning.check != synapse_creator::ImageMetadataCheck::NoGpsFound {
@@ -788,7 +787,7 @@ fn inbox_decide(args: &[String]) -> Result<(), CliError> {
     let receipt = run_creator_session_with_note_and_metadata_review(
         &options,
         retained.manifest.metadata.generation_note.as_ref(),
-        |warnings| emit_metadata_warnings(warnings),
+        emit_metadata_warnings,
     )?;
     let _report = creator_report(&options.repository, &options.session).map_err(|source| {
         CliError::CreatorReportUnavailableAfterCommit {
