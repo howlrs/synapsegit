@@ -1801,6 +1801,55 @@ fn decision_commands_emit_one_private_json_document_when_requested() {
     assert_eq!(document["receipt"]["session"], "json-run");
     expected_warnings(&document);
 
+    let clean_original = temp.join("clean-original.jpg");
+    let clean_current = temp.join("clean-current.jpg");
+    let clean_output = temp.join("clean-output.jpg");
+    for path in [&clean_original, &clean_current, &clean_output] {
+        fs::write(path, [0xff, 0xd8, 0xff, 0xd9]).unwrap();
+    }
+    assert_success(&run_owned(vec![
+        "inbox".into(),
+        "put".into(),
+        inbox.display().to_string(),
+        "clean-json-candidate".into(),
+        clean_original.display().to_string(),
+        clean_current.display().to_string(),
+        clean_output.display().to_string(),
+        "--subject".into(),
+        "Subject".into(),
+        "--creator".into(),
+        "Aki".into(),
+    ]));
+    let clean_decision = json_stdout(&run_owned(vec![
+        "inbox".into(),
+        "decide".into(),
+        inbox.display().to_string(),
+        "clean-json-candidate".into(),
+        temp.join("clean-inbox-repository").display().to_string(),
+        "--decision".into(),
+        "defer".into(),
+        "--format".into(),
+        "json".into(),
+    ]));
+    assert_eq!(clean_decision["metadata_warnings"], serde_json::json!([]));
+    let clean_run = json_stdout(&run_owned(vec![
+        "creator-run".into(),
+        temp.join("clean-run-repository").display().to_string(),
+        "clean-json-run".into(),
+        clean_original.display().to_string(),
+        clean_current.display().to_string(),
+        clean_output.display().to_string(),
+        "--subject".into(),
+        "Subject".into(),
+        "--creator".into(),
+        "Aki".into(),
+        "--decision".into(),
+        "defer".into(),
+        "--format".into(),
+        "json".into(),
+    ]));
+    assert_eq!(clean_run["metadata_warnings"], serde_json::json!([]));
+
     let rejected_repository = temp.join("invalid-format-repository");
     let bad_format = run_owned(vec![
         "creator-run".into(),
