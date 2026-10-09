@@ -1,9 +1,11 @@
-use crate::model::{PublicProjection, PublicSession, PublicationLocale};
+use crate::model::{
+    PresentedText, PublicProjection, PublicSession, PublicationLocale, ValueOrigin,
+};
 use std::fmt::Write as _;
 
 pub(crate) fn render_story(projection: &PublicProjection, locale: PublicationLocale) -> String {
     let mut output = String::new();
-    let title = markdown_inline(&projection.presentation.title.value);
+    let title = markdown_inline(presented(locale, &projection.presentation.title));
     writeln!(output, "# {title}\n").expect("writing to String cannot fail");
     writeln!(
         output,
@@ -14,7 +16,10 @@ pub(crate) fn render_story(projection: &PublicProjection, locale: PublicationLoc
         key(locale, Key::NetworkOperations)
     )
     .expect("writing to String cannot fail");
-    write_markdown_paragraph(&mut output, &projection.presentation.summary.value);
+    write_markdown_paragraph(
+        &mut output,
+        presented(locale, &projection.presentation.summary),
+    );
     if let Some(creator) = &projection.presentation.creator_display_name {
         writeln!(
             output,
@@ -86,8 +91,12 @@ pub(crate) fn render_story(projection: &PublicProjection, locale: PublicationLoc
 }
 
 fn render_story_session(output: &mut String, session: &PublicSession, locale: PublicationLocale) {
-    writeln!(output, "## {}\n", markdown_inline(&session.title.value))
-        .expect("writing to String cannot fail");
+    writeln!(
+        output,
+        "## {}\n",
+        markdown_inline(presented(locale, &session.title))
+    )
+    .expect("writing to String cannot fail");
     writeln!(
         output,
         "{}: `{}`\n",
@@ -113,7 +122,7 @@ fn render_story_session(output: &mut String, session: &PublicSession, locale: Pu
             output,
             "| {} | {} | `{}` | {} |",
             markdown_table(role_label(locale, artifact.role.label())),
-            markdown_table(&artifact.caption.value),
+            markdown_table(presented(locale, &artifact.caption)),
             markdown_code(&artifact.oid),
             markdown_table(key(locale, Key::AssetBytesOmitted))
         )
@@ -127,7 +136,7 @@ fn render_story_session(output: &mut String, session: &PublicSession, locale: Pu
         output,
         "- {}: {}",
         key(locale, Key::ProposalAttribution),
-        markdown_inline(&session.proposal.attribution_scope)
+        markdown_inline(attribution_scope(locale, session))
     )
     .expect("writing to String cannot fail");
     writeln!(
@@ -229,7 +238,7 @@ pub(crate) fn render_html(projection: &PublicProjection, locale: PublicationLoca
     writeln!(
         output,
         "<title>{}</title>",
-        html(&projection.presentation.title.value)
+        html(presented(locale, &projection.presentation.title))
     )
     .expect("writing to String cannot fail");
     output.push_str(STYLE);
@@ -238,8 +247,8 @@ pub(crate) fn render_html(projection: &PublicProjection, locale: PublicationLoca
         output,
         "<header><p class=\"eyebrow\">{}</p><h1>{}</h1><p class=\"lead\">{}</p><div class=\"badges\"><span>{}</span><span>{}: 0</span></div>",
         key(locale, Key::ProviderNeutralView),
-        html(&projection.presentation.title.value),
-        html(&projection.presentation.summary.value),
+        html(presented(locale, &projection.presentation.title)),
+        html(presented(locale, &projection.presentation.summary)),
         html(projection.publication.visibility.as_str()), key(locale, Key::Network)
     )
     .expect("writing to String cannot fail");
@@ -264,18 +273,18 @@ pub(crate) fn render_html(projection: &PublicProjection, locale: PublicationLoca
         .expect("writing to String cannot fail");
     }
     output.push_str("</header>\n");
-    write!(
+    writeln!(
         output,
-        "<section class=\"notice\"><h2>{}</h2><p>{}</p></section>\n",
+        "<section class=\"notice\"><h2>{}</h2><p>{}</p></section>",
         key(locale, Key::HowToRead),
         key(locale, Key::HtmlProofLimit)
     )
     .expect("writing to String cannot fail");
 
     if projection.sessions.is_empty() {
-        write!(
+        writeln!(
             output,
-            "<section><h2>{}</h2><p>{}</p></section>\n",
+            "<section><h2>{}</h2><p>{}</p></section>",
             key(locale, Key::NoCompleteSessionHeading),
             key(locale, Key::NoCompleteSession)
         )
@@ -322,9 +331,9 @@ pub(crate) fn render_html(projection: &PublicProjection, locale: PublicationLoca
         )
         .expect("writing to String cannot fail");
     }
-    write!(
+    writeln!(
         output,
-        "</ul><p>{}</p></section>\n",
+        "</ul><p>{}</p></section>",
         key(locale, Key::MachineSemanticsHtml)
     )
     .expect("writing to String cannot fail");
@@ -337,7 +346,7 @@ fn render_html_session(output: &mut String, session: &PublicSession, locale: Pub
         output,
         "<article><p class=\"eyebrow\">{} <code>{}</code></p><h2>{}</h2><div class=\"artifact-grid\">", key(locale, Key::Session),
         html(&session.session),
-        html(&session.title.value)
+        html(presented(locale, &session.title))
     )
     .expect("writing to String cannot fail");
     for artifact in &session.history {
@@ -345,7 +354,7 @@ fn render_html_session(output: &mut String, session: &PublicSession, locale: Pub
             output,
             "<section class=\"artifact\"><p class=\"role\">{}</p><h3>{}</h3><div class=\"placeholder\" aria-label=\"{}\">{}</div><p>{}</p><code class=\"oid\">{}</code></section>",
             html(role_label(locale, artifact.role.label())),
-            html(&artifact.caption.value),
+            html(presented(locale, &artifact.caption)),
             key(locale, Key::AssetBytesOmitted), key(locale, Key::AssetBytesOmitted),
             key(locale, Key::AssetBytesOmitted),
             html(&artifact.oid)
@@ -643,6 +652,35 @@ fn role_label(locale: PublicationLocale, role: &str) -> &str {
         (PublicationLocale::Ja, "Current") => "Current",
         (PublicationLocale::Ja, "AI-attributed proposal") => "AIに帰属する提案",
         _ => role,
+    }
+}
+
+fn presented<'a>(locale: PublicationLocale, value: &'a PresentedText) -> &'a str {
+    if value.origin != ValueOrigin::DerivedSummary || locale == PublicationLocale::En {
+        return &value.value;
+    }
+    match value.value.as_str() {
+        "SynapseGit creative history" => "SynapseGit 制作履歴",
+        "Recorded original source" => "記録されたOriginal source",
+        "Recorded current state" => "記録されたCurrent state",
+        "AI-attributed proposal" => "AIに帰属する提案",
+        value if value.starts_with("Session ") => "Session（記録済み識別子）",
+        value if value.starts_with("A reviewable history of ") => {
+            "AIに帰属する提案と人間の判断を保持し、raw source assetを公開しない確認可能な制作履歴です。"
+        }
+        _ => &value.value,
+    }
+}
+
+fn attribution_scope<'a>(locale: PublicationLocale, session: &'a PublicSession) -> &'a str {
+    if locale == PublicationLocale::Ja
+        && session.proposal.attribution_scope_origin == ValueOrigin::DerivedSummary
+        && session.proposal.attribution_scope
+            == "Caller-supplied output recorded by the workflow as AI-attributed; no model invocation is independently verified"
+    {
+        "呼び出し元提供のoutputはworkflowによりAIへ帰属します。model invocationは独立に検証されていません。"
+    } else {
+        &session.proposal.attribution_scope
     }
 }
 
