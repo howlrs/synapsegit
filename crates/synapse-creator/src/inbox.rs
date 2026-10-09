@@ -14,9 +14,6 @@ use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
-
-static RETAINED_INBOX_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// The manifest `version` value accepted by this contract.
 pub const IMPORT_INBOX_MANIFEST_VERSION: &str = "synapsegit-import-inbox-v1";
@@ -132,10 +129,10 @@ impl ImportInboxFile {
         {
             return Err(ImportInboxManifestError::InvalidFile);
         }
-        if let Some(hash) = &self.sha256 {
-            if hash.len() != 64 || !hash.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-                return Err(ImportInboxManifestError::InvalidSha256);
-            }
+        if let Some(hash) = &self.sha256
+            && (hash.len() != 64 || !hash.bytes().all(|byte| byte.is_ascii_hexdigit()))
+        {
+            return Err(ImportInboxManifestError::InvalidSha256);
         }
         Ok(())
     }
@@ -321,10 +318,21 @@ fn retain_inbox_leaf(
 
 fn retained_staging_directory() -> Result<PathBuf> {
     for _ in 0..32 {
-        let counter = RETAINED_INBOX_COUNTER.fetch_add(1, Ordering::Relaxed);
-        let path =
-            std::env::temp_dir().join(format!("synapsegit-inbox-{}-{counter}", std::process::id()));
-        match fs::create_dir(&path) {
+        let mut nonce = [0_u8; 16];
+        getrandom::fill(&mut nonce).map_err(|error| {
+            CreatorError::ResourceLimit(format!(
+                "could not allocate retained inbox staging: {error}"
+            ))
+        })?;
+        let suffix = nonce
+            .iter()
+            .map(|byte| format!("{byte:02x}"))
+            .collect::<String>();
+        let path = std::env::temp_dir().join(format!("synapsegit-inbox-{suffix}"));
+        let mut builder = fs::DirBuilder::new();
+        #[cfg(unix)]
+        std::os::unix::fs::DirBuilderExt::mode(&mut builder, 0o700);
+        match builder.create(&path) {
             Ok(()) => return Ok(path),
             Err(e) if e.kind() == io::ErrorKind::AlreadyExists => continue,
             Err(e) => return Err(CreatorError::io("create retained inbox staging", &path, e)),

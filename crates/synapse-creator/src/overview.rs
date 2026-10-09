@@ -92,26 +92,24 @@ pub fn read_creator_session_overview(
 
     // A completed decision has one feedback transition.  This sixth read does
     // not expose its private rationale.
-    if complete {
-        if let Some(feedback) = transition_feedback(repository, &commit) {
-            overview.disposition =
-                payload_text(&feedback, "disposition", 24).and_then(|value| match value.as_str() {
-                    "adopted_unchanged" => Some("adopt"),
-                    "rejected" => Some("reject"),
-                    "deferred" => Some("defer"),
-                    _ => None,
-                });
-            if let Some(recorded_at) = top_level_text(&feedback, "recorded_at", 64) {
-                overview.recorded_at = Some(recorded_at);
-                overview.recorded_time_basis = Some(CreatorOverviewTimeBasis::FeedbackRecordedAt);
-            }
+    if complete && let Some(feedback) = transition_feedback(repository, &commit) {
+        overview.disposition =
+            payload_text(&feedback, "disposition", 24).and_then(|value| match value.as_str() {
+                "adopted_unchanged" => Some("adopt"),
+                "rejected" => Some("reject"),
+                "deferred" => Some("defer"),
+                _ => None,
+            });
+        if let Some(recorded_at) = top_level_text(&feedback, "recorded_at", 64) {
+            overview.recorded_at = Some(recorded_at);
+            overview.recorded_time_basis = Some(CreatorOverviewTimeBasis::FeedbackRecordedAt);
         }
     }
-    if overview.recorded_at.is_none() {
-        if let Some(authored_at) = top_level_text(&commit, "authored_at", 64) {
-            overview.recorded_at = Some(authored_at);
-            overview.recorded_time_basis = Some(CreatorOverviewTimeBasis::CommitAuthoredAtFallback);
-        }
+    if overview.recorded_at.is_none()
+        && let Some(authored_at) = top_level_text(&commit, "authored_at", 64)
+    {
+        overview.recorded_at = Some(authored_at);
+        overview.recorded_time_basis = Some(CreatorOverviewTimeBasis::CommitAuthoredAtFallback);
     }
     overview
 }
