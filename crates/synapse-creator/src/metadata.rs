@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 use std::{
     fs::File,
-    io::{Read, Seek, SeekFrom},
+    io::{BufReader, Read, Seek, SeekFrom},
     path::Path,
 };
 
@@ -35,6 +35,8 @@ pub fn metadata_warning_from_bytes(role: &str, bytes: &[u8]) -> ImageMetadataWar
         ImageMetadataCheck::CouldNotCheck
     } else if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         png(bytes)
+    } else if bytes.starts_with(&[0xff, 0xd8]) {
+        jpeg(bytes)
     } else {
         inspect(
             &bytes[..bytes.len().min(METADATA_SCAN_BYTES)],
@@ -63,6 +65,8 @@ pub fn image_metadata_warning(role: &str, path: &Path) -> ImageMetadataWarning {
         f.seek(SeekFrom::Start(0))?;
         if signature_len == signature.len() && signature == *b"\x89PNG\r\n\x1a\n" {
             Ok(png_file(&mut f, length.len()))
+        } else if signature_len >= 2 && signature[..2] == [0xff, 0xd8] {
+            Ok(jpeg_file(f, length.len()))
         } else {
             let mut bytes = Vec::with_capacity(METADATA_SCAN_BYTES + 1);
             f.by_ref()
@@ -123,59 +127,161 @@ fn inspect(b: &[u8], truncated: bool) -> ImageMetadataCheck {
     ImageMetadataCheck::CouldNotCheck
 }
 fn jpeg(b: &[u8]) -> ImageMetadataCheck {
-    // MPF and Motion Photo/container XMP announce further images or media
-    // after the primary image. They may carry their own location metadata.
+    let mut bytes = b.iter().copied();
+    jpeg_reader(|| bytes.next(), b.len())
+}
+
+/// Locate the actual EOI through entropy-coded scans.  Byte stuffing, restart
+/// markers, and multiple scans are structural JPEG syntax; a byte pattern at
+/// the file tail is not used as an EOI shortcut.
+fn jpeg_file(file: File, length: u64) -> ImageMetadataCheck {
+    let mut reader = BufReader::new(file);
+    jpeg_reader(
+        || {
+            let mut byte = [0; 1];
+            reader.read_exact(&mut byte).ok().map(|_| byte[0])
+        },
+        length as usize,
+    )
+}
+
+fn jpeg_reader<F>(mut next: F, length: usize) -> ImageMetadataCheck
+where
+    F: FnMut() -> Option<u8>,
+{
+    let position = std::cell::Cell::new(0usize);
+    let mut byte = || {
+        position.set(position.get().checked_add(1)?);
+        next()
+    };
+    if byte() != Some(0xff) || byte() != Some(0xd8) {
+        return ImageMetadataCheck::CouldNotCheck;
+    }
+    let mut gps_found = false;
     let mut appended_media = false;
-    let mut p = 2;
-    while p < b.len() {
-        if b[p] != 0xff {
-            return ImageMetadataCheck::CouldNotCheck;
-        };
-        while p < b.len() && b[p] == 0xff {
-            p += 1
-        }
-        if p >= b.len() {
-            return ImageMetadataCheck::CouldNotCheck;
-        }
-        let marker = b[p];
-        p += 1;
-        if marker == 0xd9 || marker == 0xda {
-            return if appended_media {
-                ImageMetadataCheck::CouldNotCheck
-            } else {
-                ImageMetadataCheck::NoGpsFound
+    let mut seen_scan = false;
+    let mut pending_marker = None;
+    loop {
+        let marker = if let Some(marker) = pending_marker.take() {
+            marker
+        } else {
+            if byte() != Some(0xff) {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            let mut marker = match byte() {
+                Some(marker) => marker,
+                None => return ImageMetadataCheck::CouldNotCheck,
             };
+            while marker == 0xff {
+                marker = match byte() {
+                    Some(marker) => marker,
+                    None => return ImageMetadataCheck::CouldNotCheck,
+                };
+            }
+            marker
         };
-        if (0xd0..=0xd7).contains(&marker) || marker == 1 {
+        if marker == 0xd9 {
+            return if position.get() == length && !appended_media {
+                if gps_found {
+                    ImageMetadataCheck::GpsFound
+                } else {
+                    ImageMetadataCheck::NoGpsFound
+                }
+            } else {
+                ImageMetadataCheck::CouldNotCheck
+            };
+        }
+        if marker == 0xda {
+            let Some(n) = jpeg_segment_length(&mut byte) else {
+                return ImageMetadataCheck::CouldNotCheck;
+            };
+            if !jpeg_skip(&mut byte, n - 2) {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            if !seen_scan && position.get() > METADATA_SCAN_BYTES {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            seen_scan = true;
+            loop {
+                let Some(value) = byte() else {
+                    return ImageMetadataCheck::CouldNotCheck;
+                };
+                if value != 0xff {
+                    continue;
+                }
+                let mut scan_marker = match byte() {
+                    Some(marker) => marker,
+                    None => return ImageMetadataCheck::CouldNotCheck,
+                };
+                while scan_marker == 0xff {
+                    scan_marker = match byte() {
+                        Some(marker) => marker,
+                        None => return ImageMetadataCheck::CouldNotCheck,
+                    };
+                }
+                if scan_marker == 0 || (0xd0..=0xd7).contains(&scan_marker) {
+                    continue;
+                }
+                pending_marker = Some(scan_marker);
+                break;
+            }
             continue;
         }
-        if p + 2 > b.len() {
+        if marker == 0xd8 || marker == 0 || (0xd0..=0xd7).contains(&marker) || marker == 1 {
+            return ImageMetadataCheck::CouldNotCheck;
+        }
+        let Some(n) = jpeg_segment_length(&mut byte) else {
             return ImageMetadataCheck::CouldNotCheck;
         };
-        let n = u16::from_be_bytes([b[p], b[p + 1]]) as usize;
-        p += 2;
-        if n < 2 || p + n - 2 > b.len() {
+        if !seen_scan
+            && position
+                .get()
+                .checked_add(n - 2)
+                .is_none_or(|end| end > METADATA_SCAN_BYTES)
+        {
             return ImageMetadataCheck::CouldNotCheck;
-        };
-        let x = &b[p..p + n - 2];
-        p += n - 2;
-        if marker == 0xe1 {
-            if x.starts_with(b"Exif\0\0") {
-                match exif(&x[6..]) {
-                    ImageMetadataCheck::GpsFound => return ImageMetadataCheck::GpsFound,
-                    ImageMetadataCheck::CouldNotCheck => return ImageMetadataCheck::CouldNotCheck,
-                    _ => {}
+        }
+        if marker == 0xe1 || marker == 0xe2 {
+            let Some(payload) = jpeg_take(&mut byte, n - 2) else {
+                return ImageMetadataCheck::CouldNotCheck;
+            };
+            if seen_scan {
+                return ImageMetadataCheck::CouldNotCheck;
+            }
+            if marker == 0xe1 {
+                if payload.starts_with(b"Exif\0\0") {
+                    match exif(&payload[6..]) {
+                        ImageMetadataCheck::GpsFound => gps_found = true,
+                        ImageMetadataCheck::CouldNotCheck => {
+                            return ImageMetadataCheck::CouldNotCheck;
+                        }
+                        ImageMetadataCheck::NoGpsFound => {}
+                    }
+                } else if has_xmp_gps(&payload) {
+                    gps_found = true;
+                } else if declares_appended_media(&payload) {
+                    appended_media = true;
                 }
-            } else if has_xmp_gps(x) {
-                return ImageMetadataCheck::GpsFound;
-            } else if declares_appended_media(x) {
+            } else if payload.starts_with(b"MPF\0") {
                 appended_media = true;
             }
-        } else if marker == 0xe2 && x.starts_with(b"MPF\0") {
-            appended_media = true;
+        } else if !jpeg_skip(&mut byte, n - 2) {
+            return ImageMetadataCheck::CouldNotCheck;
         }
     }
-    ImageMetadataCheck::CouldNotCheck
+}
+
+fn jpeg_segment_length(next: &mut impl FnMut() -> Option<u8>) -> Option<usize> {
+    let n = u16::from_be_bytes([next()?, next()?]) as usize;
+    (n >= 2).then_some(n)
+}
+
+fn jpeg_skip(next: &mut impl FnMut() -> Option<u8>, count: usize) -> bool {
+    (0..count).all(|_| next().is_some())
+}
+
+fn jpeg_take(next: &mut impl FnMut() -> Option<u8>, count: usize) -> Option<Vec<u8>> {
+    (0..count).map(|_| next()).collect()
 }
 fn declares_appended_media(xmp: &[u8]) -> bool {
     [
@@ -861,6 +967,8 @@ mod tests {
         large.truncate(large.len() - 2);
         large.extend_from_slice(&[0xff, 0xda, 0, 8, 1, 1, 0, 0, 0x3f, 0]);
         large.resize(METADATA_SCAN_BYTES + 1024, 0x11);
+        let end = large.len();
+        large[end - 2..].copy_from_slice(&[0xff, 0xd9]);
         assert_eq!(
             metadata_warning_from_bytes("original", &large).check,
             ImageMetadataCheck::NoGpsFound
@@ -887,6 +995,27 @@ mod tests {
             bytes.extend_from_slice(&[0xff, 0xd9]);
             assert_eq!(inspect(&bytes, false), ImageMetadataCheck::CouldNotCheck);
         }
+    }
+    #[test]
+    fn jpeg_requires_the_structural_eoi_without_a_trailer() {
+        let scan = |entropy: &[u8]| {
+            let mut bytes = vec![0xff, 0xd8, 0xff, 0xda, 0, 8, 1, 1, 0, 0, 0x3f, 0];
+            bytes.extend_from_slice(entropy);
+            bytes.extend_from_slice(&[0xff, 0xd9]);
+            bytes
+        };
+        let clean = scan(&[0x12, 0xff, 0x00, 0x34, 0xff, 0xd0, 0x56]);
+        assert_eq!(inspect(&clean, false), ImageMetadataCheck::NoGpsFound);
+        let mut trailer = clean.clone();
+        trailer.extend_from_slice(b"uninspected trailer");
+        assert_eq!(inspect(&trailer, false), ImageMetadataCheck::CouldNotCheck);
+        let multiple_scans = scan(&[
+            0x12, 0xff, 0xc4, 0, 2, 0xff, 0xda, 0, 8, 1, 1, 0, 0, 0x3f, 0, 0x34,
+        ]);
+        assert_eq!(
+            inspect(&multiple_scans, false),
+            ImageMetadataCheck::NoGpsFound
+        );
     }
     #[test]
     fn png_after_the_prefix_and_raw_profiles_stay_unknown() {
