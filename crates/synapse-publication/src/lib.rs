@@ -509,7 +509,7 @@ pub fn export_bundle(options: &ExportOptions) -> Result<ExportReceipt> {
     export_bundle_inner(options, sync_directory, verify_staged_publication_bundle)
 }
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 fn export_bundle_with_post_exchange_sync_failure_for_test(
     options: &ExportOptions,
 ) -> Result<ExportReceipt> {
@@ -536,6 +536,12 @@ fn export_bundle_inner(
         &options.destination,
         options.replace,
     )?;
+    // Refuse before building a staging tree when an existing bundle would
+    // require an exchange that this platform cannot provide.  A staged tree
+    // is deliberately never left behind for this capability error.
+    if options.replace {
+        require_directory_exchange_support(&destination)?;
+    }
     let destination_identity = if options.replace {
         verify_bundle(&destination)?;
         Some(bundle_identity(&destination)?)
@@ -1722,7 +1728,7 @@ fn publish_files_atomically(
     if replace {
         // The old target was verified before staging. Verify it again directly
         // before the exchange so a concurrent replacement cannot cause us to
-        // swap an arbitrary directory.  Linux renameat2 exchange is the
+        // swap an arbitrary directory. The platform exchange is the
         // linearization point; the old verified bundle then sits at staging.
         verify_bundle(destination)?;
         if Some(bundle_identity(destination)?) != expected_identity {
@@ -1836,7 +1842,7 @@ fn bundle_identity(path: &Path) -> Result<BundleIdentity> {
     )))
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", target_os = "macos"))]
 fn rename_directory_exchange(source: &Path, destination: &Path) -> Result<()> {
     use rustix::fs::{CWD, RenameFlags, renameat_with};
     renameat_with(CWD, source, CWD, destination, RenameFlags::EXCHANGE).map_err(|error| {
@@ -1848,14 +1854,31 @@ fn rename_directory_exchange(source: &Path, destination: &Path) -> Result<()> {
     })
 }
 
-#[cfg(not(target_os = "linux"))]
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
 fn rename_directory_exchange(_source: &Path, destination: &Path) -> Result<()> {
     Err(PublicationError::io(
         "atomically exchange verified publication bundle",
         destination,
         io::Error::new(
             io::ErrorKind::Unsupported,
-            "--replace requires Linux renameat2 RENAME_EXCHANGE",
+            "--replace requires an atomic directory exchange supported on Linux or macOS",
+        ),
+    ))
+}
+
+#[cfg(any(target_os = "linux", target_os = "macos"))]
+fn require_directory_exchange_support(_destination: &Path) -> Result<()> {
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+fn require_directory_exchange_support(destination: &Path) -> Result<()> {
+    Err(PublicationError::io(
+        "prepare atomic publication bundle replacement",
+        destination,
+        io::Error::new(
+            io::ErrorKind::Unsupported,
+            "--replace requires an atomic directory exchange supported on Linux or macOS",
         ),
     ))
 }
@@ -2235,7 +2258,7 @@ fn author_text(value: Option<&String>) -> Option<PresentedText> {
     })
 }
 
-#[cfg(all(test, target_os = "linux"))]
+#[cfg(all(test, any(target_os = "linux", target_os = "macos")))]
 mod replacement_tests {
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
