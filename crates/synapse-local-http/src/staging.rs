@@ -204,7 +204,6 @@ impl StagedCreatorUpload {
                 original_image,
                 current_image,
                 ai_output,
-                metadata_warnings: Vec::new(),
             },
         })
     }
