@@ -22,7 +22,7 @@ pub struct ImageMetadataWarning {
     pub message: String,
 }
 pub fn metadata_warning_from_bytes(role: &str, bytes: &[u8]) -> ImageMetadataWarning {
-    let check = inspect_prefix(
+    let check = inspect(
         &bytes[..bytes.len().min(METADATA_SCAN_BYTES)],
         bytes.len() > METADATA_SCAN_BYTES,
     );
@@ -31,6 +31,8 @@ pub fn metadata_warning_from_bytes(role: &str, bytes: &[u8]) -> ImageMetadataWar
 
 /// Inspect only the first 256 KiB. Unsupported, malformed, and budget-limited
 /// inputs are deliberately reported as `could_not_check`, never as GPS-free.
+/// A JPEG whose header segments end inside that prefix is fully checked even
+/// when entropy-coded image data continues beyond it.
 pub fn image_metadata_warning(role: &str, path: &Path) -> ImageMetadataWarning {
     let mut bytes = Vec::with_capacity(METADATA_SCAN_BYTES);
     let result = open_metadata_file(path).and_then(|mut f| {
@@ -44,7 +46,7 @@ pub fn image_metadata_warning(role: &str, path: &Path) -> ImageMetadataWarning {
             .read_to_end(&mut bytes)
     });
     let check = match result {
-        Ok(_) => inspect_prefix(
+        Ok(_) => inspect(
             &bytes[..bytes.len().min(METADATA_SCAN_BYTES)],
             bytes.len() > METADATA_SCAN_BYTES,
         ),
@@ -79,23 +81,25 @@ fn open_metadata_file(path: &Path) -> std::io::Result<File> {
     File::open(path)
 }
 
-fn inspect(b: &[u8]) -> ImageMetadataCheck {
+/// `truncated` means the file continues beyond `b`. JPEG metadata segments
+/// precede the first scan, so reaching it completes the header check; PNG
+/// ancillary chunks may follow image data, so a truncated PNG stays unknown.
+fn inspect(b: &[u8], truncated: bool) -> ImageMetadataCheck {
     if b.starts_with(&[0xff, 0xd8]) {
         return jpeg(b);
     }
     if b.starts_with(b"\x89PNG\r\n\x1a\n") {
-        return png(b);
+        return match png(b) {
+            ImageMetadataCheck::NoGpsFound if truncated => ImageMetadataCheck::CouldNotCheck,
+            other => other,
+        };
     }
     ImageMetadataCheck::CouldNotCheck
 }
-fn inspect_prefix(b: &[u8], truncated: bool) -> ImageMetadataCheck {
-    match inspect(b) {
-        ImageMetadataCheck::GpsFound => ImageMetadataCheck::GpsFound,
-        other if !truncated => other,
-        _ => ImageMetadataCheck::CouldNotCheck,
-    }
-}
 fn jpeg(b: &[u8]) -> ImageMetadataCheck {
+    // MPF and Motion Photo/container XMP announce further images or media
+    // after the primary image. They may carry their own location metadata.
+    let mut appended_media = false;
     let mut p = 2;
     while p < b.len() {
         if b[p] != 0xff {
@@ -110,7 +114,11 @@ fn jpeg(b: &[u8]) -> ImageMetadataCheck {
         let marker = b[p];
         p += 1;
         if marker == 0xd9 || marker == 0xda {
-            return ImageMetadataCheck::NoGpsFound;
+            return if appended_media {
+                ImageMetadataCheck::CouldNotCheck
+            } else {
+                ImageMetadataCheck::NoGpsFound
+            };
         };
         if (0xd0..=0xd7).contains(&marker) || marker == 1 {
             continue;
@@ -134,10 +142,28 @@ fn jpeg(b: &[u8]) -> ImageMetadataCheck {
                 }
             } else if has_xmp_gps(x) {
                 return ImageMetadataCheck::GpsFound;
+            } else if declares_appended_media(x) {
+                appended_media = true;
             }
+        } else if marker == 0xe2 && x.starts_with(b"MPF\0") {
+            appended_media = true;
         }
     }
     ImageMetadataCheck::CouldNotCheck
+}
+fn declares_appended_media(xmp: &[u8]) -> bool {
+    [
+        b"photos/1.0/container".as_slice(),
+        b"motionphoto",
+        b"microvideo",
+    ]
+    .iter()
+    .any(|needle| contains_ignore_ascii_case(xmp, needle))
+}
+fn contains_ignore_ascii_case(bytes: &[u8], needle: &[u8]) -> bool {
+    bytes
+        .windows(needle.len())
+        .any(|value| value.eq_ignore_ascii_case(needle))
 }
 fn png(b: &[u8]) -> ImageMetadataCheck {
     let mut p = 8;
@@ -159,6 +185,10 @@ fn png(b: &[u8]) -> ImageMetadataCheck {
                 ImageMetadataCheck::CouldNotCheck => return ImageMetadataCheck::CouldNotCheck,
                 _ => {}
             }
+        }
+        if matches!(k, b"tEXt" | b"zTXt" | b"iTXt") && is_raw_metadata_profile(x) {
+            // ImageMagick stores copied Exif/XMP as hex text, often compressed.
+            return ImageMetadataCheck::CouldNotCheck;
         }
         if k == b"iTXt" {
             match itxt_xmp(x) {
@@ -188,13 +218,18 @@ fn png_crc(kind: &[u8], data: &[u8]) -> u32 {
     }
     !crc
 }
+fn is_raw_metadata_profile(chunk: &[u8]) -> bool {
+    let keyword = chunk.split(|byte| *byte == 0).next().unwrap_or_default();
+    [
+        b"raw profile type exif".as_slice(),
+        b"raw profile type app1",
+        b"raw profile type xmp",
+    ]
+    .iter()
+    .any(|name| keyword.eq_ignore_ascii_case(name))
+}
 fn has_xmp_gps(bytes: &[u8]) -> bool {
-    bytes
-        .windows(8)
-        .any(|v| v.eq_ignore_ascii_case(b"gpslatit"))
-        || bytes
-            .windows(8)
-            .any(|v| v.eq_ignore_ascii_case(b"gpslongi"))
+    contains_ignore_ascii_case(bytes, b"gpslatit") || contains_ignore_ascii_case(bytes, b"gpslongi")
 }
 fn itxt_xmp(bytes: &[u8]) -> Option<Result<&[u8], ()>> {
     let Some(key_end) = bytes.iter().position(|b| *b == 0) else {
@@ -285,6 +320,11 @@ fn exif(t: &[u8]) -> ImageMetadataCheck {
                 if count > MAX_IFDS {
                     return ImageMetadataCheck::CouldNotCheck;
                 };
+                // A single 4-byte offset is stored inline in the entry.
+                if count == 1 {
+                    pending.push((value, depth + 1));
+                    continue;
+                }
                 for j in 0..count {
                     let child = match u32at(value + j * 4) {
                         Some(v) => v,
@@ -330,40 +370,106 @@ mod tests {
     #[test]
     fn detects_jpeg_exif_gps_and_no_gps() {
         assert_eq!(
-            inspect(&jpeg(&tiff(true, false))),
+            inspect(&jpeg(&tiff(true, false)), false),
             ImageMetadataCheck::GpsFound
         );
         assert_eq!(
-            inspect(&jpeg(&tiff(false, false))),
+            inspect(&jpeg(&tiff(false, false)), false),
             ImageMetadataCheck::NoGpsFound
         );
     }
     #[test]
     fn rejects_truncated_and_looping_exif() {
-        assert_eq!(inspect(&jpeg(b"II")), ImageMetadataCheck::CouldNotCheck);
         assert_eq!(
-            inspect(&jpeg(&tiff(false, true))),
+            inspect(&jpeg(b"II"), false),
+            ImageMetadataCheck::CouldNotCheck
+        );
+        assert_eq!(
+            inspect(&jpeg(&tiff(false, true)), false),
             ImageMetadataCheck::CouldNotCheck
         );
     }
     #[test]
     fn incomplete_containers_are_not_gps_free() {
-        assert_eq!(inspect(&[0xff, 0xd8]), ImageMetadataCheck::CouldNotCheck);
         assert_eq!(
-            inspect(b"\x89PNG\r\n\x1a\n"),
+            inspect(&[0xff, 0xd8], false),
+            ImageMetadataCheck::CouldNotCheck
+        );
+        assert_eq!(
+            inspect(b"\x89PNG\r\n\x1a\n", false),
             ImageMetadataCheck::CouldNotCheck
         );
     }
     #[test]
-    fn gps_in_the_bounded_header_wins_over_later_bytes() {
+    fn a_complete_jpeg_header_is_checked_even_when_image_data_continues() {
         assert_eq!(
-            inspect_prefix(&jpeg(&tiff(true, false)), true),
+            inspect(&jpeg(&tiff(true, false)), true),
             ImageMetadataCheck::GpsFound
         );
+        // Typical phone photos are far larger than the scan prefix; their
+        // metadata segments still end before the first scan.
+        let mut large = jpeg(&tiff(false, false));
+        large.truncate(large.len() - 2);
+        large.extend_from_slice(&[0xff, 0xda, 0, 8, 1, 1, 0, 0, 0x3f, 0]);
+        large.resize(METADATA_SCAN_BYTES + 1024, 0x11);
         assert_eq!(
-            inspect_prefix(&jpeg(&tiff(false, false)), true),
-            ImageMetadataCheck::CouldNotCheck
+            metadata_warning_from_bytes("original", &large).check,
+            ImageMetadataCheck::NoGpsFound
         );
+    }
+    #[test]
+    fn appended_images_or_media_keep_jpeg_unknown() {
+        let segment = |marker: u8, payload: &[u8]| {
+            let mut bytes = vec![0xff, marker];
+            bytes.extend_from_slice(&((payload.len() + 2) as u16).to_be_bytes());
+            bytes.extend_from_slice(payload);
+            bytes
+        };
+        for extra in [
+            segment(0xe2, b"MPF\0MM\0*"),
+            segment(
+                0xe1,
+                b"http://ns.adobe.com/xap/1.0/\0<x xmlns:Container=\"http://ns.google.com/photos/1.0/container/\"/>",
+            ),
+            segment(0xe1, b"http://ns.adobe.com/xap/1.0/\0GCamera:MotionPhoto=\"1\""),
+        ] {
+            let mut bytes = vec![0xff, 0xd8];
+            bytes.extend_from_slice(&extra);
+            bytes.extend_from_slice(&[0xff, 0xd9]);
+            assert_eq!(inspect(&bytes, false), ImageMetadataCheck::CouldNotCheck);
+        }
+    }
+    #[test]
+    fn png_after_the_prefix_and_raw_profiles_stay_unknown() {
+        let chunk = |kind: &[u8], data: &[u8]| {
+            let mut bytes = (data.len() as u32).to_be_bytes().to_vec();
+            bytes.extend_from_slice(kind);
+            bytes.extend_from_slice(data);
+            bytes.extend_from_slice(&png_crc(kind, data).to_be_bytes());
+            bytes
+        };
+        let mut plain = b"\x89PNG\r\n\x1a\n".to_vec();
+        plain.extend_from_slice(&chunk(b"IEND", b""));
+        assert_eq!(inspect(&plain, false), ImageMetadataCheck::NoGpsFound);
+        assert_eq!(inspect(&plain, true), ImageMetadataCheck::CouldNotCheck);
+        let mut raw = b"\x89PNG\r\n\x1a\n".to_vec();
+        raw.extend_from_slice(&chunk(b"zTXt", b"Raw profile type exif\0\0x"));
+        raw.extend_from_slice(&chunk(b"IEND", b""));
+        assert_eq!(inspect(&raw, false), ImageMetadataCheck::CouldNotCheck);
+    }
+    #[test]
+    fn a_single_sub_ifd_offset_is_read_inline() {
+        let mut t = tiff(false, false);
+        t.resize(80, 0);
+        t[10..12].copy_from_slice(&0x014au16.to_le_bytes());
+        t[14..18].copy_from_slice(&1u32.to_le_bytes());
+        t[18..22].copy_from_slice(&40u32.to_le_bytes());
+        t[40..42].copy_from_slice(&1u16.to_le_bytes());
+        t[42..44].copy_from_slice(&0x8825u16.to_le_bytes());
+        t[44..46].copy_from_slice(&4u16.to_le_bytes());
+        t[46..50].copy_from_slice(&1u32.to_le_bytes());
+        t[50..54].copy_from_slice(&60u32.to_le_bytes());
+        assert_eq!(inspect(&jpeg(&t), false), ImageMetadataCheck::GpsFound);
     }
     #[test]
     fn follows_nested_exif_ifd_and_allows_large_entry_count() {
@@ -386,7 +492,7 @@ mod tests {
         t[304..306].copy_from_slice(&4u16.to_le_bytes());
         t[306..310].copy_from_slice(&1u32.to_le_bytes());
         t[310..314].copy_from_slice(&400u32.to_le_bytes());
-        assert_eq!(inspect(&jpeg(&t)), ImageMetadataCheck::GpsFound);
+        assert_eq!(inspect(&jpeg(&t), false), ImageMetadataCheck::GpsFound);
     }
     #[test]
     fn detects_png_exif_and_opaque_files_are_not_claimed_safe() {
@@ -399,7 +505,7 @@ mod tests {
         p.extend_from_slice(&0u32.to_be_bytes());
         p.extend_from_slice(b"IEND");
         p.extend_from_slice(&png_crc(b"IEND", b"").to_be_bytes());
-        assert_eq!(inspect(&p), ImageMetadataCheck::GpsFound);
-        assert_eq!(inspect(b"GIF89a"), ImageMetadataCheck::CouldNotCheck);
+        assert_eq!(inspect(&p, false), ImageMetadataCheck::GpsFound);
+        assert_eq!(inspect(b"GIF89a", false), ImageMetadataCheck::CouldNotCheck);
     }
 }

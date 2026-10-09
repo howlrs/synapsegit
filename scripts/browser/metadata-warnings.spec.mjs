@@ -1,4 +1,6 @@
-import { isolatedTest as test, expect } from "./fixtures.mjs";
+import { isolatedTest as test, inboxTest, expect } from "./fixtures.mjs";
+import { mkdir, writeFile } from "node:fs/promises";
+import path from "node:path";
 
 function tiff(gps) {
   const bytes = Buffer.alloc(40); bytes.set([73, 73, 42, 0, 8, 0, 0, 0, 1, 0]);
@@ -68,4 +70,22 @@ test("a pending metadata preflight prevents a fast proposal POST", async ({ page
   await expect(page.locator('[name="ai_output"]')).toHaveAttribute("aria-invalid", "false");
   await page.getByRole("button",{name:"提案を作成"}).click();
   await page.waitForURL("**/creator-sessions/delayed-metadata"); expect(posts).toBe(1);
+});
+
+inboxTest("an Inbox candidate shows staged location warnings beside its images before a proposal exists", async ({ page, app }) => {
+  const candidate = path.join(app.inboxRoot, "located-photo");
+  await mkdir(candidate);
+  const clean = Buffer.from([255, 216, 255, 217]);
+  const files = [["original", jpeg(true)], ["current", clean], ["ai-output", clean]];
+  for (const [name, bytes] of files) await writeFile(path.join(candidate, name), bytes);
+  await writeFile(path.join(candidate, "manifest.json"), JSON.stringify({ version: "synapsegit-import-inbox-v1", original: { name: "original", size: files[0][1].length }, current: { name: "current", size: clean.length }, ai_output: { name: "ai-output", size: clean.length }, metadata: { subject_label: "Located subject", creator_name: "Script creator" } }));
+  let proposals = 0;
+  page.on("request", request => { if (request.method() === "POST" && request.url().endsWith("/creator-sessions")) proposals++; });
+  await page.goto(`${app.origin}/projects/pending/import`);
+  await page.getByRole("button", { name: "確認する" }).click();
+  const figures = page.locator("[data-import-inbox-images] figure");
+  await expect(figures).toHaveCount(3);
+  await expect(figures.nth(0).locator("[data-creator-metadata-warning]")).toContainText("位置情報が含まれる可能性");
+  await expect(page.locator("[data-import-inbox-images] [data-creator-metadata-warning]")).toHaveCount(1);
+  expect(proposals).toBe(0);
 });

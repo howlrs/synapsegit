@@ -545,3 +545,71 @@ fn archive_root_canonicalizes_relative_aliases_before_overlap_checking() {
         "local_request_denied"
     );
 }
+
+/// A JPEG whose Exif IFD0 carries only a GPS IFD pointer.
+fn jpeg_with_gps() -> Vec<u8> {
+    let mut tiff = b"II*\0\x08\0\0\0".to_vec();
+    tiff.extend_from_slice(&1u16.to_le_bytes());
+    tiff.extend_from_slice(&0x8825u16.to_le_bytes());
+    tiff.extend_from_slice(&4u16.to_le_bytes());
+    tiff.extend_from_slice(&1u32.to_le_bytes());
+    tiff.extend_from_slice(&32u32.to_le_bytes());
+    tiff.extend_from_slice(&0u32.to_le_bytes());
+    tiff.resize(40, 0);
+    let mut jpeg = vec![0xff, 0xd8, 0xff, 0xe1];
+    jpeg.extend_from_slice(&((tiff.len() + 8) as u16).to_be_bytes());
+    jpeg.extend_from_slice(b"Exif\0\0");
+    jpeg.extend_from_slice(&tiff);
+    jpeg.extend_from_slice(&[0xff, 0xd9]);
+    jpeg
+}
+
+#[test]
+fn a_staged_candidate_reports_location_metadata_before_any_proposal() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.directory("repository");
+    let inbox = temporary.directory("inbox");
+    let inputs = temporary.directory("inputs");
+    let clean = [0xff, 0xd8, 0xff, 0xd9];
+    fs::write(inputs.join("gps.jpg"), jpeg_with_gps()).unwrap();
+    fs::write(inputs.join("clean.jpg"), clean).unwrap();
+    for (slug, original) in [("located", "gps.jpg"), ("clean", "clean.jpg")] {
+        synapse_creator::put_import_inbox_candidate(&synapse_creator::ImportInboxCandidate {
+            inbox_root: &inbox,
+            slug,
+            original: &inputs.join(original),
+            current: &inputs.join("clean.jpg"),
+            ai_output: &inputs.join("clean.jpg"),
+            subject_label: "Subject",
+            creator_name: "Creator",
+            generation_note: None,
+        })
+        .unwrap();
+    }
+    let mut roots = BTreeMap::new();
+    roots.insert("project".to_owned(), inbox);
+    let service = LocalService::new([ProjectRegistration::new("project", "Project", repository)])
+        .unwrap()
+        .with_import_roots(roots)
+        .unwrap();
+
+    let located = service.stage_import_inbox("project", "located").unwrap();
+    assert_eq!(located.metadata_warnings.len(), 1);
+    assert_eq!(located.metadata_warnings[0].role, "original");
+    assert_eq!(
+        located.metadata_warnings[0].check,
+        synapse_creator::ImageMetadataCheck::GpsFound
+    );
+    let json = serde_json::to_value(&located).unwrap();
+    assert_eq!(json["metadata_warnings"][0]["check"], "gps_found");
+    assert!(json["metadata_warnings"][0].get("latitude").is_none());
+
+    let clean = service.stage_import_inbox("project", "clean").unwrap();
+    assert!(clean.metadata_warnings.is_empty());
+    assert!(
+        serde_json::to_value(&clean)
+            .unwrap()
+            .get("metadata_warnings")
+            .is_none()
+    );
+}

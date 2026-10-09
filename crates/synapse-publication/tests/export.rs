@@ -564,11 +564,18 @@ fn replace_exchanges_only_a_verified_bundle() {
         verify_bundle(&destination).unwrap().manifest.locale,
         Some(PublicationLocale::Ja)
     );
-    let recovery = receipt
-        .replacement_recovery_path
-        .expect("old bundle retained");
-    assert!(recovery.exists());
-    assert_eq!(verify_bundle(&recovery).unwrap().manifest.locale, None);
+    // The verified former bundle is removed, so nothing is left next to a
+    // bundle that is committed to Git.
+    assert_eq!(receipt.replacement_recovery_path, None);
+    assert_eq!(receipt.sync_warning, None);
+    assert!(
+        temporary
+            .0
+            .read_dir()
+            .unwrap()
+            .flatten()
+            .all(|entry| !entry.file_name().to_string_lossy().contains(".bundle.tmp-"))
+    );
     fs::write(destination.join("unlisted"), b"must remain").unwrap();
     let error = export_bundle(&ExportOptions {
         projection: projection_options(temporary.join("repo")),
@@ -626,7 +633,7 @@ fn replace_refuses_every_non_strict_old_inventory_without_touching_it() {
 
 #[cfg(target_os = "linux")]
 #[test]
-fn replace_retains_valid_recovery_for_both_targets() {
+fn replace_removes_the_verified_old_bundle_for_both_targets() {
     for target in [OutputTarget::Github, OutputTarget::Synapse] {
         let temporary = TempDirectory::new();
         create_three_decision_fixture(&temporary.0);
@@ -640,7 +647,43 @@ fn replace_retains_valid_recovery_for_both_targets() {
         })
         .unwrap();
         assert!(verify_bundle(&destination).is_ok());
-        assert!(verify_bundle(receipt.replacement_recovery_path.unwrap()).is_ok());
+        assert_eq!(receipt.replacement_recovery_path, None);
+        assert_eq!(
+            fs::read_dir(&temporary.0)
+                .unwrap()
+                .flatten()
+                .filter(|entry| entry.file_name().to_string_lossy().starts_with(".bundle"))
+                .count(),
+            0
+        );
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn exported_bundle_root_keeps_the_ordinary_directory_mode() {
+    use std::os::unix::fs::PermissionsExt;
+    let temporary = TempDirectory::new();
+    create_three_decision_fixture(&temporary.0);
+    let reference = temporary.join("reference");
+    fs::create_dir(&reference).unwrap();
+    let expected = fs::metadata(&reference).unwrap().permissions().mode() & 0o7777;
+    let destination = export(&temporary, "bundle", OutputTarget::Github);
+    let mode = |path: &Path| fs::metadata(path).unwrap().permissions().mode() & 0o7777;
+    // Staging is private while it is written; the published bundle is not.
+    assert_eq!(mode(&destination), expected);
+    assert_eq!(mode(&destination.join("target")), expected);
+    #[cfg(target_os = "linux")]
+    {
+        export_bundle(&ExportOptions {
+            projection: projection_options(temporary.join("repo")),
+            destination: destination.clone(),
+            target: OutputTarget::Github,
+            locale: Some(PublicationLocale::Ja),
+            replace: true,
+        })
+        .unwrap();
+        assert_eq!(mode(&destination), expected);
     }
 }
 

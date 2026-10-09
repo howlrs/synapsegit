@@ -12,10 +12,10 @@ use synapse_canonical::{DEFAULT_MAX_STRUCTURED_BYTES, ObjectKind};
 use synapse_core::{Repository, RepositoryError};
 use synapse_creator::{
     CreatorDisposition, CreatorError, CreatorGenerationNote, CreatorReport, CreatorRunOptions,
-    CreatorSessionState, ImportInboxCandidate, creator_report, discover_creator_sessions,
-    put_import_inbox_candidate_with_metadata_review, read_creator_session_overview,
-    retain_import_inbox_candidate, run_creator_session_with_note_and_metadata_review,
-    suggested_import_inbox_session,
+    CreatorRunReceipt, CreatorSessionState, ImportInboxCandidate, creator_report,
+    discover_creator_sessions, put_import_inbox_candidate_with_metadata_review,
+    read_creator_session_overview, retain_import_inbox_candidate,
+    run_creator_session_with_note_and_metadata_review, suggested_import_inbox_session,
 };
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
 
@@ -426,6 +426,15 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
             source,
         }
     })?;
+    print_creator_run_result(&receipt, &report)
+}
+
+/// The receipt and verified report printed by every route that records a
+/// Creator session with a decision.
+fn print_creator_run_result(
+    receipt: &CreatorRunReceipt,
+    report: &CreatorReport,
+) -> Result<(), CliError> {
     outln!("session={}", receipt.session);
     outln!("subject={}", receipt.subject_id);
     outln!("original={}", receipt.original_blob_oid);
@@ -442,8 +451,7 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
         receipt.decision_head
     );
     outln!("disposition={}", receipt.disposition.as_cli_str());
-    print_creator_report(&report)?;
-    Ok(())
+    print_creator_report(report)
 }
 
 /// Usage and a short description for one command, or `None` when unknown.
@@ -790,20 +798,14 @@ fn inbox_decide(args: &[String]) -> Result<(), CliError> {
         retained.manifest.metadata.generation_note.as_ref(),
         emit_metadata_warnings,
     )?;
-    let _report = creator_report(&options.repository, &options.session).map_err(|source| {
+    let report = creator_report(&options.repository, &options.session).map_err(|source| {
         CliError::CreatorReportUnavailableAfterCommit {
             session: options.session.clone(),
             source,
         }
     })?;
-    outln!("session={}", receipt.session);
-    outln!(
-        "decision_ref={}\t{}",
-        receipt.decision_ref,
-        receipt.decision_head
-    );
     outln!("inbox_candidate={slug}");
-    Ok(())
+    print_creator_run_result(&receipt, &report)
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

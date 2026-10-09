@@ -1689,7 +1689,7 @@ fn publish_files_atomically(
     let parent = destination
         .parent()
         .expect("validated destination has a parent");
-    let staging = create_private_staging_directory(destination)?;
+    let (staging, published_mode) = create_private_staging_directory(destination)?;
     let mut guard = StagingGuard {
         path: staging.clone(),
         armed: true,
@@ -1723,26 +1723,35 @@ fn publish_files_atomically(
         // The old target was verified before staging. Verify it again directly
         // before the exchange so a concurrent replacement cannot cause us to
         // swap an arbitrary directory.  Linux renameat2 exchange is the
-        // linearization point; the old verified bundle is retained at staging.
+        // linearization point; the old verified bundle then sits at staging.
         verify_bundle(destination)?;
         if Some(bundle_identity(destination)?) != expected_identity {
             return Err(PublicationError::UnsafePath(
                 "replacement destination changed before atomic exchange".into(),
             ));
         }
+        restore_published_mode(&staging, published_mode)?;
         rename_directory_exchange(&staging, destination)?;
         guard.armed = false;
-        // Deliberately retain the old verified bundle. Once EXCHANGE returns,
-        // publication is committed and neither cleanup nor fsync may turn the
-        // command into an ordinary failure or delete concurrent foreign data.
+        // Once EXCHANGE returns, publication is committed and neither cleanup
+        // nor fsync may turn the command into an ordinary failure. The old
+        // bundle is removed only when it is still exactly the verified strict
+        // inventory; otherwise, or after a sync warning, it is retained.
         let warning = post_exchange_sync(parent)
             .err()
             .map(|error| error.to_string());
+        let recovery_path =
+            if warning.is_none() && remove_exchanged_bundle(&staging, expected_identity) {
+                None
+            } else {
+                Some(staging)
+            };
         return Ok(PublicationCommit {
-            recovery_path: Some(staging),
+            recovery_path,
             sync_warning: warning,
         });
     } else {
+        restore_published_mode(&staging, published_mode)?;
         rename_directory_no_replace(&staging, destination)?;
         guard.armed = false;
     }
@@ -1755,6 +1764,40 @@ fn publish_files_atomically(
 
 fn verify_staged_publication_bundle(path: &Path) -> Result<()> {
     verify_bundle(path).map(|_| ())
+}
+
+/// Delete an exchanged former bundle without ever deleting unverified data:
+/// it must keep the identity verified before the exchange and still pass the
+/// strict inventory check. Files are unlinked by name and directories with a
+/// non-recursive `remove_dir`, so anything that appears concurrently stops the
+/// cleanup and the directory is reported as a recovery path instead.
+fn remove_exchanged_bundle(old: &Path, expected_identity: Option<BundleIdentity>) -> bool {
+    if expected_identity.is_none()
+        || bundle_identity(old).ok() != expected_identity
+        || verify_bundle(old).is_err()
+    {
+        return false;
+    }
+    let Ok(files) = collect_bundle_files(old) else {
+        return false;
+    };
+    let mut directories = BTreeSet::new();
+    for relative in &files {
+        if fs::remove_file(old.join(relative)).is_err() {
+            return false;
+        }
+        let mut parent = Path::new(relative).parent();
+        while let Some(directory) = parent.filter(|path| !path.as_os_str().is_empty()) {
+            directories.insert(directory.to_path_buf());
+            parent = directory.parent();
+        }
+    }
+    let mut directories = directories.into_iter().collect::<Vec<_>>();
+    directories.sort_by_key(|directory| std::cmp::Reverse(directory.components().count()));
+    directories
+        .iter()
+        .all(|directory| fs::remove_dir(old.join(directory)).is_ok())
+        && fs::remove_dir(old).is_ok()
 }
 
 #[cfg(unix)]
@@ -1817,6 +1860,19 @@ fn rename_directory_exchange(_source: &Path, destination: &Path) -> Result<()> {
     ))
 }
 
+fn restore_published_mode(staging: &Path, mode: Option<u32>) -> Result<()> {
+    #[cfg(unix)]
+    if let Some(mode) = mode {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(staging, fs::Permissions::from_mode(mode)).map_err(|error| {
+            PublicationError::io("restore publication bundle permissions", staging, error)
+        })?;
+    }
+    #[cfg(not(unix))]
+    let _ = (staging, mode);
+    Ok(())
+}
+
 fn ensure_staging_directory(staging: &Path, directory: &Path) -> Result<()> {
     if directory == staging {
         return Ok(());
@@ -1866,7 +1922,10 @@ fn staging_path(destination: &Path, nonce: u64) -> PathBuf {
         .join(name)
 }
 
-fn create_private_staging_directory(destination: &Path) -> Result<PathBuf> {
+/// Create a staging directory readable only by the owner while it is filled.
+/// Also returns the mode `create_dir` produced under the caller's umask, which
+/// the finished bundle gets back before it becomes visible.
+fn create_private_staging_directory(destination: &Path) -> Result<(PathBuf, Option<u32>)> {
     for _ in 0..16 {
         let mut random = [0u8; 16];
         getrandom::fill(&mut random).map_err(|error| {
@@ -1884,17 +1943,25 @@ fn create_private_staging_directory(destination: &Path) -> Result<PathBuf> {
                 #[cfg(unix)]
                 {
                     use std::os::unix::fs::PermissionsExt;
-                    fs::set_permissions(&staging, fs::Permissions::from_mode(0o700)).map_err(
-                        |error| {
-                            PublicationError::io(
+                    let restrict = || {
+                        let mode = fs::symlink_metadata(&staging)?.permissions().mode() & 0o7777;
+                        fs::set_permissions(&staging, fs::Permissions::from_mode(0o700))?;
+                        Ok::<_, io::Error>(mode)
+                    };
+                    return match restrict() {
+                        Ok(mode) => Ok((staging, Some(mode))),
+                        Err(error) => {
+                            let _ = fs::remove_dir(&staging);
+                            Err(PublicationError::io(
                                 "restrict publication staging directory",
                                 &staging,
                                 error,
-                            )
-                        },
-                    )?;
+                            ))
+                        }
+                    };
                 }
-                return Ok(staging);
+                #[cfg(not(unix))]
+                return Ok((staging, None));
             }
             Err(error) if error.kind() == io::ErrorKind::AlreadyExists => continue,
             Err(error) => {
@@ -2252,6 +2319,59 @@ mod replacement_tests {
         assert!(receipt.sync_warning.is_some());
         assert!(verify_bundle(&destination).is_ok());
         assert!(verify_bundle(receipt.replacement_recovery_path.unwrap()).is_ok());
+        fs::remove_dir_all(root).unwrap();
+    }
+
+    /// Writes foreign data into the exchanged former bundle, as a concurrent
+    /// writer could, before cleanup runs.
+    fn add_foreign_file_to_recovery(parent: &Path) -> Result<()> {
+        let recovery = fs::read_dir(parent)
+            .unwrap()
+            .flatten()
+            .map(|entry| entry.path())
+            .find(|path| path.to_string_lossy().contains(".bundle.tmp-"))
+            .expect("exchanged former bundle");
+        fs::write(recovery.join("foreign"), b"keep").unwrap();
+        Ok(())
+    }
+
+    #[test]
+    fn cleanup_never_deletes_unexpected_content_in_the_former_bundle() {
+        let root = std::env::temp_dir().join(format!(
+            "synapse-publication-cleanup-{}-{}",
+            std::process::id(),
+            NEXT.fetch_add(1, Ordering::Relaxed)
+        ));
+        fs::create_dir(&root).unwrap();
+        let repository = root.join("repo");
+        drop(Repository::open(&repository).unwrap());
+        let destination = root.join("bundle");
+        let projection = ProjectionOptions::new(&repository);
+        export_bundle(&ExportOptions {
+            projection: projection.clone(),
+            destination: destination.clone(),
+            target: OutputTarget::Github,
+            locale: None,
+            replace: false,
+        })
+        .unwrap();
+        let receipt = export_bundle_inner(
+            &ExportOptions {
+                projection,
+                destination: destination.clone(),
+                target: OutputTarget::Github,
+                locale: Some(PublicationLocale::Ja),
+                replace: true,
+            },
+            add_foreign_file_to_recovery,
+            verify_staged_publication_bundle,
+        )
+        .unwrap();
+        assert_eq!(receipt.sync_warning, None);
+        let recovery = receipt.replacement_recovery_path.expect("retained");
+        assert_eq!(fs::read(recovery.join("foreign")).unwrap(), b"keep");
+        assert!(recovery.join("manifest.json").is_file());
+        assert!(verify_bundle(&destination).is_ok());
         fs::remove_dir_all(root).unwrap();
     }
 

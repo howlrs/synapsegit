@@ -69,10 +69,14 @@ proposal tracked by #163. `preview` checks the locale/profile pair.
 
 `--replace` is Linux-only and only accepts an existing strict bundle with no
 extra files, directories, `.git`, or symlinks. It stages beside the target and
-atomically exchanges directories. The previous verified bundle is retained at
-the printed `replacement_recovery_path` for manual review and cleanup; a
-post-commit directory-sync problem is printed as `sync_warning` and does not
-turn the committed exchange into an ordinary failure.
+atomically exchanges directories. After the exchange, the previous bundle is
+deleted only if it is still the verified directory with exactly the strict
+bundle inventory; files are removed by name and directories non-recursively,
+so nothing else is deleted. If that check or a post-commit directory sync
+fails, the previous bundle is kept at the printed `replacement_recovery_path`
+(a hidden `.<name>.tmp-*` directory beside the bundle, which `git add` would
+include) for manual review and cleanup. A sync problem is printed as
+`sync_warning` and does not turn the committed exchange into an ordinary failure.
 
 Replacement assumes one cooperative writer for the destination parent. Path
 validation, inode rechecks, and atomic exchange narrow races but are not a
@@ -834,15 +838,20 @@ synapse inbox decide "$HOME/SynapseGit/inbox" mural-next "$HOME/SynapseGit/mural
 decodeせずに検査する。読む領域は先頭256 KiBまで、TIFF IFDは16個まで、ネストは深さ4まで。
 検査はbyteを変更せず、GPS座標を出力・公開しない。
 
+JPEGのmetadata segmentは最初のscan（SOS）より前にあるため、SOSまでが256 KiB以内に収まれば、
+画像データが続く大きな写真でも検査を完了する。ただしMPF（APP2）やMotion Photo／container
+XMPがある場合は、主画像の後ろに別の画像・動画とそのmetadataが続き得るため`could_not_check`とする。
+PNGはtext chunkを画像データの後ろにも置けるため、256 KiBを超えるPNGは`could_not_check`とする。
+
 | check | 意味 |
 | --- | --- |
 | `gps_found` | 位置情報の項目を検出した。記録前に、metadataを除いたcopyを使うか制作者が判断する。 |
 | `no_gps_found` | 完了した上限内の検査でGPS項目を見つけなかった。その他のprivate metadataがない保証ではない。 |
-| `could_not_check` | 未対応形式、圧縮XMP、不正なmetadata、読み取り・IFD・深さの上限等で確認できなかった。GPSなしとは扱わない。 |
+| `could_not_check` | 未対応形式、圧縮XMP、ImageMagickのraw profile、MPF／Motion Photo、不正なmetadata、256 KiBを超えるPNG、読み取り・IFD・深さの上限等で確認できなかった。GPSなしとは扱わない。 |
 
 CLIの警告はstderrへ出す。`inbox put --format json`の`metadata_warnings`はrole、check、messageを
 含み、stdoutはJSONのまま保つ。警告だけで成功・失敗やexit codeを変えない。localhostでは
-選択画像の横に警告を表示する。自動除去は行わない。
+upload時の選択画像と、Inbox候補の確認画面の各画像の横に警告を表示する。自動除去は行わない。
 
 ### `refs <repo>`
 

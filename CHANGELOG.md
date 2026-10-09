@@ -9,20 +9,26 @@ milestone.
 
 ### Added
 
-- Bounded JPEG/PNG location-metadata warnings before local image import and
-  while recording CLI inputs. Files are never altered and an incomplete check
-  is reported as unknown.
+- Bounded JPEG/PNG location-metadata warnings before local image import
+  (upload and Inbox review) and while recording CLI inputs. Files are never
+  altered and an incomplete check is reported as unknown. A JPEG photo whose
+  metadata ends inside the 256 KiB scan is checked even when the file is
+  larger; MPF/Motion Photo containers, raw profiles, and PNG files larger than
+  the scan stay unknown.
 - `synapse inbox decide` records an explicitly supplied decision from the
-  manifest's verified, retained bytes and metadata. It requires exclusive local
-  writer use, like the other CLI Creator commands.
+  manifest's verified, retained bytes and metadata, and prints the same receipt
+  and verified report as `creator-run`. It requires exclusive local writer use,
+  like the other CLI Creator commands.
 - Explicit `synapse-present export --locale en|ja` creates bundle container v2
   with renderer v2 while keeping the public projection v1 unchanged. Exports
   without this option retain the frozen English v1 bundle.
 - Linux-only `synapse-present export --replace` exchanges a verified bundle
-  with its completed replacement and retains the old bundle at a recovery path.
+  with its completed replacement. The old bundle is then deleted only while it
+  is still exactly the verified strict inventory; otherwise it is kept at a
+  printed recovery path.
 - Verified Subject and Creator suggestions in the local public-text form,
   with a separate confirmation before preview or download. Local API revisions
-  `0.6.9-draft` and `0.6.10-draft` document the suggestions, metadata warnings,
+  `0.6.9-draft` to `0.6.11-draft` document the suggestions, metadata warnings,
   and rationale provenance.
 - A public Starry Night developer case and Japanese outreach draft, plus
   physical-photo workflow and public-bundle disclosure guidance in Japanese

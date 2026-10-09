@@ -1635,7 +1635,7 @@ fn inbox_decide_binds_manifest_bytes_and_retains_manifest_metadata() {
     // Restore a manifest-matching candidate and confirm metadata and the
     // localhost-recognized default session survive the direct route.
     fs::write(inbox.join("candidate/current"), b"current").unwrap();
-    assert_success(&run(&[
+    let decided = run(&[
         "inbox",
         "decide",
         inbox.to_str().unwrap(),
@@ -1643,7 +1643,20 @@ fn inbox_decide_binds_manifest_bytes_and_retains_manifest_metadata() {
         repository.to_str().unwrap(),
         "--decision",
         "adopt",
-    ]));
+    ]);
+    assert_success(&decided);
+    // The documented output matches creator-run: receipt plus verified report.
+    let stdout = String::from_utf8_lossy(&decided.stdout);
+    for line in [
+        "inbox_candidate=candidate\n",
+        "session=inbox-candidate\n",
+        "disposition=adopt\n",
+        "rationale=-\n",
+        "subject_label=\"Subject\"\n",
+    ] {
+        assert!(stdout.contains(line), "missing {line:?} in {stdout}");
+    }
+    assert!(stdout.contains("\nproposal_ref=proposal/creator-agent/inbox-candidate\t"));
     let report = json_stdout(&run(&[
         "creator-report",
         repository.to_str().unwrap(),

@@ -331,6 +331,10 @@ pub struct StagedImportInboxPreview {
     pub creator_name: String,
     pub generation_note: Option<synapse_creator::CreatorGenerationNote>,
     pub generation_note_user_declared: bool,
+    /// Bounded location-metadata advisories read from the staged copies, shown
+    /// before a Proposal is created. Absent when no warning was found.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub metadata_warnings: Vec<synapse_creator::ImageMetadataWarning>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
