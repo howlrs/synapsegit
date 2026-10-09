@@ -694,6 +694,13 @@ fn copy_hashed(
         )
     })?;
     if !metadata.is_file() {
+        if creator_input {
+            return Err(CreatorError::io(
+                "inspect creator input",
+                source,
+                io::Error::new(io::ErrorKind::InvalidInput, "must be a regular file"),
+            ));
+        }
         return Err(CreatorError::InvalidArgument(format!(
             "{operation} {} must be a regular file",
             source.display()

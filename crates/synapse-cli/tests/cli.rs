@@ -2113,22 +2113,16 @@ fn creator_run_rejects_non_regular_inputs_for_every_role_without_mutating_the_re
             let failure = run_owned_with_timeout(arguments);
             assert_eq!(failure.status.code(), Some(1));
             let stderr = String::from_utf8(failure.stderr).unwrap();
-            let expected_regular_file = format!(
-                "usage_error: creator input {} must be a regular file",
-                path.display()
-            );
             assert!(
-                stderr.starts_with(&expected_regular_file)
-                    || stderr.starts_with(&format!(
-                        "storage_error: open creator input {}:",
-                        path.display()
-                    )),
+                stderr.starts_with(&format!("storage_error: "))
+                    && stderr.contains(&format!("creator input {}:", path.display())),
                 "{stderr}"
             );
             assert!(
                 stderr.contains("hint: check that each input path exists"),
                 "{stderr}"
             );
+            assert!(!stderr.contains("Usage:\n"), "{stderr}");
             assert!(failure.stdout.is_empty());
             assert_eq!(
                 directory_contents(&repository),
