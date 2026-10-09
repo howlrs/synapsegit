@@ -164,6 +164,30 @@ still fully checked when its metadata ends inside that range; a PNG larger than
 256 KiB is reported as not fully checked because PNG text can follow the image
 data.
 
+### Choose the bytes before recording
+
+When the person needs to consider photo location warnings before recording,
+use two steps: `inbox put`, then let the person inspect the images and warnings,
+then record only their explicit decision with `inbox decide`. Reviewing the
+candidate does not record a Creator session. The Inbox JSON has
+`decision_recorded=false`.
+
+`inbox put` does not stop on a warning: its copy, including any location data,
+is stored in the Inbox. If the person chooses to remove metadata, place their
+stripped copies under a new slug and review that candidate; do not record a
+decision from the original candidate. Delete the original Inbox candidate only
+after the person confirms that it is no longer needed.
+
+Use direct `creator-run` as a single operation only after the person has already
+confirmed the input bytes and their decision. It prints warnings after making
+retained copies and before recording in the repository, but does not wait for a
+reply: recording continues in the same command. Do not use it as a way to choose
+another copy after reading its warnings.
+
+There is no inspect-only command or refuse-on-warning flag. An incomplete check
+is not a guarantee that location data is absent, and the agent cannot choose
+adopt, reject, or defer on the person's behalf.
+
 ## Output and errors
 
 - Exit code `0` means success and `1` means an error.
