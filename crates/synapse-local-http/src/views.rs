@@ -447,10 +447,9 @@ impl SessionPageView {
             decision_url: String::new(),
             decision_outcome: m.decision_outcome(&report.disposition).into(),
             rationale: match (report.rationale, report.rationale_source.as_deref()) {
-                (Some(rationale), Some("legacy_default_or_creator")) => format!(
-                    "{}\n\n{}",
-                    rationale, "Legacy default or creator-supplied text; v1 did not record which."
-                ),
+                (Some(rationale), Some("legacy_default_or_creator")) => {
+                    format!("{}\n\n{}", rationale, m.session.legacy_rationale_warning)
+                }
                 (Some(rationale), _) => rationale,
                 (None, _) => String::new(),
             },

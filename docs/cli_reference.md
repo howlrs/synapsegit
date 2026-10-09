@@ -801,9 +801,48 @@ synapse-local \
 - repositoryに触れないため、`synapse-local`の起動中でも実行できる。
 - text出力（既定）は`inbox_candidate=`、`path=`、各fileの`<role>_size=`と`<role>_sha256=`、`decision_recorded=false`、
   `next=`の行である。`--format json`は`"format": "synapsegit-cli-inbox-put-v1"`、`slug`、`path`、`manifest`、
-  `decision_recorded`（常に`false`）、`next`を持つJSON documentを1件出力する。fieldの追加は`-v1`のまま行い、
+  `decision_recorded`（常に`false`）、`metadata_warnings`、`next`を持つJSON documentを1件出力する。fieldの追加は`-v1`のまま行い、
   削除・rename・意味の変更には新しい識別子を使う。
 - `synapse inbox --help`と`synapse inbox put --help`は、この説明をstdoutへ出してexit code 0で終了する。
+
+### `inbox decide <inbox-dir> <slug> <repo> --decision adopt|reject|defer [--rationale <text>] [--session <name>] [--creator <name>]`
+
+人が対象の3画像を確認し、判断を明示的に伝えた場合に限り、既存Inbox候補から通常のCreator
+Proposal・Human Decisionを記録する。AIエージェントが判断を選ぶcommandではない。
+
+```bash
+synapse inbox decide "$HOME/SynapseGit/inbox" mural-next "$HOME/SynapseGit/mural" \
+  --decision adopt --rationale "この候補を次の作業の指針として選ぶ"
+```
+
+- manifestと3つの通常fileを保持したdescriptorから読み、size・SHA-256・byte上限を照合する。
+  候補やleafのsymlink、不足、差し替え、不一致は記録前に拒否する。検証したbyteのprivate copyを
+  Creatorへ渡し、元のInbox pathを開き直して別のbyteを記録しない。Inboxは変更しない。
+- Subject、Creator、generation noteはmanifestから引き継ぐ。Creatorだけを変える場合は
+  `--creator`で明示する。理由の省略は未記録であり、定型文を作らない。
+- session名の既定はlocalhostと同じ。58文字以内のslugなら`inbox-<slug>`、長いslugなら末尾の
+  hyphenを除いた先頭49文字と`-`とslugのSHA-256先頭8桁で、64文字以内になる。
+  `--session`で別の有効な名前も指定できる。localhostの取り込み済み表示は既定の名前と照合する。
+- `synapse-local`を停止し、同じrepositoryへ他のwriterが書いていない状態で実行する。
+  process間の排他を自動保証する機能はない。
+- 出力は通常の`creator-run`と同じreceipt/report項目を持つ。引数不備や候補の検証失敗では
+  repositoryへ記録しない。
+
+### 画像の位置情報警告
+
+`creator-run`、`inbox put`、localhostの画像取り込みは、JPEGのAPP1 Exif/XMPとPNGのeXIf/iTXtを
+decodeせずに検査する。読む領域は先頭256 KiBまで、TIFF IFDは16個まで、ネストは深さ4まで。
+検査はbyteを変更せず、GPS座標を出力・公開しない。
+
+| check | 意味 |
+| --- | --- |
+| `gps_found` | 位置情報の項目を検出した。記録前に、metadataを除いたcopyを使うか制作者が判断する。 |
+| `no_gps_found` | 完了した上限内の検査でGPS項目を見つけなかった。その他のprivate metadataがない保証ではない。 |
+| `could_not_check` | 未対応形式、圧縮XMP、不正なmetadata、読み取り・IFD・深さの上限等で確認できなかった。GPSなしとは扱わない。 |
+
+CLIの警告はstderrへ出す。`inbox put --format json`の`metadata_warnings`はrole、check、messageを
+含み、stdoutはJSONのまま保つ。警告だけで成功・失敗やexit codeを変えない。localhostでは
+選択画像の横に警告を表示する。自動除去は行わない。
 
 ### `refs <repo>`
 

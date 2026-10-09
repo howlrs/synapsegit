@@ -488,6 +488,7 @@ message_section! {
         recorded_decision: "記録した判断", "Recorded decision";
         recorded_rationale: "記録された理由", "Recorded rationale";
         no_rationale: "理由は記録されていません。", "No rationale was recorded.";
+        legacy_rationale_warning: "旧版の既定文と一致しています。制作者が書いた文かどうかは記録から判別できません。", "This matches a legacy default. The record does not distinguish it from creator-supplied text.";
         recorded_hint: "保存された履歴から確認した記録です。理由は記録されたテキストで、その内容が正しいことは確認していません。", "This record was checked against the stored history. The rationale is recorded text; its content has not been checked for correctness.";
         private_report_heading: "記録を保存", "Save this record";
         private_report_noscript: "記録を保存するにはJavaScriptを有効にしてください。", "Enable JavaScript to save this record.";
