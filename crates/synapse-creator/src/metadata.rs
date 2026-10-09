@@ -481,7 +481,13 @@ fn valid_png_text(payload: &[u8]) -> bool {
     payload
         .iter()
         .position(|byte| *byte == 0)
-        .is_some_and(|end| valid_png_keyword(&payload[..end]))
+        .is_some_and(|end| valid_png_keyword(&payload[..end]) && !payload[end + 1..].contains(&0))
+}
+fn valid_png_language_tag(tag: &[u8]) -> bool {
+    tag.is_empty()
+        || tag
+            .iter()
+            .all(|byte| byte.is_ascii_alphanumeric() || *byte == b'-')
 }
 fn has_xmp_gps(bytes: &[u8]) -> bool {
     contains_ignore_ascii_case(bytes, b"gpslatit") || contains_ignore_ascii_case(bytes, b"gpslongi")
@@ -497,16 +503,27 @@ fn itxt_xmp(bytes: &[u8]) -> Option<Result<&[u8], ()>> {
     if rest.len() < 2 || rest[0] != 0 || rest[1] != 0 {
         return Some(Err(()));
     }
-    let Some(language_end) = rest[2..].iter().position(|b| *b == 0) else {
+    let language = &rest[2..];
+    let Some(language_end) = language.iter().position(|b| *b == 0) else {
         return Some(Err(()));
     };
-    let language_end = language_end + 2;
-    let Some(translated_end) = rest[language_end + 1..].iter().position(|b| *b == 0) else {
+    if !valid_png_language_tag(&language[..language_end]) {
+        return Some(Err(()));
+    }
+    let translated_and_text = &language[language_end + 1..];
+    let Some(translated_end) = translated_and_text.iter().position(|b| *b == 0) else {
         return Some(Err(()));
     };
-    let text_start = translated_end + language_end + 2;
+    let translated = &translated_and_text[..translated_end];
+    let text = &translated_and_text[translated_end + 1..];
+    if std::str::from_utf8(translated).is_err()
+        || std::str::from_utf8(text).is_err()
+        || text.contains(&0)
+    {
+        return Some(Err(()));
+    }
     if bytes[..key_end].eq_ignore_ascii_case(b"xml:com.adobe.xmp") {
-        Some(Ok(&rest[text_start..]))
+        Some(Ok(text))
     } else {
         None
     }
@@ -877,6 +894,16 @@ mod tests {
             ]),
             png([
                 png_chunk(b"iTXt", b"Comment\0"),
+                png_chunk(b"IDAT", b""),
+                png_chunk(b"IEND", b""),
+            ]),
+            png([
+                png_chunk(b"tEXt", b"Comment\0text\0more"),
+                png_chunk(b"IDAT", b""),
+                png_chunk(b"IEND", b""),
+            ]),
+            png([
+                png_chunk(b"iTXt", b"Comment\0\0\0\0\0\xff"),
                 png_chunk(b"IDAT", b""),
                 png_chunk(b"IEND", b""),
             ]),

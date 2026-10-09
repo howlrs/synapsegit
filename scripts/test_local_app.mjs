@@ -233,6 +233,8 @@ assert.equal(await selectedImageLocationMetadata(asSelectedFile(grayscaleSixteen
 for (const malformedText of [
   png(validChunk("tEXt", new TextEncoder().encode("Comment without a separator")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array())),
   png(validChunk("iTXt", new TextEncoder().encode("Comment\0")), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array())),
+  png(validChunk("tEXt", new Uint8Array([...new TextEncoder().encode("Comment\0text"), 0, ...new TextEncoder().encode("more")])), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array())),
+  png(validChunk("iTXt", new Uint8Array([...new TextEncoder().encode("Comment\0\0\0\0\0"), 0xff])), validChunk("IDAT", new Uint8Array()), validChunk("IEND", new Uint8Array())),
 ]) {
   assert.equal(inspectImageLocationMetadata(malformedText), "could_not_check");
   assert.equal(await selectedImageLocationMetadata(asSelectedFile(malformedText)), "could_not_check");
