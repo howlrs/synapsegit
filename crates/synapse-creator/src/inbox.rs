@@ -529,6 +529,10 @@ where
             generation_note: candidate.generation_note.cloned(),
         },
     };
+    // `review` intentionally runs before publication. Re-read the private
+    // leaves through no-follow descriptors afterwards so a callback cannot
+    // make the manifest describe bytes different from those we publish.
+    validate_staged_manifest_files(&staging.path, &manifest)?;
     manifest
         .validate()
         .map_err(|error| CreatorError::InvalidArgument(error.to_string()))?;
@@ -549,6 +553,69 @@ where
         directory: destination,
         manifest,
     })
+}
+
+#[cfg(unix)]
+fn validate_staged_manifest_files(staging: &Path, manifest: &ImportInboxManifest) -> Result<()> {
+    use rustix::fs::{CWD, Mode, OFlags, openat};
+    let directory = File::from(
+        openat(
+            CWD,
+            staging,
+            OFlags::RDONLY | OFlags::DIRECTORY | OFlags::NOFOLLOW | OFlags::CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(|error| {
+            CreatorError::InvalidArgument(format!(
+                "inbox staging directory cannot be opened safely: {error}"
+            ))
+        })?,
+    );
+    for expected in [&manifest.original, &manifest.current, &manifest.ai_output] {
+        let bytes = read_inbox_leaf(&directory, &expected.name, IMPORT_INBOX_FILE_MAX_BYTES)?;
+        if bytes.len() as u64 != expected.size {
+            return Err(CreatorError::InvalidArgument(
+                "staged inbox file does not match manifest size".into(),
+            ));
+        }
+        let digest = Sha256::digest(&bytes);
+        let actual = hex(&digest);
+        if expected
+            .sha256
+            .as_deref()
+            .is_none_or(|hash| !actual.eq_ignore_ascii_case(hash))
+        {
+            return Err(CreatorError::InvalidArgument(
+                "staged inbox file does not match manifest SHA-256".into(),
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn validate_staged_manifest_files(staging: &Path, manifest: &ImportInboxManifest) -> Result<()> {
+    for expected in [&manifest.original, &manifest.current, &manifest.ai_output] {
+        let path = staging.join(&expected.name);
+        let bytes = fs::read(&path)
+            .map_err(|error| CreatorError::io("read inbox staging file", &path, error))?;
+        if bytes.len() as u64 != expected.size {
+            return Err(CreatorError::InvalidArgument(
+                "staged inbox file does not match manifest size".into(),
+            ));
+        }
+        let digest = Sha256::digest(&bytes);
+        if expected
+            .sha256
+            .as_deref()
+            .is_none_or(|hash| !hex(&digest).eq_ignore_ascii_case(hash))
+        {
+            return Err(CreatorError::InvalidArgument(
+                "staged inbox file does not match manifest SHA-256".into(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn check_input(path: &Path) -> Result<()> {
@@ -666,7 +733,14 @@ impl Staging {
         // A leading dot keeps the name outside the slug grammar, so the
         // service never lists an unfinished candidate.
         let path = root.join(format!(".{slug}.partial-{}", hex(&nonce)));
-        fs::create_dir(&path)
+        let mut builder = fs::DirBuilder::new();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::DirBuilderExt;
+            builder.mode(0o700);
+        }
+        builder
+            .create(&path)
             .map_err(|error| CreatorError::io("create inbox staging directory", &path, error))?;
         Ok(Self {
             path,
@@ -853,6 +927,33 @@ mod tests {
             original
         );
         assert!(receipt.directory.join("manifest.json").is_file());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn metadata_review_cannot_publish_a_mutated_staged_leaf() {
+        let fixture = fixture("staged-leaf-mutation");
+        let source_before = fs::read(&fixture.original).unwrap();
+        let error = put_import_inbox_candidate_with_metadata_review(
+            &candidate(&fixture, "candidate"),
+            |_| {
+                let staging = fs::read_dir(&fixture.inbox)
+                    .unwrap()
+                    .map(|entry| entry.unwrap().path())
+                    .find(|path| {
+                        path.file_name()
+                            .and_then(|name| name.to_str())
+                            .is_some_and(|name| name.starts_with(".candidate.partial-"))
+                    })
+                    .expect("hidden staging directory exists during review");
+                fs::write(staging.join(IMPORT_INBOX_ORIGINAL_NAME), b"tampered").unwrap();
+            },
+        )
+        .unwrap_err();
+
+        assert!(matches!(error, CreatorError::InvalidArgument(_)));
+        assert!(!fixture.inbox.join("candidate").exists());
+        assert_eq!(fs::read(&fixture.original).unwrap(), source_before);
     }
 
     #[test]
