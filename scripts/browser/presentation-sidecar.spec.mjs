@@ -65,6 +65,8 @@ test("fresh public text previews and downloads without private source text or Co
 test("public text validation rejects byte and control limits and keeps omissions", async ({ page, app }) => {
   await page.goto(`${app.origin}/projects/complete/presentation`);
   await page.getByLabel("完了したセッション", { exact: true }).selectOption("sample");
+  await expect(page.locator('[name="creator_display_name"]')).toHaveValue("Browser tester");
+  await expect(page.locator('[name="title"]')).toHaveValue("Comparison browser fixture");
   await page.locator('[name="creator_display_name"]').fill("");
   await page.locator('[name="title"]').fill("");
   await page.getByRole("checkbox", { name: "候補を確認し、公開用の文章として使うことを確認しました。", exact: true }).check();

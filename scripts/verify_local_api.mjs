@@ -159,6 +159,7 @@ const operationIds = new Set();
 const operations = [];
 const expectedOperations = new Map([
   ["POST /projects/{projectKey}/presentation-sidecars", ["preparePresentationSidecar", 8]],
+  ["GET /projects/{projectKey}/creator-sessions/{session}/presentation-suggestions", ["getPresentationSuggestions", 8]],
   ["GET /health", ["getHealth", 2]],
   ["GET /projects", ["listProjects", 2]],
   ["GET /projects/{projectKey}/status", ["getProjectStatus", 2]],
@@ -290,6 +291,7 @@ function resolveObject(value) {
 
 const expectedParameters = new Map([
   ["preparePresentationSidecar", ["path:projectKey"]],
+  ["getPresentationSuggestions", ["path:projectKey", "path:session"]],
   ["getHealth", []],
   ["listProjects", []],
   ["getProjectStatus", ["path:projectKey"]],

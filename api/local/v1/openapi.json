@@ -2,7 +2,7 @@
   "openapi": "3.1.1",
   "info": {
     "title": "SynapseGit localhost application API",
-    "version": "0.6.8-draft",
+    "version": "0.6.9-draft",
     "description": "Single-user, loopback-only application contract. A configured per-project import inbox accepts only manifest-last candidates, stages verified bytes in this process, and creates a later Human-review proposal from those staged bytes. Confirmed reuse creates a new review from an interrupted or deferred proposal without restoring prior authority. This is not the public Core protocol."
   },
   "servers": [
@@ -890,6 +890,19 @@
           "default": {
             "$ref": "#/components/responses/Problem"
           }
+        }
+      }
+    },
+    "/projects/{projectKey}/creator-sessions/{session}/presentation-suggestions": {
+      "get": {
+        "operationId": "getPresentationSuggestions",
+        "tags": ["creator-sessions"],
+        "summary": "Read two verified record labels as explicit public-text suggestions",
+        "x-synapse-implementation-slice": 8,
+        "parameters": [{"$ref":"#/components/parameters/ProjectKey"},{"$ref":"#/components/parameters/Session"}],
+        "responses": {
+          "200": {"description":"Verified selected complete session's subject and creator only; response is not public text","content":{"application/json":{"schema":{"$ref":"#/components/schemas/PresentationSuggestions"}}}},
+          "default": {"$ref":"#/components/responses/Problem"}
         }
       }
     }
@@ -2980,6 +2993,14 @@
             "x-synapse-max-utf8-bytes": 65536,
             "description": "Validated presentation.toml text for explicit browser download. No raw assets or automatically copied private text."
           }
+        }
+      },
+      "PresentationSuggestions": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "title": {"type": ["string", "null"], "maxLength": 300, "x-synapse-max-utf8-bytes": 300, "description": "Verified recorded subject label offered only as a public-text suggestion."},
+          "creator_display_name": {"type": ["string", "null"], "maxLength": 300, "x-synapse-max-utf8-bytes": 300, "description": "Verified recorded creator label offered only as a public-text suggestion."}
         }
       }
     }
