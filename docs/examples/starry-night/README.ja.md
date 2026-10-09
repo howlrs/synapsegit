@@ -62,7 +62,7 @@ SynapseGitが確かめられるのは、記録されたfileのbyte identityで�
 3. [Creator操作ガイド](../../creator_workflow.md)に沿って提案を記録し、見比べた後にHuman Decisionを残します。
 
 評価時のinstallは、このcheckout自身の[Installation guide](../../install.md)を参照してください。
-この事例はv1.0.0で記録し、このcheckoutはv1.0.1を文書化しています。
+この事例はv1.0.0で記録し、このcheckoutはv1.1.0を文書化しています。
 v1.xの旧版読み取りの約束は[互換性方針](../../compatibility.md)を参照してください。
 
 利用や評価の質問は、[Support](../../../SUPPORT.md)の窓口へ、非公開の画像を添付せずに相談できます。

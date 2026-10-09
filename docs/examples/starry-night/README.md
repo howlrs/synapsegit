@@ -75,7 +75,7 @@ with the status above.
 3. Follow the [creator workflow](../../creator_workflow.en.md), then make a Human Decision after review.
 
 For evaluation, use this checkout's [Installation guide](../../install.md).
-This case was recorded with v1.0.0, while this checkout documents v1.0.1.
+This case was recorded with v1.0.0, while this checkout documents v1.1.0.
 See the [compatibility policy](../../compatibility.md) for the v1.x promise to
 read earlier releases.
 
