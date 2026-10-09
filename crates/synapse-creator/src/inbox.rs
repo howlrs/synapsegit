@@ -246,9 +246,9 @@ pub fn retain_creator_input_files(
         let original_copy = directory.join("original");
         let current_copy = directory.join("current");
         let output_copy = directory.join("ai-output");
-        copy_hashed(original, &original_copy, "original")?;
-        copy_hashed(current, &current_copy, "current")?;
-        copy_hashed(ai_output, &output_copy, "ai-output")?;
+        copy_creator_input(original, &original_copy, "original")?;
+        copy_creator_input(current, &current_copy, "current")?;
+        copy_creator_input(ai_output, &output_copy, "ai-output")?;
         Ok(RetainedCreatorInputs {
             original: original_copy,
             current: current_copy,
@@ -519,7 +519,7 @@ where
     let staging = Staging::create(candidate.inbox_root, candidate.slug)?;
     let mut files = Vec::with_capacity(inputs.len());
     for (path, name) in inputs {
-        files.push(copy_hashed(path, &staging.path.join(name), name)?);
+        files.push(copy_hashed(path, &staging.path.join(name), name, false)?);
     }
     let [original, current, ai_output]: [ImportInboxFile; 3] =
         files.try_into().expect("three inbox files");
@@ -642,28 +642,60 @@ fn check_input(path: &Path) -> Result<()> {
         )));
     }
     if metadata.len() > IMPORT_INBOX_FILE_MAX_BYTES {
-        return Err(input_too_large(path));
+        return Err(input_too_large(path, false));
     }
     Ok(())
 }
 
-fn input_too_large(path: &Path) -> CreatorError {
+fn input_too_large(path: &Path, creator_input: bool) -> CreatorError {
     CreatorError::ResourceLimit(format!(
-        "inbox input {} exceeds the 64 MiB limit",
+        "{} input {} exceeds the 64 MiB limit",
+        if creator_input { "creator" } else { "inbox" },
         path.display()
     ))
 }
 
 /// Copy `source` to a new file while measuring and hashing the same bytes.
-fn copy_hashed(source: &Path, destination: &Path, name: &str) -> Result<ImportInboxFile> {
-    let mut input =
-        open_input(source).map_err(|error| CreatorError::io("open inbox input", source, error))?;
-    let metadata = input
-        .metadata()
-        .map_err(|error| CreatorError::io("inspect inbox input", source, error))?;
+fn copy_creator_input(source: &Path, destination: &Path, name: &str) -> Result<ImportInboxFile> {
+    copy_hashed(source, destination, name, true)
+}
+
+fn copy_hashed(
+    source: &Path,
+    destination: &Path,
+    name: &str,
+    creator_input: bool,
+) -> Result<ImportInboxFile> {
+    let operation = if creator_input {
+        "creator input"
+    } else {
+        "inbox input"
+    };
+    let mut input = open_input(source).map_err(|error| {
+        CreatorError::io(
+            if creator_input {
+                "open creator input"
+            } else {
+                "open inbox input"
+            },
+            source,
+            error,
+        )
+    })?;
+    let metadata = input.metadata().map_err(|error| {
+        CreatorError::io(
+            if creator_input {
+                "inspect creator input"
+            } else {
+                "inspect inbox input"
+            },
+            source,
+            error,
+        )
+    })?;
     if !metadata.is_file() {
         return Err(CreatorError::InvalidArgument(format!(
-            "inbox input {} must be a regular file",
+            "{operation} {} must be a regular file",
             source.display()
         )));
     }
@@ -676,15 +708,23 @@ fn copy_hashed(source: &Path, destination: &Path, name: &str) -> Result<ImportIn
     let mut size = 0_u64;
     let mut buffer = vec![0_u8; 64 * 1024];
     loop {
-        let read = input
-            .read(&mut buffer)
-            .map_err(|error| CreatorError::io("read inbox input", source, error))?;
+        let read = input.read(&mut buffer).map_err(|error| {
+            CreatorError::io(
+                if creator_input {
+                    "read creator input"
+                } else {
+                    "read inbox input"
+                },
+                source,
+                error,
+            )
+        })?;
         if read == 0 {
             break;
         }
         size += read as u64;
         if size > IMPORT_INBOX_FILE_MAX_BYTES {
-            return Err(input_too_large(source));
+            return Err(input_too_large(source, creator_input));
         }
         hasher.update(&buffer[..read]);
         output

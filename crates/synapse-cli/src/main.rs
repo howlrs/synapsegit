@@ -163,6 +163,11 @@ impl CliError {
 
     /// One line of advice for errors whose next step is not in the message.
     fn hint(&self) -> Option<&'static str> {
+        if let Self::Creator(CreatorError::InvalidArgument(message)) = self
+            && message.starts_with("creator input ")
+        {
+            return Some("check that each input path exists and names a readable regular file");
+        }
         if let Self::Creator(CreatorError::Io { operation, .. }) = self {
             if operation.contains("input") {
                 return Some("check that each input path exists and names a readable regular file");
