@@ -468,6 +468,57 @@ fn repeated_exports_are_byte_deterministic_and_never_replace() {
 }
 
 #[test]
+fn replace_creates_an_absent_destination_without_overwriting_new_targets() {
+    let temporary = TempDirectory::new();
+    create_three_decision_fixture(&temporary.0);
+    let destination = temporary.join("created-by-replace");
+    export_bundle(&ExportOptions {
+        projection: projection_options(temporary.join("repo")),
+        destination: destination.clone(),
+        target: OutputTarget::Github,
+        locale: None,
+        replace: true,
+    })
+    .unwrap();
+    assert!(verify_bundle(&destination).is_ok());
+
+    let file = temporary.join("not-a-bundle");
+    fs::write(&file, b"keep").unwrap();
+    let error = export_bundle(&ExportOptions {
+        projection: projection_options(temporary.join("repo")),
+        destination: file.clone(),
+        target: OutputTarget::Github,
+        locale: None,
+        replace: true,
+    })
+    .unwrap_err();
+    assert!(matches!(error, PublicationError::UnsafePath(_)));
+    assert_eq!(fs::read(file).unwrap(), b"keep");
+}
+
+#[cfg(unix)]
+#[test]
+fn replace_refuses_a_dangling_symlink_as_an_existing_target() {
+    let temporary = TempDirectory::new();
+    create_three_decision_fixture(&temporary.0);
+    let destination = temporary.join("dangling");
+    std::os::unix::fs::symlink("missing", &destination).unwrap();
+    let error = export_bundle(&ExportOptions {
+        projection: projection_options(temporary.join("repo")),
+        destination: destination.clone(),
+        target: OutputTarget::Github,
+        locale: None,
+        replace: true,
+    })
+    .unwrap_err();
+    assert!(matches!(error, PublicationError::UnsafePath(_)));
+    assert_eq!(
+        fs::read_link(destination).unwrap(),
+        PathBuf::from("missing")
+    );
+}
+
+#[test]
 fn explicit_locales_use_v2_views_without_changing_the_frozen_projection() {
     let temporary = TempDirectory::new();
     create_three_decision_fixture(&temporary.0);
