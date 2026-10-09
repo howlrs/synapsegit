@@ -1159,6 +1159,19 @@ pub fn run_creator_session_with_note(
     options: &CreatorRunOptions,
     note: Option<&crate::CreatorGenerationNote>,
 ) -> Result<CreatorRunReceipt> {
+    run_creator_session_with_note_and_metadata_review(options, note, |_| {})
+}
+
+/// Retain the exact caller input bytes, report their bounded metadata before
+/// opening the repository, then record only those retained copies.
+pub fn run_creator_session_with_note_and_metadata_review<F>(
+    options: &CreatorRunOptions,
+    note: Option<&crate::CreatorGenerationNote>,
+    mut review: F,
+) -> Result<CreatorRunReceipt>
+where
+    F: FnMut(&[crate::ImageMetadataWarning]),
+{
     let decision = CreatorDecisionOptions {
         disposition: options.disposition,
         rationale: options.rationale.clone(),
@@ -1167,12 +1180,33 @@ pub fn run_creator_session_with_note(
     if let Some(note) = note {
         note.validate()?;
     }
-    let begin = CreatorBeginOptions {
+    validate_begin_metadata(&CreatorBeginOptions {
         repository: options.repository.clone(),
         session: options.session.clone(),
         original_image: options.original_image.clone(),
         current_image: options.current_image.clone(),
         ai_output: options.ai_output.clone(),
+        subject_label: options.subject_label.clone(),
+        creator_name: options.creator_name.clone(),
+    })?;
+    validate_input_files(
+        &options.original_image,
+        &options.current_image,
+        &options.ai_output,
+    )?;
+    let retained = crate::retain_creator_input_files(
+        &options.original_image,
+        &options.current_image,
+        &options.ai_output,
+    )?;
+    let warnings = retained.metadata_warnings()?;
+    review(&warnings);
+    let begin = CreatorBeginOptions {
+        repository: options.repository.clone(),
+        session: options.session.clone(),
+        original_image: retained.original.clone(),
+        current_image: retained.current.clone(),
+        ai_output: retained.ai_output.clone(),
         subject_label: options.subject_label.clone(),
         creator_name: options.creator_name.clone(),
     };

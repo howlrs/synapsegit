@@ -14,7 +14,8 @@ use synapse_creator::{
     CreatorDisposition, CreatorError, CreatorGenerationNote, CreatorReport, CreatorRunOptions,
     CreatorSessionState, ImportInboxCandidate, creator_report, discover_creator_sessions,
     image_metadata_warning, put_import_inbox_candidate, read_creator_session_overview,
-    retain_import_inbox_candidate, run_creator_session_with_note, suggested_import_inbox_session,
+    retain_import_inbox_candidate, run_creator_session_with_note,
+    run_creator_session_with_note_and_metadata_review, suggested_import_inbox_session,
 };
 use synapse_sqlite::{RefUpdate, ReflogMetadata};
 
@@ -413,19 +414,17 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
             .ok_or_else(|| CliError::Usage("creator-run requires --decision".into()))?,
         rationale,
     };
-    let metadata_warnings = [
-        image_metadata_warning("original", &options.original_image),
-        image_metadata_warning("current", &options.current_image),
-        image_metadata_warning("ai_output", &options.ai_output),
-    ];
-    let receipt = run_creator_session_with_note(&options, generation_note.as_ref())?;
+    let receipt = run_creator_session_with_note_and_metadata_review(
+        &options,
+        generation_note.as_ref(),
+        |warnings| emit_metadata_warnings(warnings),
+    )?;
     let report = creator_report(&options.repository, &options.session).map_err(|source| {
         CliError::CreatorReportUnavailableAfterCommit {
             session: options.session.clone(),
             source,
         }
     })?;
-    emit_metadata_warnings(&metadata_warnings);
     outln!("session={}", receipt.session);
     outln!("subject={}", receipt.subject_id);
     outln!("original={}", receipt.original_blob_oid);

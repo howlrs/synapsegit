@@ -208,6 +208,64 @@ pub struct RetainedInboxCandidate {
     directory: PathBuf,
 }
 
+/// Private retained copies of three caller input files.
+#[derive(Debug)]
+pub struct RetainedCreatorInputs {
+    pub original: PathBuf,
+    pub current: PathBuf,
+    pub ai_output: PathBuf,
+    directory: PathBuf,
+}
+
+impl Drop for RetainedCreatorInputs {
+    fn drop(&mut self) {
+        let _ = fs::remove_dir_all(&self.directory);
+    }
+}
+
+impl RetainedCreatorInputs {
+    pub fn metadata_warnings(&self) -> Result<Vec<crate::ImageMetadataWarning>> {
+        Ok([
+            ("original", &self.original),
+            ("current", &self.current),
+            ("ai_output", &self.ai_output),
+        ]
+        .into_iter()
+        .map(|(role, path)| {
+            let bytes = fs::read(path)
+                .map_err(|e| CreatorError::io("read retained creator input", path, e))?;
+            Ok(crate::metadata_warning_from_bytes(role, &bytes))
+        })
+        .collect::<Result<Vec<_>>>()?)
+    }
+}
+
+pub fn retain_creator_input_files(
+    original: &Path,
+    current: &Path,
+    ai_output: &Path,
+) -> Result<RetainedCreatorInputs> {
+    let directory = retained_staging_directory()?;
+    let result = (|| {
+        let original_copy = directory.join("original");
+        let current_copy = directory.join("current");
+        let output_copy = directory.join("ai-output");
+        copy_hashed(original, &original_copy, "original")?;
+        copy_hashed(current, &current_copy, "current")?;
+        copy_hashed(ai_output, &output_copy, "ai-output")?;
+        Ok(RetainedCreatorInputs {
+            original: original_copy,
+            current: current_copy,
+            ai_output: output_copy,
+            directory: directory.clone(),
+        })
+    })();
+    if result.is_err() {
+        let _ = fs::remove_dir_all(&directory);
+    }
+    result
+}
+
 impl Drop for RetainedInboxCandidate {
     fn drop(&mut self) {
         let _ = fs::remove_dir_all(&self.directory);
