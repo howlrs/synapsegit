@@ -7,7 +7,7 @@ AIを使うクリエイターは、まず[制作の流れ](./creator_workflow.md
 上の画像は仕組みを説明するイラストで、アプリの画面キャプチャではありません。
 
 このディレクトリは、SynapseGit Core を「試す」「評価する」「実装する」ための入口である。
-現在の状態は **v1.1.0 stable release / v1形式は凍結済み**。OID・schema・local repository の縦断経路に加え、
+現在の状態は **v1.2.0 stable release / v1形式は凍結済み**。OID・schema・local repository の縦断経路に加え、
 ordered Observationのprimary Blob OIDだけを比べるdeterministic byte-identity baselineが動作する。
 capture client、pixel-level registration／差分解析はまだ実装されていない。`synapse-creator`とCLIの
 `creator-run`／`creator-report`は、original／current／AI outputの3画像から手書きJSONなしで履歴を作る
@@ -16,7 +16,7 @@ process-localなauthenticated one-shot AI execution routeとadmitted-proposal-bo
 narrow `decision/*` admissionはRust library境界まで実装されている。
 verified ObjectStoreとcaller-supplied Ref snapshotから作るdisposable SQLite query projectionも
 Rust library境界まで実装されている。
-tagged v1.1.0 sourceには、bounded regular-file manifestをportable NFC pathとして検証し、Refを更新せず
+tagged v1.2.0 sourceには、bounded regular-file manifestをportable NFC pathとして検証し、Refを更新せず
 deterministicなnested ManifestTreeへ変換する`synapse-artifact`と、固定された
 [`synapsegit.generic-artifact` v1 application contract](../spec/application/generic-artifact/v1/README.md)がある。
 同crateのtrusted workflowはprofile-owned repositoryをbootstrapし、Application／Coreを通したProposalと
@@ -115,7 +115,7 @@ Japanese or mixed-language technical references unless a link says otherwise.
 | 生成sample画像と実画面で最初のDecisionを記録する | [15分 壁画チュートリアル](./tutorial/README.ja.md) | [English tutorial](./tutorial/README.md) |
 | 実制作の写真と提案、記録済みの判断を見る | [星月夜の上塗り事例](./examples/starry-night/README.ja.md) | [公開bundle](https://github.com/howlrs/synapsegit-starry-night/tree/45db60e3497f5392a9fb93135698021d23e42059/synapsegit/bundle) |
 | Releaseをinstallして始める | [Installation](./install.md) | [root README](../README.ja.md#始める) |
-| v1.1.0の変更と配布境界を確認する | [Release notes](./releases/v1.1.0.md) | [Project status](./project_status.md) |
+| v1.2.0の変更と配布境界を確認する | [Release notes](./releases/v1.2.0.md) | [Project status](./project_status.md) |
 | sourceからCore全体を動かす | [Quickstart](./quickstart.md) | [使用ガイド](./usage_guide.md) |
 | native localhost UIを起動する | [Localhost application runbook](../deploy/local/README.md) | [Localhost application architecture](./localhost_application_architecture.md) |
 | 制作メモを残し、同じ参照画像で次の案を試す | [Creator操作ガイド](./creator_workflow.md) | [公開用文章の手順](./presentation_sidecar.md) |
@@ -201,7 +201,7 @@ flowchart LR
 | local single-creator Pilot（3 opaque画像、imported CaptureProfile、byte-identity Analysis、AI／Human route、adopt／reject／defer、timeline／report） | 実装済み / production integration対象外。`creator-report --format json`はversion付きprivate-local JSON documentを追加し、`--format text`と省略時はtext reportを維持する。`creator-list`は全sessionの未検証の概要を出力する | `synapse-creator`、`synapse-cli creator-run`／`creator-report`、creator／CLI process tests |
 | provider-neutral PublicProjection／PublicationBundle（canonical JSON、Markdown、JavaScriptなしHTML、manifest、checksum、Synapse／GitHub local target） | no-flagのv1は凍結。`--locale en|ja`はsemantic profile v1を保つcontainer／renderer v2 / remote publish対象外 | `synapse-publication`、`synapse-present export`／`preview`、[公開bundle契約](./publication_bundle.md) |
 | publication理解度評価コーパス（complete adopt／reject／deferとincomplete-onlyを分離、固定質問／oracle／privacy canary） | corpusと自動hard gateを実装済み。v0.8.1はstatic HTML browser checkを追加するが、凍結corpusの特定long-string reflow例外を除く。Human・AI・screen-reader評価は未実施またはmanual | [Publication comprehension corpus](./evaluation/publication-comprehension/v1/) |
-| single-user localhost image application（safe facade、loopback HTTP、server-rendered UI） | tagged v1.1.0 archiveは日本語・英語のUIを提供する。headerの明示選択をcookieへ保存して最優先し、対応する`Accept-Language`、日本語の順で解決する。利用者入力・保存済みtext、API identifier、error codeは翻訳しない。slices 1-4/6、slice 7のbounded fsck／job基盤、slice 8のread-only diagnostics部分を実装済み。bounded read-only archive listing（`--archive-root`起動flag指定時のみ有効）はtagged v0.6.0 binaryに含まれ、tagged v0.8.0はexact confirmation付きbounded no-replace archive export APIとempty-target restore APIも実装する。v0.8.0はproject画面のarchive UIも実装し、restoreを空の表示中projectへ固定して確認・poll・report一致確認を行う。pending／complete sessionには表示可能な2画像の選択と全体表示／100%／200%拡大、同寸法画像の重ね表示と0〜100%不透明度を備えたread-only比較ビューもあり、位置合わせ・差分解析は行わない | [Localhost runbook](../deploy/local/README.md)、[Localhost application architecture](./localhost_application_architecture.md)、[OpenAPI contract](../api/local/v1/openapi.json) |
+| single-user localhost image application（safe facade、loopback HTTP、server-rendered UI） | tagged v1.2.0 archiveは日本語・英語のUIを提供する。headerの明示選択をcookieへ保存して最優先し、対応する`Accept-Language`、日本語の順で解決する。利用者入力・保存済みtext、API identifier、error codeは翻訳しない。slices 1-4/6、slice 7のbounded fsck／job基盤、slice 8のread-only diagnostics部分を実装済み。bounded read-only archive listing（`--archive-root`起動flag指定時のみ有効）はtagged v0.6.0 binaryに含まれ、tagged v0.8.0はexact confirmation付きbounded no-replace archive export APIとempty-target restore APIも実装する。v0.8.0はproject画面のarchive UIも実装し、restoreを空の表示中projectへ固定して確認・poll・report一致確認を行う。pending／complete sessionには表示可能な2画像の選択と全体表示／100%／200%拡大、同寸法画像の重ね表示と0〜100%不透明度を備えたread-only比較ビューもあり、位置合わせ・差分解析は行わない | [Localhost runbook](../deploy/local/README.md)、[Localhost application architecture](./localhost_application_architecture.md)、[OpenAPI contract](../api/local/v1/openapi.json) |
 | script-output Inbox and interrupted/Defer review | `--import-root PROJECT=INBOX` enables bounded manifest-last candidate preview and explicit Proposal creation from retained bytes. `synapse inbox put` writes such a candidate without opening a repository or recording a decision. Verified interrupted and completed Defer histories can start a separate fresh review, with immutable private source binding and unchanged source decision; publication v1 refuses this reuse | [Localhost runbook](../deploy/local/README.md), [reuse profile](../spec/application/creator-reuse-source/v1/README.md), [Inbox schema](../spec/application/import-inbox/v1/README.md) |
 | public multi-tenant cloud service（GCP主系、AWS portability profile） | production architecture完了、実装未着手 | [Cloud service architecture](./cloud_service_architecture.md) |
 | private non-production GCP CLI packaging smoke（one-shot Cloud Run Job） | OCI build／Terraform／digest-pinned実行を検証済み、public endpoint／永続化なし | [GCP CLI smoke deployment](../deploy/gcp/README.md) |

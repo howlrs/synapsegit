@@ -19,8 +19,8 @@ container registry.
 
 | Route | Requirements | Installs | Recommended for |
 |---|---|---|---|
-| GitHub Release archive | Linux x86_64, glibc 2.34+ | `synapse`, `synapse-local`, `synapse-present` | Fastest local setup |
-| GitHub Release archive | macOS on Apple Silicon (arm64) | `synapse`, `synapse-local`, `synapse-present` | Creators on a Mac |
+| GitHub Release archive | Linux x86_64, glibc 2.34+ | one `synapse` executable plus `synapse-local` and `synapse-present` compatibility symlinks | Fastest local setup |
+| GitHub Release archive | macOS on Apple Silicon (arm64) | one `synapse` executable plus `synapse-local` and `synapse-present` compatibility symlinks | Creators on a Mac |
 | Current source build | Rust 1.88.0, supported Unix-like host | `synapse` plus optional compatibility symlinks | Other platforms and source review |
 
 Windows is not currently supported by the archive publication path. Linux ARM64
@@ -129,7 +129,7 @@ export PATH="$HOME/.local/bin:$PATH"
 synapse --version
 ```
 
-`synapse-present` refuses a publication path whose parent folders include a
+`synapse present` refuses a publication path whose parent folders include a
 symbolic link. On macOS `/tmp` and `/var` are symbolic links, so keep
 publication inputs and outputs under your home folder.
 
@@ -171,83 +171,26 @@ regular executable a compatibility alias.
 operation. `synapse present export <repo> <output-dir> ...` derives a separate
 read-only presentation bundle; it does not replace archive export.
 
-## Historical v1.1.0 installation
-
-The v1.1.0 archive and tag installed `synapse`, `synapse-local`, and
-`synapse-present` as separate executables. Keep those documented release
-artifacts unchanged when reproducing historical work.
-
-Install Rust 1.88 or newer, a C toolchain, and SQLite build prerequisites for
-the host. Install directly from the immutable v1.1.0 tag:
+To install from the same fixed tag without keeping a checkout, install the
+single CLI crate and then create optional aliases beside Cargo's binary:
 
 ```bash
-cargo install \
+cargo +1.88.0 install \
   --git https://github.com/howlrs/synapsegit \
-  --tag v1.1.0 \
+  --tag v1.2.0 \
   --locked \
   synapse-cli
-
-cargo install \
-  --git https://github.com/howlrs/synapsegit \
-  --tag v1.1.0 \
-  --locked \
-  synapse-local-http
-
-cargo install \
-  --git https://github.com/howlrs/synapsegit \
-  --tag v1.1.0 \
-  --locked \
-  synapse-publication
-
-synapse --version
-synapse-local --version
-synapse-present --version
+ln -sfn synapse "$HOME/.cargo/bin/synapse-local"
+ln -sfn synapse "$HOME/.cargo/bin/synapse-present"
 ```
 
-`--locked` uses the dependency versions recorded by the tag. Use a release tag,
-not a moving branch, when installing software you plan to evaluate or retain.
+`--locked` uses the dependency versions recorded by the tag. The workspace
+crates are intentionally `publish = false`; these commands build repository
+source rather than downloading a crate from crates.io.
 
-To inspect and test the source before installing:
-
-```bash
-git clone --branch v1.1.0 --depth 1 https://github.com/howlrs/synapsegit.git
-cd synapsegit
-cargo test --workspace --all-targets --locked
-cargo install --path crates/synapse-cli --locked
-cargo install --path crates/synapse-local-http --locked
-cargo install --path crates/synapse-publication --locked
-```
-
-The workspace crates are intentionally marked `publish = false` during Stage
-0. The commands above build from the repository; they do not use crates.io.
-
-## Tagged sourceからbuildする
-
-日本語でsourceから導入する場合も、moving branchではなくrelease tagを固定します。Rust
-1.88以降とhostのC toolchainを用意し、次を実行してください。
-
-```bash
-cargo install \
-  --git https://github.com/howlrs/synapsegit \
-  --tag v1.1.0 \
-  --locked \
-  synapse-cli
-
-cargo install \
-  --git https://github.com/howlrs/synapsegit \
-  --tag v1.1.0 \
-  --locked \
-  synapse-local-http
-
-cargo install \
-  --git https://github.com/howlrs/synapsegit \
-  --tag v1.1.0 \
-  --locked \
-  synapse-publication
-```
-
-`--locked`はtagに記録されたdependency versionを使います。workspace crateは
-crates.io配布を意図せず、repository sourceからbuildします。
+The v1.1.0 archive and tag are historical three-executable distributions.
+Use their tag-fixed release notes when reproducing that version; do not apply
+their separate executable installation commands to v1.2.0.
 
 ## Update
 
@@ -257,7 +200,7 @@ in the [compatibility policy](./compatibility.md). Before updating:
 1. read the new release notes and [changelog](../CHANGELOG.md);
 2. export important repositories with the currently installed version;
 3. keep the old binary and archive until the new version has verified the data;
-4. install the new binaries only from a fixed release tag; and
+4. install the new executable only from a fixed release tag; and
 5. read the release notes for operational and supported-version changes.
 
 v0.13.1 and earlier binaries refuse Creator sessions recorded by releases before

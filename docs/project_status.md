@@ -13,7 +13,7 @@ formal Core Stage 1は別の研究として続ける。
 4件の隔離したAIモック環境で主要フローを実運用試験し、localhost UIを目視確認した。Gemini・Claudeの独立reviewを受け、公開条件2を満たすと判断し、PR #197のmergeでIssueを完了した。合成素材でのrehearsalは実利用者評価の結果ではない。
 両platformの手順は[v1.2.0 release notes](./releases/v1.2.0.md)を使う。
 
-tagged v1.1.0 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
+tagged v1.2.0 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
 boundaryが含まれる。これはdeterministic mapper／bounded checkout、固定v1 JSON contract、sequential
 Proposal／Decision workflow、host-authenticated one-shot approval、Proposal／Decision CAS前後を別SQLite
 journalへ結ぶ明示的なrestart recovery／reconciliation orchestration、local public projectionである。
@@ -157,16 +157,16 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 
 | Item | Status |
 |---|---|
-| Localhost Inbox and fresh interrupted/Defer review | Included in v1.1.0; inspect retained Inbox bytes before a person supplies a decision; no source decision rewrite |
+| Localhost Inbox and fresh interrupted/Defer review | Included in v1.2.0; inspect retained Inbox bytes before a person supplies a decision; no source decision rewrite |
 | Public repository | Available |
-| v1.1.0 GitHub Release | [Release assets and notes](https://github.com/howlrs/synapsegit/releases/tag/v1.1.0) |
-| Linux x86_64 GNU binary | Release archive for glibc 2.34+; verify against the v1.1.0 `SHA256SUMS` |
+| v1.2.0 GitHub Release | [Release assets and notes](https://github.com/howlrs/synapsegit/releases/tag/v1.2.0) |
+| Linux x86_64 GNU binary | Release archive for glibc 2.34+; verify against the v1.2.0 `SHA256SUMS` |
 | macOS arm64 binary | Release archive built and smoke-tested on macOS 14; not signed or notarized |
-| Source build from fixed tag | Available from `v1.1.0`; Rust 1.88+ |
-| SHA-256 release checksum | The v1.1.0 `SHA256SUMS` lists both platform archives; verify before extraction |
-| Build provenance attestation | Verify the v1.1.0 archives against `refs/tags/v1.1.0`; the tag workflow checks the digest, tagged commit, and GitHub-hosted runner |
-| `synapse-present` binary | Included in v1.1.0; local generation only, with no remote publish |
-| Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v1.1.0 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
+| Source build from fixed tag | Available from `v1.2.0`; Rust 1.88+ |
+| SHA-256 release checksum | The v1.2.0 `SHA256SUMS` lists both platform archives; verify before extraction |
+| Build provenance attestation | Verify the v1.2.0 archives against `refs/tags/v1.2.0`; the tag workflow checks the digest, tagged commit, and GitHub-hosted runner |
+| Unified CLI | One physical `synapse` executable; `synapse-local` and `synapse-present` are relative compatibility symlinks |
+| Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v1.2.0 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
 | crates.io / GHCR / OS packages | Intentionally unavailable; GitHub Releases only |
 | Source use, Fork, and redistribution terms | Custom source-available license available; not open source |
 
