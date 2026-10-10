@@ -279,9 +279,11 @@ binaryを使う。開発時のlocal既定がdebug profileであることは変�
    同じcommitのmain CI成功を待つ。失敗・cancel・未実行のままなら公開しない。その場合は、該当するmain CI runを
    成功までre-runしてから、release workflowをre-runする。署名運用を導入した後はsigned tagを必須にする。
 7. tag workflowが通常のGitHub Releaseを作り、asset upload、checksum、attestation、公開まで成功したことを確認する。
-8. 別directoryへassetをdownloadし、checksum、attestation、三binaryの`--version`／`--help`、3-file Pilot、
-   read-only local publication bundleのexport／previewを確認する。archiveに第四のbinaryや
-   generic-artifact HTTP／CLI／UI surfaceが紛れ込んでいないことも確認する。
+8. 別directoryへassetをdownloadし、checksumとattestationを検証する。archiveには通常の実行fileが
+   `synapse`一つだけあり、`synapse-local`／`synapse-present`が同じdirectoryの`synapse`を指す相対symlinkで
+   あることを確認する。`synapse`、`synapse serve`、`synapse present`と旧互換名の`--version`／`--help`、
+   3-file Pilot、read-only local publication bundleのexport／preview、canonical／互換名でのlocalhost起動を
+   確認する。追加のbinaryやgeneric-artifact HTTP／CLI／UI surfaceが紛れ込んでいないことも確認する。
 
    `gh attestation verify`はnon-TTY実行時（パイプ経由・スクリプト内実行時など）、plain formatの
    human-readable出力を表示しない（v0.5.1 releaseの検証で実測）。exit code 0だけでは確認内容が

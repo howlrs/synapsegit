@@ -37,9 +37,10 @@ The tagged v1.2.0 implementation provides:
 The import, review, diagnostics, and browser `fsck` slices were introduced as
 the v0.3.0 localhost milestone and remain the same image-specific application
 surface in the tagged v1.2.0 binary. The generic-artifact workflow included in
-the v1.2.0 tagged source is not connected to this service or UI. The release archive remains
-`synapse`, `synapse serve`, and `synapse-present`; it adds no generic-artifact
-HTTP/CLI/UI, new binary, or remote publish path.
+the v1.2.0 tagged source is not connected to this service or UI. The release archive
+contains one `synapse` executable and the relative `synapse-local` and
+`synapse-present` compatibility symlinks. The localhost command is `synapse serve`;
+this release adds no generic-artifact HTTP/CLI/UI or remote publish path.
 
 Each imported file is limited to 64 MiB and the three files to 192 MiB in
 aggregate. At most two uploads stage concurrently, eight pending reviews are

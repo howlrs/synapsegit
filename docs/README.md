@@ -224,7 +224,7 @@ flowchart LR
 
 「実装済み」は、この repository の test で検証されている範囲を指す。production deployment、
 認証、network transport、運用監視まで完成したという意味ではない。tagged v1.1.0 source／workspace
-libraryと明記したrowは固定tagのsource／schemaに含まれることを示すが、release archiveの三binaryから
+libraryと明記したrowは固定tagのsource／schemaに含まれることを示すが、その歴史的tagのrelease archiveの三binaryから
 利用できることやtransport contract test完了を意味しない。
 generic artifact v1はCore v0.1とは別のapplication contractである。`ReviewId`は認証済みproject lookup用の
 locatorにすぎず、Ref／head／OID／permitをpublic DTOへ露出しない。journal row単体はauthorityではない。
