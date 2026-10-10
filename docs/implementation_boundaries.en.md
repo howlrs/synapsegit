@@ -3,9 +3,10 @@
 Audience: implementers, tool builders, and evaluators who embed or review the
 Rust workspace. Creators do not need this page to use the packaged binaries.
 
-The root [README](../README.md) describes what the three packaged binaries
-(`synapse`, `synapse-local`, `synapse-present`) do for a creator. This page keeps
-the technical boundaries of those binaries and the features that exist only as
+The root [README](../README.md) describes what the packaged `synapse` executable
+does for a creator. Releases include `synapse-local` and `synapse-present` as
+relative compatibility symlinks; new commands use `synapse serve` and
+`synapse present`. This page keeps the technical boundaries of those commands and the features that exist only as
 workspace libraries. It was moved out of the README without changing its
 meaning.
 
@@ -17,14 +18,14 @@ ready.
 
 ## Packaged binary boundaries
 
-`synapse-local` includes browser import and review, dedicated diagnostics, and
+`synapse serve` includes browser import and review, dedicated diagnostics, and
 bounded browser `fsck`. Review authority and maintenance job state are
 process-local and cannot be resumed after a restart. After a restart, a
 verified interrupted proposal can be reviewed in a new session using its
 recorded three images; a Defer can use the same fresh-review path. The original
 session is never resumed or changed.
 
-`synapse-present` reads the existing CAS without mutation and copies
+`synapse present` reads the existing CAS without mutation and copies
 checkpointed Ref SQLite (up to 512 MiB) into a private temporary file, requiring
 the copy-time and post-copy source SHA-256 to match; SQLite never opens the
 source database directly. Sidecars or a changing source fail with
@@ -80,7 +81,7 @@ transactions are separate, so crash windows are resolved by explicit bounded
 reconciliation rather than by claiming cross-database atomicity. Rust trusted
 workflow values are getter-only process values, not browser-supplied authority.
 
-These capabilities are not exposed by any of the three packaged binaries,
+These capabilities are not exposed by the packaged `synapse` executable or its commands,
 including through HTTP, CLI, or browser UI. They also do not provide a
 background service that resumes work automatically, model invocation, a generic
 browser editor, durable identity or ACL storage, multi-process

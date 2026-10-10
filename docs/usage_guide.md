@@ -37,14 +37,14 @@ cargo +1.88.0 build --release --locked -p synapse-cli
 
 terminalに表示された`http://127.0.0.1:8787`をbrowserで開き、終了時はCtrl-Cを押す。hostは
 `127.0.0.1`固定で、network共有用のoverrideはない。複数projectは`--project KEY=PATH`を繰り返して登録する。
-この例では`init`でrepositoryを明示的に作る。`synapse-local`は既存の空directoryも初期化できるが、存在しないpathと非空の非repositoryを拒否する。v0.8.0はproject画面からsessionを作成でき、
+この例では`init`でrepositoryを明示的に作る。`synapse serve`は既存の空directoryも初期化できるが、存在しないpathと非空の非repositoryを拒否する。v0.8.0はproject画面からsessionを作成でき、
 後述の`creator-run`で同じpathへ作成したsessionも表示できる。
 
 UIで現在読めるのはproject status、Refs／reflog、creator sessionのreport／timeline／evidence／画像である。
 v0.8.0ではoriginal／current／caller-supplied AI outputの三fileをbounded stagingへuploadし、proposalを
 同じprocess内でHuman `adopt`／`reject`／`defer`できる。review前にprocessを終了するとauthorityは復元できず、
 sessionはincompleteになる。read-only incomplete diagnosticsと、exact project確認付きの
-server-bounded background `fsck`／poll UIもtagged v0.8.0の`synapse-local`に含まれる。
+server-bounded background `fsck`／poll UIもtagged v0.8.0の`SynapseGit Local`機能に含まれる。
 tagged v0.8.0は`--archive-root`指定時のexact confirmation付きarchive export／empty-target restore APIも提供する。
 v0.8.0はproject画面にarchive UIを追加した。restoreは空の表示中登録projectに固定され、一覧slug、exact target key、
 empty-target checkbox、browser確認、queued/polled jobを必要とする。成功後はreport一致確認とhistory再読込linkを表示する。
@@ -85,7 +85,7 @@ Coreは既存の制作ソフト、BIM/CAD、ペイントツールを置き換え
 | ![synthetic original mural](./tutorial/assets/mural-original.png) | ![synthetic current mural](./tutorial/assets/mural-current.png) | ![synthetic AI-attributed proposal](./tutorial/assets/mural-ai-proposal.png) |
 
 このsampleは実在作品や実処置のevidenceではない。実際の`creator-run`、Human Decision、
-`creator-report`、localhost UI、`synapse-present`を一つの再現可能なflowとして示す。
+`creator-report`、localhost UI、`synapse present`を一つの再現可能なflowとして示す。
 
 現物の写真にOriginal／Currentを割り当てる例は、[星月夜の上塗り](./examples/starry-night/README.ja.md)で
 確認できる。v1.0.0での開発者本人の制作であり、参照した2026-10-09の記録には5件のHuman `adopt`判断と公開bundleがある。
@@ -305,7 +305,7 @@ cargo run -p synapse-cli -- creator-report restored.synapse mural-1
 `creator-report --format json`は同じ検証済みsessionを、CLI-owned・versioned JSON contract
 （`"format": "synapsegit-cli-creator-report-v1"`、`"scope": "private_local"`）として一つのdocumentへ
 出力する。これはrationale、生成note、decision pinsなどを含み得る**プライベートなローカルreport**であり、
-公開bundleとは別contractである。共有したい場合はこのJSONではなく既存の`synapse-present export ... --public`
+公開bundleとは別contractである。共有したい場合はこのJSONではなく既存の`synapse present export ... --public`
 を使う。詳細と完全なfield一覧は[CLI reference](cli_reference.md#--format-json)を参照する。
 
 `creator-run`は新規repositoryを作成することもでき、Subject、imported CaptureProfile、original／current Observation、

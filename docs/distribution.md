@@ -60,9 +60,9 @@ v1.1.0はnon-regular Creator inputを記録前に拒否し、判断記録のpriv
 warning、Linux/macOSの安全なpublication replacementを追加した。三binary構成は歴史的な配布内容として残る。
 v1.2.0はCore commandの引数を変えず、`synapse serve`（旧`synapse-local` options）と
 `synapse present export|preview`（旧`synapse-present` arguments）を一つの`synapse` executableへ統合する。
-archiveには同じdirectoryを指す相対`synapse-local`／`synapse-present` symlinkを含める。容量または速度の改善は未測定である。
+archiveには同じdirectoryを指す相対`synapse-local`／`synapse-present` symlinkを含める。起動速度の一般的な改善は主張しない。
 
-公開文面では、将来の利用構想とv1.1.0で実行できる能力を同じものとして表示しない。
+公開文面では、将来の利用構想とv1.2.0で実行できる能力を同じものとして表示しない。
 
 ## 公開surface
 

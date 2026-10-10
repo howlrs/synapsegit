@@ -357,8 +357,9 @@ Core proofとして扱わない。binding／journal／trusted configは改竄さ
 特定processのruntime capability intersectionを通過したことを暗号学的に証明しない。process ACL／profile／permit／
 FairGateもrestartを越えて保存されず、multi-process linearizabilityは提供しない。
 
-このC1 boundaryはtagged v0.8.0 sourceに含まれるworkspace Rust libraryである。release archiveは
-`synapse`、`synapse-local`、`synapse-present`の三binaryだけを維持し、このboundary向けのHTTP／CLI、
+このC1 boundaryはtagged v0.8.0 sourceに含まれるworkspace Rust libraryである。歴史的なv0.8.0 archiveは
+`synapse`、`synapse-local`、`synapse-present`の三binaryを含む。v1.2.0 archiveは一つの`synapse` executableと
+二つの相対compatibility symlinkに統合するが、このboundary向けのHTTP／CLI、
 generic browser UI、新binary、model provider invocation、automatic background worker、durable identity／ACL、
 multi-process linearizability、remote publish、production deployment、新たな配布許可を提供しない。
 v0.3.0で導入されたCreator Pilotとlocalhost UIはv0.4.0でも画像専用のままで、同じprocessに保持したpending

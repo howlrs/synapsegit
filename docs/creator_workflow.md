@@ -7,12 +7,12 @@ English: [Creator workflow](./creator_workflow.en.md).
 _制作の流れを説明するイラストです。操作を覚える前に、準備・判断・記録の役割を押さえてください。
 操作の準備は[AIエージェントに頼む](./ai_agent_guide.ja.md)こともできます。_
 
-対象はv1.1.0です。生成メモはv0.11.0、判断ピン・通常の派生セッション・公開用文章フォームはv0.8.0で導入されました。中断／Deferからの新しい再レビューと任意のInbox取り込みも利用できます。
-v1.1.0 release binaryを[install guide](install.md)から導入するか、
-[source build](quickstart.md#1-build-する)で作成した`synapse-local`を
+対象はv1.2.0です。生成メモはv0.11.0、判断ピン・通常の派生セッション・公開用文章フォームはv0.8.0で導入されました。中断／Deferからの新しい再レビューと任意のInbox取り込みも利用できます。
+v1.2.0 release binaryを[install guide](install.md)から導入するか、
+[source build](quickstart.md#1-build-する)で作成した`synapse`を
 [localhost runbook](../deploy/local/README.md)に従って起動してください。
 
-`synapse-local --import-root KEY=PATH` を使う場合、producerは`PATH/<slug>`へ3つの画像を書き、strict manifestを最後に書く。ブラウザはpathではなくslugだけを送る。確認を閉じるとprocess-private stagingは直ちに破棄され、Proposal作成は確認した同じstaged bytesだけを使う。
+`synapse serve --import-root KEY=PATH` を使う場合、producerは`PATH/<slug>`へ3つの画像を書き、strict manifestを最後に書く。ブラウザはpathではなくslugだけを送る。確認を閉じるとprocess-private stagingは直ちに破棄され、Proposal作成は確認した同じstaged bytesだけを使う。
 CLIやAIエージェントからは`synapse inbox put`でこの形式の候補を書き出せる。repositoryを開かず、判断も記録しない。判断は人がブラウザで行う。
 
 具体的な写真と工程地図の割り当ては、v1.0.0で記録した開発者本人の
@@ -120,7 +120,7 @@ privateメモは自動転記されません。文章の出力、bundle生成、�
 | 生成メモ・ピン・Human Decision・完了画面 | 対応 | 対応 |
 | 通常のCore archive／restore | 対応 | privateな派生元履歴を含めて対応 |
 | 公開用`presentation.toml`のフォーム出力 | completeのみ対応 | 公開形式v1では拒否 |
-| `synapse-present export`の公開bundle | completeを出力 | 公開形式v1では拒否 |
+| `synapse present export`の公開bundle | completeを出力 | 公開形式v1では拒否 |
 
 公開形式v1は画像の再利用を表せないため、派生Currentを新しい現況と誤表示しないよう拒否します。
 completeな派生セッションを含む全件exportも失敗し、bundle出力先は作成されません。

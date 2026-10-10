@@ -1,15 +1,15 @@
 # Native localhost application
 
-v0.11.0で導入された生成メモと、v0.8.0で導入された判断ピン・派生セッション・公開用文章フォームは、v1.1.0でも利用できます。[Creator操作ガイド](../../docs/creator_workflow.md)に操作手順と公開v1の制限を説明しています。
+v0.11.0で導入された生成メモと、v0.8.0で導入された判断ピン・派生セッション・公開用文章フォームは、v1.2.0でも利用できます。[Creator操作ガイド](../../docs/creator_workflow.md)に操作手順と公開v1の制限を説明しています。
 
-`synapse-local` is the first creator-facing SynapseGit application. It runs as
+`synapse serve` is the first creator-facing SynapseGit application. It runs as
 one native process on the user's machine and serves a browser UI only on IPv4
 loopback (`127.0.0.1`). It is not a GitHub-like hosted service, a Cloud Run
 deployment, or a Docker workload.
 
 ## Current implementation boundary
 
-The tagged v1.1.0 implementation provides:
+The tagged v1.2.0 implementation provides:
 
 - a startup-owned catalog of local repositories;
 - project status, current Refs, and bounded reflog pages;
@@ -36,9 +36,9 @@ The tagged v1.1.0 implementation provides:
 
 The import, review, diagnostics, and browser `fsck` slices were introduced as
 the v0.3.0 localhost milestone and remain the same image-specific application
-surface in the tagged v1.1.0 binary. The generic-artifact workflow included in
-the v1.1.0 tagged source is not connected to this service or UI. The release archive remains
-`synapse`, `synapse-local`, and `synapse-present`; it adds no generic-artifact
+surface in the tagged v1.2.0 binary. The generic-artifact workflow included in
+the v1.2.0 tagged source is not connected to this service or UI. The release archive remains
+`synapse`, `synapse serve`, and `synapse-present`; it adds no generic-artifact
 HTTP/CLI/UI, new binary, or remote publish path.
 
 Each imported file is limited to 64 MiB and the three files to 192 MiB in
@@ -55,7 +55,7 @@ The tagged v0.6.0 UI added a bounded, read-only archive listing view
 (`GET /archives` plus a dashboard section) behind an optional
 `--archive-root PATH` startup flag; the path must already exist and be a
 directory. Without `--archive-root`, the UI behaves as before and does not
-provide archive listing. The tagged v1.1.0 binary also enables
+provide archive listing. The tagged v1.2.0 binary also enables
 authenticated `POST /api/v1/projects/{projectKey}/archive-exports` when this
 root is configured. The request accepts only an exact project confirmation and
 a logical archive slug; the server uses its fixed Core-equivalent limits and
@@ -71,7 +71,7 @@ empty-target checkbox serialized as `true`, and browser confirmation, then uses
 the existing queued/polled operation API.
 The dedicated diagnostics route and server-rendered view are read-only: displayed
 Ref/head values are never accepted back as review authority and history is not
-rewritten. The tagged v1.1.0 project page also runs read-only `fsck` only after
+rewritten. The tagged v1.2.0 project page also runs read-only `fsck` only after
 the user types the exact project key. It returns `202 Accepted`, polls a random
 process-local operation ID, and displays clean/dirty aggregate counts. A dirty
 repository is a completed result with `clean=false`, not a failed job.
@@ -116,12 +116,12 @@ diagnostics views remain available without it.
 
 ## Build and start
 
-Linux x86_64では、tag workflow後の[`v1.1.0` release](../../docs/releases/v1.1.0.md)に
-`synapse-local`を含む検証済みbinary archiveが公開される。downloadとchecksum検証は
+Linux x86_64とmacOS arm64では、tag workflow後の[`v1.2.0` release](../../docs/releases/v1.2.0.md)に
+`synapse serve`を含む検証済みbinary archiveが公開される。downloadとchecksum検証は
 [Installation guide](../../docs/install.md#install-the-linux-x86-64-release)を参照する。その他のplatformでは、
-下記のsource buildを使用する。v1.1.0の配布binaryには、三file import／same-process
+下記のsource buildを使用する。v1.2.0の配布binaryには、三file import／same-process
 Human reviewに加え、dedicated read-only diagnostics、bounded browser `fsck`
-（いずれもv0.3.0で導入し、v1.1.0でも変更なし）、任意の`--archive-root`起動flag指定時のみ
+（いずれもv0.3.0で導入し、v1.2.0でも変更なし）、任意の`--archive-root`起動flag指定時のみ
 有効なbounded read-only archive listing（v0.6.0で追加）、および認証付きbounded archive
 export／empty-target restore API（v0.7.0で追加）と、v0.8.0のproject-page browser controlが含まれる。
 complete Creator sessionの**非公開の記録を保存（JSON）**は、操作時に既存の認証付きdetail endpointを
@@ -133,24 +133,24 @@ Use a Rust toolchain compatible with the workspace MSRV, then run these
 commands from the repository root:
 
 ```bash
-cargo build --release --locked -p synapse-cli -p synapse-local-http
+cargo +1.88.0 build --release --locked -p synapse-cli
 
 ./target/release/synapse init "$HOME/SynapseGit/demo"
-./target/release/synapse-local \
+./target/release/synapse serve \
   --project "demo=$HOME/SynapseGit/demo" \
   --label "demo=Demo project"
 ```
 
-binary versionは`./target/release/synapse-local --version`で確認できる。
+binary versionは`./target/release/synapse serve --version`で確認できる。
 
 The repository directory must exist before startup. It may contain a valid
-SynapseGit repository or be empty; `synapse-local` initializes an existing
+SynapseGit repository or be empty; `synapse serve` initializes an existing
 empty directory. A nonempty nonrepository, missing path, or nondirectory is
 rejected without writing repository files. The tagged v0.6.0 binary and a current source build can
 create a session from the project page. The CLI can use the same repository
 path before starting the application or after stopping it; run
 [`creator-run`](../../docs/usage_guide.md#手書きjsonなしのlocal-creator-pilot)
-only while `synapse-local` is not running for that project.
+only while `synapse serve` is not running for that project.
 
 The process prints an origin such as `http://127.0.0.1:8787`. Open that exact
 URL in a browser. Press Ctrl-C in the terminal to stop it. The browser session
@@ -164,7 +164,7 @@ different loopback port with `--port PORT`, or use `--port 0` for an
 OS-selected development port.
 
 ```bash
-./target/release/synapse-local \
+./target/release/synapse serve \
   --project "mural=$HOME/SynapseGit/mural" \
   --project "restoration=$HOME/SynapseGit/restoration" \
   --port 8788
@@ -202,7 +202,7 @@ publication of source-private rationale.
 All three choices complete the single decision flow. **Defer does not allow
 changing or reopening that session's decision in this Pilot.** Pending review
 still requires the same server process, and restart recovery is unchanged.
-These review and rationale display improvements are included in tagged v1.1.0.
+These review and rationale display improvements are included in tagged v1.2.0.
 
 ### Check selected files before import (v0.8.0)
 
@@ -233,7 +233,7 @@ are disabled while the request is pending. A failed request restores those
 controls and preserves the selection; it is not retried automatically.
 Replacing or clearing a file, resetting the form, or leaving the page releases
 its preview URL. This preflight UI requires JavaScript and is included in the
-tagged v1.1.0 binary.
+tagged v1.2.0 binary.
 
 ### Inspect image details before deciding (v0.8.1)
 
@@ -267,7 +267,7 @@ successfully decoded inline PNG/JPEG/GIF/WebP responses enter it. Other media
 retain their download-only behavior; corrupt or unsupported raster data shows
 an error on its card. Comparison is unavailable without JavaScript and does
 not add evidence access or recovery to incomplete sessions. The comparison
-dialog is included in the v1.1.0 tagged binary.
+dialog is included in the v1.2.0 tagged binary.
 
 ### Review an interrupted or deferred proposal again
 
@@ -297,7 +297,7 @@ is running. See the [CLI reference (Japanese)](../../docs/cli_reference.md).
 
 ```bash
 mkdir -p "$HOME/SynapseGit/inbox"
-./target/release/synapse-local \
+./target/release/synapse serve \
   --project "demo=$HOME/SynapseGit/demo" \
   --import-root "demo=$HOME/SynapseGit/inbox"
 ```
@@ -315,7 +315,7 @@ returns an empty list — this is the same as a configured-but-empty root, so
 the response alone cannot distinguish "not configured" from "configured but
 empty".
 
-On the tagged v1.1.0 binary, the same option also enables the archive export
+On the tagged v1.2.0 binary, the same option also enables the archive export
 and empty-target restore APIs and sets `archive_export=true` and
 `archive_restore=true` in each project capability response. Without it, export
 and restore requests fail before job reservation with `service_unavailable`.
@@ -329,7 +329,7 @@ link that explicitly reloads project history.
 
 ```bash
 mkdir -p "$HOME/SynapseGit/archives"
-./target/release/synapse-local \
+./target/release/synapse serve \
   --project "demo=$HOME/SynapseGit/demo" \
   --archive-root "$HOME/SynapseGit/archives"
 ```
@@ -343,7 +343,7 @@ empty target with the documented CLI spelling:
 ```bash
 synapse init "$HOME/SynapseGit/restore-target"
 mkdir -p "$HOME/SynapseGit/archives"
-./target/release/synapse-local \
+./target/release/synapse serve \
   --project "source=$HOME/SynapseGit/demo" \
   --project "restore=$HOME/SynapseGit/restore-target" \
   --archive-root "$HOME/SynapseGit/archives"
@@ -361,7 +361,7 @@ with `report_equivalence_required=true`.
 The successful form disables its inputs and submit button to prevent a repeated
 restore from replacing the result with an error. The success panel stays
 visible. Follow its explicit history reload link. Then
-stop `synapse-local` before opening either repository with the CLI, and write
+stop `synapse serve` before opening either repository with the CLI, and write
 the text reports to separate files before comparing them:
 
 ```bash

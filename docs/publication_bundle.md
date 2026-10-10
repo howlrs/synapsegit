@@ -1,6 +1,6 @@
 # Public bundle contract
 
-`synapse-present export` creates a local, read-only presentation bundle. It does not upload, run Git, or change the source repository. This document is the current creator-publication contract; it is separate from unresolved semantic-projection v2 work in [#163](https://github.com/howlrs/synapsegit/issues/163).
+`synapse present export` creates a local, read-only presentation bundle. It does not upload, run Git, or change the source repository. This document is the current creator-publication contract; it is separate from unresolved semantic-projection v2 work in [#163](https://github.com/howlrs/synapsegit/issues/163).
 
 ## Frozen v1 and explicit localized v2 containers
 
@@ -29,4 +29,4 @@ Run replacement with exclusive access to the destination and its parent. The fin
 
 ## Verify
 
-Run `synapse-present preview BUNDLE`. It checks the fixed inventory, checksums, container schema, renderer/locale identity, and semantic links before showing the local HTML entry point.
+Run `synapse present preview BUNDLE`. It checks the fixed inventory, checksums, container schema, renderer/locale identity, and semantic links before showing the local HTML entry point.

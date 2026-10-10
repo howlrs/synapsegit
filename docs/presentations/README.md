@@ -38,7 +38,7 @@ capabilityが変わる変更をmergeしたら、この資料と対象versionも�
 画面モックではなく、利用構想、Pilot目標、人とAIの権限境界を示す概念図で構成している。「MECHANISM」slideは
 壁画tutorialに基づく具体例で、Original reference／Current observation／外部で用意した候補（AI-attributed
 proposal）の3画像を記録し、byte identityのみで比較し、人がAdopt／Reject／Deferを判断し、その結果を
-`creator-report`・localhost UI・`synapse-present`のlocal publication viewで読み返せることを示す。この一連は
+`creator-report`・localhost UI・`synapse present`のlocal publication viewで読み返せることを示す。この一連は
 v0.9.0で今すぐ試せる。
 
 シナリオslide（05〜10）はそれぞれ単独で読めるよう、下部に「今すぐ試せる（v0.9.0）」と「構想・未実装」を

@@ -44,11 +44,14 @@ IPv4 loopback. It is not a public GitHub-like service. Rust remains the only
 authority for validation, OID creation, publication, projection rebuild,
 `fsck`, export, and restore.
 
-The application has two Rust packages:
+The released executable starts this application with `synapse serve`. The
+`synapse-local` binary remains a standalone development adapter. The
+application has two Rust packages:
 
 - `synapse-local-service`: a transport-neutral, trusted localhost facade over
   the existing Core, Creator, SQLite, and Publication crates;
-- `synapse-local-http`: the Axum HTTP/static-asset binary, depending on
+- `synapse-local-http`: the Axum HTTP/static-asset library and standalone
+  development adapter, depending on
   `synapse-local-service` but not directly on `synapse-core` or
   `synapse-sqlite`. [Askama 0.16.1](https://docs.rs/askama/0.16.1/askama/)
   renders type-checked HTML templates while

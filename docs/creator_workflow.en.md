@@ -7,14 +7,14 @@
 _Concept illustration of preparation, human choice and the record. You can
 ask an [AI agent](./ai_agent_guide.md) to handle the preparation commands._
 
-This focused guide is for the v1.1.0 release binary. It explains the path
+This focused guide is for the v1.2.0 release binary. It explains the path
 after the [15-minute mural tutorial](./tutorial/README.md): record your own
 three images, keep optional private notes, make a Human Decision, and begin a
 fresh review when another candidate is needed.
 
 Install the release from the [installation guide](./install.md), then use the
 [English README startup command](../README.md#3-or-record-directly-from-the-command-line) to start
-`synapse-local`. The [local application runbook (Japanese)](../deploy/local/README.md)
+`synapse serve`. The [local application runbook (Japanese)](../deploy/local/README.md)
 is an optional detailed reference. The browser interface is single-user and
 serves only IPv4 loopback. The security limits are summarized in the
 [privacy and trust summary](./security_model.en.md).

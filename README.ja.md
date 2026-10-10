@@ -74,7 +74,8 @@ curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.2.0/SHA256SUM
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
-確認に失敗したら、そこで止めてください。build provenanceの確認、macOSの手順、3つのbinaryの置き場所は
+確認に失敗したら、そこで止めてください。build provenanceの確認、macOSの手順、単一の`synapse`実行fileと
+互換用linkの置き場所は
 [installation guide](./docs/install.md)にあります。
 
 ### 2. AIエージェントに準備を任せ、判断は自分でする

@@ -907,7 +907,8 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/howlrs/synapsegit/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/howlrs/synapsegit/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/howlrs/synapsegit/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/howlrs/synapsegit/compare/v1.0.0-rc.1...v1.0.0

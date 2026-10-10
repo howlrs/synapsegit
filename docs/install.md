@@ -144,6 +144,7 @@ xattr -d com.apple.quarantine "$HOME/.local/bin/synapse"
 
 ## Build from a tagged source release
 
+Before updating an existing installation, preserve copies of its executables.
 Build the unified executable from the immutable v1.2.0 tag with the pinned toolchain:
 
 ```bash
@@ -162,10 +163,9 @@ synapse present --help
 ```
 
 The symlinks have relative targets and must stay in the same directory as
-`synapse`. If an older installation has regular `synapse-local` or
-`synapse-present` files, preserve or remove those files deliberately before
-creating the links; `ln -sfn` replaces a symlink but does not make an old
-regular executable a compatibility alias.
+`synapse`. `ln -sfn` replaces an existing symlink or regular file with the new
+compatibility link. Preserve copies of older `synapse-local` and
+`synapse-present` executables before running these commands.
 
 `synapse export <repo> <archive-dir>` remains the Core checksum-bound archive
 operation. `synapse present export <repo> <output-dir> ...` derives a separate
