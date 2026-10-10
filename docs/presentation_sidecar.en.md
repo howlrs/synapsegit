@@ -7,14 +7,14 @@
 _Concept illustration of public-text preparation. Downloading the text does
 not share images or private creation notes._
 
-This v0.8.0 feature is included in the v1.1.0 release binary. It lets you
+This v0.8.0 feature is included in the v1.2.0 release executable. It lets you
 prepare author-supplied public text for one complete, non-derived Creator
 session. It is deliberately separate from the private Creator record and from
 bundle generation.
 
 ## Create `presentation.toml`
 
-On the `synapse-local` project page, open the public-text form and select a
+On the `synapse serve` project page, open the public-text form and select a
 complete session made with the normal three-image import. A session derived by
 reusing Original and Current is refused by the frozen public v1 format, so
 that reused Current is not presented as a newly observed state.
@@ -65,13 +65,13 @@ breaks. Empty fields are omitted.
 ## Generate and inspect a local bundle
 
 Bundle creation remains a separate CLI operation. Stop every writer that uses
-the same repository as `synapse-local` and ensure the Ref SQLite database is
+the same repository as `synapse serve` and ensure the Ref SQLite database is
 checkpointed. Substitute your local source, a destination that does not yet
 exist, and the selected session ID:
 
 ```sh
-synapse-present export SOURCE BUNDLE --session SESSION --presentation presentation.toml
-synapse-present preview BUNDLE
+synapse present export SOURCE BUNDLE --session SESSION --presentation presentation.toml
+synapse present preview BUNDLE
 ```
 
 `preview` verifies an existing bundle and prints its entry point. If it reports

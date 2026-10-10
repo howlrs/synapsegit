@@ -6,7 +6,7 @@ English: [Public-text workflow](./presentation_sidecar.en.md).
 
 _公開用の文章を用意する説明イラストです。文章を書き出しても、画像や制作メモがそのまま共有されることはありません。_
 
-このフォームはv0.8.0で導入され、current v1.1.0 release binaryにも含まれます。
+このフォームはv0.8.0で導入され、current v1.2.0 release binaryにも含まれます。
 localhostのプロジェクト画面で「公開用の制作ノートを作る」を開き、通常の3画像取り込みで
 作成した完了セッションを一つ選びます。参照画像を再利用した派生セッションは公開形式v1に未対応で、
 フォームの確認時に拒否されます。作品タイトル、概要、公開用表示名、セッションのタイトル、
@@ -44,14 +44,14 @@ bundleにはsession名、判断、選択roleの事実、Blob／Ref OIDなど相�
 completeな派生セッションを含むprojectの全件exportも拒否します。通常の3画像取り込みで作成した
 セッションを`--session`で選択してください。既存v1 bundleの検証は継続できます。
 
-まず`synapse-local`と同じsourceへ書くすべてのwriterを停止し、Ref SQLiteがcheckpoint済みで
+まず`synapse serve`と同じsourceへ書くすべてのwriterを停止し、Ref SQLiteがcheckpoint済みで
 あることを確認します。稼働中sourceからの生成はこのフォームの機能に含みません。
 次のSOURCE・BUNDLE・SESSIONをローカルのsource、まだ存在しない出力先、選択したsession IDへ
 置き換えます。
 
 ```sh
-synapse-present export SOURCE BUNDLE --session SESSION --presentation presentation.toml
-synapse-present preview BUNDLE
+synapse present export SOURCE BUNDLE --session SESSION --presentation presentation.toml
+synapse present preview BUNDLE
 ```
 
 `preview`は既存bundleを検証して入口を表示するコマンドです。`read_only_source_busy`なら

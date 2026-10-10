@@ -2,7 +2,7 @@
 
 Audience: maintainer、release担当、公開文書を更新するcontributor
 Status: release運用runbook
-Applies to: v1.1.0 release preparation
+Applies to: v1.2.0 release preparation
 Last verified: 2026-10-10
 
 この文書は、SynapseGitを「GitHub上で見つける」「現在の用途を判断する」「安全に試す」までの
@@ -57,9 +57,12 @@ strict slugで、小文字から始まり小文字英数字とハイフンだけ
 古いsessionを開くことはできない。
 
 v1.1.0はnon-regular Creator inputを記録前に拒否し、判断記録のprivate-local JSON出力、bounded metadata
-warning、Linux/macOSの安全なpublication replacementを追加する。三binary構成と配布channelは変えない。
+warning、Linux/macOSの安全なpublication replacementを追加した。三binary構成は歴史的な配布内容として残る。
+v1.2.0はCore commandの引数を変えず、`synapse serve`（旧`synapse-local` options）と
+`synapse present export|preview`（旧`synapse-present` arguments）を一つの`synapse` executableへ統合する。
+archiveには同じdirectoryを指す相対`synapse-local`／`synapse-present` symlinkを含める。起動速度の一般的な改善は主張しない。
 
-公開文面では、将来の利用構想とv1.1.0で実行できる能力を同じものとして表示しない。
+公開文面では、将来の利用構想とv1.2.0で実行できる能力を同じものとして表示しない。
 
 ## 公開surface
 
@@ -144,7 +147,7 @@ archive作成、展開後smoke（`scripts/smoke_release_archive.sh`）、build p
 利用者は`sha256sum --check --ignore-missing SHA256SUMS`（macOSでは該当行を`shasum -a 256 --check`へ渡す）で、
 downloadしたarchiveだけを検証する。main／Pull RequestのCIも、同じmacOS jobと両archiveの組み立てを毎回検証する。
 
-v1.1.0 archiveは、v0.11.1、v0.10.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む。
+v1.2.0 archiveは一つの物理`synapse` executableと、同じdirectoryの`synapse`を指す相対`synapse-local`／`synapse-present` compatibility symlinkを含む。v1.1.0 archiveは、v0.11.1、v0.10.0と同じ`synapse`、`synapse-local`、`synapse-present`の三binaryだけを含む歴史的artifactである。
 generic-artifact v1のworkflow／schema／local projectionはtagged sourceに含まれるworkspace libraryであり、
 archiveへ第四のbinaryや既存binaryのgeneric HTTP／CLI／UI surfaceを追加しない。
 公開済みv0.6.0 archiveも同じ三binary構成であり、後から内容を変更しない。
@@ -158,8 +161,8 @@ release notesの`README.md`だけを含む。
 ```text
 synapsegit-vX.Y.Z-TARGET/
   synapse
-  synapse-local
-  synapse-present
+  synapse-local -> synapse
+  synapse-present -> synapse
   README.md
   SECURITY.md
   CHANGELOG.md
@@ -230,7 +233,7 @@ node scripts/test_verify_release_attestation.mjs
 node scripts/verify_release_fixtures.mjs --self-test
 node scripts/verify_release_fixtures.mjs
 git diff --check
-cargo build --release -p synapse-cli -p synapse-local-http --locked
+cargo +1.88.0 build --release -p synapse-cli --locked
 bash scripts/verify_archive_compatibility.sh target/release/synapse
 npm ci --prefix scripts/browser --ignore-scripts
 scripts/browser/node_modules/.bin/playwright install --with-deps chromium
@@ -276,9 +279,11 @@ binaryを使う。開発時のlocal既定がdebug profileであることは変�
    同じcommitのmain CI成功を待つ。失敗・cancel・未実行のままなら公開しない。その場合は、該当するmain CI runを
    成功までre-runしてから、release workflowをre-runする。署名運用を導入した後はsigned tagを必須にする。
 7. tag workflowが通常のGitHub Releaseを作り、asset upload、checksum、attestation、公開まで成功したことを確認する。
-8. 別directoryへassetをdownloadし、checksum、attestation、三binaryの`--version`／`--help`、3-file Pilot、
-   read-only local publication bundleのexport／previewを確認する。archiveに第四のbinaryや
-   generic-artifact HTTP／CLI／UI surfaceが紛れ込んでいないことも確認する。
+8. 別directoryへassetをdownloadし、checksumとattestationを検証する。archiveには通常の実行fileが
+   `synapse`一つだけあり、`synapse-local`／`synapse-present`が同じdirectoryの`synapse`を指す相対symlinkで
+   あることを確認する。`synapse`、`synapse serve`、`synapse present`と旧互換名の`--version`／`--help`、
+   3-file Pilot、read-only local publication bundleのexport／preview、canonical／互換名でのlocalhost起動を
+   確認する。追加のbinaryやgeneric-artifact HTTP／CLI／UI surfaceが紛れ込んでいないことも確認する。
 
    `gh attestation verify`はnon-TTY実行時（パイプ経由・スクリプト内実行時など）、plain formatの
    human-readable出力を表示しない（v0.5.1 releaseの検証で実測）。exit code 0だけでは確認内容が
@@ -393,7 +398,7 @@ license変更時は少なくとも次を同じPull Requestで更新する。
 
 - [Installation](./install.md)
 - [Project status](./project_status.md)
-- [Release notes](./releases/v1.1.0.md)
+- [Release notes](./releases/v1.2.0.md)
 - [Security model](./security_model.md)
 - [Contributing](../CONTRIBUTING.md)
 - [Documentation index](./README.md)

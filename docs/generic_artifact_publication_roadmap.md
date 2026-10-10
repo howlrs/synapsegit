@@ -43,7 +43,7 @@ this design does not authorize a send or establish a hosted service.
 
 | Issue #17 concern | Current evidence | Remaining delivery |
 | --- | --- | --- |
-| Creator reports and local GitHub layout | `synapse-present`, creator publication v1 | Remote delivery receipt and explicit send flow |
+| Creator reports and local GitHub layout | `synapse present`, creator publication v1 | Remote delivery receipt and explicit send flow |
 | Generic file-tree/LP outcomes | [Generic publication v1](../spec/application/generic-artifact-publication/v1/README.md), including complete/pending/incomplete outcomes and privacy canaries | Application transport and remote adapter |
 | Publication destination and visibility | Release first, optional linked Issue later; exact public bundle confirmation below | Adapter implementation and partial-failure tests |
 | Existing Git history and identity | [Local import design](./git_provenance_design.md) | Versioned schema, importer, independent fixture verification |

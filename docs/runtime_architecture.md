@@ -15,6 +15,8 @@ flowchart LR
     CLI["synapse-cli<br/>trusted operator primitive"] --> CORE[synapse-core]
     CLI --> CANON[synapse-canonical]
     CLI --> CREATOR[synapse-creator<br/>local create-only Pilot]
+    CLI --> LOCALHTTP
+    CLI --> PRESENT
     CLI --> REF[synapse-sqlite]
     CREATOR["synapse-creator<br/>local create-only Pilot"] --> OBS["synapse-observation<br/>deterministic byte identity"]
     CREATOR --> APP
@@ -355,8 +357,9 @@ Core proofとして扱わない。binding／journal／trusted configは改竄さ
 特定processのruntime capability intersectionを通過したことを暗号学的に証明しない。process ACL／profile／permit／
 FairGateもrestartを越えて保存されず、multi-process linearizabilityは提供しない。
 
-このC1 boundaryはtagged v0.8.0 sourceに含まれるworkspace Rust libraryである。release archiveは
-`synapse`、`synapse-local`、`synapse-present`の三binaryだけを維持し、このboundary向けのHTTP／CLI、
+このC1 boundaryはtagged v0.8.0 sourceに含まれるworkspace Rust libraryである。歴史的なv0.8.0 archiveは
+`synapse`、`synapse-local`、`synapse-present`の三binaryを含む。v1.2.0 archiveは一つの`synapse` executableと
+二つの相対compatibility symlinkに統合するが、このboundary向けのHTTP／CLI、
 generic browser UI、新binary、model provider invocation、automatic background worker、durable identity／ACL、
 multi-process linearizability、remote publish、production deployment、新たな配布許可を提供しない。
 v0.3.0で導入されたCreator Pilotとlocalhost UIはv0.4.0でも画像専用のままで、同じprocessに保持したpending
@@ -606,7 +609,7 @@ crates/
   synapse-core        validated repository / AI proposal + Human Decision admission / archive
   synapse-creator     create-only local Creator Pilot orchestration / snapshot-bound report
   synapse-publication read-only PublicProjection / deterministic local bundle / target renderer
-  synapse-cli         put / trusted-operator update-ref / fsck / export / restore / creator-run / creator-report
+  synapse-cli         Core commands / serve / present export|preview / trusted-operator update-ref / fsck / export / restore / creator-run / creator-report
   synapse-local-service transport-neutral localhost read + bounded creator facade / versioned DTO
   synapse-local-http  Axum + Askama loopback server / embedded assets
 ```

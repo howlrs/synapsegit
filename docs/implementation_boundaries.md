@@ -3,8 +3,9 @@
 対象: Rust workspaceを組み込む・評価する実装者、tool builder、評価者。制作者が配布binaryを使うために
 読む必要はありません。
 
-root [README](../README.ja.md)は、配布する3 binary（`synapse`、`synapse-local`、`synapse-present`）で
-制作者が何をできるかを説明します。このページは、それらのbinaryの技術的な境界と、workspace libraryだけに
+root [README](../README.ja.md)は、配布する単一の`synapse`実行fileで制作者が何をできるかを説明します。
+releaseには`synapse-local`と`synapse-present`を相対互換symlinkとして含めますが、新しい操作では
+`synapse serve`と`synapse present`を使います。このページは、それらのcommandの技術的な境界と、workspace libraryだけに
 ある機能を扱います。READMEから意味を変えずに移しました。
 
 「実装済み」は、このrepositoryのtestで検証される範囲を意味します。ここに書くlibrary／schema surfaceは、
@@ -47,24 +48,24 @@ bounded reconciliationで解決します。Rust trusted workflow valueはgetter-
 authorityとして渡すtransport DTOではありません。
 
 これらのcapabilityはsource／workspace libraryに収録しています。配布する
-3 binary（`synapse`、`synapse-local`、`synapse-present`）はこれらをHTTP、CLI、browser UIから
+`synapse`実行fileとそのcommandはこれらをHTTP、CLI、browser UIから
 提供しません。background serviceによる自動resume、model invocation、generic browser editor、
 durable identity／ACL storage、multi-process linearizability、production利用、配布許可も提供しません。
 配布するCreator flowとlocalhost UIは引き続き画像専用で、そのpending review
 authorityはsame-processかつrestart後にresumeできません。
 
-`synapse-local` binaryにはbrowser import／review、専用diagnostics、bounded browser
+`synapse serve`にはbrowser import／review、専用diagnostics、bounded browser
 `fsck`が含まれます。review authorityとmaintenance job stateはprocess-localで、restart後に
 再開できません。
 
-`synapse-present`は既存CASを変更せず、checkpoint済みで最大
+`synapse present`は既存CASを変更せず、checkpoint済みで最大
 512 MiBのRef SQLiteをprivate temporary copyへ取り込み、copy時とcopy後sourceのSHA-256一致を要求します。
 SQLiteにはsource databaseを直接openさせません。sidecarまたはcopy中に変化するsourceは
 `read_only_source_busy`で拒否します。
 最大100 creator sessionsからGitHub-readyなlocal viewを生成できますが、GitHubへのupload／publish／
 通信は行いません。private rationale、internal Actor ID、
 repository path、raw assetは除外し、raw asset renderingは未実装です。public noteは別の
-author-supplied textとして扱います。詳しくは[CLI reference](./cli_reference.md#synapse-present-companion-cli)を参照してください。
+author-supplied textとして扱います。詳しくは[CLI reference](./cli_reference.md#synapse-present-cli)を参照してください。
 
 さらにsource／workspace libraryには、versioned generic-artifact projection／
 local bundle APIも収録しています。このAPIは配布binary、HTTP、CLI、browser UIからは提供しません。

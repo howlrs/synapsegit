@@ -3,7 +3,7 @@
 [English](./README.md) | [日本語](./README.ja.md)
 
 [![CI](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml/badge.svg)](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml)
-![v1.1.0](https://img.shields.io/badge/release-v1.1.0-0a7f3f)
+![v1.2.0](https://img.shields.io/badge/release-v1.2.0-0a7f3f)
 ![Linux x86_64](https://img.shields.io/badge/binary-Linux%20x86__64-555)
 ![macOS arm64](https://img.shields.io/badge/binary-macOS%20arm64-555)
 [![License: source-available](https://img.shields.io/badge/license-source--available-blue)](./LICENSE)
@@ -54,7 +54,7 @@ and troubleshooting.
 
 The images are generated fixtures, not evidence of a real artwork or treatment.
 This repository uses the [2026-10-02 image revision](./docs/assets/image-generation.json).
-The v1.1.0 archive bundles these three tutorial images. Earlier releases retain their bundled
+The v1.2.0 archive bundles these three tutorial images. Earlier releases retain their bundled
 materials; record the release and material revision used for any session.
 
 ## A real painting workflow
@@ -70,18 +70,19 @@ it does not establish that the painting followed the map or changed physically.
 
 ### 1. Install
 
-The prebuilt v1.1.0 archives need no Rust toolchain. They support Linux x86_64
+The prebuilt v1.2.0 archives need no Rust toolchain. They support Linux x86_64
 (glibc 2.34 or newer) and macOS on Apple Silicon. Other platforms can
 [build from a tagged source](./docs/install.md#build-from-a-tagged-source-release).
 
 ```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.1.0/synapsegit-v1.1.0-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.1.0/SHA256SUMS
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.2.0/synapsegit-v1.2.0-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.2.0/SHA256SUMS
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
 Stop if the check fails. The [installation guide](./docs/install.md) shows the
-build-provenance check, the macOS steps, and where to put the three binaries.
+build-provenance check, the macOS steps, and how to install `synapse` with its
+compatibility symlinks.
 
 ### 2. Let your AI agent prepare, and decide yourself
 
@@ -115,7 +116,7 @@ synapse creator-report "$HOME/SynapseGit/demo" session-1
 ```
 
 To look at it in the browser, run
-`synapse-local --project "demo=$HOME/SynapseGit/demo"` and open the printed
+`synapse serve --project "demo=$HOME/SynapseGit/demo"` and open the printed
 `http://127.0.0.1:...` URL. Every command explains itself with `--help`.
 
 ## What you can do now
@@ -129,12 +130,12 @@ To look at it in the browser, run
 | Read past decisions with times and a timeline | Session pages, `creator-list`, `creator-report` (text or JSON) |
 | Try another candidate from a record, or review a deferred or interrupted one again in a new session | Session page |
 | Check integrity, back up, and restore | Maintenance page, `fsck`, `export`, `restore` |
-| Make a local read-only view without private notes | `synapse-present` and the public-text form |
+| Make a local read-only view without private notes | `synapse present` and the public-text form |
 | Use the pages in Japanese or English | Language switch in the header |
 
 ![Actual SynapseGit Local project overview for the synthetic mural example](./docs/assets/synapse-local/overview-hero.png)
 
-_The actual `synapse-local` page, served only from `127.0.0.1`. It is not a
+_The actual `synapse serve` page, served only from `127.0.0.1`. It is not a
 hosted or multi-user service._
 
 ## What it does not do
@@ -147,9 +148,9 @@ hosted or multi-user service._
   pixel registration or difference analysis.
 - **A recorded decision is final for that session.** You can review the same
   images again in a new session; the earlier record stays.
-- **It is local and single-user.** `synapse-local` serves only `127.0.0.1`.
+- **It is local and single-user.** `synapse serve` serves only `127.0.0.1`.
   There is no hosted or multi-user service, and nothing is uploaded.
-- **Platforms:** v1.1.0 provides Linux x86_64 and macOS arm64 archives. Windows is not supported;
+- **Platforms:** v1.2.0 provides Linux x86_64 and macOS arm64 archives. Windows is not supported;
   Linux ARM64 needs a source build.
 
 Some workspace features exist only as Rust libraries, not in the packaged
@@ -199,19 +200,19 @@ details.
 
 ## Releases and compatibility
 
-- SynapseGit v1.1.0 is a local single-user release. Each release is published on GitHub with
+- SynapseGit v1.2.0 is a local single-user release. Each release is published on GitHub with
   SHA-256 checksums and a build-provenance attestation; crates.io and container
   registries are not used.
 - From v1.0.0, the object, identifier, and archive formats are frozen for
   v1.x, and repositories and archives from every published release stay
   readable. See the [compatibility policy](./docs/compatibility.md).
 - What changed in each release is in the [changelog](./CHANGELOG.md) and the
-  [v1.1.0 release notes](./docs/releases/v1.1.0.md). Read the applicable notes
+  [v1.2.0 release notes](./docs/releases/v1.2.0.md). Read the applicable notes
   before using it with important data.
 
 ## Security, support, and license
 
-Keep `synapse-local` on loopback; do not put it behind a reverse proxy or treat
+Keep `synapse serve` on loopback; do not put it behind a reverse proxy or treat
 its process-local browser token as multi-user authentication. Report a
 suspected vulnerability through
 [GitHub private vulnerability reporting](https://github.com/howlrs/synapsegit/security/advisories/new),

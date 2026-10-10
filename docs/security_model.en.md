@@ -37,7 +37,7 @@ requires explicit confirmation; it does not make an archive safe to trust.
 
 ## Public bundle boundary
 
-`synapse-present` derives a local read-only bundle from a stable private Ref
+`synapse present` derives a local read-only bundle from a stable private Ref
 copy. It excludes private rationale, internal Actor IDs, repository paths, and
 raw asset bytes. It does not automatically decide whether sharing is allowed,
 publish remotely, upload files, enforce training-use policy, or remove copies
@@ -50,7 +50,7 @@ the generated bundle and its intended recipient before external sharing. The
 [public-text workflow](./presentation_sidecar.en.md) explains the separate
 author-text form and export command.
 
-## `synapse-local` is loopback-only, not user authentication
+## `synapse serve` is loopback-only, not user authentication
 
 The current image application is a single-user local preview. It binds only
 to literal IPv4 `127.0.0.1`; it is not a hosted or multi-user service. Its

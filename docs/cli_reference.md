@@ -8,8 +8,8 @@ in `synapse-application`, plus `synapse-core::CreativeAiRuntime` and `HumanDecis
 caller-supplied AI output; it is not a general proposal／decision publication API or real-user authentication.
 The workspace also provides `synapse-projection::SqliteProjectionStore`. `creator-report` uses it for one
 bounded session timeline and byte-identity lineage, but the CLI has no general projection rebuild or query command.
-The separate `synapse-present` companion reads completed creator history and generates a local, derived publication
-bundle. It does not change any `synapse` command or turn the Core archive command into a presentation export.
+`synapse present` reads completed creator history and generates a local, derived publication
+bundle. It does not change Core commands or turn `synapse export` into a presentation export.
 
 AIエージェントからCLIを使う場合の規則と手順は、[AIエージェント向けガイド](ai_agent_guide.ja.md)にまとめている。
 
@@ -34,31 +34,36 @@ usage error の場合は usage 全文も stderr に出す。次の操作がmessa
 `creator_session_incomplete`、`creator_session_not_found`、`fsck_failed`、入力fileを開けない`storage_error`）では、
 2行目に`hint: `で始まる案内を1行出す。1行目のcodeとexit codeは変わらない。
 stdoutの読み手が先に閉じた場合（`| head`など）は残りの出力を捨て、commandは本来のexit codeで終了する。
-それ以外のstdout書き込み失敗は`storage_error`である。`synapse-present`も同じである。
+それ以外のstdout書き込み失敗は`storage_error`である。`synapse present`も同じである。
 
 `synapse COMMAND --help`、`synapse COMMAND -h`、`synapse help COMMAND`は、そのcommandのusageと短い説明を
 stdoutへ出してexit code 0で終了する。commandは実行しない（`synapse init --help`はrepositoryを作らない）。
 `--version`、`-V`、`version` は `synapse <package-version>` を stdout に出して exit code 0 で終了する。
 
-## `synapse-present` companion CLI
+## `synapse present` CLI
 
-`synapse-present`は既存CASをread-onlyで扱い、Ref SQLiteのstable private copyから取得した一つの
+Release archives contain one regular `synapse` executable. `synapse-local` and
+`synapse-present` are relative compatibility symlinks that preserve their
+legacy invocation and version names; use `synapse serve` and `synapse present`
+in new commands.
+
+`synapse present`は既存CASをread-onlyで扱い、Ref SQLiteのstable private copyから取得した一つの
 bounded Ref snapshotを使って、人向けとmachine向けのlocal publication bundleを同時に生成する。
 Coreの`init`、`creator-report`、`export`を含む既存command、stdout／stderr、exit code、archive formatは
 変更しない。
 
 ```bash
-cargo build -p synapse-publication --bin synapse-present --locked
-target/debug/synapse-present --help
-target/debug/synapse-present --version
+cargo +1.88.0 build --release -p synapse-cli --locked
+target/release/synapse present --help
+target/release/synapse present --version
 ```
 
 ```text
-synapse-present export <repo> <output-dir> [--session <id>]
+synapse present export <repo> <output-dir> [--session <id>]
   [--presentation <presentation.toml>] [--public]
   [--target <synapse|github> | --synapse | --github]
 
-synapse-present preview <bundle-dir>
+synapse present preview <bundle-dir>
 ```
 
 `export` accepts `--locale en|ja` once. Omitting it preserves the frozen
@@ -90,7 +95,7 @@ same user. Do not run concurrent exports to the same output directory.
 ### `export <repo> <output-dir> [options]`
 
 source repositoryを作成せず、CAS、Refs、reflogへ書き込まずにbundleを新規生成する。export前に
-`synapse-local`と同repositoryへ書く全CLI／processを停止する。Ref databaseはcheckpoint済みの
+`synapse serve`と同repositoryへ書く全CLI／processを停止する。Ref databaseはcheckpoint済みの
 `refs.sqlite3` main fileで、最大512 MiBでなければならない。openerはsource SQLite connectionやread lockを
 取得せず、source pathをSQLiteへ渡さない。main fileをprivate temporary fileへcopyしながらSHA-256を計算し、
 copy後にsourceを再読して計算したSHA-256との一致を確認して、temporary copyだけをSQLiteでopenする。
@@ -164,7 +169,8 @@ bundle rootは次を含む。
 machine-readableであることは学習許可を意味せず、training useは`prohibited`である。
 
 成功時はdestination、target、visibility、projection digest、complete／incomplete session件数を
-stdoutへ出す。`synapse-present --version`は`synapse-present <package-version>`を出力する。
+stdoutへ出す。`synapse present --version`は`synapse <package-version>`を出力する。
+互換linkの`synapse-present --version`は従来どおり`synapse-present <package-version>`を出力する。
 
 ### `preview <bundle-dir>`
 
@@ -173,7 +179,7 @@ target-specific copyを検証する。成功時はtarget、visibility、projecti
 表示するだけで、browser起動、source repository access、外部通信は行わない。
 
 ```bash
-synapse-present preview public-view
+synapse present preview public-view
 ```
 
 主なcompanion error codeは`usage_error`、`destination_exists`、`unsafe_path`、
@@ -304,7 +310,7 @@ project ACL／FIFO fenceを通して`HumanDecisionRuntime::publish_decision`を�
 後のCLI実行でauthorityを再構築するcredentialではない。old handle、OID、Refを渡して判断をresumeするcommandは提供しない。
 GUIのない環境では、実行前に別のviewerで3画像を確認し、この一回の`creator-run`実行で判断する。
 
-ブラウザで判断前の候補を確認する用途は`creator-run`ではなく、`synapse-local --import-root KEY=PATH`のmanifest-last inboxを使う。browser requestはpathを送らずlogical slugだけを送り、一覧へ戻る操作はprivate stagingを破棄する。すでに`defer`したproposalまたは中断sessionを改めて検討する場合は、localhostの再レビューが3画像から新しいsessionを作る。元proposalのauthorityやdecisionはresume・変更しない。CLIと`synapse-local`は同じrepositoryへ同時に書き込めないため、CLI実行前にserverを停止する。
+ブラウザで判断前の候補を確認する用途は`creator-run`ではなく、`synapse serve --import-root KEY=PATH`のmanifest-last inboxを使う。browser requestはpathを送らずlogical slugだけを送り、一覧へ戻る操作はprivate stagingを破棄する。すでに`defer`したproposalまたは中断sessionを改めて検討する場合は、localhostの再レビューが3画像から新しいsessionを作る。元proposalのauthorityやdecisionはresume・変更しない。CLIと`synapse serve`は同じrepositoryへ同時に書き込めないため、CLI実行前にserverを停止する。
 AIエージェントやscriptから判断前の候補を置く場合は、判断を記録しない`synapse inbox put`を使う。
 
 ```bash
@@ -499,8 +505,8 @@ field削除・rename・意味変更のような非互換な変更は新しいfor
 
 `"scope": "private_local"`はこのdocumentが**プライベートなローカルreport**であることを機械可読に示す
 固定markerである。rationaleのtext、user宣言のgeneration note、decision pins、内部identifierを含み得るため、
-共有・公開を意図しない。これは公開bundle（`projection.json`、`synapse-present export ... --public`）とは
-別contractである。共有したい場合は既存の公開出力`synapse-present export ... --public`を使う。
+共有・公開を意図しない。これは公開bundle（`projection.json`、`synapse present export ... --public`）とは
+別contractである。共有したい場合は既存の公開出力`synapse present export ... --public`を使う。
 
 「記録されなかった（absent）」「記録はあるが読み込めない・非対応形状（unavailable）」「記録されている
 （present）」を区別するため、`source`、`reuse_source`、`generation_note`は
@@ -775,7 +781,7 @@ synapse creator-list "$HOME/SynapseGit/demo" --format json
 - 探索はRef 100,000件、session 50,000件まで。超える場合は`resource_limit`。
 - text出力は先頭の`#`行の後、1 sessionを1行で、`session`、`state`（`complete`／`incomplete`）、`disposition`、
   `recorded_at`、`subject_label`、`creator_name`をTABで区切る。表示名は引用符付きでescapeし、値がなければ`-`。
-  `synapse-local`で判断待ちのsessionは、Refの形から`incomplete`と表示される。
+  `synapse serve`で判断待ちのsessionは、Refの形から`incomplete`と表示される。
 - `--format json`は`"format": "synapsegit-cli-creator-list-v1"`、`"scope": "private_local"`、`"verified": false`、
   `sessions`配列（`session`、`state`、`disposition`、`recorded_at`、`recorded_time_basis`、`subject_label`、
   `creator_name`、`source_session`。値がなければ`null`）を持つdocumentを1件出力する。fieldの追加は`-v1`のまま行う。
@@ -784,8 +790,8 @@ synapse creator-list "$HOME/SynapseGit/demo" --format json
 
 ### `inbox put <inbox-dir> <slug> <original> <current> <ai-output> --subject <label> --creator <name> [--generation-note-file <path>] [--format text|json]`
 
-`synapse-local --import-root KEY=PATH`のInboxへ、判断をせずに候補を1件書き出す。repositoryを開かず、
-Proposalを作らず、Human Decisionも記録しない。人が`synapse-local`のproject画面で候補を確認し、取り込んで判断する。
+`synapse serve --import-root KEY=PATH`のInboxへ、判断をせずに候補を1件書き出す。repositoryを開かず、
+Proposalを作らず、Human Decisionも記録しない。人が`synapse serve`のproject画面で候補を確認し、取り込んで判断する。
 AIエージェント経由でCLIを使う場合の既定の経路である（[#166](https://github.com/howlrs/synapsegit/issues/166)）。
 
 ```bash
@@ -795,7 +801,7 @@ synapse inbox put "$HOME/SynapseGit/inbox" mural-next \
   --subject "North wall mural" \
   --creator "Aki" \
   --generation-note-file generation-note.json
-synapse-local \
+synapse serve \
   --project "mural=$HOME/SynapseGit/mural" \
   --import-root "mural=$HOME/SynapseGit/inbox"
 ```
@@ -809,10 +815,10 @@ synapse-local \
 - `--subject`は1〜500、`--creator`は1〜300 UTF-8 bytes。`--generation-note-file`は`creator-run`と同じ形式・上限で、
   省略した項目はmanifestへ空文字として書く。
 - 書き込みは`<inbox-dir>`直下の`.<slug>.partial-<random>`で行い、manifestまで書いてflushした後、directory全体を
-  上書きしないrenameで`<slug>`として公開する。`synapse-local`はslugの形式に合わない名前を無視するため、
+  上書きしないrenameで`<slug>`として公開する。`synapse serve`はslugの形式に合わない名前を無視するため、
   書き込み途中の候補は一覧に出ない。失敗時は一時directoryを削除する。processが強制終了した場合だけ一時directoryが
   残る。残ったものは削除してよく、同じslugでの再試行は妨げないが、Inboxの256項目の上限に数えられる。
-- repositoryに触れないため、`synapse-local`の起動中でも実行できる。
+- repositoryに触れないため、`synapse serve`の起動中でも実行できる。
 - text出力（既定）は`inbox_candidate=`、`path=`、各fileの`<role>_size=`と`<role>_sha256=`、`decision_recorded=false`、
   `next=`の行である。`--format json`は`"format": "synapsegit-cli-inbox-put-v1"`、`slug`、`path`、`manifest`、
   `decision_recorded`（常に`false`）、`metadata_warnings`、`next`を持つJSON documentを1件出力する。fieldの追加は`-v1`のまま行い、
@@ -837,7 +843,7 @@ synapse inbox decide "$HOME/SynapseGit/inbox" mural-next "$HOME/SynapseGit/mural
 - session名の既定はlocalhostと同じ。58文字以内のslugなら`inbox-<slug>`、長いslugなら末尾の
   hyphenを除いた先頭49文字と`-`とslugのSHA-256先頭8桁で、64文字以内になる。
   `--session`で別の有効な名前も指定できる。localhostの取り込み済み表示は既定の名前と照合する。
-- `synapse-local`を停止し、同じrepositoryへ他のwriterが書いていない状態で実行する。
+- `synapse serve`を停止し、同じrepositoryへ他のwriterが書いていない状態で実行する。
   process間の排他を自動保証する機能はない。
 - 出力は通常の`creator-run`と同じreceipt/report項目を持つ。`--format json`は同じprivate-local decision documentに
   `route="inbox_decide"`と`inbox_candidate`を加えて一件だけ出力し、metadata warningはstderrとdocumentの両方へ出す。

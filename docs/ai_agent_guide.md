@@ -24,7 +24,7 @@ Read these before you run any command.
    `synapse creator-run ... --decision` unless the person has looked at those
    exact three images and told you the disposition. Otherwise, place the
    candidate with `synapse inbox put` and let the person decide in
-   `synapse-local`, or, after the person has explicitly supplied the decision,
+   `synapse serve`, or, after the person has explicitly supplied the decision,
    run `synapse inbox decide INBOX SLUG REPO --decision ...`. The latter binds
    the recorded session to the retained manifest bytes and metadata. A decision
    recorded by either CLI route is recorded as the person's decision.
@@ -39,8 +39,8 @@ Read these before you run any command.
    decision-command `--format json`, `creator-list --format json`, archives, and the localhost private record
    can contain rationale, prompts, image pins, and internal identifiers. Do
    not upload or share them. Create a public bundle with
-   `synapse-present export ... --public` only when the person asks.
-4. **One writer per repository.** While `synapse-local` serves a repository,
+   `synapse present export ... --public` only when the person asks.
+4. **One writer per repository.** While `synapse serve` serves a repository,
    do not run `creator-run`, `inbox decide`, `restore`, `update-ref`, or the `put-*`
    commands against it. `inbox put` writes only to the inbox directory.
    `creator-list`, `creator-report`, `refs`, and `fsck` only read.
@@ -59,7 +59,7 @@ Read these before you run any command.
 
 ```bash
 synapse --version
-synapse-local --version
+synapse serve --help
 ```
 
 Each command prints its own help with `--help`, for example
@@ -111,11 +111,11 @@ choose another slug.
 
 ### 5. Hand the review to the person
 
-Start `synapse-local` with the repository and inbox, or reuse a running one
+Start `synapse serve` with the repository and inbox, or reuse a running one
 that already has this `--import-root`:
 
 ```bash
-synapse-local --project "work=$REPO" --import-root "work=$INBOX"
+synapse serve --project "work=$REPO" --import-root "work=$INBOX"
 ```
 
 Give the person the exact `http://127.0.0.1:...` URL that the process
@@ -143,13 +143,13 @@ after the person confirms that it is no longer needed.
 
 ### 7. Back up
 
-Stop `synapse-local`, then export a checksum-bound archive to a new directory:
+Stop `synapse serve`, then export a checksum-bound archive to a new directory:
 
 ```bash
 synapse export "$REPO" "$HOME/SynapseGit/backup-north-wall-2"
 ```
 
-The person can also export from the project's Maintenance page while `synapse-local` runs.
+The person can also export from the project's Maintenance page while `synapse serve` runs.
 
 ## Photo location metadata
 
@@ -212,7 +212,7 @@ adopt, reject, or defer on the person's behalf.
 
 > Use SynapseGit to record this candidate. Read its AI agent guide first.
 > Put the candidate into the inbox with `synapse inbox put`, start
-> `synapse-local`, and give me the URL. Do not make the decision for me.
+> `synapse serve`, and give me the URL. Do not make the decision for me.
 
 ## More detail
 

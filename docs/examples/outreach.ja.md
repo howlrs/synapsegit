@@ -35,10 +35,10 @@
 > [3枚の割り当てと記録済み判断を見る](https://github.com/howlrs/synapsegit-starry-night/tree/45db60e3497f5392a9fb93135698021d23e42059)。公開bundleへのリンクもあります。
 >
 > 参照した2026-10-09の記録には5件のHuman `adopt`判断があります。これは開発者本人の事例で、採用は提案bytesを選んだ記録であり、地図どおりに物理制作したことは示しません。
-> Linux CLIを扱える方は、[15分のチュートリアル](https://github.com/howlrs/synapsegit/blob/v1.1.0/docs/tutorial/README.ja.md)で、合成画像から判断とreportまで試せます。
+> Linux CLIを扱える方は、[15分のチュートリアル](https://github.com/howlrs/synapsegit/blob/v1.2.0/docs/tutorial/README.ja.md)で、合成画像から判断とreportまで試せます。
 >
 > ご自身の工程で、基準・直前の状態・候補の3枚に対応する場面があれば、[利用・評価の質問窓口](https://github.com/howlrs/synapsegit/issues/new?template=question.yml)へ、その場面を文章でお知らせください。非公開の画像を添付する必要はありません。
-> 商用・production利用には別途書面での許可が必要です。まずは[ライセンス](https://github.com/howlrs/synapsegit/blob/v1.1.0/LICENSE)の範囲での評価をご検討ください。
+> 商用・production利用には別途書面での許可が必要です。まずは[ライセンス](https://github.com/howlrs/synapsegit/blob/v1.2.0/LICENSE)の範囲での評価をご検討ください。
 
 この下書きは送信していません。公開記事・SNS用には、3画像の説明、参照日、記録済みの5件の判断を
 一緒に載せ、詳しいコマンドは事例へのリンクで案内します。

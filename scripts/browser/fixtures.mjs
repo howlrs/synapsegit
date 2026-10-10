@@ -67,7 +67,7 @@ async function appFixture({ archives = false, inbox = false }, use) {
         ...["complete", "mixed", "broken", "transparent", "mismatch", "pending", "reviews", "interrupted", ...(archives ? ["restore"] : [])].flatMap((key) => ["--project", `${key}=${projectPath(key)}`]),
       ];
       const start = async () => new Promise((resolve, reject) => {
-        server = spawn(path.join(binaries, "synapse-local"), serverArgs, { stdio: ["ignore", "ignore", "pipe"] });
+        server = spawn(path.join(binaries, "synapse"), ["serve", ...serverArgs], { stdio: ["ignore", "ignore", "pipe"] });
         let log = "";
         const timeout = setTimeout(() => reject(new Error("localhost test server did not start")), 15_000);
         server.once("error", (error) => { clearTimeout(timeout); reject(error); });

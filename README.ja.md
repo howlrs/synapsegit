@@ -3,7 +3,7 @@
 [English](./README.md) | [日本語](./README.ja.md)
 
 [![CI](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml/badge.svg)](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml)
-![v1.1.0](https://img.shields.io/badge/release-v1.1.0-0a7f3f)
+![v1.2.0](https://img.shields.io/badge/release-v1.2.0-0a7f3f)
 ![Linux x86_64](https://img.shields.io/badge/binary-Linux%20x86__64-555)
 ![macOS arm64](https://img.shields.io/badge/binary-macOS%20arm64-555)
 [![License: source-available](https://img.shields.io/badge/license-source--available-blue)](./LICENSE)
@@ -50,7 +50,7 @@ SynapseGitは、それぞれを独立した記録として残し、最後に作�
 
 画像は生成したfixtureであり、実在の作品や処置の証拠ではありません。
 このrepositoryでは[2026-10-02版の画像](./docs/assets/image-generation.json)を使います。
-v1.1.0 archiveにはこの3枚のtutorial画像を同梱します。以前のreleaseはその版の素材を保持するため、
+v1.2.0 archiveにはこの3枚のtutorial画像を同梱します。以前のreleaseはその版の素材を保持するため、
 sessionで使ったreleaseと素材の版を記録してください。
 
 ## 実制作での使い方を見る
@@ -64,17 +64,18 @@ sessionで使ったreleaseと素材の版を記録してください。
 
 ### 1. installする
 
-v1.1.0の配布archiveはRust toolchainなしで使えます。Linux x86_64（glibc 2.34以降）と
+v1.2.0の配布archiveはRust toolchainなしで使えます。Linux x86_64（glibc 2.34以降）と
 Apple SiliconのmacOSに対応します。他のplatformでは
 [tagged sourceからbuild](./docs/install.md#build-from-a-tagged-source-release)できます。
 
 ```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.1.0/synapsegit-v1.1.0-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.1.0/SHA256SUMS
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.2.0/synapsegit-v1.2.0-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.2.0/SHA256SUMS
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
-確認に失敗したら、そこで止めてください。build provenanceの確認、macOSの手順、3つのbinaryの置き場所は
+確認に失敗したら、そこで止めてください。build provenanceの確認、macOSの手順、単一の`synapse`実行fileと
+互換用linkの置き場所は
 [installation guide](./docs/install.md)にあります。
 
 ### 2. AIエージェントに準備を任せ、判断は自分でする
@@ -105,7 +106,7 @@ synapse creator-run "$HOME/SynapseGit/demo" session-1 \
 synapse creator-report "$HOME/SynapseGit/demo" session-1
 ```
 
-ブラウザで見るには、`synapse-local --project "demo=$HOME/SynapseGit/demo"`を実行し、表示された
+ブラウザで見るには、`synapse serve --project "demo=$HOME/SynapseGit/demo"`を実行し、表示された
 `http://127.0.0.1:...`のURLを開きます。各コマンドは`--help`で使い方を表示します。
 
 ## 今できること
@@ -119,7 +120,7 @@ synapse creator-report "$HOME/SynapseGit/demo" session-1
 | 過去の判断を、日時とタイムラインで読み返す | セッションの画面、`creator-list`、`creator-report`（textまたはJSON） |
 | 記録から次の案を試す。保留や中断した提案を新しいセッションで改めて判断する | セッションの画面 |
 | 整合性を確認し、backupを作り、復元する | 「管理」ページ、`fsck`、`export`、`restore` |
-| 非公開のメモを含まない、ローカルの閲覧用bundleを作る | `synapse-present`と公開用の制作ノート |
+| 非公開のメモを含まない、ローカルの閲覧用bundleを作る | `synapse present`と公開用の制作ノート |
 | 日本語または英語の画面で使う | headerの言語切り替え |
 
 ![syntheticな壁画の例を表示した実際のSynapseGit Localプロジェクト画面](./docs/assets/synapse-local/overview-hero.png)
@@ -136,9 +137,9 @@ _こちらは実際の画面キャプチャです。`127.0.0.1`だけで配信�
   位置合わせや差分解析はありません。
 - **記録した判断は、そのセッションでは変えられません。** 同じ画像を新しいセッションで改めて判断でき、
   元の記録は残ります。
-- **ローカルで1人が使うものです。** `synapse-local`は`127.0.0.1`だけで動きます。hosted serviceや
+- **ローカルで1人が使うものです。** `synapse serve`は`127.0.0.1`だけで動きます。hosted serviceや
   multi-user serviceはなく、何もuploadしません。
-- **platform:** v1.1.0 archiveはLinux x86_64とmacOS arm64用です。Windowsには対応しません。
+- **platform:** v1.2.0 archiveはLinux x86_64とmacOS arm64用です。Windowsには対応しません。
   Linux ARM64はsourceからbuildします。
 
 配布binaryではなく、Rust libraryとしてだけある機能もあります。実装者は
@@ -185,16 +186,16 @@ flowchart LR
 
 ## リリースと互換性
 
-- SynapseGit v1.1.0はlocal single-user向けのreleaseです。各releaseはGitHubで公開し、SHA-256 checksumとbuild provenance
+- SynapseGit v1.2.0はlocal single-user向けのreleaseです。各releaseはGitHubで公開し、SHA-256 checksumとbuild provenance
   attestationを付けます。crates.ioやcontainer registryでは配布しません。
 - v1.0.0から、object、識別子、archiveの形式はv1.xの間固定され、公開したすべての版のrepositoryと
   archiveを読めます。[互換性方針](./docs/compatibility.md)を参照してください。
-- 各releaseの変更は[CHANGELOG](./CHANGELOG.md)と[v1.1.0 release notes](./docs/releases/v1.1.0.md)にあります。
+- 各releaseの変更は[CHANGELOG](./CHANGELOG.md)と[v1.2.0 release notes](./docs/releases/v1.2.0.md)にあります。
   重要なデータで試す前に、該当する資料を読んでください。
 
 ## Security、support、license
 
-`synapse-local`はloopbackのまま利用し、reverse proxyの背後へ公開したり、process-local browser
+`synapse serve`はloopbackのまま利用し、reverse proxyの背後へ公開したり、process-local browser
 tokenをmulti-user認証として扱ったりしないでください。脆弱性の疑いはpublic Issueではなく、
 [GitHub private vulnerability reporting](https://github.com/howlrs/synapsegit/security/advisories/new)から
 報告してください。対応範囲と必要情報は[SECURITY.md](./SECURITY.md)にあります。

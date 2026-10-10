@@ -27,24 +27,24 @@ Status: **Core v0.1 implemented; formats frozen for v1.x**
 single-user applicationである。repository directoryを先に作り、binaryへtrustedなproject mappingを渡す。
 
 ```bash
-cargo build --release --locked -p synapse-cli -p synapse-local-http
+cargo +1.88.0 build --release --locked -p synapse-cli
 
 ./target/release/synapse init "$HOME/SynapseGit/demo"
-./target/release/synapse-local \
+./target/release/synapse serve \
   --project "demo=$HOME/SynapseGit/demo" \
   --label "demo=Demo project"
 ```
 
 terminalに表示された`http://127.0.0.1:8787`をbrowserで開き、終了時はCtrl-Cを押す。hostは
 `127.0.0.1`固定で、network共有用のoverrideはない。複数projectは`--project KEY=PATH`を繰り返して登録する。
-この例では`init`でrepositoryを明示的に作る。`synapse-local`は既存の空directoryも初期化できるが、存在しないpathと非空の非repositoryを拒否する。v0.8.0はproject画面からsessionを作成でき、
+この例では`init`でrepositoryを明示的に作る。`synapse serve`は既存の空directoryも初期化できるが、存在しないpathと非空の非repositoryを拒否する。v0.8.0はproject画面からsessionを作成でき、
 後述の`creator-run`で同じpathへ作成したsessionも表示できる。
 
 UIで現在読めるのはproject status、Refs／reflog、creator sessionのreport／timeline／evidence／画像である。
 v0.8.0ではoriginal／current／caller-supplied AI outputの三fileをbounded stagingへuploadし、proposalを
 同じprocess内でHuman `adopt`／`reject`／`defer`できる。review前にprocessを終了するとauthorityは復元できず、
 sessionはincompleteになる。read-only incomplete diagnosticsと、exact project確認付きの
-server-bounded background `fsck`／poll UIもtagged v0.8.0の`synapse-local`に含まれる。
+server-bounded background `fsck`／poll UIもtagged v0.8.0の`SynapseGit Local`機能に含まれる。
 tagged v0.8.0は`--archive-root`指定時のexact confirmation付きarchive export／empty-target restore APIも提供する。
 v0.8.0はproject画面にarchive UIを追加した。restoreは空の表示中登録projectに固定され、一覧slug、exact target key、
 empty-target checkbox、browser確認、queued/polled jobを必要とする。成功後はreport一致確認とhistory再読込linkを表示する。
@@ -85,7 +85,7 @@ Coreは既存の制作ソフト、BIM/CAD、ペイントツールを置き換え
 | ![synthetic original mural](./tutorial/assets/mural-original.png) | ![synthetic current mural](./tutorial/assets/mural-current.png) | ![synthetic AI-attributed proposal](./tutorial/assets/mural-ai-proposal.png) |
 
 このsampleは実在作品や実処置のevidenceではない。実際の`creator-run`、Human Decision、
-`creator-report`、localhost UI、`synapse-present`を一つの再現可能なflowとして示す。
+`creator-report`、localhost UI、`synapse present`を一つの再現可能なflowとして示す。
 
 現物の写真にOriginal／Currentを割り当てる例は、[星月夜の上塗り](./examples/starry-night/README.ja.md)で
 確認できる。v1.0.0での開発者本人の制作であり、参照した2026-10-09の記録には5件のHuman `adopt`判断と公開bundleがある。
@@ -305,7 +305,7 @@ cargo run -p synapse-cli -- creator-report restored.synapse mural-1
 `creator-report --format json`は同じ検証済みsessionを、CLI-owned・versioned JSON contract
 （`"format": "synapsegit-cli-creator-report-v1"`、`"scope": "private_local"`）として一つのdocumentへ
 出力する。これはrationale、生成note、decision pinsなどを含み得る**プライベートなローカルreport**であり、
-公開bundleとは別contractである。共有したい場合はこのJSONではなく既存の`synapse-present export ... --public`
+公開bundleとは別contractである。共有したい場合はこのJSONではなく既存の`synapse present export ... --public`
 を使う。詳細と完全なfield一覧は[CLI reference](cli_reference.md#--format-json)を参照する。
 
 `creator-run`は新規repositoryを作成することもでき、Subject、imported CaptureProfile、original／current Observation、
@@ -330,35 +330,33 @@ complete sessionを残し得る。このPilotはどちらも自動resume／clean
 `adopt`、`reject`、`defer`のいずれもその実行中に一回だけ記録する。これはHuman Decisionのauthorityを同じprocess内の
 admitted proposal handleとone-shot permitへ束縛する設計であり、`--creator`は後のCLI実行でauthorityを再構築するcredentialではない。
 GUIのない環境では、実行前に別のviewerで3画像を確認し、この一回の`creator-run`実行で判断する。
-AI outputを先にbrowserで確認してから判断したい場合は、`synapse-local --import-root KEY=PATH`のInboxで候補を取り込み、
+AI outputを先にbrowserで確認してから判断したい場合は、`synapse serve --import-root KEY=PATH`のInboxで候補を取り込み、
 同じlocal processで明示的に判断する。すでに`defer`したproposalまたは中断sessionを改めて検討する場合も、localhostの
 [再レビュー](../deploy/local/README.md#review-an-interrupted-or-deferred-proposal-again)で3画像から新しいsessionを作る。元proposalの
-authorityやdecisionはresume・変更しない。CLIと`synapse-local`は同じrepositoryへ同時に書き込めないため、CLI実行前にserverを停止する。
+authorityやdecisionはresume・変更しない。CLIと`synapse serve`は同じrepositoryへ同時に書き込めないため、CLI実行前にserverを停止する。
 
 ### 作者外へ説明するread-only publication bundle
 
 ```bash
-cargo run -p synapse-publication --bin synapse-present -- \
-  export .synapse-creator public-view \
+cargo run -p synapse-cli -- present export .synapse-creator public-view \
   --session mural-1 \
   --presentation presentation.toml \
   --public \
   --github
 
-cargo run -p synapse-publication --bin synapse-present -- \
-  preview public-view
+cargo run -p synapse-cli -- present preview public-view
 ```
 
 target省略時は`synapse`、`--synapse`／`--github`は`--target`のaliasで、重複指定は拒否する。
 `--public`を省略すると`private_review` bundleになり、外部copy前のreviewが必要な状態をmanifestへ残す。
 いずれもnetwork operationsは0であり、uploadやremote publishを行わない。生成済みdestinationを上書きせず、
-source repository内への出力も拒否する。export前に`synapse-local`と全writerを停止する。checkpoint済みで
+source repository内への出力も拒否する。export前に`synapse serve`と全writerを停止する。checkpoint済みで
 最大512 MiBのsource SQLite main fileをprivate temporary fileへcopyしながらSHA-256を計算し、copy後に
 再読したsource SHA-256との一致を確認する。source SQLiteは直接openせず、temporary copyだけをopenする。
 `-wal`／`-shm`／`-journal` sidecarまたはdigest不一致は`read_only_source_busy`となり、512 MiB超過は拒否する。
 exportが発見するcomplete／incomplete creator sessionは合計最大100件である。output parentは既存のreal
 directory、destinationは不存在を要求する。raw asset renderingとremote uploadは対象外である。exact
-sidecar形式とbundle inventoryは[CLI reference](./cli_reference.md#synapse-present-companion-cli)を参照する。
+sidecar形式とbundle inventoryは[CLI reference](./cli_reference.md#synapse-present-cli)を参照する。
 
 現在のRust実装は、strict JSONとOIDだけでなく、具象schema／local semantic validation、filesystem ObjectStore、Commit／Tree／Record closure、Tombstone availability、SQLite Ref CAS／reflog、process-local authenticated AI executionとadmitted-proposal-bound Human Decision application route、両Core admission、local creator orchestration、fsck、checksum付きdirectory export／restoreまでを実行できる。加えて`SqliteProjectionStore` libraryは、caller-suppliedな一貫したRef snapshotからcurrent reachable closureをatomic rebuildし、Ref-scoped Subject timeline、Observation dependency、typed AnalysisResult lineage、missing closure issue、tombstoned availability／countをqueryできる。外向けの別crate `synapse-publication`はstable private Ref SQLite copyから得た一つのbounded Ref snapshotでprovider-neutralなPublicProjectionとlocal bundleを生成する。Analysis replay readinessはinput／adapter implementation／configuration／transformのavailabilityだけを表し、exact replayを保証しない。production経路はschema検証後にcanonical bytesだけをObjectStoreへ渡す。低水準APIは検証前であることを示すため`*_unchecked`の名前を維持する。
 

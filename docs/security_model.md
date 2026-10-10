@@ -28,7 +28,7 @@ Out of current implementation scope: concrete HTTP/JWT identity、durable/distri
 | current localhost application | exact startup catalog、safe facade、loopback／Host／Origin／browser-token boundaryを通し、read model、server-owned import rootからlogical slugだけを受けるboundedな三file import／same-process Human review、read-only diagnostics、server-fixed bounded `fsck`、server-owned archive rootのbounded read-only archive listing（manifest checksum・構造・per-object存在／長さのみ検証、object contentは未読）、exact project／論理slug確認付きbounded atomic no-replace archive exportとempty-target exact-subset restore API、export確認／poll UI、Refsとreflogが空の表示中targetへ固定したrestore確認／poll UIを公開する | OS-user authentication、AI outputのmodel生成証明、restartを越えるreview／job authority、same-user process isolation、public／multi-user service、malicious media sandbox |
 | planned cloud service | tenant-scoped immutable CAS、PostgreSQL Ref/reflog transaction、durable command、OIDC、single-writer regional DRをGCP主系／AWS移植profileで要求する設計 | 現時点ではruntime保証なし。cloud adapter、public API、tenant isolation、durable admission、deploymentは未実装 |
 | `SqliteProjectionStore` | supplied Ref snapshotのcurrent closure、derived query row、Analysis lineage／prerequisite availability、missing診断とtombstoned availability／count、source fingerprint | authorization、ACL／tenant isolation、exact replay、最新Refとの自動同期、objectの正本性、archive／recovery completeness |
-| `synapse-publication` / `synapse-present` | creator historyではstable private Ref copyから、generic artifactではbounded Decision checkoutから、private rationale／internal authority／path／raw assetを除外したversioned deterministic local bundleとchecksumを生成・検証する | 作者性、真実、権利、公開許可の自動判定、OIDの非機密性、Git provenance、remote publication、training-use policyの技術的強制 |
+| `synapse-publication` / `synapse present` | creator historyではstable private Ref copyから、generic artifactではbounded Decision checkoutから、private rationale／internal authority／path／raw assetを除外したversioned deterministic local bundleとchecksumを生成・検証する | 作者性、真実、権利、公開許可の自動判定、OIDの非機密性、Git provenance、remote publication、training-use policyの技術的強制 |
 | detached Assurance | signer / service が何を検査・主張したか | Claim 本文の真実 |
 | archive checksum / restore | package 内 byte と graph の整合性 | sender identity、機密性、外部 copy の回収 |
 
@@ -227,7 +227,7 @@ distinct-head validation work、Tombstone scan、Ref／reflog payloadの既定�
 copyをallocation前に課金する。
 CLI が structured file を読む段階で 16 MiB を超えた場合は`resource_limit`ではなく
 `usage_error`を返す。
-`synapse-present` CLIのsession limit、sidecar／field limit、generated file／inventory limitも
+`synapse present` CLIのsession limit、sidecar／field limit、generated file／inventory limitも
 command inputから変更できない。library callerが別のsession件数boundを選ぶ場合は、そのworkを管理する責任を
 持つ。sidecar、field、bundle file、directory inventory ceilingは固定である。
 
@@ -489,7 +489,7 @@ Projectionが集約した結果だけで、adapter runtime、environment、deter
 
 ## read-only publication boundary
 
-`synapse-present export`はexisting CASをread-onlyで扱い、Ref SQLiteから取得した一つのbounded Ref
+`synapse present export`はexisting CASをread-onlyで扱い、Ref SQLiteから取得した一つのbounded Ref
 snapshotだけでderived bundleを作る。empty pathをrepositoryとして初期化せず、CAS、Refs、reflogを変更しない。
 CLIが発見するcomplete／incomplete creator sessionは合計最大100件である。
 
@@ -498,7 +498,7 @@ SQLite connectionやread lockを取得せず、source pathをSQLiteへ渡さな�
 temporary fileへcopyしながらSHA-256を計算し、copy後にsourceを再読したSHA-256との一致を要求してから、
 temporary copyだけをSQLite read-onlyでopenする。SQLite sidecarもtemporary copyの隣だけに作られ、handleの
 drop時にtemporary main fileとともに削除される。この方式はwriterを排他しないため、export前に
-`synapse-local`と同repositoryの全writerを停止する。`refs.sqlite3-wal`／`refs.sqlite3-shm`／
+`synapse serve`と同repositoryの全writerを停止する。`refs.sqlite3-wal`／`refs.sqlite3-shm`／
 `refs.sqlite3-journal`が存在する稼働中／未checkpoint source、またはcopy中の変更でdigestが一致しないsourceは
 `read_only_source_busy`でfail closedする。512 MiB超過は拒否する。
 

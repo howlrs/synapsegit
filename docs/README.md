@@ -7,7 +7,7 @@ AIを使うクリエイターは、まず[制作の流れ](./creator_workflow.md
 上の画像は仕組みを説明するイラストで、アプリの画面キャプチャではありません。
 
 このディレクトリは、SynapseGit Core を「試す」「評価する」「実装する」ための入口である。
-現在の状態は **v1.1.0 stable release / v1形式は凍結済み**。OID・schema・local repository の縦断経路に加え、
+現在の状態は **v1.2.0 stable release / v1形式は凍結済み**。OID・schema・local repository の縦断経路に加え、
 ordered Observationのprimary Blob OIDだけを比べるdeterministic byte-identity baselineが動作する。
 capture client、pixel-level registration／差分解析はまだ実装されていない。`synapse-creator`とCLIの
 `creator-run`／`creator-report`は、original／current／AI outputの3画像から手書きJSONなしで履歴を作る
@@ -16,7 +16,7 @@ process-localなauthenticated one-shot AI execution routeとadmitted-proposal-bo
 narrow `decision/*` admissionはRust library境界まで実装されている。
 verified ObjectStoreとcaller-supplied Ref snapshotから作るdisposable SQLite query projectionも
 Rust library境界まで実装されている。
-tagged v1.1.0 sourceには、bounded regular-file manifestをportable NFC pathとして検証し、Refを更新せず
+tagged v1.2.0 sourceには、bounded regular-file manifestをportable NFC pathとして検証し、Refを更新せず
 deterministicなnested ManifestTreeへ変換する`synapse-artifact`と、固定された
 [`synapsegit.generic-artifact` v1 application contract](../spec/application/generic-artifact/v1/README.md)がある。
 同crateのtrusted workflowはprofile-owned repositoryをbootstrapし、Application／Coreを通したProposalと
@@ -29,16 +29,16 @@ bounded state／outcomeとして保持できる。explicit durable orchestration
 fresh authentication／ACLとtrusted `DurableProposalBinding`からimmutable graph、current Ref／reflogを確認して
 ordinary Human authorityを作り直し、final publicationを`HumanDecisionRuntime`へ、terminal outcomeをbounded
 checkoutへ渡す。これらはHTTP／CLI／browser UI、model invocation、durable identity／ACL、multi-process
-authority、production serviceを提供しないsource-level application building blockである。v1.1.0のrelease
-archiveは`synapse`、`synapse-local`、`synapse-present`の三binaryだけで、generic-artifact用の新binaryや
-既存binary上のtransport surfaceはない。
+authority、production serviceを提供しないsource-level application building blockである。v1.2.0のrelease
+archiveは一つの`synapse` executableと、相対compatibility symlinkの`synapse-local`／`synapse-present`を含む。
+generic-artifact用の新binaryや既存command上のtransport surfaceはない。
 またv1はcaller-supplied AI attribution／execution未検証だけを扱い、verified execution modeを持たない。
 v0.3.0で導入されv0.4.0 archiveにも収録される`synapse-publication`／`synapse-present`は、existing CASをread-onlyで扱い、checkpoint済みで
 最大512 MiBのRef SQLiteをprivate temporary copyへ取り込み、copy時とcopy後sourceのSHA-256一致を確認してから、
 作者外の人とAI向けにcanonical `projection.json`、Markdown、JavaScriptなしHTML、manifest、checksum、Synapse／GitHub target
 layoutを最大100 creator sessionsからlocal生成する。source SQLiteを直接openしない。private rationale、
 internal Actor ID、repository path、raw assetは除外し、raw asset rendering、upload、network accessは行わない。
-このbinaryはv1.1.0 archiveに含まれる。
+v1.2.0では、この操作は`synapse present`から利用でき、旧`synapse-present`名もcompatibility symlinkで使える。
 tagged v1.1.0 sourceにはこれと分離した
 [`generic-artifact-publication` v1 profile](../spec/application/generic-artifact-publication/v1/README.md)もある。
 complete outcomeは上記bounded checkoutからだけ構築し、pending／incomplete表示はtrustedなpublic-safe factsに
@@ -92,11 +92,11 @@ Japanese document. Continue from the tutorial with these focused guides:
    `presentation.toml` and the separate local bundle operation.
 3. [Privacy and trust summary](./security_model.en.md): what remains private
    in a repository and archive, what a public bundle excludes, and the
-   loopback-only `synapse-local` boundary.
+   loopback-only `synapse serve` boundary.
 4. [AI agent guide](./ai_agent_guide.md): rules and the CLI flow for an AI
    agent that prepares candidates while the person decides in the browser.
 5. [Implementation boundaries](./implementation_boundaries.en.md): for
-   implementers, the boundaries of the packaged binaries and the features that
+   implementers, the boundaries of the packaged commands and the features that
    exist only as Rust workspace libraries.
 6. [Starry Night case](./examples/starry-night/README.md): a developer-led,
    pinned v1.0.0 case with five Human decisions and a public bundle.
@@ -115,14 +115,14 @@ Japanese or mixed-language technical references unless a link says otherwise.
 | 生成sample画像と実画面で最初のDecisionを記録する | [15分 壁画チュートリアル](./tutorial/README.ja.md) | [English tutorial](./tutorial/README.md) |
 | 実制作の写真と提案、記録済みの判断を見る | [星月夜の上塗り事例](./examples/starry-night/README.ja.md) | [公開bundle](https://github.com/howlrs/synapsegit-starry-night/tree/45db60e3497f5392a9fb93135698021d23e42059/synapsegit/bundle) |
 | Releaseをinstallして始める | [Installation](./install.md) | [root README](../README.ja.md#始める) |
-| v1.1.0の変更と配布境界を確認する | [Release notes](./releases/v1.1.0.md) | [Project status](./project_status.md) |
+| v1.2.0の変更と配布境界を確認する | [Release notes](./releases/v1.2.0.md) | [Project status](./project_status.md) |
 | sourceからCore全体を動かす | [Quickstart](./quickstart.md) | [使用ガイド](./usage_guide.md) |
 | native localhost UIを起動する | [Localhost application runbook](../deploy/local/README.md) | [Localhost application architecture](./localhost_application_architecture.md) |
 | 制作メモを残し、同じ参照画像で次の案を試す | [Creator操作ガイド](./creator_workflow.md) | [公開用文章の手順](./presentation_sidecar.md) |
 | 3画像のcreator Pilotを動かす | [使用ガイド](./usage_guide.md#現在このリポジトリで実行できること) | [CLI reference](./cli_reference.md) |
 | generic regular-file application contractをembedする | [Generic artifact v1 contract](../spec/application/generic-artifact/v1/README.md) | [Runtime architecture](./runtime_architecture.md#generic-artifact-application-boundary) |
 | generic artifactのlocal public projectionを作る | [Generic publication profile](../spec/application/generic-artifact-publication/v1/README.md) | [Integration roadmap](./generic_artifact_publication_roadmap.md) |
-| 作者外へread-only履歴bundleを渡す | [Quickstart](./quickstart.md#4-作者外へ説明するlocal-bundleを生成する) | [CLI reference](./cli_reference.md#synapse-present-companion-cli) |
+| 作者外へread-only履歴bundleを渡す | [Quickstart](./quickstart.md#4-作者外へ説明するlocal-bundleを生成する) | [CLI reference](./cli_reference.md#synapse-present-cli) |
 | publicationを作者外の人／AIで評価する | [Publication comprehension corpus](./evaluation/publication-comprehension/v1/) | [Project status](./project_status.md#次の優先順位) |
 | AIエージェント経由でv1.0-rcを試し、理解度・使いにくさ・重大な問題を確かめる | [Creator pilot 評価キットv2](./evaluation/creator-pilot/v2/) | [AIエージェント向けガイド](./ai_agent_guide.ja.md) |
 | v0.9.0で最初の制作記録を試す（旧版） | [Creator pilot 評価キットv1](./evaluation/creator-pilot/v1/) | [Creator操作ガイド](./creator_workflow.md) |
@@ -199,9 +199,9 @@ flowchart LR
 | validated ingest、directory export / restore | 実装済み | `synapse-core` |
 | low-level local Core repository round-trip CLI（structured JSONはcaller-supplied） | 実装済み | `synapse-cli`、[Quickstart](./quickstart.md) |
 | local single-creator Pilot（3 opaque画像、imported CaptureProfile、byte-identity Analysis、AI／Human route、adopt／reject／defer、timeline／report） | 実装済み / production integration対象外。`creator-report --format json`はversion付きprivate-local JSON documentを追加し、`--format text`と省略時はtext reportを維持する。`creator-list`は全sessionの未検証の概要を出力する | `synapse-creator`、`synapse-cli creator-run`／`creator-report`、creator／CLI process tests |
-| provider-neutral PublicProjection／PublicationBundle（canonical JSON、Markdown、JavaScriptなしHTML、manifest、checksum、Synapse／GitHub local target） | no-flagのv1は凍結。`--locale en|ja`はsemantic profile v1を保つcontainer／renderer v2 / remote publish対象外 | `synapse-publication`、`synapse-present export`／`preview`、[公開bundle契約](./publication_bundle.md) |
+| provider-neutral PublicProjection／PublicationBundle（canonical JSON、Markdown、JavaScriptなしHTML、manifest、checksum、Synapse／GitHub local target） | no-flagのv1は凍結。`--locale en|ja`はsemantic profile v1を保つcontainer／renderer v2 / remote publish対象外 | `synapse-publication`、`synapse present export`／`preview`、[公開bundle契約](./publication_bundle.md) |
 | publication理解度評価コーパス（complete adopt／reject／deferとincomplete-onlyを分離、固定質問／oracle／privacy canary） | corpusと自動hard gateを実装済み。v0.8.1はstatic HTML browser checkを追加するが、凍結corpusの特定long-string reflow例外を除く。Human・AI・screen-reader評価は未実施またはmanual | [Publication comprehension corpus](./evaluation/publication-comprehension/v1/) |
-| single-user localhost image application（safe facade、loopback HTTP、server-rendered UI） | tagged v1.1.0 archiveは日本語・英語のUIを提供する。headerの明示選択をcookieへ保存して最優先し、対応する`Accept-Language`、日本語の順で解決する。利用者入力・保存済みtext、API identifier、error codeは翻訳しない。slices 1-4/6、slice 7のbounded fsck／job基盤、slice 8のread-only diagnostics部分を実装済み。bounded read-only archive listing（`--archive-root`起動flag指定時のみ有効）はtagged v0.6.0 binaryに含まれ、tagged v0.8.0はexact confirmation付きbounded no-replace archive export APIとempty-target restore APIも実装する。v0.8.0はproject画面のarchive UIも実装し、restoreを空の表示中projectへ固定して確認・poll・report一致確認を行う。pending／complete sessionには表示可能な2画像の選択と全体表示／100%／200%拡大、同寸法画像の重ね表示と0〜100%不透明度を備えたread-only比較ビューもあり、位置合わせ・差分解析は行わない | [Localhost runbook](../deploy/local/README.md)、[Localhost application architecture](./localhost_application_architecture.md)、[OpenAPI contract](../api/local/v1/openapi.json) |
+| single-user localhost image application（safe facade、loopback HTTP、server-rendered UI） | tagged v1.2.0 archiveは日本語・英語のUIを提供する。headerの明示選択をcookieへ保存して最優先し、対応する`Accept-Language`、日本語の順で解決する。利用者入力・保存済みtext、API identifier、error codeは翻訳しない。slices 1-4/6、slice 7のbounded fsck／job基盤、slice 8のread-only diagnostics部分を実装済み。bounded read-only archive listing（`--archive-root`起動flag指定時のみ有効）はtagged v0.6.0 binaryに含まれ、tagged v0.8.0はexact confirmation付きbounded no-replace archive export APIとempty-target restore APIも実装する。v0.8.0はproject画面のarchive UIも実装し、restoreを空の表示中projectへ固定して確認・poll・report一致確認を行う。pending／complete sessionには表示可能な2画像の選択と全体表示／100%／200%拡大、同寸法画像の重ね表示と0〜100%不透明度を備えたread-only比較ビューもあり、位置合わせ・差分解析は行わない | [Localhost runbook](../deploy/local/README.md)、[Localhost application architecture](./localhost_application_architecture.md)、[OpenAPI contract](../api/local/v1/openapi.json) |
 | script-output Inbox and interrupted/Defer review | `--import-root PROJECT=INBOX` enables bounded manifest-last candidate preview and explicit Proposal creation from retained bytes. `synapse inbox put` writes such a candidate without opening a repository or recording a decision. Verified interrupted and completed Defer histories can start a separate fresh review, with immutable private source binding and unchanged source decision; publication v1 refuses this reuse | [Localhost runbook](../deploy/local/README.md), [reuse profile](../spec/application/creator-reuse-source/v1/README.md), [Inbox schema](../spec/application/import-inbox/v1/README.md) |
 | public multi-tenant cloud service（GCP主系、AWS portability profile） | production architecture完了、実装未着手 | [Cloud service architecture](./cloud_service_architecture.md) |
 | private non-production GCP CLI packaging smoke（one-shot Cloud Run Job） | OCI build／Terraform／digest-pinned実行を検証済み、public endpoint／永続化なし | [GCP CLI smoke deployment](../deploy/gcp/README.md) |
@@ -224,7 +224,7 @@ flowchart LR
 
 「実装済み」は、この repository の test で検証されている範囲を指す。production deployment、
 認証、network transport、運用監視まで完成したという意味ではない。tagged v1.1.0 source／workspace
-libraryと明記したrowは固定tagのsource／schemaに含まれることを示すが、release archiveの三binaryから
+libraryと明記したrowは固定tagのsource／schemaに含まれることを示すが、その歴史的tagのrelease archiveの三binaryから
 利用できることやtransport contract test完了を意味しない。
 generic artifact v1はCore v0.1とは別のapplication contractである。`ReviewId`は認証済みproject lookup用の
 locatorにすぎず、Ref／head／OID／permitをpublic DTOへ露出しない。journal row単体はauthorityではない。
@@ -292,7 +292,7 @@ visual／physical changeを推論しない。成功結果も常に`partial`／`b
 `capture_time`とActivity `valid_time`は外部時刻を推測せず`unknown`にする。timelineの各stageはrun内で単調増加するrecording timestampを
 `recorded_at` fallbackとして表示し、撮影時刻、AI実行時刻、外部eventの物理順序を意味しない。
 
-`synapse-present`はこのreport materialをprivate stable Ref SQLite copyから取得した一つのbounded Ref
+`synapse present`はこのreport materialをprivate stable Ref SQLite copyから取得した一つのbounded Ref
 snapshotから外向けPublicProjectionへ変換する。
 Original／Current／AI-attributed proposal／Human Decision、未採用案の保持、comparison limitationをHuman／Machine
 viewで一致させるが、正本、authorization、archive、remote publishではない。sidecarから加えた公開文は
