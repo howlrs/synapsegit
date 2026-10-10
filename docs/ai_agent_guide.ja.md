@@ -21,7 +21,7 @@ commandを実行する前に読んでください。
 
 1. **人の判断を代わりに選ばない。** 人がその3画像を確認し、判断（adopt／reject／defer）を明示的に
    伝えた場合を除き、`synapse creator-run ... --decision`を実行しない。それ以外は
-   `synapse inbox put`で候補を置き、人が`synapse-local`で判断する。または人が明示的に判断を
+   `synapse inbox put`で候補を置き、人が`synapse serve`で判断する。または人が明示的に判断を
    伝えた後だけ、`synapse inbox decide INBOX SLUG REPO --decision ...`を実行する。後者は
    manifestの保持したbytesとmetadataに結び付けて記録する。どちらのCLI経路でも人の判断として
    記録される。`--session`を省略したときは、両経路とも同じcanonicalなInbox session名を使う。
@@ -32,8 +32,8 @@ commandを実行する前に読んでください。
 3. **非公開の記録を共有しない。** `creator-report --format json`、decision commandの`--format json`、`creator-list --format json`、
    archive、localhostの「非公開の記録」には、理由、プロンプト、画像上の判断メモ、内部識別子が
    含まれ得る。uploadや共有をしない。公開用のbundleは、人が求めた場合だけ
-   `synapse-present export ... --public`で作る。
-4. **1つのrepositoryに書き込むのは1つだけ。** `synapse-local`がrepositoryを開いている間は、
+   `synapse present export ... --public`で作る。
+4. **1つのrepositoryに書き込むのは1つだけ。** `synapse serve`がrepositoryを開いている間は、
    そのrepositoryへ`creator-run`、`inbox decide`、`restore`、`update-ref`、`put-*`を実行しない。
    `inbox put`が書き込むのはInboxのdirectoryだけで、`creator-list`、`creator-report`、`refs`、
    `fsck`は読み取りだけを行う。
@@ -50,7 +50,7 @@ commandを実行する前に読んでください。
 
 ```bash
 synapse --version
-synapse-local --version
+synapse serve --help
 ```
 
 各commandは`--help`で自分の説明を表示します（例: `synapse inbox put --help`）。
@@ -97,10 +97,10 @@ synapse inbox put "$INBOX" north-wall-2 \
 
 ### 5. 確認と判断を人に渡す
 
-repositoryとInboxを指定して`synapse-local`を起動するか、同じ`--import-root`で起動済みのものを使います。
+repositoryとInboxを指定して`synapse serve`を起動するか、同じ`--import-root`で起動済みのものを使います。
 
 ```bash
-synapse-local --project "work=$REPO" --import-root "work=$INBOX"
+synapse serve --project "work=$REPO" --import-root "work=$INBOX"
 ```
 
 processが表示する`http://127.0.0.1:...`のURLをそのまま人に伝えます。projectを開き、**取り込み待ち**の
@@ -123,13 +123,13 @@ sessionがあれば取り込み済みと表示し、取り込み待ちの件数�
 
 ### 7. backupする
 
-`synapse-local`を停止してから、新しいdirectoryへchecksum付きのarchiveを書き出します。
+`synapse serve`を停止してから、新しいdirectoryへchecksum付きのarchiveを書き出します。
 
 ```bash
 synapse export "$REPO" "$HOME/SynapseGit/backup-north-wall-2"
 ```
 
-`synapse-local`の起動中は、人がプロジェクトの「管理」ページから書き出すこともできます。
+`synapse serve`の起動中は、人がプロジェクトの「管理」ページから書き出すこともできます。
 
 ## 写真の位置情報
 
@@ -180,7 +180,7 @@ fileは64 MiB以下、PNGは4,096 chunk以下、metadata payload合計は256 KiB
 ## AIエージェントへの指示の例
 
 > SynapseGitでこの候補を記録して。先にAIエージェント向けガイドを読むこと。
-> 候補は`synapse inbox put`でInboxへ置き、`synapse-local`を起動してURLを教えて。
+> 候補は`synapse inbox put`でInboxへ置き、`synapse serve`を起動してURLを教えて。
 > 判断は私がするので、代わりに選ばないで。
 
 ## 詳しい資料

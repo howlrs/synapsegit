@@ -21,7 +21,7 @@ bundle="synapsegit-$tag-$target"
 script_directory="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 
 work="$(mktemp -d "${TMPDIR:-/tmp}/synapsegit-release-smoke.XXXXXX")"
-# synapse-present refuses symlinked parents; macOS keeps TMPDIR under /var.
+# Publication refuses symlinked parents; macOS keeps TMPDIR under /var.
 work="$(cd "$work" && pwd -P)"
 trap 'rm -rf -- "$work"' EXIT
 tar -xzf "$archive" -C "$work"
@@ -39,9 +39,27 @@ if grep -q '{{RELEASE_TAG}}' "$root/TUTORIAL.md"; then
 fi
 grep -q "/blob/$tag/" "$root/TUTORIAL.md" || fail "TUTORIAL.md does not link the tag $tag"
 
+# The compatibility names must remain relative links after users move an
+# extracted bundle, rather than links back to the original extraction path.
+relocated_root="$work/relocated-bundle"
+mv "$root" "$relocated_root"
+root="$relocated_root"
+
 version="${tag#v}"
-for binary in synapse synapse-local synapse-present; do
-  [[ "$("$root/$binary" --version)" == "$binary $version" ]] || fail "$binary does not report $version"
+[[ -f "$root/synapse" && ! -L "$root/synapse" && -x "$root/synapse" ]] \
+  || fail "synapse is not a regular executable"
+for alias in synapse-local synapse-present; do
+  [[ -L "$root/$alias" ]] || fail "$alias is not a symbolic link"
+  [[ "$(readlink "$root/$alias")" == synapse ]] || fail "$alias must link relatively to synapse"
+done
+[[ "$("$root/synapse" --version)" == "synapse $version" ]] || fail "synapse does not report $version"
+"$root/synapse" --help >/dev/null
+[[ "$("$root/synapse" serve --version)" == "synapse $version" ]] || fail "synapse serve does not report $version"
+"$root/synapse" serve --help >/dev/null
+[[ "$("$root/synapse" present --version)" == "synapse $version" ]] || fail "synapse present does not report $version"
+"$root/synapse" present --help >/dev/null
+for binary in synapse-local synapse-present; do
+  [[ "$("$root/$binary" --version)" == "$binary $version" ]] || fail "$binary does not report its legacy name and $version"
   "$root/$binary" --help >/dev/null
 done
 
@@ -62,7 +80,7 @@ mkdir "$work/inbox"
   "$work/original.bin" "$work/current.bin" "$work/candidate.bin" \
   --subject "Release inbox smoke" --creator "Release workflow" >/dev/null
 [[ -s "$work/inbox/release-smoke/manifest.json" ]] || fail "inbox put wrote no manifest"
-"$root/synapse-present" export "$work/repo" "$work/view" \
+"$synapse" present export "$work/repo" "$work/view" \
   --session release-smoke --public --github >/dev/null
 "$root/synapse-present" preview "$work/view" >/dev/null
 for file in projection.json story.md index.html manifest.json checksums.json target/README.md; do

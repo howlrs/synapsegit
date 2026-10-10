@@ -32,17 +32,17 @@ visual interpretations.
 
 ## Before you start
 
-Install `synapse`, `synapse-local`, and `synapse-present` by following the
-[installation guide](../install.md). Confirm:
+Install `synapse` by following the [installation guide](../install.md). The
+same executable provides the local server and presentation commands. Confirm:
 
 ```bash
 synapse --version
-synapse-local --version
-synapse-present --version
+synapse serve --help
+synapse present --help
 ```
 
 This walkthrough uses a new repository. Pick an empty path and stop any
-`synapse-local` process that already owns it.
+`synapse serve` process that already owns it.
 
 ```bash
 export SYNAPSE_TUTORIAL_REPO="$HOME/SynapseGit/mural-tutorial"
@@ -55,7 +55,7 @@ replaces an existing repository.
 ## 1. Record the proposal and Human Decision
 
 Run this command from the cloned SynapseGit repository, or from the extracted
-v1.1.0 release archive (it bundles the same
+v1.2.0 release archive (it bundles the same
 `docs/tutorial/assets/` paths; see `TUTORIAL.md` at the archive root), so the
 sample paths resolve:
 
@@ -113,7 +113,7 @@ good, that a model produced the proposal, or that anyone owns the rights.
 Start the local application:
 
 ```bash
-synapse-local \
+synapse serve \
   --project "mural=$SYNAPSE_TUTORIAL_REPO" \
   --label "mural=Community Hall Coastal Mural"
 ```
@@ -132,7 +132,7 @@ retained in the browser and takes priority over `Accept-Language`.
 
 ![Actual SynapseGit Local overview generated from this tutorial repository](./assets/tutorial-overview.png)
 
-_Actual `synapse-local` v1.0.0-rc.1 output with the 2026-10-02 synthetic images.
+_Actual local application output with the 2026-10-02 synthetic images.
 It shows one completed session and no pending reviews.
 [Capture provenance](../assets/synapse-local/capture.json) records the runtime and image hashes._
 
@@ -174,7 +174,7 @@ again.
 Create a human- and machine-readable bundle:
 
 ```bash
-synapse-present export "$SYNAPSE_TUTORIAL_REPO" \
+synapse present export "$SYNAPSE_TUTORIAL_REPO" \
   "$HOME/SynapseGit/mural-tutorial-public" \
   --session mural-treatment-01 \
   --presentation docs/tutorial/presentation.toml \
@@ -184,7 +184,7 @@ synapse-present export "$SYNAPSE_TUTORIAL_REPO" \
 Preview and verify it:
 
 ```bash
-synapse-present preview "$HOME/SynapseGit/mural-tutorial-public"
+synapse present preview "$HOME/SynapseGit/mural-tutorial-public"
 ```
 
 `preview` verifies the fixed inventory, checksums, schemas, canonical

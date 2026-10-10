@@ -40,4 +40,4 @@ synapse creator-report "$repository" mural-treatment-01
 echo
 echo "Tutorial complete."
 echo "Inspect it with:"
-echo "  synapse-local --project \"mural=$repository\" --label \"mural=Community Hall Coastal Mural\""
+echo "  synapse serve --project \"mural=$repository\" --label \"mural=Community Hall Coastal Mural\""

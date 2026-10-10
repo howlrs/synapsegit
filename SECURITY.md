@@ -1,6 +1,6 @@
 # Security policy
 
-SynapseGit v1.1.0 is suitable for local single-user use, not for a
+SynapseGit v1.2.0 is suitable for local single-user use, not for a
 public, multi-user, or production deployment.
 
 ## Supported versions
@@ -43,7 +43,7 @@ credentials, cloud identifiers, or personal information.
   integrity failures;
 - path traversal, unsafe file publication, restore, or local data exposure;
 - violations of the documented loopback Host, Origin, token, or image-serving
-  boundary in `synapse-local`;
+  boundary in `synapse serve`;
 - authorization or one-shot state violations in the implemented local AI and
   Human Decision application routes; and
 - release workflow or artifact-integrity weaknesses that affect distributed
@@ -51,7 +51,7 @@ credentials, cloud identifiers, or personal information.
 
 ## Important current boundaries
 
-- `synapse-local` must remain on `127.0.0.1`. Reverse-proxy or public exposure
+- `synapse serve` must remain on `127.0.0.1`. Reverse-proxy or public exposure
   is unsupported.
 - The local OS user and filesystem permissions are trusted. The browser token
   is process-local and is not multi-user authentication.

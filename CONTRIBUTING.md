@@ -48,7 +48,7 @@ CARGO_TARGET_DIR=/tmp/synapsegit-$USER-target \
 ## Browser regression tests
 
 The browser suite includes localhost workflows against temporary repositories
-and a real loopback `synapse-local` process, plus Chromium checks that open the
+and a real loopback `synapse serve` process, plus Chromium checks that open the
 frozen public bundles directly with `file://`. It covers keyboard and
 narrow-screen interaction, local import previews and byte-limit feedback,
 import → compare → Human Decision with recorded-rationale display and
@@ -62,7 +62,7 @@ future publication bundle directory or paired corpus root, run
 `npm --prefix scripts/browser run test:publication -- --bundle-root /absolute/path/to/bundles`.
 
 ```bash
-cargo +1.88.0 build -p synapse-cli -p synapse-local-http --locked
+cargo +1.88.0 build -p synapse-cli --locked
 npm ci --prefix scripts/browser --ignore-scripts
 scripts/browser/node_modules/.bin/playwright install --with-deps chromium
 npm --prefix scripts/browser test
@@ -72,7 +72,7 @@ The local default uses Cargo's `debug` profile. To test release binaries, build
 and run with the matching browser profile:
 
 ```bash
-CARGO_TARGET_DIR=/absolute/path/to/target cargo +1.88.0 build --release -p synapse-cli -p synapse-local-http --locked
+CARGO_TARGET_DIR=/absolute/path/to/target cargo +1.88.0 build --release -p synapse-cli --locked
 CARGO_TARGET_DIR=/absolute/path/to/target SYNAPSEGIT_BROWSER_PROFILE=release npm --prefix scripts/browser test
 ```
 
@@ -91,6 +91,8 @@ flowchart TB
     CLI --> Canon[synapse-canonical]
     CLI --> SQLite[synapse-sqlite]
     CLI --> Creator[synapse-creator]
+    CLI --> LocalHttp[synapse-local-http]
+    CLI --> Publication[synapse-publication]
     Creator --> Application
     Creator --> Core
     Creator --> Observation
@@ -151,7 +153,7 @@ flowchart TB
 | `synapse-creator` | 3つのopaque fileからimported CaptureProfile、session-local provenance、byte-identity analysis、AI proposal、Human Decision、Projection lineageを検証するsnapshot-bound reportを組み立てるcreate-only local Pilot orchestration |
 | `synapse-publication` | existing read-only CASと、checkpoint済みRef SQLiteのdigest検証付きprivate stable copyから、provider-neutral PublicProjection、Human／Machine view、manifest／checksum、local target layoutを生成・検証するpresentation layer |
 | `synapse-core` | validated ingest、repository boundary、AI proposal／Human Decision admission、directory export / restore |
-| `synapse-cli` | Coreのlocal commandと`creator-run`／`creator-report`を公開するStage 0 command-line interface |
+| `synapse-cli` | Coreのlocal command、`creator-run`／`creator-report`、loopback-only `serve`、read-only `present export`／`preview`を公開する統一Stage 0 command-line interface |
 | `synapse-local-service` | transport-neutral localhost read (project／status／Refs／reflog／creator-session discovery)とbounded creator facade (begin／decide) を提供し、versioned DTOを返すtrusted層。repository pathや低level Ref/object mutation primitiveは公開しない |
 | `synapse-local-http` | Axum + Askamaによるloopback-only HTTP／browser UI server。templateとassetをbinaryへembedし、`synapse-local-service`経由でのみCoreへ届く |
 

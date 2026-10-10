@@ -15,6 +15,8 @@ flowchart LR
     CLI["synapse-cli<br/>trusted operator primitive"] --> CORE[synapse-core]
     CLI --> CANON[synapse-canonical]
     CLI --> CREATOR[synapse-creator<br/>local create-only Pilot]
+    CLI --> LOCALHTTP
+    CLI --> PRESENT
     CLI --> REF[synapse-sqlite]
     CREATOR["synapse-creator<br/>local create-only Pilot"] --> OBS["synapse-observation<br/>deterministic byte identity"]
     CREATOR --> APP
@@ -606,7 +608,7 @@ crates/
   synapse-core        validated repository / AI proposal + Human Decision admission / archive
   synapse-creator     create-only local Creator Pilot orchestration / snapshot-bound report
   synapse-publication read-only PublicProjection / deterministic local bundle / target renderer
-  synapse-cli         put / trusted-operator update-ref / fsck / export / restore / creator-run / creator-report
+  synapse-cli         Core commands / serve / present export|preview / trusted-operator update-ref / fsck / export / restore / creator-run / creator-report
   synapse-local-service transport-neutral localhost read + bounded creator facade / versioned DTO
   synapse-local-http  Axum + Askama loopback server / embedded assets
 ```

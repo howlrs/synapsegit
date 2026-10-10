@@ -2,11 +2,11 @@
 set -euo pipefail
 unset CDPATH
 
-# Exercises the mural tutorial bundle (three binaries, the runner, its sample
-# images, and TUTORIAL.md at the bundle root) the same way package_release.sh
+# Exercises the mural tutorial bundle (one binary with compatibility links, the
+# runner, its sample images, and TUTORIAL.md at the bundle root) the same way package_release.sh
 # ships it. Two modes:
 #
-#   scripts/test_tutorial_bundle.sh SYNAPSE_BIN SYNAPSE_LOCAL_BIN SYNAPSE_PRESENT_BIN
+#   scripts/test_tutorial_bundle.sh SYNAPSE_BIN
 #     Assembles a fresh bundle directory from the given binaries (debug
 #     binaries in CI) plus this checkout's runner/assets/guide, so it can run
 #     on every push and pull request, not only at tag time.
@@ -23,7 +23,7 @@ unset CDPATH
 # is checked against the decision (`true` for adopt, `false` otherwise).
 
 usage() {
-  echo "tutorial_bundle_error: usage: scripts/test_tutorial_bundle.sh SYNAPSE_BIN SYNAPSE_LOCAL_BIN SYNAPSE_PRESENT_BIN" >&2
+  echo "tutorial_bundle_error: usage: scripts/test_tutorial_bundle.sh SYNAPSE_BIN" >&2
   echo "   or: scripts/test_tutorial_bundle.sh --bundle BUNDLE_DIR" >&2
 }
 
@@ -50,26 +50,21 @@ if [[ "${1:-}" == "--bundle" ]]; then
   fi
 else
   synapse_bin="${1:-}"
-  synapse_local_bin="${2:-}"
-  synapse_present_bin="${3:-}"
-
-  if [[ -z "$synapse_bin" || -z "$synapse_local_bin" || -z "$synapse_present_bin" ]]; then
+  if [[ -z "$synapse_bin" || $# -ne 1 ]]; then
     usage
     exit 2
   fi
-  for bin in "$synapse_bin" "$synapse_local_bin" "$synapse_present_bin"; do
-    if [[ ! -x "$bin" ]]; then
-      echo "tutorial_bundle_error: missing or non-executable $bin" >&2
-      exit 1
-    fi
-  done
+  if [[ ! -f "$synapse_bin" || -L "$synapse_bin" || ! -x "$synapse_bin" ]]; then
+    echo "tutorial_bundle_error: missing regular executable $synapse_bin" >&2
+    exit 1
+  fi
 
   repository_root="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd -P)"
   bundle="$work/bundle"
   mkdir -p "$bundle/scripts" "$bundle/docs/tutorial/assets"
   install -m 0755 "$synapse_bin" "$bundle/synapse"
-  install -m 0755 "$synapse_local_bin" "$bundle/synapse-local"
-  install -m 0755 "$synapse_present_bin" "$bundle/synapse-present"
+  ln -s synapse "$bundle/synapse-local"
+  ln -s synapse "$bundle/synapse-present"
   install -m 0755 "$repository_root/scripts/run_mural_tutorial.sh" "$bundle/scripts/run_mural_tutorial.sh"
   sed "s/{{RELEASE_TAG}}/ci-test/g" "$repository_root/scripts/ARCHIVE_TUTORIAL.md" > "$bundle/TUTORIAL.md"
   chmod 0644 "$bundle/TUTORIAL.md"

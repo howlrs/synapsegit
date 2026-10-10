@@ -33,7 +33,7 @@ prepare a local GitHub-ready view, but it does not upload, publish, or contact
 GitHub. Private rationale, internal Actor IDs, repository paths, and raw assets
 stay omitted; raw-asset rendering is not implemented, and a public note is
 separate author-supplied text. See the
-[CLI reference (Japanese)](./cli_reference.md#synapse-present-companion-cli).
+[CLI reference (Japanese)](./cli_reference.md#synapse-present-cli).
 
 ## Generic regular-file artifact libraries
 

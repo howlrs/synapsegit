@@ -64,7 +64,7 @@ SQLiteにはsource databaseを直接openさせません。sidecarまたはcopy�
 最大100 creator sessionsからGitHub-readyなlocal viewを生成できますが、GitHubへのupload／publish／
 通信は行いません。private rationale、internal Actor ID、
 repository path、raw assetは除外し、raw asset renderingは未実装です。public noteは別の
-author-supplied textとして扱います。詳しくは[CLI reference](./cli_reference.md#synapse-present-companion-cli)を参照してください。
+author-supplied textとして扱います。詳しくは[CLI reference](./cli_reference.md#synapse-present-cli)を参照してください。
 
 さらにsource／workspace libraryには、versioned generic-artifact projection／
 local bundle APIも収録しています。このAPIは配布binary、HTTP、CLI、browser UIからは提供しません。

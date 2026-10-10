@@ -2,27 +2,27 @@
 
 Audience: users、contributors、maintainers
 Status: public project snapshot
-Applies to: v1.1.0 stable release
+Applies to: v1.2.0 stable release
 Last verified: 2026-10-10
 
-v1.1.0は、AIエージェントがInboxへ候補を置き、人がlocalhost UIで画像を確認して判断する
+v1.2.0は、AIエージェントがInboxへ候補を置き、人がlocalhost UIで画像を確認して判断する
 local single-user向けのreleaseである。v1形式は[互換性方針](./compatibility.md)に従って凍結済みで、
 formal Core Stage 1は別の研究として続ける。
 実利用者3〜5人の評価は未実施であり、人間のUX評価・参加者数・Human Decisionの実績は主張しない。
 [#192](https://github.com/howlrs/synapsegit/issues/192)では、v1.0.0公開条件としてCodex、Gemini、Claudeが
 4件の隔離したAIモック環境で主要フローを実運用試験し、localhost UIを目視確認した。Gemini・Claudeの独立reviewを受け、公開条件2を満たすと判断し、PR #197のmergeでIssueを完了した。合成素材でのrehearsalは実利用者評価の結果ではない。
-両platformの手順は[v1.1.0 release notes](./releases/v1.1.0.md)を使う。
+両platformの手順は[v1.2.0 release notes](./releases/v1.2.0.md)を使う。
 
 tagged v1.1.0 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
 boundaryが含まれる。これはdeterministic mapper／bounded checkout、固定v1 JSON contract、sequential
 Proposal／Decision workflow、host-authenticated one-shot approval、Proposal／Decision CAS前後を別SQLite
 journalへ結ぶ明示的なrestart recovery／reconciliation orchestration、local public projectionである。
-release archiveは従来どおり三binaryだけで、このboundaryのHTTP／CLI／browser UI、新binary、model
+v1.2.0 release archiveは一つの`synapse` executableと相対compatibility symlinkで、Core、loopback UI、presentation commandを提供する。このboundaryのHTTP／CLI／browser UI、新binary、model
 invocation、remote publish、durable identity／ACL、multi-process linearizability、production serviceを提供しない。
 
 ## 現在の成果
 
-- v1.1.0はnon-regular Creator inputの記録前拒否、decision JSON、bounded metadata warning、Linux/macOSの安全なpublication replacementを追加する。Core／OID／archive形式とHuman Decision境界は変更しない
+- v1.2.0は既存Core commandを保ったまま、`synapse serve`と`synapse present export|preview`を一つの実行fileへ統合する。`synapse export`は引き続きCore archive exportでありpresentation exportではない。Core／OID／archive形式とHuman Decision境界は変更しない
 
 - [Creator pilot評価キットv2](./evaluation/creator-pilot/v2/)と合成素材でのrehearsal、および[4件のAIモック環境の実運用試験](./evaluation/creator-pilot/v2/rehearsals/2026-10-02-multi-ai-mock-evaluation.md)。後者はGemini・Claudeの独立reviewを経て受入済みである。実利用者評価は未実施で、公開後のフォローアップ候補として残る
 - sessionのSubject、Creator、判断日時、読みやすいTimelineとtechnical detailsの折りたたみ

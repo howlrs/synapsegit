@@ -8,8 +8,8 @@ in `synapse-application`, plus `synapse-core::CreativeAiRuntime` and `HumanDecis
 caller-supplied AI output; it is not a general proposal／decision publication API or real-user authentication.
 The workspace also provides `synapse-projection::SqliteProjectionStore`. `creator-report` uses it for one
 bounded session timeline and byte-identity lineage, but the CLI has no general projection rebuild or query command.
-The separate `synapse-present` companion reads completed creator history and generates a local, derived publication
-bundle. It does not change any `synapse` command or turn the Core archive command into a presentation export.
+`synapse present` reads completed creator history and generates a local, derived publication
+bundle. It does not change Core commands or turn `synapse export` into a presentation export.
 
 AIエージェントからCLIを使う場合の規則と手順は、[AIエージェント向けガイド](ai_agent_guide.ja.md)にまとめている。
 
@@ -34,31 +34,31 @@ usage error の場合は usage 全文も stderr に出す。次の操作がmessa
 `creator_session_incomplete`、`creator_session_not_found`、`fsck_failed`、入力fileを開けない`storage_error`）では、
 2行目に`hint: `で始まる案内を1行出す。1行目のcodeとexit codeは変わらない。
 stdoutの読み手が先に閉じた場合（`| head`など）は残りの出力を捨て、commandは本来のexit codeで終了する。
-それ以外のstdout書き込み失敗は`storage_error`である。`synapse-present`も同じである。
+それ以外のstdout書き込み失敗は`storage_error`である。`synapse present`も同じである。
 
 `synapse COMMAND --help`、`synapse COMMAND -h`、`synapse help COMMAND`は、そのcommandのusageと短い説明を
 stdoutへ出してexit code 0で終了する。commandは実行しない（`synapse init --help`はrepositoryを作らない）。
 `--version`、`-V`、`version` は `synapse <package-version>` を stdout に出して exit code 0 で終了する。
 
-## `synapse-present` companion CLI
+## `synapse present` CLI
 
-`synapse-present`は既存CASをread-onlyで扱い、Ref SQLiteのstable private copyから取得した一つの
+`synapse present`は既存CASをread-onlyで扱い、Ref SQLiteのstable private copyから取得した一つの
 bounded Ref snapshotを使って、人向けとmachine向けのlocal publication bundleを同時に生成する。
 Coreの`init`、`creator-report`、`export`を含む既存command、stdout／stderr、exit code、archive formatは
 変更しない。
 
 ```bash
-cargo build -p synapse-publication --bin synapse-present --locked
-target/debug/synapse-present --help
-target/debug/synapse-present --version
+cargo +1.88.0 build --release -p synapse-cli --locked
+target/release/synapse present --help
+target/release/synapse present --version
 ```
 
 ```text
-synapse-present export <repo> <output-dir> [--session <id>]
+synapse present export <repo> <output-dir> [--session <id>]
   [--presentation <presentation.toml>] [--public]
   [--target <synapse|github> | --synapse | --github]
 
-synapse-present preview <bundle-dir>
+synapse present preview <bundle-dir>
 ```
 
 `export` accepts `--locale en|ja` once. Omitting it preserves the frozen
@@ -173,7 +173,7 @@ target-specific copyを検証する。成功時はtarget、visibility、projecti
 表示するだけで、browser起動、source repository access、外部通信は行わない。
 
 ```bash
-synapse-present preview public-view
+synapse present preview public-view
 ```
 
 主なcompanion error codeは`usage_error`、`destination_exists`、`unsafe_path`、

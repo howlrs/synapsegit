@@ -86,13 +86,13 @@ cd "synapsegit-{{RELEASE_TAG}}-$target"
 
 mkdir -p "$HOME/.local/bin"
 install -m 0755 synapse "$HOME/.local/bin/synapse"
-install -m 0755 synapse-local "$HOME/.local/bin/synapse-local"
-install -m 0755 synapse-present "$HOME/.local/bin/synapse-present"
+ln -sfn synapse "$HOME/.local/bin/synapse-local"
+ln -sfn synapse "$HOME/.local/bin/synapse-present"
 export PATH="$HOME/.local/bin:$PATH"
 
 synapse --version
-synapse-local --version
-synapse-present --version
+synapse serve --help
+synapse present --help
 ```
 
 事前に[installation guide](https://github.com/howlrs/synapsegit/blob/{{RELEASE_TAG}}/docs/install.md)
@@ -110,7 +110,7 @@ relative path. Give it a repository path that does not exist yet.
 
 Use `adopt`, `reject`, or `defer` as the second argument. The command prints
 the Proposal and Decision Ref heads, then runs `synapse creator-report`
-automatically. Its final lines print the exact `synapse-local` command for
+automatically. Its final lines print the exact `synapse serve` command for
 step 4.
 
 The runner also works from any other current directory: it resolves the
@@ -124,7 +124,7 @@ the same way from anywhere.
 repository pathを渡します。上記bash blockと同じcommandを使い、第2引数に
 `adopt`・`reject`・`defer`のいずれかを指定します。実行するとProposal／Decision
 Ref headが表示され、`synapse creator-report`が自動実行されます。最後の行に、
-手順4で使う`synapse-local`のcommandがそのまま印字されます。
+手順4で使う`synapse serve`のcommandがそのまま印字されます。
 
 runnerは他のどのcurrent directoryから実行しても動作します。sample画像は
 runner自身のarchive内の位置から解決され、実行時のworking directoryには依存
@@ -175,7 +175,7 @@ claim about the artwork.
 Run the exact command the runner printed, for example:
 
 ```bash
-synapse-local --project "mural=$HOME/SynapseGit/mural-tutorial" \
+synapse serve --project "mural=$HOME/SynapseGit/mural-tutorial" \
   --label "mural=Community Hall Coastal Mural"
 ```
 

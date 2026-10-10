@@ -1,6 +1,6 @@
 [package]
 name = "synapse-schema"
-version = "1.1.0"
+version = "1.2.0"
 description = "Concrete schema and semantic validation for SynapseGit Core"
 edition.workspace = true
 repository.workspace = true

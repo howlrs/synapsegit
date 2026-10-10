@@ -1,11 +1,19 @@
 # Installing SynapseGit
 
 Audience: local single-user users and evaluators
-Status: v1.1.0 release installation
-Applies to: v1.1.0
+Status: v1.2.0 release installation
+Applies to: v1.2.0; v1.1.0 archive statements are historical
 Last verified: 2026-10-10
 
-SynapseGit currently has one prebuilt distribution and one source-install path.
+SynapseGit's current source build installs one executable, `synapse`. It owns
+the existing Core commands, `synapse serve` for the loopback application, and
+`synapse present export` / `synapse present preview` for presentation bundles.
+The compatibility names `synapse-local` and `synapse-present` are same-directory
+relative symlinks to `synapse`, so existing scripts continue to work.
+
+The published v1.1.0 archive is historical: it contains three separate
+executables. It did not ship the unified CLI. The v1.2.0 archive described
+below contains `synapse` and the two compatibility symlinks.
 It is not published to crates.io, Homebrew, a Linux package repository, or a
 container registry.
 
@@ -13,42 +21,42 @@ container registry.
 |---|---|---|---|
 | GitHub Release archive | Linux x86_64, glibc 2.34+ | `synapse`, `synapse-local`, `synapse-present` | Fastest local setup |
 | GitHub Release archive | macOS on Apple Silicon (arm64) | `synapse`, `synapse-local`, `synapse-present` | Creators on a Mac |
-| Tagged source build | Rust 1.88+, supported Unix-like host | The selected binary | Other platforms and source review |
+| Current source build | Rust 1.88.0, supported Unix-like host | `synapse` plus optional compatibility symlinks | Other platforms and source review |
 
 Windows is not currently supported by the archive publication path. Linux ARM64
 has no release-tested prebuilt artifact yet; use a tagged source build. The Dockerfile
 in this repository is for a private, one-shot GCP packaging smoke test; it is
 not an end-user SynapseGit image.
 
-The tagged v1.1.0 source also contains the frozen generic-artifact v1
+The tagged v1.2.0 source also contains the frozen generic-artifact v1
 contracts and their sequential, durable, checkout, and local-projection Rust
 libraries. Those are workspace libraries for an embedding application. The
-release archive still contains exactly the three binaries listed above; it does
+release archive contains `synapse` plus its two compatibility symlinks; it does
 not add a generic-artifact HTTP, CLI, browser UI, executable, or remote publish
 path.
 
-Use the fixed v1.1.0 commands below for both published archive platforms.
+Use the fixed v1.2.0 commands below for both published archive platforms.
 
 ## Install the Linux x86-64 release
 
 Download the archive and checksum from the fixed release URL:
 
 ```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.1.0/synapsegit-v1.1.0-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.1.0/SHA256SUMS
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.2.0/synapsegit-v1.2.0-x86_64-unknown-linux-gnu.tar.gz
+curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.2.0/SHA256SUMS
 sha256sum --check --ignore-missing SHA256SUMS
 ```
 
 `SHA256SUMS` lists every archive of the release; `--ignore-missing` checks the
 one you downloaded. It detects accidental or malicious byte changes relative to the file
 published on the same Release. It does not authenticate the project owner by
-itself. Verify the v1.1.0 archive's build provenance with GitHub CLI as well:
+itself. Verify the v1.2.0 archive's build provenance with GitHub CLI as well:
 
 ```bash
-gh attestation verify synapsegit-v1.1.0-x86_64-unknown-linux-gnu.tar.gz \
+gh attestation verify synapsegit-v1.2.0-x86_64-unknown-linux-gnu.tar.gz \
   --repo howlrs/synapsegit \
   --signer-workflow howlrs/synapsegit/.github/workflows/release.yml \
-  --source-ref refs/tags/v1.1.0 \
+  --source-ref refs/tags/v1.2.0 \
   --deny-self-hosted-runners
 ```
 
@@ -56,22 +64,23 @@ An attestation links an artifact to its GitHub Actions build; it is not a claim
 that the software is vulnerability-free. Stop if either verification command
 fails. Do not extract or install an unverified archive.
 
-Inspect the extracted release notes before installing. Then copy all three
-binaries to a user-owned directory:
+Inspect the extracted release notes before installing. Then copy the one
+executable to a user-owned directory and create its relative compatibility
+aliases:
 
 ```bash
-tar -xzf synapsegit-v1.1.0-x86_64-unknown-linux-gnu.tar.gz
-less synapsegit-v1.1.0-x86_64-unknown-linux-gnu/README.md
+tar -xzf synapsegit-v1.2.0-x86_64-unknown-linux-gnu.tar.gz
+less synapsegit-v1.2.0-x86_64-unknown-linux-gnu/README.md
 
 mkdir -p "$HOME/.local/bin"
-install -m 0755 synapsegit-v1.1.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
-install -m 0755 synapsegit-v1.1.0-x86_64-unknown-linux-gnu/synapse-local "$HOME/.local/bin/synapse-local"
-install -m 0755 synapsegit-v1.1.0-x86_64-unknown-linux-gnu/synapse-present "$HOME/.local/bin/synapse-present"
+install -m 0755 synapsegit-v1.2.0-x86_64-unknown-linux-gnu/synapse "$HOME/.local/bin/synapse"
+ln -sfn synapse "$HOME/.local/bin/synapse-local"
+ln -sfn synapse "$HOME/.local/bin/synapse-present"
 export PATH="$HOME/.local/bin:$PATH"
 
 synapse --version
-synapse-local --version
-synapse-present --version
+synapse serve --help
+synapse present --help
 ```
 
 If `synapse` is not found in a new terminal, add this line to the shell profile
@@ -81,7 +90,7 @@ used by that terminal:
 export PATH="$HOME/.local/bin:$PATH"
 ```
 
-The v1.1.0 archive also bundles the mural tutorial runner
+The v1.2.0 archive also bundles the mural tutorial runner
 (`scripts/run_mural_tutorial.sh`), its three sample images
 (`docs/tutorial/assets/`), and a self-contained guide (`TUTORIAL.md` at the
 archive root, next to this bundle's `README.md`), so you can try the tutorial
@@ -91,12 +100,12 @@ the tutorial instead.
 
 ## Install the macOS arm64 release
 
-`v1.1.0` includes an archive for macOS on Apple Silicon. It is built and
+`v1.2.0` includes an archive for macOS on Apple Silicon. It is built and
 smoke-tested on macOS 14 by the same tag workflow, with the same checksum and
 build-provenance attestation:
 
 ```bash
-TAG=v1.1.0
+TAG=v1.2.0
 curl -LO "https://github.com/howlrs/synapsegit/releases/download/$TAG/synapsegit-$TAG-aarch64-apple-darwin.tar.gz"
 curl -LO "https://github.com/howlrs/synapsegit/releases/download/$TAG/SHA256SUMS"
 grep "synapsegit-$TAG-aarch64-apple-darwin.tar.gz" SHA256SUMS | shasum -a 256 --check
@@ -108,14 +117,14 @@ gh attestation verify "synapsegit-$TAG-aarch64-apple-darwin.tar.gz" \
 ```
 
 Stop if either check fails. Do not extract or install an unverified archive.
-Then install the three binaries:
+Then install `synapse` and create the relative compatibility aliases:
 
 ```bash
 tar -xzf "synapsegit-$TAG-aarch64-apple-darwin.tar.gz"
 mkdir -p "$HOME/.local/bin"
-for binary in synapse synapse-local synapse-present; do
-  install -m 0755 "synapsegit-$TAG-aarch64-apple-darwin/$binary" "$HOME/.local/bin/$binary"
-done
+install -m 0755 "synapsegit-$TAG-aarch64-apple-darwin/synapse" "$HOME/.local/bin/synapse"
+ln -sfn synapse "$HOME/.local/bin/synapse-local"
+ln -sfn synapse "$HOME/.local/bin/synapse-present"
 export PATH="$HOME/.local/bin:$PATH"
 synapse --version
 ```
@@ -130,10 +139,43 @@ with a browser and macOS blocks a binary, remove the quarantine attribute from
 the installed binaries only after both checks above passed:
 
 ```bash
-xattr -d com.apple.quarantine "$HOME/.local/bin/synapse" "$HOME/.local/bin/synapse-local" "$HOME/.local/bin/synapse-present"
+xattr -d com.apple.quarantine "$HOME/.local/bin/synapse"
 ```
 
 ## Build from a tagged source release
+
+Build the unified executable from the immutable v1.2.0 tag with the pinned toolchain:
+
+```bash
+git clone --branch v1.2.0 --depth 1 https://github.com/howlrs/synapsegit.git
+cd synapsegit
+cargo +1.88.0 build --release -p synapse-cli --locked
+mkdir -p "$HOME/.local/bin"
+install -m 0755 target/release/synapse "$HOME/.local/bin/synapse"
+ln -sfn synapse "$HOME/.local/bin/synapse-local"
+ln -sfn synapse "$HOME/.local/bin/synapse-present"
+export PATH="$HOME/.local/bin:$PATH"
+
+synapse --version
+synapse serve --help
+synapse present --help
+```
+
+The symlinks have relative targets and must stay in the same directory as
+`synapse`. If an older installation has regular `synapse-local` or
+`synapse-present` files, preserve or remove those files deliberately before
+creating the links; `ln -sfn` replaces a symlink but does not make an old
+regular executable a compatibility alias.
+
+`synapse export <repo> <archive-dir>` remains the Core checksum-bound archive
+operation. `synapse present export <repo> <output-dir> ...` derives a separate
+read-only presentation bundle; it does not replace archive export.
+
+## Historical v1.1.0 installation
+
+The v1.1.0 archive and tag installed `synapse`, `synapse-local`, and
+`synapse-present` as separate executables. Keep those documented release
+artifacts unchanged when reproducing historical work.
 
 Install Rust 1.88 or newer, a C toolchain, and SQLite build prerequisites for
 the host. Install directly from the immutable v1.1.0 tag:
@@ -244,7 +286,7 @@ need the recorded data.
 
 ## Next steps
 
-- [Read the v1.1.0 release notes](./releases/v1.1.0.md)
+- [Read the v1.2.0 release notes](./releases/v1.2.0.md)
 - [Complete the illustrated 15-minute mural tutorial](./tutorial/README.md)
 - [画像付き15分 壁画チュートリアルを実行する](./tutorial/README.ja.md)
 - [Get started from the README](../README.md#get-started)

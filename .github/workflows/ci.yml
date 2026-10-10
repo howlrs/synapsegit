@@ -84,7 +84,7 @@ jobs:
 
       - name: Verify localhost browser workflows in Chromium
         run: |
-          cargo build --release -p synapse-cli -p synapse-local-http --locked
+          cargo build --release -p synapse-cli --locked
           npm ci --prefix scripts/browser --ignore-scripts
           scripts/browser/node_modules/.bin/playwright install --with-deps chromium
           SYNAPSEGIT_BROWSER_PROFILE=release npm --prefix scripts/browser test -- --workers=2
@@ -94,15 +94,12 @@ jobs:
 
       - name: Verify the archive tutorial bundle
         run: |
-          cargo build -p synapse-cli -p synapse-local-http -p synapse-publication --locked
-          bash scripts/test_tutorial_bundle.sh \
-            target/debug/synapse \
-            target/debug/synapse-local \
-            target/debug/synapse-present
+          cargo build -p synapse-cli --locked
+          bash scripts/test_tutorial_bundle.sh target/debug/synapse
 
       - name: Package and verify the release archive
         run: |
-          cargo build --release -p synapse-cli -p synapse-local-http -p synapse-publication --locked
+          cargo build --release -p synapse-cli --locked
           target="$(rustc -vV | awk '$1 == "host:" { print $2 }')"
           version="$(cargo metadata --no-deps --format-version 1 | node -e 'const packages = JSON.parse(require("fs").readFileSync(0, "utf8")).packages; const pkg = packages.find(({ name }) => name === "synapse-cli"); if (!pkg) throw new Error("synapse-cli is missing from cargo metadata"); process.stdout.write(pkg.version)')"
           export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
@@ -154,7 +151,7 @@ jobs:
 
       - name: Package and verify the macOS release archive
         run: |
-          cargo build --release -p synapse-cli -p synapse-local-http -p synapse-publication --locked
+          cargo build --release -p synapse-cli --locked
           target="$(rustc -vV | awk '$1 == "host:" { print $2 }')"
           test "$target" = aarch64-apple-darwin
           version="$(cargo metadata --no-deps --format-version 1 | node -e 'const packages = JSON.parse(require("fs").readFileSync(0, "utf8")).packages; const pkg = packages.find(({ name }) => name === "synapse-cli"); if (!pkg) throw new Error("synapse-cli is missing from cargo metadata"); process.stdout.write(pkg.version)')"

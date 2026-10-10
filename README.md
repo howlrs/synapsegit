@@ -115,7 +115,7 @@ synapse creator-report "$HOME/SynapseGit/demo" session-1
 ```
 
 To look at it in the browser, run
-`synapse-local --project "demo=$HOME/SynapseGit/demo"` and open the printed
+`synapse serve --project "demo=$HOME/SynapseGit/demo"` and open the printed
 `http://127.0.0.1:...` URL. Every command explains itself with `--help`.
 
 ## What you can do now
@@ -129,12 +129,12 @@ To look at it in the browser, run
 | Read past decisions with times and a timeline | Session pages, `creator-list`, `creator-report` (text or JSON) |
 | Try another candidate from a record, or review a deferred or interrupted one again in a new session | Session page |
 | Check integrity, back up, and restore | Maintenance page, `fsck`, `export`, `restore` |
-| Make a local read-only view without private notes | `synapse-present` and the public-text form |
+| Make a local read-only view without private notes | `synapse present` and the public-text form |
 | Use the pages in Japanese or English | Language switch in the header |
 
 ![Actual SynapseGit Local project overview for the synthetic mural example](./docs/assets/synapse-local/overview-hero.png)
 
-_The actual `synapse-local` page, served only from `127.0.0.1`. It is not a
+_The actual `synapse serve` page, served only from `127.0.0.1`. It is not a
 hosted or multi-user service._
 
 ## What it does not do
@@ -147,7 +147,7 @@ hosted or multi-user service._
   pixel registration or difference analysis.
 - **A recorded decision is final for that session.** You can review the same
   images again in a new session; the earlier record stays.
-- **It is local and single-user.** `synapse-local` serves only `127.0.0.1`.
+- **It is local and single-user.** `synapse serve` serves only `127.0.0.1`.
   There is no hosted or multi-user service, and nothing is uploaded.
 - **Platforms:** v1.1.0 provides Linux x86_64 and macOS arm64 archives. Windows is not supported;
   Linux ARM64 needs a source build.
@@ -211,7 +211,7 @@ details.
 
 ## Security, support, and license
 
-Keep `synapse-local` on loopback; do not put it behind a reverse proxy or treat
+Keep `synapse serve` on loopback; do not put it behind a reverse proxy or treat
 its process-local browser token as multi-user authentication. Report a
 suspected vulnerability through
 [GitHub private vulnerability reporting](https://github.com/howlrs/synapsegit/security/advisories/new),

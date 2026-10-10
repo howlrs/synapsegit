@@ -117,11 +117,8 @@ jobs:
           cargo test --workspace --all-targets --locked
           cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
 
-      - name: Build release binaries
-        run: |
-          cargo build --release --locked -p synapse-cli --bin synapse
-          cargo build --release --locked -p synapse-local-http --bin synapse-local
-          cargo build --release --locked -p synapse-publication --bin synapse-present
+      - name: Build the release executable
+        run: cargo build --release --locked -p synapse-cli --bin synapse
 
       - name: Verify archive compatibility baselines
         if: matrix.target == 'x86_64-unknown-linux-gnu'

@@ -28,16 +28,16 @@ SynapseGitは、これらをopaqueなbytesとして保存します。上記の�
 
 ## 準備
 
-[Installation guide](../install.md)に従って、`synapse`、`synapse-local`、
-`synapse-present`をinstallします。
+[Installation guide](../install.md)に従って、統一CLIの`synapse`をinstallします。
+local serverとpresentation commandも同じ実行fileから使えます。
 
 ```bash
 synapse --version
-synapse-local --version
-synapse-present --version
+synapse serve --help
+synapse present --help
 ```
 
-新しいrepository pathを選び、そのpathを所有している`synapse-local`がないことを確認します。
+新しいrepository pathを選び、そのpathを所有している`synapse serve`がないことを確認します。
 
 ```bash
 export SYNAPSE_TUTORIAL_REPO="$HOME/SynapseGit/mural-tutorial"
@@ -105,7 +105,7 @@ fsck=clean
 ## 3. 実際のlocalhost UIで確認する
 
 ```bash
-synapse-local \
+synapse serve \
   --project "mural=$SYNAPSE_TUTORIAL_REPO" \
   --label "mural=Community Hall Coastal Mural"
 ```
@@ -122,7 +122,7 @@ Subject、メモ、rationale、保存済み履歴、API identifier、error code�
 
 ![このtutorial repositoryから生成した実際のSynapseGit Local overview](./assets/tutorial-overview.png)
 
-_2026-10-02版の合成画像を読み込んだ実際の`synapse-local` v1.0.0-rc.1画面です。
+_2026-10-02版の合成画像を読み込んだ実際のlocal application画面です。
 完了session 1件、review待ち0件を表示しています。
 [撮影記録](../assets/synapse-local/capture.json)にruntimeと画像hashを記録します。_
 
@@ -156,7 +156,7 @@ Original、Current、AI outputを追加して**提案を作成**します。revi
 人とmachineが読めるbundleを生成します。
 
 ```bash
-synapse-present export "$SYNAPSE_TUTORIAL_REPO" \
+synapse present export "$SYNAPSE_TUTORIAL_REPO" \
   "$HOME/SynapseGit/mural-tutorial-public" \
   --session mural-treatment-01 \
   --presentation docs/tutorial/presentation.toml \
@@ -166,7 +166,7 @@ synapse-present export "$SYNAPSE_TUTORIAL_REPO" \
 previewとverifyを行います。
 
 ```bash
-synapse-present preview "$HOME/SynapseGit/mural-tutorial-public"
+synapse present preview "$HOME/SynapseGit/mural-tutorial-public"
 ```
 
 `preview`はfixed inventory、checksum、schema、canonical projection、manifest link、

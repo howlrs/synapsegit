@@ -51,3 +51,4 @@ annotated release tag below the current `synapse-cli` version.
 | `v1.0.0-rc.1` | `b8b90ef1b9d34490f04f230e0d54cf3c50f834737d473ca83a9d9db64bef7b93` | yes |
 | `v1.0.0` | `060840bd93300ed2741cbb9ff8b3150852b37e953f8afd1c0c5e413a000216db` | yes |
 | `v1.0.1` | `8130b5358d45bbcd793bc1757355908edd2b570ee22b730e4a00a147e94d76aa` | yes |
+| `v1.1.0` | `7b2b53f9b69a70ad185d206dead88b0235e0d14483edba2aa1dae5e7b1bc3387` | yes |

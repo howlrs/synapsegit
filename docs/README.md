@@ -122,7 +122,7 @@ Japanese or mixed-language technical references unless a link says otherwise.
 | 3画像のcreator Pilotを動かす | [使用ガイド](./usage_guide.md#現在このリポジトリで実行できること) | [CLI reference](./cli_reference.md) |
 | generic regular-file application contractをembedする | [Generic artifact v1 contract](../spec/application/generic-artifact/v1/README.md) | [Runtime architecture](./runtime_architecture.md#generic-artifact-application-boundary) |
 | generic artifactのlocal public projectionを作る | [Generic publication profile](../spec/application/generic-artifact-publication/v1/README.md) | [Integration roadmap](./generic_artifact_publication_roadmap.md) |
-| 作者外へread-only履歴bundleを渡す | [Quickstart](./quickstart.md#4-作者外へ説明するlocal-bundleを生成する) | [CLI reference](./cli_reference.md#synapse-present-companion-cli) |
+| 作者外へread-only履歴bundleを渡す | [Quickstart](./quickstart.md#4-作者外へ説明するlocal-bundleを生成する) | [CLI reference](./cli_reference.md#synapse-present-cli) |
 | publicationを作者外の人／AIで評価する | [Publication comprehension corpus](./evaluation/publication-comprehension/v1/) | [Project status](./project_status.md#次の優先順位) |
 | AIエージェント経由でv1.0-rcを試し、理解度・使いにくさ・重大な問題を確かめる | [Creator pilot 評価キットv2](./evaluation/creator-pilot/v2/) | [AIエージェント向けガイド](./ai_agent_guide.ja.md) |
 | v0.9.0で最初の制作記録を試す（旧版） | [Creator pilot 評価キットv1](./evaluation/creator-pilot/v1/) | [Creator操作ガイド](./creator_workflow.md) |

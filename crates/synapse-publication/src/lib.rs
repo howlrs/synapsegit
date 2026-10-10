@@ -7,12 +7,14 @@
 
 #![forbid(unsafe_code)]
 
+mod cli;
 mod generic_artifact;
 mod generic_artifact_render;
 mod model;
 mod render;
 mod render_v2;
 
+pub use cli::{run_cli, run_cli_as};
 pub use generic_artifact::*;
 pub use model::*;
 

@@ -7,6 +7,20 @@ milestone.
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-10
+
+### Added
+
+- Unified the released command surface into `synapse`: the existing Core
+  commands are unchanged, the loopback application is `synapse serve`, and
+  presentation bundles use `synapse present export` and `synapse present
+  preview`. `synapse export` remains the checksum-bound Core archive command;
+  it is distinct from `synapse present export`.
+- Release archives now install one physical `synapse` executable. They include
+  same-directory relative compatibility symlinks named `synapse-local` and
+  `synapse-present` for existing scripts. The v1.1.0 three-executable archive
+  remains unchanged.
+
 ## [1.1.0] - 2026-10-10
 
 ### Added

@@ -28,10 +28,12 @@ orchestrationとして内部利用する。
 ## 1. build する
 
 ```bash
-cargo build -p synapse-cli -p synapse-publication --locked
+cargo +1.88.0 build --release -p synapse-cli --locked
 ```
 
-Core CLIは`target/debug/synapse`、presentation companionは`target/debug/synapse-present`に生成される。
+統一CLIは`target/release/synapse`に生成される。`synapse serve`は以前の
+`synapse-local` optionsを受け、`synapse present export`／`preview`は以前の
+`synapse-present` optionsを受ける。
 protocol fixture 自体も検証する場合は次を実行する。
 
 ```bash
@@ -43,8 +45,7 @@ node scripts/verify_core_fixtures.mjs
 以下は repository root から Bash でそのまま実行できる。
 
 ```bash
-SG=target/debug/synapse
-SP=target/debug/synapse-present
+SG=target/release/synapse
 DEMO="$(mktemp -d)"
 REPO="$DEMO/repository"
 ARCHIVE="$DEMO/archive"
@@ -112,7 +113,7 @@ printf 'caller supplied proposal bytes\n' > "$DEMO/proposal.bin"
 
 `--format json`はこの検証済みreportを、プライベートなローカル専用JSON contract
 （`"format": "synapsegit-cli-creator-report-v1"`、`"scope": "private_local"`）として一つのdocumentへ
-出力する。共有可能なbundleではないため、他者へ渡す場合は既存の`synapse-present export ... --public`を
+出力する。共有可能なbundleではないため、他者へ渡す場合は既存の`synapse present export ... --public`を
 使う。詳細は[CLI reference](cli_reference.md#--format-json)を参照する。
 
 `creator-run`はimported／reference-only CaptureProfile、original／current Observation、専用
@@ -145,13 +146,13 @@ printf '%s\n' \
   'public_decision_note = "This proposal was selected for the recorded next state."' \
   > "$PRESENTATION"
 
-"$SP" export "$CREATOR_REPO" "$PUBLIC_VIEW" \
+"$SG" present export "$CREATOR_REPO" "$PUBLIC_VIEW" \
   --session wall-1 \
   --presentation "$PRESENTATION" \
   --public \
   --github
 
-"$SP" preview "$PUBLIC_VIEW"
+"$SG" present preview "$PUBLIC_VIEW"
 ```
 
 `--github`はGitHub-readyな`target/README.md`等をlocal生成するだけで、upload、Git operation、
@@ -159,7 +160,7 @@ network requestを行わない。rootの`projection.json`、`story.md`、JavaScr
 provider-neutral semanticsから生成される。`manifest.json`と`checksums.json`はtarget、visibility、
 source fingerprint、fixed inventoryを検証可能にする。existing CASはread-onlyで、raw assets、private
 rationale、internal Actor ID、repository pathをbundleへcopyせず、raw asset renderingも行わない。
-実案件では先に`synapse-local`と同repositoryのwriterを全て停止する。source SQLiteは直接openせず、
+実案件では先に`synapse serve`と同repositoryのwriterを全て停止する。source SQLiteは直接openせず、
 checkpoint済みで最大512 MiBのmain fileをSHA-256付きでprivate temporary fileへcopyし、copy後のsource
 SHA-256との一致を確認してtemporary copyだけをopenする。`-wal`／`-shm`／`-journal` sidecarまたはdigest不一致は
 `read_only_source_busy`となり、512 MiB超過は拒否する。exportは最大100 creator sessionsを扱う。
@@ -225,7 +226,7 @@ cargo test -p synapse-application --locked
 automatic refreshは未実装である。caller-suppliedなconsistent Ref snapshotから明示的にrebuildする
 派生indexであり、Subject timeline、Observation dependency、Analysis lineage等をqueryできる。
 `RefScope`はACLではなく、authorization、RefStore、archive、recoveryの代わりにはならない。
-`synapse-present`の`PublicProjection`は作者外への表示用contractであり、この内部query indexとは別物である。
+`synapse present`の`PublicProjection`は作者外への表示用contractであり、この内部query indexとは別物である。
 詳細は [Security model](./security_model.md) を参照する。
 
 ## command 一覧
@@ -245,8 +246,9 @@ synapse restore <archive-dir> <repo>
 synapse creator-run <repo> <session> <original> <current> <ai-output> --subject <label> --creator <name> --decision <adopt|reject|defer> [--rationale <text>]
 synapse creator-report <repo> <session> [--format text|json]
 
-synapse-present export <repo> <output-dir> [--session <id>] [--presentation <presentation.toml>] [--public] [--target <synapse|github> | --synapse | --github]
-synapse-present preview <bundle-dir>
+synapse serve [--project KEY=PATH] [--label KEY=LABEL] [--archive-root PATH] [--import-root KEY=PATH] [--port PORT]
+synapse present export <repo> <output-dir> [--session <id>] [--presentation <presentation.toml>] [--public] [--target <synapse|github> | --synapse | --github]
+synapse present preview <bundle-dir>
 ```
 
 `cargo run` を使う場合は Cargo と CLI 引数の間に `--` が必要である。
