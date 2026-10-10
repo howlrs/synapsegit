@@ -12,6 +12,77 @@ fail() {
   exit 1
 }
 
+smoke_server() {
+  local executable="$1"
+  local mode="$2"
+  local repository="$3"
+  python3 - "$executable" "$mode" "$repository" <<'PY'
+import queue
+import re
+import signal
+import subprocess
+import sys
+import threading
+import time
+import urllib.request
+
+executable, mode, repository = sys.argv[1:]
+command = [executable]
+if mode == "canonical":
+    command.append("serve")
+elif mode != "legacy":
+    raise ValueError(f"unknown server mode: {mode}")
+command.extend(["--port", "0", "--project", f"smoke={repository}"])
+
+process = subprocess.Popen(
+    command,
+    stdin=subprocess.DEVNULL,
+    stdout=subprocess.DEVNULL,
+    stderr=subprocess.PIPE,
+    text=True,
+)
+assert process.stderr is not None
+lines = queue.Queue()
+
+def read_stderr():
+    for line in process.stderr:
+        lines.put(line)
+
+reader = threading.Thread(target=read_stderr, daemon=True)
+reader.start()
+deadline = time.monotonic() + 15
+origin = None
+stderr = []
+try:
+    while time.monotonic() < deadline:
+        if process.poll() is not None:
+            raise RuntimeError(f"server exited {process.returncode}: {''.join(stderr)}")
+        try:
+            line = lines.get(timeout=min(0.2, deadline - time.monotonic()))
+        except queue.Empty:
+            continue
+        stderr.append(line)
+        match = re.search(r"http://127\.0\.0\.1:\d+", line)
+        if match:
+            origin = match.group(0)
+            break
+    if origin is None:
+        raise RuntimeError(f"server did not announce a loopback URL: {''.join(stderr)}")
+    with urllib.request.urlopen(origin, timeout=2) as response:
+        if response.status != 200:
+            raise RuntimeError(f"expected HTTP 200 from {origin}, got {response.status}")
+finally:
+    if process.poll() is None:
+        process.send_signal(signal.SIGINT)
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+    reader.join(timeout=1)
+PY
+}
+
 [[ $# -eq 3 ]] || fail "usage: scripts/smoke_release_archive.sh ARCHIVE TAG TARGET"
 archive="$1"
 tag="$2"
@@ -82,10 +153,13 @@ mkdir "$work/inbox"
 [[ -s "$work/inbox/release-smoke/manifest.json" ]] || fail "inbox put wrote no manifest"
 "$synapse" present export "$work/repo" "$work/view" \
   --session release-smoke --public --github >/dev/null
+"$synapse" present preview "$work/view" >/dev/null
 "$root/synapse-present" preview "$work/view" >/dev/null
 for file in projection.json story.md index.html manifest.json checksums.json target/README.md; do
   [[ -s "$work/view/$file" ]] || fail "the publication bundle is missing $file"
 done
 
 bash "$script_directory/test_tutorial_bundle.sh" --bundle "$root"
+smoke_server "$synapse" canonical "$work/repo"
+smoke_server "$root/synapse-local" legacy "$work/repo"
 echo "release archive smoke passed: $bundle"

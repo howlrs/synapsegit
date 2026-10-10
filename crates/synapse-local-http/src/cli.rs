@@ -22,14 +22,8 @@ pub async fn run_cli_as(
 ) -> ExitCode {
     match run(args).await {
         Ok(()) => ExitCode::SUCCESS,
-        Err(RunError::Help) => {
-            print_help(help_program);
-            ExitCode::SUCCESS
-        }
-        Err(RunError::Version) => {
-            print_version(version_program);
-            ExitCode::SUCCESS
-        }
+        Err(RunError::Help) => print_help(help_program, error_program),
+        Err(RunError::Version) => print_version(version_program, error_program),
         Err(RunError::Failure(error)) => {
             eprintln!("{error_program}: {error}");
             ExitCode::from(1)
@@ -48,14 +42,8 @@ pub fn immediate_exit(
 ) -> Option<ExitCode> {
     match parse_args(args.iter().cloned()) {
         Ok(_) => None,
-        Err(RunError::Help) => {
-            print_help(help_program);
-            Some(ExitCode::SUCCESS)
-        }
-        Err(RunError::Version) => {
-            print_version(version_program);
-            Some(ExitCode::SUCCESS)
-        }
+        Err(RunError::Help) => Some(print_help(help_program, error_program)),
+        Err(RunError::Version) => Some(print_version(version_program, error_program)),
         Err(RunError::Failure(error)) => {
             eprintln!("{error_program}: {error}");
             Some(ExitCode::from(1))
@@ -283,15 +271,36 @@ impl RunError {
     }
 }
 
-fn print_help(program: &str) {
-    let _ = writeln!(
-        io::stdout(),
-        "SynapseGit Local\n\nUsage:\n  {program} --project KEY=PATH [--label KEY=LABEL] [--archive-root PATH] [--import-root KEY=PATH] [--port PORT]\n\nThe server always binds to 127.0.0.1. --project and --import-root may be repeated.\n--import-root enables manifest-last inbox candidates for exactly that project; paths must already exist, be directories, and not overlap repositories, archive root, or another import root."
-    );
+fn print_help(program: &str, error_program: &str) -> ExitCode {
+    write_stdout_line(
+        format_args!(
+            "SynapseGit Local\n\nUsage:\n  {program} --project KEY=PATH [--label KEY=LABEL] [--archive-root PATH] [--import-root KEY=PATH] [--port PORT]\n\nThe server always binds to 127.0.0.1. --project and --import-root may be repeated.\n--import-root enables manifest-last inbox candidates for exactly that project; paths must already exist, be directories, and not overlap repositories, archive root, or another import root."
+        ),
+        error_program,
+    )
 }
 
-fn print_version(program: &str) {
-    let _ = writeln!(io::stdout(), "{program} {}", env!("CARGO_PKG_VERSION"));
+fn print_version(program: &str, error_program: &str) -> ExitCode {
+    write_stdout_line(
+        format_args!("{program} {}", env!("CARGO_PKG_VERSION")),
+        error_program,
+    )
+}
+
+fn write_stdout_line(arguments: std::fmt::Arguments<'_>, error_program: &str) -> ExitCode {
+    let result = (|| -> io::Result<()> {
+        let mut stdout = io::stdout();
+        writeln!(stdout, "{arguments}")?;
+        stdout.flush()
+    })();
+    match result {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) if error.kind() == io::ErrorKind::BrokenPipe => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{error_program}: write standard output: {error}");
+            ExitCode::from(1)
+        }
+    }
 }
 
 #[cfg(test)]

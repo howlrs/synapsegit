@@ -90,7 +90,7 @@ pub fn run_cli_as(args: Vec<String>, help_program: &str, version_program: &str) 
             let show_usage = error.code() == "usage_error";
             eprintln!("{}: {error}", error.code());
             if show_usage {
-                eprintln!("\n{USAGE}");
+                eprintln!("\n{}", USAGE.replace("synapse-present", help_program));
             }
             ExitCode::from(1)
         }

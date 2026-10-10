@@ -24,7 +24,9 @@ impl TempDirectory {
             NEXT_TEMP.fetch_add(1, Ordering::Relaxed)
         ));
         fs::create_dir(&path).unwrap();
-        Self(path)
+        // macOS's /var temporary directory is a symlink; publication requires
+        // real parent paths. Resolve the fixture directory, not binary aliases.
+        Self(path.canonicalize().unwrap())
     }
 
     fn join(&self, name: impl AsRef<Path>) -> PathBuf {
@@ -81,6 +83,12 @@ fn canonical_dispatch_uses_canonical_help_and_one_synapse_version() {
             .unwrap()
             .contains("synapse present export")
     );
+    let present_error = run(&["present", "unknown"]);
+    assert_eq!(present_error.status.code(), Some(1));
+    let present_error = String::from_utf8(present_error.stderr).unwrap();
+    assert!(present_error.starts_with("usage_error: unknown command \"unknown\""));
+    assert!(present_error.contains("synapse present export"));
+    assert!(!present_error.contains("synapse-present export"));
 }
 
 #[test]
@@ -136,11 +144,10 @@ fn basename_aliases_keep_the_legacy_contract_without_resolving_symlinks() {
         format!("synapse-present {}\n", env!("CARGO_PKG_VERSION"))
     );
     let present_error = Command::new(&present).arg("unknown").output().unwrap();
-    assert!(
-        String::from_utf8(present_error.stderr)
-            .unwrap()
-            .starts_with("usage_error: unknown command \"unknown\"")
-    );
+    assert_eq!(present_error.status.code(), Some(1));
+    let present_error = String::from_utf8(present_error.stderr).unwrap();
+    assert!(present_error.starts_with("usage_error: unknown command \"unknown\""));
+    assert!(present_error.contains("synapse-present export"));
 }
 
 #[test]
@@ -234,6 +241,45 @@ fn closed_stdout_is_successful_for_canonical_help_routes() {
             String::from_utf8_lossy(&output.stderr)
         );
     }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn local_version_reports_non_broken_stdout_failures() {
+    let full = fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/full")
+        .unwrap();
+    let canonical = Command::new(binary())
+        .args(["serve", "--version"])
+        .stdout(full)
+        .output()
+        .unwrap();
+    assert_eq!(canonical.status.code(), Some(1));
+    assert!(
+        String::from_utf8(canonical.stderr)
+            .unwrap()
+            .starts_with("synapse serve: write standard output:")
+    );
+
+    let temporary = TempDirectory::new();
+    let local = temporary.join("synapse-local");
+    symlink(binary(), &local).unwrap();
+    let full = fs::OpenOptions::new()
+        .write(true)
+        .open("/dev/full")
+        .unwrap();
+    let alias = Command::new(&local)
+        .arg("--version")
+        .stdout(full)
+        .output()
+        .unwrap();
+    assert_eq!(alias.status.code(), Some(1));
+    assert!(
+        String::from_utf8(alias.stderr)
+            .unwrap()
+            .starts_with("synapse-local: write standard output:")
+    );
 }
 
 #[test]
