@@ -7,6 +7,17 @@ milestone.
 
 ## [Unreleased]
 
+### Changed
+
+- The localhost import and derived-session forms show the optional **Tool
+  used** and **Generation model** fields together outside the collapsed note;
+  prompt and intent stay under **Prompt and intent (optional)**. The fields
+  explain that the generation model is the one that made this AI output, may
+  differ from the operating agent's model, and can be left blank instead of
+  guessed. Recorded notes label the field "Generation model". The
+  `creator-generation-note-v1` format, limits, CLI, Inbox, API, archive, and
+  public bundle behavior are unchanged, and the model stays optional (#237).
+
 ## [1.2.0] - 2026-10-10
 
 ### Added

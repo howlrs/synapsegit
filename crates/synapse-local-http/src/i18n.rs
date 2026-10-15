@@ -294,7 +294,7 @@ message_section! {
         pinned_decision: "固定したDecisionの版", "Pinned Decision version";
         original_decision_prefix: " · 元の判断: ", " · Original decision: ";
         note_tool: "使用ツール", "Tool used";
-        note_model: "モデル名", "Model name";
+        note_model: "生成モデル", "Generation model";
         note_prompt: "プロンプト", "Prompt";
         note_intent: "制作意図", "Intent";
         new_session_heading: "新しいセッション", "New session";
@@ -354,7 +354,7 @@ message_section! {
         inbox_creator_name: "Inboxの作成者名", "Inbox creator name";
         inbox_subject_label: "Inboxの対象名", "Inbox subject label";
         inbox_generation_tool: "Inboxの使用ツール", "Inbox generation tool";
-        inbox_generation_model: "Inboxのモデル名", "Inbox generation model";
+        inbox_generation_model: "Inboxの生成モデル", "Inbox generation model";
         inbox_generation_prompt: "Inboxのプロンプト", "Inbox generation prompt";
         inbox_generation_intent: "Inboxの制作意図", "Inbox generation intent";
         inbox_help: "候補を確認すると、その時点の3ファイルを確かめて一時保存し、その内容だけを提案として取り込みます。取り込み済みかどうかは、提案された名前（inbox-候補名）のセッションがあるかで判断します。名前を変えて取り込んだ候補は、取り込み待ちのまま表示されます。", "When you review a candidate, its three files are checked and set aside, and only those exact contents are imported as a proposal. A candidate counts as imported when a session with its suggested name (inbox-<candidate name>) exists; one imported under another name still shows as waiting.";
@@ -449,10 +449,14 @@ message_section! {
 message_section! {
     /// Optional caller-declared generation note fields.
     Note {
-        summary: "提案の生成メモ（任意）", "Proposal generation note (optional)";
+        heading: "提案の生成メモ（任意）", "Proposal generation note (optional)";
         help: "このAI outputについてあなたが書き残す非公開のメモです。実行の記録や、モデルが動いた証明ではありません。通常のアーカイブには含まれます。入力内容と上のAI outputを確認してから提案を作成してください。", "A private note you write about this AI output. It is not an execution log or proof that a model ran. It is included in normal archives. Check what you entered and the AI output above before creating the proposal.";
-        short_label_tool: "使用ツール", "Tool used";
-        short_label_model: "モデル", "Model";
+        tool_label: "使用ツール（任意）", "Tool used (optional)";
+        tool_hint: "AI outputを作るのに使った道具・製品・サービスの名前です。", "The tool, product, or service you used to make the AI output.";
+        model_label: "生成モデル（任意）", "Generation model (optional)";
+        model_hint: "このAI outputを生成したモデルです。操作しているAIエージェントのモデルや製品名とは異なる場合があります。", "The model that generated this AI output. It may differ from the model of the AI agent you work with, or from the product name.";
+        unknown_hint: "分からない項目は推測で埋めず、空欄のままで構いません。ツールだけ、または両方空欄でも取り込めます。複数のモデルを経て一つに特定できない場合は、一つに絞らず、分かる範囲を生成モデルか制作意図に書いてください。", "Leave anything you do not know blank instead of guessing. You can import with only the tool, or with both blank. If several models were involved and no single one can be named, do not pick one; write what you know under Generation model or Intent.";
+        details_summary: "プロンプトと制作意図（任意）", "Prompt and intent (optional)";
     }
 }
 

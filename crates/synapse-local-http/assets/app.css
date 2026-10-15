@@ -1100,6 +1100,19 @@ input[type="file"]::file-selector-button {
   grid-column: 1 / -1;
 }
 
+/* Tool and model are short names shown side by side (#237); prompt and intent stay collapsed. */
+.generation-note__source {
+  margin-block-end: var(--space-4);
+}
+
+.generation-note__source > .field {
+  align-content: start;
+}
+
+.generation-note__source textarea {
+  min-height: 4.5rem;
+}
+
 .button,
 button {
   display: inline-flex;

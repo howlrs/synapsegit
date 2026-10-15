@@ -10,9 +10,9 @@ async function importProposal(page, app, project, session, generationNote = null
     await page.locator(`[name="${name}"]`).setInputFiles(file);
   }
   if (generationNote) {
-    await page.getByText("提案の生成メモ（任意）", { exact: true }).click();
-    await page.getByLabel("使用ツール", { exact: true }).fill(generationNote.tool);
-    await page.getByLabel("モデル名", { exact: true }).fill(generationNote.model);
+    await page.getByText("プロンプトと制作意図（任意）", { exact: true }).click();
+    await page.getByLabel("使用ツール（任意）", { exact: true }).fill(generationNote.tool);
+    await page.getByLabel("生成モデル（任意）", { exact: true }).fill(generationNote.model);
     await page.getByLabel("プロンプト", { exact: true }).fill(generationNote.prompt);
     await page.getByLabel("制作意図", { exact: true }).fill(generationNote.intent);
   }

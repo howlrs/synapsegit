@@ -679,8 +679,8 @@ fn format_generation_note(
     // Only these labels are localized; the declared note values are user data.
     note.map(|n| {
         [
-            (m.note.short_label_tool, &n.tool),
-            (m.note.short_label_model, &n.model),
+            (m.common.note_tool, &n.tool),
+            (m.common.note_model, &n.model),
             (m.common.note_prompt, &n.prompt),
             (m.common.note_intent, &n.intent),
         ]

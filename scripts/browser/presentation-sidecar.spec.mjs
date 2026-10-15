@@ -13,7 +13,7 @@ test("fresh public text previews and downloads without private source text or Co
   await page.locator('[name="creator_name"]').fill("PRIVATE_CREATOR_CANARY");
   await page.locator('[name="subject_label"]').fill("PRIVATE_SUBJECT_CANARY");
   for (const [name, file] of [["original_image", original], ["current_image", current], ["ai_output", output]]) await page.locator(`[name="${name}"]`).setInputFiles(file);
-  await page.getByText("提案の生成メモ（任意）", { exact: true }).click();
+  await page.getByText("プロンプトと制作意図（任意）", { exact: true }).click();
   await page.locator('[name="generation_prompt"]').fill("PRIVATE_PROMPT_CANARY");
   await waitForCreatorUploadReady(page);
   await page.getByRole("button", { name: "提案を作成", exact: true }).click();
