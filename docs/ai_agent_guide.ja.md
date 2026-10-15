@@ -72,6 +72,15 @@ mkdir -p "$INBOX"
 候補の作り方について分かることを記録します。各項目は任意の利用者申告で、上限は`tool`と`model`が
 300、`prompt`が8,192、`intent`が2,048 UTF-8 bytesです。
 
+- `tool`は、候補を作るのに使った道具・製品・サービスです。
+- `model`は、この候補を生成したモデルです。操作しているAIエージェント自身のモデルや製品名とは
+  限りません。エージェント自身のモデル名から推測して書かないでください。
+- モデルが分からなければ、推測や`unknown`などの仮の値を書かず、`model`を省きます。`tool`だけの
+  メモや、メモなしでも構いません。複数のモデルを経て一つに特定できない場合は、一つに絞らず、分かる範囲を`model`か`intent`へ書きます。
+
+どちらも必須ではありません。方針は
+[使用ツールと生成モデルの記録方針](https://github.com/howlrs/synapsegit/blob/main/docs/creator_workflow.md#使用ツールと生成モデルの記録方針)を参照してください。
+
 ```bash
 NOTE="$HOME/SynapseGit/note.json"
 cat > "$NOTE" <<'JSON'

@@ -26,9 +26,24 @@ and exactly three files: Original, Current, and an AI-attributed output. The
 output is a file you supply. SynapseGit does not call a model or verify that a
 model generated it. Selecting a file does not upload it.
 
-You may add user-declared tool, model, prompt, and creative intent before
-creating the Proposal. These notes are optional and immutable after saving;
-they do not prove model execution or authorship. Limits are UTF-8 bytes:
+You may add a user-declared tool, generation model, prompt, and creative
+intent before creating the Proposal. **Tool used** and **Generation model**
+are shown side by side without expanding anything; open **Prompt and intent
+(optional)** for the other two. A derived session that receives a new AI output
+uses the same form.
+
+- **Tool used** is the tool, product, or service you used to make the AI output.
+- **Generation model** is the model that generated this AI output. It may
+  differ from the model of the AI agent you work with, or from the product name.
+
+Leave anything you do not know blank instead of guessing. You can record only
+the tool, and you can still import and decide with both left blank. If several
+models were involved and no single one can be named, do not pick one; write
+what you know under Generation model or Intent.
+
+These notes are optional and immutable after saving; they do not prove model
+execution or authorship, and they do not guarantee reproduction. Limits are
+UTF-8 bytes:
 
 | Field | Limit |
 |---|---:|
@@ -42,6 +57,44 @@ they do not prove model execution or authorship. Limits are UTF-8 bytes:
 The project overview lists at most 200 unverified summaries, with pending
 reviews first and then recent Ref updates. Open a session page or run `fsck`
 to verify a record; notes and rationales are not shown in the overview.
+
+### How the tool and generation model are recorded
+
+[#237](https://github.com/howlrs/synapsegit/issues/237) moved Tool used and
+Generation model out of the collapsed section and explains how they differ.
+Release binaries up to v1.2.0 keep all four fields inside the collapsed
+**Proposal generation note (optional)** section. The stored format
+(`creator-generation-note-v1`), the field limits, `user_declared` attribution,
+the binding to the AI output, CLI, Inbox, and API input, archive and restore,
+and public bundles are unchanged. CLI and Inbox JSON use the same meaning for
+`tool` and `model`, and both stay optional.
+
+- Neither the generation model nor a "known / unknown" choice is required for
+  now. Some tools do not disclose a model ID, and requiring one could invite
+  guesses or placeholder values.
+- A blank field or a record without a note means "not recorded". It is not
+  treated as evidence that the model was unknown.
+- Whether this layout changes how often the model is recorded, or how much
+  effort entry takes, has not been measured.
+
+These are conditions for later work, not implemented features:
+
+- If model information explicitly supplied by the generating side is offered as
+  a suggestion, show its source and that it is unverified external
+  information, and apply it only when the person confirms it. Do not infer it
+  from the operating agent's own model name or from fixed internal values, and
+  do not treat file metadata as evidence that a model ran.
+- Generation notes written in an existing Inbox manifest keep the current
+  contract. New metadata extraction or automatic suggestions are a separate
+  question.
+- Making the model required is not the default goal. Reconsider it, together
+  with the entry burden, only if cases continue where someone knew the model
+  but did not write it down and later could not confirm the source. A blank
+  rate alone cannot tell "unknown" apart from "forgot to write".
+- Storing an explicit "unknown" state would need a contract that distinguishes
+  it from "not recorded", compatibility with older readers and archives, and
+  consistent GUI, CLI, Inbox, and API handling, designed separately. Do not add
+  a reserved word such as `unknown` to the free-text `model` instead.
 
 ## Open an older session by name
 

@@ -84,6 +84,18 @@ Record what you know about how the candidate was made. Every field is
 optional, user-declared text: `tool` and `model` up to 300 UTF-8 bytes,
 `prompt` up to 8,192, and `intent` up to 2,048.
 
+- `tool` is the tool, product, or service used to make the candidate.
+- `model` is the model that generated this candidate. It is not necessarily
+  the model you, the agent, run on, nor the product name. Do not fill it in
+  from your own model name.
+- If the model is not known, leave `model` out instead of guessing or writing a
+  placeholder such as `unknown`; the note can hold only `tool`, or be omitted.
+  If several models were involved and no single one can be named, do not pick
+  one; write what is known in `model` or `intent`.
+
+Neither field is required. See
+[how the tool and generation model are recorded](https://github.com/howlrs/synapsegit/blob/main/docs/creator_workflow.en.md#how-the-tool-and-generation-model-are-recorded).
+
 ```bash
 NOTE="$HOME/SynapseGit/note.json"
 cat > "$NOTE" <<'JSON'

@@ -10,7 +10,7 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     await page.locator('[name="creator_name"]').fill("元の表示名");
     await page.locator('[name="subject_label"]').fill("元の作品名");
     for (const [name, file] of [["original_image", original], ["current_image", current], ["ai_output", output]]) await page.locator(`[name="${name}"]`).setInputFiles(file);
-    await page.getByText("提案の生成メモ（任意）", { exact: true }).click();
+    await page.getByText("プロンプトと制作意図（任意）", { exact: true }).click();
     await page.getByLabel("プロンプト", { exact: true }).fill("OLD_SOURCE_PRIVATE_NOTE");
     await waitForCreatorUploadReady(page);
     await page.getByRole("button", { name: "提案を作成", exact: true }).click();
@@ -33,6 +33,10 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     await expect(page.locator('[name="creator_name"]')).toHaveValue("元の表示名");
     await expect(page.locator('[name="subject_label"]')).toHaveValue("元の作品名");
     await expect(page.locator('[name="generation_prompt"]')).toHaveValue("");
+    // The fresh AI output gets its own note; tool and model need no expansion.
+    await expect(page.getByLabel("使用ツール（任意）", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("生成モデル（任意）", { exact: true })).toBeVisible();
+    await expect(page.getByLabel("プロンプト", { exact: true })).toBeHidden();
     await expect(page.locator("body")).not.toContainText("OLD_SOURCE_PRIVATE_NOTE");
     await expect(page.locator("body")).not.toContainText("OLD_SOURCE_RATIONALE");
     const next = `derived-${disposition.toLowerCase()}`;
@@ -40,6 +44,10 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     await page.locator('[name="creator_name"]').fill("新しい表示名");
     await page.locator('[name="subject_label"]').fill("新しい作品名");
     await page.locator('[name="ai_output"]').setInputFiles(original);
+    if (disposition === "Reject") {
+      await page.getByLabel("使用ツール（任意）", { exact: true }).fill("派生ツール");
+      await page.getByLabel("生成モデル（任意）", { exact: true }).fill("derived-model");
+    }
     if (disposition === "Adopt") {
       await page.setViewportSize({ width: 375, height: 900 });
       expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
@@ -53,7 +61,11 @@ for (const disposition of ["Adopt", "Reject", "Defer"]) {
     expect(nextOids.slice(0, 2)).toEqual(oids.slice(0, 2));
     expect(nextOids[1]).not.toBe(oids[2]);
     await expect(page.locator("[data-creator-source]")).toContainText(source);
-    await expect(page.getByText("生成メモなし", { exact: true })).toBeVisible();
+    if (disposition === "Reject") {
+      expect(await page.locator("[data-generation-note]").evaluate(node => node.textContent)).toBe("使用ツール:\n派生ツール\n生成モデル:\nderived-model");
+    } else {
+      await expect(page.getByText("生成メモなし", { exact: true })).toBeVisible();
+    }
     page.once("dialog", dialog => dialog.accept());
     const completed = page.waitForEvent("framenavigated", { predicate: frame => frame === page.mainFrame() });
     await page.getByRole("button", { name: decisionButton[disposition], exact: true }).click();

@@ -1,7 +1,14 @@
-    <details class="card"><summary>{{ m.note.summary }}</summary>
-      <p>{{ m.note.help }}</p>
-      <div class="field"><label for="generation-tool">{{ m.common.note_tool }}</label><textarea id="generation-tool" name="generation_tool" aria-describedby="generation-tool-count"></textarea><span id="generation-tool-count" data-creator-text-count="generation_tool" class="field__hint">{{ m.note_limit(300) }}</span></div>
-      <div class="field"><label for="generation-model">{{ m.common.note_model }}</label><textarea id="generation-model" name="generation_model" aria-describedby="generation-model-count"></textarea><span id="generation-model-count" data-creator-text-count="generation_model" class="field__hint">{{ m.note_limit(300) }}</span></div>
-      <div class="field"><label for="generation-prompt">{{ m.common.note_prompt }}</label><textarea id="generation-prompt" name="generation_prompt" aria-describedby="generation-prompt-count"></textarea><span id="generation-prompt-count" data-creator-text-count="generation_prompt" class="field__hint">{{ m.note_limit(8192) }}</span></div>
-      <div class="field"><label for="generation-intent">{{ m.common.note_intent }}</label><textarea id="generation-intent" name="generation_intent" aria-describedby="generation-intent-count"></textarea><span id="generation-intent-count" data-creator-text-count="generation_intent" class="field__hint">{{ m.note_limit(2048) }}</span></div>
-    </details>
+    <fieldset class="card generation-note" aria-describedby="generation-note-help">
+      <legend>{{ m.note.heading }}</legend>
+      <p id="generation-note-help">{{ m.note.help }}</p>
+      <div class="form-grid generation-note__source">
+        <div class="field"><label for="generation-tool">{{ m.note.tool_label }}</label><textarea id="generation-tool" name="generation_tool" aria-describedby="generation-tool-hint generation-tool-count"></textarea><span id="generation-tool-hint" class="field__hint">{{ m.note.tool_hint }}</span><span id="generation-tool-count" data-creator-text-count="generation_tool" class="field__hint">{{ m.note_limit(300) }}</span></div>
+        <div class="field"><label for="generation-model">{{ m.note.model_label }}</label><textarea id="generation-model" name="generation_model" aria-describedby="generation-model-hint generation-source-unknown generation-model-count"></textarea><span id="generation-model-hint" class="field__hint">{{ m.note.model_hint }}</span><span id="generation-model-count" data-creator-text-count="generation_model" class="field__hint">{{ m.note_limit(300) }}</span></div>
+        <p id="generation-source-unknown" class="field__hint form-grid__wide">{{ m.note.unknown_hint }}</p>
+      </div>
+      <details>
+        <summary>{{ m.note.details_summary }}</summary>
+        <div class="field"><label for="generation-prompt">{{ m.common.note_prompt }}</label><textarea id="generation-prompt" name="generation_prompt" aria-describedby="generation-prompt-count"></textarea><span id="generation-prompt-count" data-creator-text-count="generation_prompt" class="field__hint">{{ m.note_limit(8192) }}</span></div>
+        <div class="field"><label for="generation-intent">{{ m.common.note_intent }}</label><textarea id="generation-intent" name="generation_intent" aria-describedby="generation-intent-count"></textarea><span id="generation-intent-count" data-creator-text-count="generation_intent" class="field__hint">{{ m.note_limit(2048) }}</span></div>
+      </details>
+    </fieldset>

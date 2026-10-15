@@ -3366,6 +3366,90 @@ async fn technical_identifiers_are_collapsed_and_limits_stay_visible() {
 }
 
 #[tokio::test]
+async fn generation_tool_and_model_stay_outside_the_collapsed_prompt_and_intent() {
+    let (_directory, app, _fixture) = test_app_with_creator("Demo project");
+    let page = |path: &'static str, lang: &'static str| {
+        let app = app.clone();
+        async move {
+            let response = app
+                .oneshot(
+                    request(path)
+                        .header(header::COOKIE, format!("synapse_local_lang={lang}"))
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+            assert_eq!(response.status(), StatusCode::OK, "{path}");
+            let body = to_bytes(response.into_body(), 4 * 1024 * 1024)
+                .await
+                .unwrap();
+            String::from_utf8(body.to_vec()).unwrap()
+        }
+    };
+    for lang in ["ja", "en"] {
+        let m = crate::i18n::Locale::from_code(lang).unwrap().messages();
+        for path in [
+            "/projects/demo/import",
+            "/projects/demo/creator-sessions/render-session/derive",
+        ] {
+            let html = page(path, lang).await;
+            let start = html
+                .find("<fieldset class=\"card generation-note\"")
+                .expect("generation note group");
+            let end = start + html[start..].find("</fieldset>").expect("closed group");
+            let group = &html[start..end];
+            let (visible, collapsed) = group.split_once("<details>").expect("collapsed part");
+            // Tool and model are offered together without opening anything;
+            // only prompt and intent stay collapsed.
+            for name in ["generation_tool", "generation_model"] {
+                assert!(
+                    visible.contains(&format!("name=\"{name}\"")),
+                    "{lang} {path}"
+                );
+                assert!(
+                    !collapsed.contains(&format!("name=\"{name}\"")),
+                    "{lang} {path}"
+                );
+            }
+            for name in ["generation_prompt", "generation_intent"] {
+                assert!(
+                    collapsed.contains(&format!("name=\"{name}\"")),
+                    "{lang} {path}"
+                );
+            }
+            assert!(!group.contains(" required"), "{lang} {path}");
+            for text in [
+                m.note.heading,
+                m.note.tool_label,
+                m.note.tool_hint,
+                m.note.model_label,
+                m.note.model_hint,
+                m.note.unknown_hint,
+            ] {
+                assert!(visible.contains(text), "{lang} {path}: {text}");
+            }
+            assert!(collapsed.contains(&format!("<summary>{}</summary>", m.note.details_summary)));
+            // Every description a field points to exists in the same group.
+            for described in group.split("aria-describedby=\"").skip(1) {
+                for id in described[..described.find('"').unwrap()].split(' ') {
+                    assert!(
+                        group.contains(&format!("id=\"{id}\"")),
+                        "{lang} {path}: {id}"
+                    );
+                }
+            }
+            assert!(visible.contains(
+                "aria-describedby=\"generation-model-hint generation-source-unknown generation-model-count\""
+            ));
+            if lang == "ja" {
+                assert_no_application_english(&html);
+            }
+        }
+    }
+}
+
+#[tokio::test]
 async fn incomplete_session_keeps_refs_and_heads_under_technical_details() {
     let (_directory, app, fixture) = test_app_with_incomplete();
     let response = app
