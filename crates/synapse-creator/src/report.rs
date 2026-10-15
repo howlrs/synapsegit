@@ -120,6 +120,10 @@ pub(crate) const HISTORIC_BYTE_IDENTITY_IMPLEMENTATION_OIDS: &[(&str, &str)] = &
         "v1.1.0",
         "blob:sg-oid-v1:sha256:8c35c31a244a93b4bc3e3497d7db099a403eabb227598ef219c13f1d8aac8308",
     ),
+    (
+        "v1.2.0",
+        "blob:sg-oid-v1:sha256:862c1b79628e724ea926cfa90db94bb3409e31486844e446ac96cf2638c3e273",
+    ),
 ];
 
 /// Whether an implementation Blob OID names the current bundle or an audited
