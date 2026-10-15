@@ -358,7 +358,7 @@ Core proofとして扱わない。binding／journal／trusted configは改竄さ
 FairGateもrestartを越えて保存されず、multi-process linearizabilityは提供しない。
 
 このC1 boundaryはtagged v0.8.0 sourceに含まれるworkspace Rust libraryである。歴史的なv0.8.0 archiveは
-`synapse`、`synapse-local`、`synapse-present`の三binaryを含む。v1.2.0 archiveは一つの`synapse` executableと
+`synapse`、`synapse-local`、`synapse-present`の三binaryを含む。v1.2.0以降のarchiveは一つの`synapse` executableと
 二つの相対compatibility symlinkに統合するが、このboundary向けのHTTP／CLI、
 generic browser UI、新binary、model provider invocation、automatic background worker、durable identity／ACL、
 multi-process linearizability、remote publish、production deployment、新たな配布許可を提供しない。

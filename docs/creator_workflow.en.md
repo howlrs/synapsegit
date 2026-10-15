@@ -7,7 +7,7 @@
 _Concept illustration of preparation, human choice and the record. You can
 ask an [AI agent](./ai_agent_guide.md) to handle the preparation commands._
 
-This focused guide is for the v1.2.0 release binary. It explains the path
+This focused guide is for the v1.3.0 release binary. It explains the path
 after the [15-minute mural tutorial](./tutorial/README.md): record your own
 three images, keep optional private notes, make a Human Decision, and begin a
 fresh review when another candidate is needed.
@@ -60,8 +60,9 @@ to verify a record; notes and rationales are not shown in the overview.
 
 ### How the tool and generation model are recorded
 
-[#237](https://github.com/howlrs/synapsegit/issues/237) moved Tool used and
-Generation model out of the collapsed section and explains how they differ.
+From v1.3.0, following [#237](https://github.com/howlrs/synapsegit/issues/237),
+Tool used and Generation model are outside the collapsed section, with an
+explanation of how they differ.
 Release binaries up to v1.2.0 keep all four fields inside the collapsed
 **Proposal generation note (optional)** section. The stored format
 (`creator-generation-note-v1`), the field limits, `user_declared` attribution,

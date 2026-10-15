@@ -7,8 +7,8 @@ English: [Creator workflow](./creator_workflow.en.md).
 _制作の流れを説明するイラストです。操作を覚える前に、準備・判断・記録の役割を押さえてください。
 操作の準備は[AIエージェントに頼む](./ai_agent_guide.ja.md)こともできます。_
 
-対象はv1.2.0です。生成メモはv0.11.0、判断ピン・通常の派生セッション・公開用文章フォームはv0.8.0で導入されました。中断／Deferからの新しい再レビューと任意のInbox取り込みも利用できます。
-v1.2.0 release binaryを[install guide](install.md)から導入するか、
+対象はv1.3.0です。生成メモはv0.11.0、判断ピン・通常の派生セッション・公開用文章フォームはv0.8.0で導入されました。中断／Deferからの新しい再レビューと任意のInbox取り込みも利用できます。
+v1.3.0 release binaryを[install guide](install.md)から導入するか、
 [source build](quickstart.md#1-build-する)で作成した`synapse`を
 [localhost runbook](../deploy/local/README.md)に従って起動してください。
 
@@ -51,7 +51,7 @@ CLIとInboxのJSONでも、`tool`と`model`の意味と、どちらも任意で�
 
 ### 使用ツールと生成モデルの記録方針
 
-[#237](https://github.com/howlrs/synapsegit/issues/237)で、使用ツールと生成モデルを折り畳みの外へ並べ、両者の違いを説明しました。v1.2.0までのrelease binaryでは、4項目とも「提案の生成メモ（任意）」の折り畳みの中にあります。
+v1.3.0から、[#237](https://github.com/howlrs/synapsegit/issues/237)を受けて使用ツールと生成モデルを折り畳みの外へ並べ、両者の違いを説明しています。v1.2.0までのrelease binaryでは、4項目とも「提案の生成メモ（任意）」の折り畳みの中にあります。
 保存形式（`creator-generation-note-v1`）、各項目の上限、`user_declared`の扱い、AI outputとの紐付け、CLI・Inbox・APIの入力、archive／restore、public bundleの扱いは変えていません。
 
 - 生成モデルも、「分かる／不明」の選択も、当面は必須にしません。生成ツールがモデルIDを公開していない出力もあり、必須にすると推測や適当な値が増えるおそれがあるためです。
