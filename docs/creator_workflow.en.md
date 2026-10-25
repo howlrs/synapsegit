@@ -19,6 +19,9 @@ is an optional detailed reference. The browser interface is single-user and
 serves only IPv4 loopback. The security limits are summarized in the
 [privacy and trust summary](./security_model.en.md).
 
+The **Unreleased** changes described below as **current development tree** are
+not included in the v1.3.0 release archive.
+
 ## Record a proposal and optional generation notes
 
 On a project's **Import** page, create a new session with a session name, display name,
@@ -141,6 +144,12 @@ per-pin adoption, partial adoption, or editing/reopening of the same session.
 Pending review authority is process-local: after a restart, do not recreate it
 from values displayed in the browser.
 
+In the current development tree, `annotations` and each element of its `pins`
+array must be JSON objects. A malformed pin request is rejected before it
+consumes the pending review, so the person can correct the request and decide normally.
+If an older stored extension has an unsupported or malformed pin shape, its
+pins are unavailable, while the verified decision itself stays readable.
+
 The completed page shows the notes, rationale, and pins. Its **Save private
 record (JSON)** control fetches the existing authenticated session-detail endpoint again
 and downloads the fresh native complete response unchanged:
@@ -210,6 +219,13 @@ logical slug, previews the manifest-last candidate, and requires confirmation
 before it begins a Proposal from retained bytes. Closing that confirmation
 discards the process-private staging. Inbox does not make the producer or its
 output trusted, and it does not invoke a model.
+
+In the current development tree, one Inbox page handles candidate selection,
+return to the list, and Proposal creation one request at a time. The relevant
+controls stay disabled while a request is pending and become available again
+after a request failure. This prevents a later response from replacing the
+candidate under review. If the Proposal outcome is uncertain, check the session
+history before trying another import.
 
 From the command line or an AI agent, `synapse inbox put` writes such a
 candidate without opening a repository or recording a decision. A person still

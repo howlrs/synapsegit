@@ -193,6 +193,10 @@ flowchart LR
 - 各releaseの変更は[CHANGELOG](./CHANGELOG.md)と[v1.3.0 release notes](./docs/releases/v1.3.0.md)にあります。
   重要なデータで試す前に、該当する資料を読んでください。
 
+現在の開発版には、Inboxの操作競合と不正な判断ピンJSONの受理を防ぐ **Unreleased** の修正が含まれます。
+上記のv1.3.0配布archiveには含まれていません。変更点と扱いは
+[Unreleasedの変更履歴](./CHANGELOG.md#unreleased)と[制作の流れ](./docs/creator_workflow.md)を参照してください。
+
 ## Security、support、license
 
 `synapse serve`はloopbackのまま利用し、reverse proxyの背後へ公開したり、process-local browser

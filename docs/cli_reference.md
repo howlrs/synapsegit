@@ -487,6 +487,11 @@ recording timestampになる。time basisはObservationなら`observation_record
 
 `creator-report` prints escaped `decision_pins_private` when valid private pins exist, or `decision_pins=unavailable` for an unsupported/malformed annotation extension. Annotation display failure is separate from the verified Human Decision lineage.
 
+開発版（**Unreleased**、v1.3.0配布archiveには未収録）では、annotation全体や各pinを位置依存のJSON配列で
+保存した不正な拡張も`decision_pins=unavailable`になります。保存済みのbyteや判断は書き換えず、
+検証済みの判断履歴は引き続き読めます。正しいobject形式と上限は
+[判断ピンの契約](../spec/application/creator-decision-pins/v1/README.md)を参照してください。
+
 派生元の固定headsと再利用roleはCreator report APIとlocalhost画面で確認できる。
 text CLIの新しい派生元表示や派生作成commandは提供していない。
 

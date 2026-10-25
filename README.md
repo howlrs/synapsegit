@@ -210,6 +210,11 @@ details.
   [v1.3.0 release notes](./docs/releases/v1.3.0.md). Read the applicable notes
   before using it with important data.
 
+The current development source includes **Unreleased** fixes for overlapping
+Inbox actions and malformed decision-pin JSON. These fixes are not included
+in the v1.3.0 archives above. See the [Unreleased changelog](./CHANGELOG.md#unreleased)
+and [Creator workflow](./docs/creator_workflow.en.md) for the behavior and limits.
+
 ## Security, support, and license
 
 Keep `synapse serve` on loopback; do not put it behind a reverse proxy or treat
