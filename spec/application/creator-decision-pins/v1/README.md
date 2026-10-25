@@ -6,6 +6,7 @@ SpatialFrame or `scope_regions` semantics. `format` is exactly
 `synapsegit-creator-decision-pins-v1`; `pins` is a sequence of at most 10 objects.
 Sequence order is displayed as 1-based numbering, not a durable separate ID.
 Each pin has exactly `role`, `blob_oid`, `x`, `y`, `note`. Unknown fields are invalid.
+The extension and each pin must be JSON objects; positional arrays are invalid.
 
 - `role` is `original`, `current` or `ai_output` in the exact reviewed Proposal.
 - `blob_oid` must equal the verified Blob OID of that role. It is an equality

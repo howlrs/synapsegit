@@ -2,8 +2,8 @@
 //!
 //! serde's derived struct deserialization also accepts a positional JSON
 //! array, so `["tool", "model", "prompt", "intent"]` would silently become a
-//! generation note.  The generation note and the import inbox manifest are
-//! JSON objects by contract, so their types derive serde with
+//! generation note. Generation notes, import inbox manifests, and decision
+//! pins are JSON objects by contract, so their types derive serde with
 //! `#[serde(remote = "Self")]`, which turns the derived code into inherent
 //! functions, and use `json_object_serde!` for the trait implementations:
 //! serialization is unchanged and deserialization accepts only a JSON object.

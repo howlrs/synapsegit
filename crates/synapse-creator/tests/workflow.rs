@@ -1186,6 +1186,21 @@ fn private_pins_are_atomic_with_each_decision_and_survive_restore() {
 
 #[test]
 fn malformed_pin_extension_is_unavailable_without_invalidating_decision_lineage() {
+    assert_malformed_pin_extension_unavailable(
+        |_| serde_json::json!({"format":"unknown-v99", "pins":[]}),
+    );
+    assert_malformed_pin_extension_unavailable(|_| {
+        serde_json::json!([synapse_creator::ANNOTATIONS_FORMAT, []])
+    });
+    assert_malformed_pin_extension_unavailable(|oid| {
+        serde_json::json!({
+            "format": synapse_creator::ANNOTATIONS_FORMAT,
+            "pins": [["ai_output", oid, 123456, 654321, "Private pin"]]
+        })
+    });
+}
+
+fn assert_malformed_pin_extension_unavailable(extension: impl FnOnce(&str) -> serde_json::Value) {
     let temporary = TempDirectory::new();
     let path = temporary.join("unknown-pins");
     let receipt = run_creator_session(&options(
@@ -1205,7 +1220,7 @@ fn malformed_pin_extension_is_unavailable_without_invalidating_decision_lineage(
     )
     .unwrap();
     feedback["extensions"][synapse_creator::ANNOTATIONS_KEY] =
-        serde_json::json!({"format":"unknown-v99", "pins":[]});
+        extension(&receipt.ai_output_blob_oid);
     let feedback_oid = repository
         .put_object(&serde_json::to_vec(&feedback).unwrap())
         .unwrap()

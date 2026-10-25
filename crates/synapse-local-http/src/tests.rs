@@ -2033,6 +2033,109 @@ async fn decision_rejects_non_exact_content_type_unknown_fields_and_oversize_jso
 }
 
 #[tokio::test]
+async fn decision_rejects_positional_pin_json_without_consuming_the_review() {
+    let (_directory, app) = test_app();
+    let boundary = "synapse-positional-pin-boundary";
+    let begin = app
+        .clone()
+        .oneshot(unsafe_api_request(
+            "/api/v1/projects/demo/creator-sessions",
+            format!("multipart/form-data; boundary={boundary}"),
+            Body::from(valid_creator_multipart(boundary)),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(begin.status(), StatusCode::CREATED);
+    let pending: serde_json::Value =
+        serde_json::from_slice(&to_bytes(begin.into_body(), 64 * 1024).await.unwrap()).unwrap();
+    let review_id = pending["review_id"].clone();
+    let ai_output_blob_oid = pending["ai_output_blob_oid"].clone();
+    let pending_path = "/api/v1/projects/demo/creator-sessions/web-review";
+    let decision_path = "/api/v1/projects/demo/creator-sessions/web-review/decisions";
+    let valid_annotations = serde_json::json!({
+        "format": "synapsegit-creator-decision-pins-v1",
+        "pins": [{
+            "role": "ai_output",
+            "blob_oid": ai_output_blob_oid.clone(),
+            "x": 123456,
+            "y": 654321,
+            "note": "Private pin",
+        }],
+    });
+
+    for annotations in [
+        serde_json::json!([
+            valid_annotations["format"].clone(),
+            valid_annotations["pins"].clone(),
+        ]),
+        serde_json::json!({
+            "format": "synapsegit-creator-decision-pins-v1",
+            "pins": [["ai_output", ai_output_blob_oid.clone(), 123456, 654321, "Private pin"]]
+        }),
+    ] {
+        let rejected = app
+            .clone()
+            .oneshot(unsafe_api_request(
+                decision_path,
+                "application/json",
+                Body::from(
+                    serde_json::to_vec(&serde_json::json!({
+                        "review_id": review_id.clone(),
+                        "disposition": "adopt",
+                        "annotations": annotations,
+                    }))
+                    .unwrap(),
+                ),
+            ))
+            .await
+            .unwrap();
+        assert_problem(rejected, StatusCode::BAD_REQUEST, "local_request_denied").await;
+
+        let still_pending = app
+            .clone()
+            .oneshot(
+                request(pending_path)
+                    .header("x-synapse-local-token", "a".repeat(64))
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(still_pending.status(), StatusCode::OK);
+        let still_pending: serde_json::Value = serde_json::from_slice(
+            &to_bytes(still_pending.into_body(), 64 * 1024)
+                .await
+                .unwrap(),
+        )
+        .unwrap();
+        assert_eq!(still_pending["state"], "pending_review");
+        assert_eq!(still_pending["review_id"], review_id);
+        assert_eq!(still_pending["ai_output_blob_oid"], ai_output_blob_oid);
+    }
+
+    let complete = app
+        .oneshot(unsafe_api_request(
+            decision_path,
+            "application/json",
+            Body::from(
+                serde_json::to_vec(&serde_json::json!({
+                    "review_id": review_id,
+                    "disposition": "adopt",
+                    "annotations": valid_annotations.clone(),
+                }))
+                .unwrap(),
+            ),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(complete.status(), StatusCode::OK);
+    let complete: serde_json::Value =
+        serde_json::from_slice(&to_bytes(complete.into_body(), 64 * 1024).await.unwrap()).unwrap();
+    assert_eq!(complete["state"], "complete");
+    assert_eq!(complete["report"]["annotations"], valid_annotations);
+}
+
+#[tokio::test]
 async fn bootstrap_is_non_cacheable_and_contains_only_the_process_token() {
     let (_directory, app) = test_app();
     let response = app

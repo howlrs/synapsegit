@@ -15,6 +15,11 @@ milestone.
   or discard files while creating their proposal. Candidate buttons and
   preview fields stay locked during a request and become available again
   after an error.
+- Creator decision pins now reject positional JSON arrays for the annotations
+  and each pin, instead of silently interpreting array elements as object
+  fields. Invalid API inputs leave the pending review available. Malformed
+  stored pin extensions are reported as unavailable while the verified Human
+  decision remains readable; valid object-shaped pins keep their format.
 
 ## [1.3.0] - 2026-10-15
 
