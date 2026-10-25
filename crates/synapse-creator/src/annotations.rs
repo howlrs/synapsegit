@@ -27,7 +27,7 @@ impl CreatorImageRole {
 
 /// Private Human note positioned in the oriented decoded image's unit square.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct CreatorPin {
     pub role: CreatorImageRole,
     pub blob_oid: String,
@@ -36,13 +36,17 @@ pub struct CreatorPin {
     pub note: String,
 }
 
+json_object_serde!(CreatorPin);
+
 /// Sequence order is the displayed pin number; integer positions are authoritative.
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
+#[serde(remote = "Self", deny_unknown_fields)]
 pub struct CreatorAnnotations {
     pub format: String,
     pub pins: Vec<CreatorPin>,
 }
+
+json_object_serde!(CreatorAnnotations);
 
 impl CreatorAnnotations {
     pub fn validate(&self, original: &str, current: &str, ai_output: &str) -> Result<()> {
@@ -112,6 +116,41 @@ pub(crate) fn read_annotations(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn annotations_and_pins_require_json_objects() {
+        let fixture: Value = serde_json::from_str(include_str!(
+            "../../../spec/application/creator-decision-pins/v1/valid.json"
+        ))
+        .unwrap();
+        let annotations: CreatorAnnotations = serde_json::from_value(fixture.clone()).unwrap();
+        assert_eq!(serde_json::to_value(&annotations).unwrap(), fixture);
+        let pin = &fixture["pins"][0];
+        let oid = pin["blob_oid"].as_str().unwrap();
+        let mut array_pin = fixture.clone();
+        array_pin["pins"][0] = serde_json::json!([
+            pin["role"],
+            pin["blob_oid"],
+            pin["x"],
+            pin["y"],
+            pin["note"]
+        ]);
+        for invalid in [
+            serde_json::json!([fixture["format"], fixture["pins"]]),
+            array_pin,
+        ] {
+            assert!(
+                serde_json::from_str::<CreatorAnnotations>(&invalid.to_string()).is_err(),
+                "positional arrays must not decode as annotations: {invalid}"
+            );
+            let record = serde_json::json!({"extensions": {ANNOTATIONS_KEY: invalid}});
+            assert_eq!(
+                read_annotations(&record, "other", "other", oid),
+                (None, true)
+            );
+        }
+    }
+
     #[test]
     fn fixture_and_invalid_storage_are_decoded_separately_from_core() {
         let fixture: Value = serde_json::from_str(include_str!(

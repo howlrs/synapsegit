@@ -6,6 +6,7 @@ SpatialFrame or `scope_regions` semantics. `format` is exactly
 `synapsegit-creator-decision-pins-v1`; `pins` is a sequence of at most 10 objects.
 Sequence order is displayed as 1-based numbering, not a durable separate ID.
 Each pin has exactly `role`, `blob_oid`, `x`, `y`, `note`. Unknown fields are invalid.
+The extension and each pin must be JSON objects; positional arrays are invalid.
 
 - `role` is `original`, `current` or `ai_output` in the exact reviewed Proposal.
 - `blob_oid` must equal the verified Blob OID of that role. It is an equality
@@ -30,6 +31,11 @@ No pin is published separately. Failed validation does not consume pending
 review authority or advance the Decision Ref. CAS orphans after a later failure
 are not published decisions. Public bundles do not copy these notes.
 
+The current development tree (**Unreleased**, not included in the v1.3.0
+archives) rejects positional arrays for the annotations or a pin at the
+localhost JSON parsing boundary with HTTP 400 `local_request_denied`. The
+pending review remains available for a corrected object-shaped request.
+
 The localhost actual JSON request (review ID, disposition, rationale, annotations,
 JSON escaping and whitespace) must fit 8192 bytes. The HTTP transport checks the
 raw body; the service additionally bounds its compact serialized request. Existing
@@ -37,8 +43,9 @@ raw body; the service additionally bounds its compact serialized request. Existi
 remaining bytes for each disposition and disables oversize submission.
 
 Reports validate the decision lineage before decoding this extension. Absent
-extension means no recorded pins. Unknown version/fields, invalid coordinates or
-mismatched image binding produce `annotations_unavailable: true` and no pins;
+extension means no recorded pins. Non-object values, unknown version/fields,
+invalid coordinates or mismatched image binding produce
+`annotations_unavailable: true` and no pins;
 the separately verified decision remains readable. Attachment/decode failure
 prevents interactive pin display/creation, with a visible explanation. The service
 validates exact opaque Blob binding, not visual content or decoder behavior.

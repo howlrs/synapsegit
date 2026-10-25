@@ -6,6 +6,12 @@ AIを使うクリエイターは、まず[制作の流れ](./creator_workflow.md
 操作の準備は[AIエージェントに頼む](./ai_agent_guide.ja.md)こともできます。
 上の画像は仕組みを説明するイラストで、アプリの画面キャプチャではありません。
 
+開発版の **Unreleased** 修正は、Inboxの候補選択・一時保存の破棄・提案作成を同時に実行させない制御と、
+判断ピンJSONのobject形式の検証です。v1.3.0配布archiveには含まれません。
+利用時の扱いは[制作の流れ](./creator_workflow.md)、入力形式は
+[判断ピンの契約](../spec/application/creator-decision-pins/v1/README.md)、変更一覧は
+[CHANGELOG](../CHANGELOG.md#unreleased)にまとめています。
+
 このディレクトリは、SynapseGit Core を「試す」「評価する」「実装する」ための入口である。
 現在の状態は **v1.3.0 stable release / v1形式は凍結済み**。OID・schema・local repository の縦断経路に加え、
 ordered Observationのprimary Blob OIDだけを比べるdeterministic byte-identity baselineが動作する。
