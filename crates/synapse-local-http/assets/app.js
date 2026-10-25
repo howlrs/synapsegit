@@ -1311,7 +1311,7 @@ function setStatus(form, message, tone) {
 
 function setBusy(form, busy) {
   form.setAttribute("aria-busy", String(busy));
-  const lockInputs = form.dataset.synapseCreatorUpload !== undefined || form.dataset.synapseDecision === "true";
+  const lockInputs = form.dataset.synapseCreatorUpload !== undefined || form.dataset.importInboxPreview !== undefined || form.dataset.synapseDecision === "true";
   const controls = lockInputs ? "input, button, select, textarea" : "[data-synapse-submit]";
   for (const control of form.querySelectorAll(controls)) {
     if ("disabled" in control) {
@@ -1964,12 +1964,21 @@ function enhanceImportInbox() {
   const images = section.querySelector("[data-import-inbox-images]");
   if (!project || !(status instanceof HTMLElement) || !(list instanceof HTMLElement) || !(form instanceof HTMLFormElement) || !(images instanceof HTMLElement)) return;
   let stageId = null;
+  let busy = false;
   const endpoint = `/api/v1/projects/${encodeURIComponent(project)}/import-inbox`;
   const field = name => form.elements.namedItem(`inbox_${name}`);
   const note = () => { const value = { tool: field("generation_tool").value, model: field("generation_model").value, prompt: field("generation_prompt").value, intent: field("generation_intent").value }; return Object.values(value).every(value => value === "") ? null : value; };
+  // Selecting, discarding, and importing all act on the same preview. Keep
+  // them mutually exclusive, including submissions triggered without a click.
+  const setInboxBusy = value => {
+    busy = value;
+    setBusy(form, value);
+    list.querySelectorAll("button").forEach(button => { button.disabled = value; });
+  };
   const showList = async () => {
-    if (!stageId) return;
+    if (busy || !stageId) return;
     const cancelled = stageId;
+    setInboxBusy(true);
     status.textContent = t("inbox.discarding");
     try {
       const response = await apiFetch(`${endpoint}/stages/${encodeURIComponent(cancelled)}`, { method: "DELETE" });
@@ -1979,10 +1988,11 @@ function enhanceImportInbox() {
       stageId = null;
       form.hidden = true;
       list.hidden = false;
-      list.querySelectorAll("button").forEach(button => { button.disabled = false; });
       status.textContent = t("inbox.discarded");
     } catch (error) {
       status.textContent = t("inbox.discardFailed", { error: publicErrorMessage(error) });
+    } finally {
+      setInboxBusy(false);
     }
   };
   // Location advisories come from the server's bounded check of the staged
@@ -2008,8 +2018,9 @@ function enhanceImportInbox() {
     }
     enhanceApiImages(images);
   };
-  const stage = async (slug, button) => {
-    button.disabled = true; status.textContent = t("inbox.staging");
+  const stage = async slug => {
+    if (busy || stageId) return;
+    setInboxBusy(true); status.textContent = t("inbox.staging");
     try {
       const preview = await apiJson(`${endpoint}/${encodeURIComponent(slug)}/stages`, { method: "POST" });
       if (!preview || typeof preview.stage_id !== "string" || !/^[0-9a-f]{64}$/u.test(preview.stage_id)) throw new TypeError(t("inbox.stageInvalid"));
@@ -2017,7 +2028,8 @@ function enhanceImportInbox() {
       for (const name of ["session", "subject_label", "creator_name"]) field(name).value = preview[name] || "";
       const generation = preview.generation_note || {}; field("generation_tool").value = generation.tool || ""; field("generation_model").value = generation.model || ""; field("generation_prompt").value = generation.prompt || ""; field("generation_intent").value = generation.intent || "";
       list.hidden = true; form.hidden = false; status.textContent = t("inbox.staged"); renderImages(preview.metadata_warnings); form.querySelector("h3")?.focus();
-    } catch (error) { status.textContent = publicErrorMessage(error); button.disabled = false; }
+    } catch (error) { status.textContent = publicErrorMessage(error); }
+    finally { setInboxBusy(false); }
   };
   const load = async () => {
     try {
@@ -2038,7 +2050,7 @@ function enhanceImportInbox() {
           const link = document.createElement("a"); link.href = `/projects/${encodeURIComponent(project)}/creator-sessions/${encodeURIComponent(item.imported_session)}`; link.textContent = t("inbox.openSession", { session: item.imported_session });
           row.append(link);
         }
-        if (item.ready) { const button = document.createElement("button"); button.type = "button"; button.textContent = t(imported ? "inbox.reviewAgain" : "inbox.review"); if (imported) button.dataset.variant = "secondary"; button.addEventListener("click", () => void stage(item.slug, button)); row.append(button); }
+        if (item.ready) { const button = document.createElement("button"); button.type = "button"; button.textContent = t(imported ? "inbox.reviewAgain" : "inbox.review"); if (imported) button.dataset.variant = "secondary"; button.addEventListener("click", () => void stage(item.slug)); row.append(button); }
         list.append(row);
       }
       status.textContent = t(!result.items.length ? "inbox.empty" : result.items.some(waiting) ? "inbox.choose" : "inbox.allImported");
@@ -2048,14 +2060,14 @@ function enhanceImportInbox() {
     }
   };
   form.addEventListener("submit", async event => {
-    event.preventDefault(); if (!stageId || !form.reportValidity()) return;
+    event.preventDefault(); if (busy || !stageId || !form.reportValidity()) return;
     const bytes = UTF8_ENCODER.encode(JSON.stringify(note())).byteLength; if (bytes > 16384) { status.textContent = t("note.tooLarge"); return; }
-    const submit = form.querySelector("[type=submit]"); if (submit) submit.disabled = true;
+    setInboxBusy(true);
     try {
       const pending = await apiJson(`${endpoint}/stages/${encodeURIComponent(stageId)}/creator-sessions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ session: field("session").value, subject_label: field("subject_label").value, creator_name: field("creator_name").value, generation_note: note() }) });
       if (!pending?.session) throw new TypeError(t("inbox.proposalInvalid"));
       window.location.assign(`/projects/${encodeURIComponent(project)}/creator-sessions/${encodeURIComponent(pending.session)}`);
-    } catch (error) { status.textContent = publicErrorMessage(error); if (submit) submit.disabled = false; }
+    } catch (error) { status.textContent = publicErrorMessage(error); setInboxBusy(false); }
   });
   form.querySelector("[data-import-inbox-cancel]")?.addEventListener("click", () => void showList());
   void load();

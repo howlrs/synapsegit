@@ -13,7 +13,9 @@ checks, attachment-only and broken media, image cleanup, and JavaScript-off
 history. Import preflight coverage includes no-upload local previews, byte
 limits, file clearing, opaque/corrupt input compatibility, pending-request
 locking, stale asynchronous results, reset/lifecycle cleanup, and mobile
-accessibility. Decision review coverage includes all three outcomes, rationale
+accessibility. Inbox review checks use delayed responses to cover competing
+candidate selections, discard/proposal exclusion, and recovery after failed
+requests. Decision review coverage includes all three outcomes, rationale
 round trips and markup escaping, cancel without writes, multibyte limits,
 failed-request preservation, no-JavaScript summaries, and narrow-screen axe
 checks. Browser lifecycle events are dispatched explicitly in the cleanup
