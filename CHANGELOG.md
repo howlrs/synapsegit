@@ -7,6 +7,15 @@ milestone.
 
 ## [Unreleased]
 
+### Fixed
+
+- The localhost Inbox review now allows only one selection, discard, or
+  proposal request at a time. Rapid actions could previously replace the
+  selected preview with a later response, leave unused staged files behind,
+  or discard files while creating their proposal. Candidate buttons and
+  preview fields stay locked during a request and become available again
+  after an error.
+
 ## [1.3.0] - 2026-10-15
 
 ### Changed
