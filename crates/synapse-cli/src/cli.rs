@@ -272,7 +272,7 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
     let Some(command) = args.first().map(String::as_str) else {
         return Err(CliError::Usage("a command is required".into()));
     };
-    if command != "inbox" && matches!(args.get(1).map(String::as_str), Some("--help" | "-h")) {
+    if requests_help(&args[1..]) {
         if let Some(help) = command_help(command) {
             out!("{help}");
             return Ok(());
@@ -494,6 +494,25 @@ fn print_creator_decision_json(
 }
 
 /// Usage and a short description for one command, or `None` when unknown.
+/// Whether `--help` or `-h` appears after a command anywhere except as an
+/// option value.  Every Core option takes exactly one value, so the argument
+/// after an `--option` is skipped: `--rationale -h` still records "-h", while
+/// `export <repo> --help` prints help instead of writing an archive to
+/// `./--help`.  A path with that name stays reachable as `./--help`.
+fn requests_help(arguments: &[String]) -> bool {
+    let mut arguments = arguments.iter();
+    while let Some(argument) = arguments.next() {
+        match argument.as_str() {
+            "--help" | "-h" => return true,
+            option if option.starts_with("--") => {
+                arguments.next();
+            }
+            _ => {}
+        }
+    }
+    false
+}
+
 fn command_help(command: &str) -> Option<String> {
     if command == "inbox" {
         return Some(INBOX_USAGE.to_owned());
