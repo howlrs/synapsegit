@@ -7,6 +7,18 @@ milestone.
 
 ## [Unreleased]
 
+### Changed
+
+- `synapse creator-report` and the text result of `creator-run` and
+  `inbox decide` no longer print Rust's internal notation, such as
+  `CreatorGenerationNote { ... }`. A generation note is printed as
+  `generation_note_tool`, `generation_note_model`, `generation_note_prompt`,
+  and `generation_note_intent` lines instead of `generation_note_user_declared`.
+  `decision_pins_private=<count>` is followed by one tab-separated line per pin
+  (role, x, y, note). A derived session's source is printed as
+  `reused_reference_source_*` lines instead of `reused_reference_source`.
+  Values stay escaped, and the JSON output is unchanged (#187).
+
 ### Fixed
 
 - The localhost Inbox review now allows only one selection, discard, or

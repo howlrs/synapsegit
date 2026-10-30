@@ -161,12 +161,17 @@ source lineage when present. Keep it private. It is neither a public bundle nor
 a repository backup, and it is not interchangeable with the CLI JSON document.
 
 The CLI report also
-shows generation notes as `generation_note_user_declared` and valid pins as
-`decision_pins_private`:
+shows generation notes and valid pins:
 
 ```sh
 synapse creator-report /path/to/repository session-1
 ```
+
+In the current development tree, each generation note field has its own line,
+such as `generation_note_tool="..."`, and `decision_pins_private=<count>` is
+followed by one tab-separated line per pin: role, x, y, and the quoted note.
+v1.3.0 prints the note as `generation_note_user_declared` and the pins as
+`decision_pins_private`, each on one line in Rust's internal notation.
 
 The built-in image comparison is manual viewing only. It can show two images
 side by side or overlay equal decoded dimensions, but performs no registration,
