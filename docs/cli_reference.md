@@ -271,6 +271,11 @@ Blob は JSON ではないため `put-blob` を使う。
 全 put command は成功時に OID だけを stdout へ出す。同じ object の再投入は同じ OID を返すが、
 CLI は `Created` / `AlreadyPresent` の disposition を表示しない。
 
+全 put command の `<file>` と `creator-run`／`inbox put` の `--generation-note-file` は、non-blocking open した
+descriptor が regular file であることを確認してから読む。directory、FIFO、socket などは読まずに
+`storage_error: open blob input file <file>: not a regular file`（JSON 入力では `open structured input file`）で
+拒否し、hint を付ける。repository は変更しない。
+
 ### `update-ref <repo> <ref> <expected-oid|-> <new-oid> [options]`
 
 candidate Commit の typed closure を確認し、Ref と reflog を compare-and-swap 更新する。

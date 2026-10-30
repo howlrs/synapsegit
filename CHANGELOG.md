@@ -58,6 +58,14 @@ milestone.
   the following option value as an unknown option (`invalid or duplicate
   creator-run option "S"`) or said that it required a value. Only the error
   text changes; accepted arguments are unchanged.
+- `put-blob`, `put-record`, `build-tree`, `commit`, `put-object`, and
+  `--generation-note-file` now reject a directory, FIFO, or socket input with
+  `storage_error: open ... input file <file>: not a regular file` and the
+  usual input hint, without touching the repository. Previously a FIFO
+  blocked the command indefinitely, and a directory given to `put-blob` was
+  reported by the repository's internal staging-file path instead of the
+  input path. Inputs are opened without blocking, as `creator-run` already
+  does.
 
 ## [1.3.0] - 2026-10-15
 

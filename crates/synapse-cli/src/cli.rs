@@ -169,7 +169,8 @@ impl CliError {
 
     /// One line of advice for errors whose next step is not in the message.
     fn hint(&self) -> Option<&'static str> {
-        if let Self::Creator(CreatorError::Io { operation, .. }) = self {
+        if let Self::Creator(CreatorError::Io { operation, .. }) | Self::Io { operation, .. } = self
+        {
             if operation.contains("input") {
                 return Some("check that each input path exists and names a readable regular file");
             }
@@ -1149,8 +1150,7 @@ fn print_creator_report(report: &CreatorReport) -> Result<(), CliError> {
 fn put_blob(args: &[String]) -> Result<(), CliError> {
     let (repo, file, claimed) = parse_put_args(args)?;
     let repository = Repository::open_existing(repo)?;
-    let input =
-        File::open(file).map_err(|source| CliError::io("open blob input file", file, source))?;
+    let input = open_regular_input(Path::new(file), "open blob input file")?;
     let result = match claimed {
         Some(oid) => repository.put_blob_claimed(oid, input)?,
         None => repository.put_blob(input)?,
@@ -1246,8 +1246,7 @@ fn now_unix_nanos() -> Result<i64, CliError> {
 }
 
 fn read_structured(path: &Path) -> Result<Vec<u8>, CliError> {
-    let file = File::open(path)
-        .map_err(|source| CliError::io("open structured input file", path, source))?;
+    let file = open_regular_input(path, "open structured input file")?;
     let mut bytes = Vec::new();
     file.take(DEFAULT_MAX_STRUCTURED_BYTES as u64 + 1)
         .read_to_end(&mut bytes)
@@ -1259,6 +1258,39 @@ fn read_structured(path: &Path) -> Result<Vec<u8>, CliError> {
         )));
     }
     Ok(bytes)
+}
+
+/// Open a caller-supplied input file without blocking and require a regular
+/// file, so a FIFO cannot park the command and a directory is reported by its
+/// own path rather than the repository staging file it was copied into.
+/// Reads of a regular file are unaffected by `O_NONBLOCK`.
+fn open_regular_input(path: &Path, operation: &'static str) -> Result<File, CliError> {
+    let file = open_nonblocking(path).map_err(|source| CliError::io(operation, path, source))?;
+    let metadata = file
+        .metadata()
+        .map_err(|source| CliError::io(operation, path, source))?;
+    if !metadata.is_file() {
+        return Err(CliError::io(
+            operation,
+            path,
+            io::Error::new(io::ErrorKind::InvalidInput, "not a regular file"),
+        ));
+    }
+    Ok(file)
+}
+
+#[cfg(unix)]
+fn open_nonblocking(path: &Path) -> io::Result<File> {
+    use std::os::unix::fs::OpenOptionsExt;
+    std::fs::OpenOptions::new()
+        .read(true)
+        .custom_flags(rustix::fs::OFlags::NONBLOCK.bits() as i32)
+        .open(path)
+}
+
+#[cfg(not(unix))]
+fn open_nonblocking(path: &Path) -> io::Result<File> {
+    File::open(path)
 }
 
 fn require_len(args: &[String], expected: usize) -> Result<(), CliError> {
