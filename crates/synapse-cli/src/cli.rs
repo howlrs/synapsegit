@@ -324,7 +324,7 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
                 report.issues.len()
             );
             for issue in &report.issues {
-                eprintln!("{:?}", issue.kind);
+                eprintln!("issue: {}", issue.kind);
             }
             if !report.is_clean() {
                 return Err(CliError::FsckFailed);

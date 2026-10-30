@@ -282,9 +282,7 @@ impl BuildPlan {
                     kind => {
                         return Err(ProjectionError::InvalidSource(format!(
                             "Ref {:?} closure issue at {}: {}",
-                            reference.name,
-                            issue.oid,
-                            closure_issue_description(kind)
+                            reference.name, issue.oid, kind
                         )));
                     }
                 }
@@ -647,30 +645,6 @@ fn availability_for_state(state: &ClosureNodeState) -> ObjectAvailability {
         ClosureNodeState::Missing { .. } => ObjectAvailability::Missing,
         ClosureNodeState::Corrupt { .. } | ClosureNodeState::ReadFailure { .. } => {
             unreachable!("unreadable closure state is rejected before reachability insertion")
-        }
-    }
-}
-
-fn closure_issue_description(kind: &ClosureIssueKind) -> String {
-    match kind {
-        ClosureIssueKind::Missing => "missing object".to_owned(),
-        ClosureIssueKind::Corrupt { detail } => format!("corrupt object: {detail}"),
-        ClosureIssueKind::ReadFailure { detail } => format!("read failure: {detail}"),
-        ClosureIssueKind::ReferenceTypeMismatch { expected, actual } => format!(
-            "reference kind mismatch: expected {}, actual {}",
-            expected.prefix(),
-            actual.prefix()
-        ),
-        ClosureIssueKind::ReferenceSemanticMismatch { expected, actual } => {
-            format!("reference semantic mismatch: expected {expected}, actual {actual}")
-        }
-        ClosureIssueKind::InvalidObject { detail } => format!("invalid object: {detail}"),
-        ClosureIssueKind::InvalidReference { value, detail } => {
-            format!("invalid reference {value:?}: {detail}")
-        }
-        ClosureIssueKind::Cycle { path } => format!("cycle: {}", path.join(" -> ")),
-        ClosureIssueKind::ResourceLimit { resource, limit } => {
-            format!("{resource} resource limit {limit}")
         }
     }
 }

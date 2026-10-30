@@ -928,7 +928,18 @@ stored object の pathname / OID / canonical bytes と、current Ref heads か�
 objects=<seen> verified=<verified> closures=<roots> issues=<count>
 ```
 
-issue detail は stderr に Rust Debug 形式で出し、問題があれば最後に `fsck_failed` で終了する。
+issue は stderr へ1件1行で出し、問題があれば最後に `fsck_failed` で終了する。各行は、どの検査で見つかったかを
+`store path`（store内の不正なpath）、`object`（保存objectの読み取り・digest検証）、`closure`（Ref headからの到達検証）で示す。
+
+```text
+issue: object <oid>: corrupt object: OID digest mismatch; content calculates to <oid>
+issue: closure <oid>: missing object (referenced by <tree-oid> at entries["current.image"])
+```
+
+closure の issue は Ref head ごとに検査するため、複数の Ref から到達する同じ object の問題は Ref の数だけ表示され、
+stdout の `issues=<count>` もその件数を数える。行の文言は人向けであり、自動処理には exit code と `fsck_failed` を使う。
+開発版（**Unreleased**、v1.3.0配布archiveには未収録）の形式で、v1.3.0 は各 issue を
+`Closure(ClosureIssue { ... })` のような Rust の内部表記で出力する。
 Ref が0件なら stored Commit 全件を root とする。
 
 `fsck` は全 structured object の concrete JSON Schema を再実行しない。
