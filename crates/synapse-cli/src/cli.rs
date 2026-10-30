@@ -256,7 +256,13 @@ pub fn run_cli(args: Vec<String>) -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             let show_usage = error.code() == "usage_error";
-            eprintln!("{}: {error}", error.code());
+            // Core errors already display as `<code>: <message>`; print the
+            // stable code once.
+            let message = error.to_string();
+            let message = message
+                .strip_prefix(&format!("{}: ", error.code()))
+                .unwrap_or(&message);
+            eprintln!("{}: {message}", error.code());
             if let Some(hint) = error.hint() {
                 eprintln!("hint: {hint}");
             }
@@ -383,9 +389,14 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
     let mut format = None;
     let mut index = 6;
     while index < args.len() {
-        let value = args
-            .get(index + 1)
-            .ok_or_else(|| CliError::Usage(format!("{} requires a value", args[index])))?;
+        let value = args.get(index + 1).ok_or_else(|| {
+            option_error(
+                "creator-run",
+                &args[1..6],
+                &CREATOR_RUN_POSITIONALS,
+                format!("{} requires a value", args[index]),
+            )
+        })?;
         match args[index].as_str() {
             "--subject" if subject.is_none() => subject = Some(value.clone()),
             "--creator" if creator.is_none() => creator = Some(value.clone()),
@@ -400,9 +411,12 @@ fn creator_run(args: &[String]) -> Result<(), CliError> {
                 format = Some(parse_creator_format(value, "creator-run")?);
             }
             other => {
-                return Err(CliError::Usage(format!(
-                    "invalid or duplicate creator-run option {other:?}"
-                )));
+                return Err(option_error(
+                    "creator-run",
+                    &args[1..6],
+                    &CREATOR_RUN_POSITIONALS,
+                    format!("invalid or duplicate creator-run option {other:?}"),
+                ));
             }
         }
         index += 2;
@@ -690,9 +704,14 @@ fn inbox_command(args: &[String]) -> Result<(), CliError> {
     let mut format = None;
     let mut index = 7;
     while index < args.len() {
-        let value = args
-            .get(index + 1)
-            .ok_or_else(|| CliError::Usage(format!("{} requires a value", args[index])))?;
+        let value = args.get(index + 1).ok_or_else(|| {
+            option_error(
+                "inbox put",
+                &args[2..7],
+                &INBOX_PUT_POSITIONALS,
+                format!("{} requires a value", args[index]),
+            )
+        })?;
         match args[index].as_str() {
             "--subject" if subject.is_none() => subject = Some(value.clone()),
             "--creator" if creator.is_none() => creator = Some(value.clone()),
@@ -711,9 +730,12 @@ fn inbox_command(args: &[String]) -> Result<(), CliError> {
                 });
             }
             other => {
-                return Err(CliError::Usage(format!(
-                    "invalid or duplicate inbox put option {other:?}"
-                )));
+                return Err(option_error(
+                    "inbox put",
+                    &args[2..7],
+                    &INBOX_PUT_POSITIONALS,
+                    format!("invalid or duplicate inbox put option {other:?}"),
+                ));
             }
         }
         index += 2;
@@ -830,9 +852,14 @@ fn inbox_decide(args: &[String]) -> Result<(), CliError> {
     let mut format = None;
     let mut index = 4;
     while index < args.len() {
-        let value = args
-            .get(index + 1)
-            .ok_or_else(|| CliError::Usage(format!("{} requires a value", args[index])))?;
+        let value = args.get(index + 1).ok_or_else(|| {
+            option_error(
+                "inbox decide",
+                &args[1..4],
+                &INBOX_DECIDE_POSITIONALS,
+                format!("{} requires a value", args[index]),
+            )
+        })?;
         match args[index].as_str() {
             "--decision" if decision.is_none() => {
                 decision = Some(CreatorDisposition::parse(value)?)
@@ -844,9 +871,12 @@ fn inbox_decide(args: &[String]) -> Result<(), CliError> {
                 format = Some(parse_creator_format(value, "inbox decide")?);
             }
             other => {
-                return Err(CliError::Usage(format!(
-                    "invalid or duplicate inbox decide option {other:?}"
-                )));
+                return Err(option_error(
+                    "inbox decide",
+                    &args[1..4],
+                    &INBOX_DECIDE_POSITIONALS,
+                    format!("invalid or duplicate inbox decide option {other:?}"),
+                ));
             }
         }
         index += 2;
@@ -1131,16 +1161,24 @@ fn update_ref(args: &[String]) -> Result<(), CliError> {
     let mut message = None;
     let mut index = 5;
     while index < args.len() {
-        let value = args
-            .get(index + 1)
-            .ok_or_else(|| CliError::Usage(format!("{} requires a value", args[index])))?;
+        let value = args.get(index + 1).ok_or_else(|| {
+            option_error(
+                "update-ref",
+                &args[1..5],
+                &UPDATE_REF_POSITIONALS,
+                format!("{} requires a value", args[index]),
+            )
+        })?;
         match args[index].as_str() {
             "--actor" if actor.is_none() => actor = Some(value.as_str()),
             "--message" if message.is_none() => message = Some(value.as_str()),
             other => {
-                return Err(CliError::Usage(format!(
-                    "invalid update-ref option {other:?}"
-                )));
+                return Err(option_error(
+                    "update-ref",
+                    &args[1..5],
+                    &UPDATE_REF_POSITIONALS,
+                    format!("invalid update-ref option {other:?}"),
+                ));
             }
         }
         index += 2;
@@ -1197,4 +1235,44 @@ fn require_len(args: &[String], expected: usize) -> Result<(), CliError> {
             args.first().map_or("command", String::as_str)
         )))
     }
+}
+
+const CREATOR_RUN_POSITIONALS: [&str; 5] = [
+    "<repo>",
+    "<session>",
+    "<original>",
+    "<current>",
+    "<ai-output>",
+];
+const INBOX_PUT_POSITIONALS: [&str; 5] = [
+    "<inbox-dir>",
+    "<slug>",
+    "<original>",
+    "<current>",
+    "<ai-output>",
+];
+const INBOX_DECIDE_POSITIONALS: [&str; 3] = ["<inbox-dir>", "<slug>", "<repo>"];
+const UPDATE_REF_POSITIONALS: [&str; 4] = ["<repo>", "<ref>", "<expected-oid|->", "<new-oid>"];
+
+/// Build the error for an option that could not be parsed.  When a positional
+/// argument is missing, the first option name shifts into a positional slot
+/// and its value is then read as an option name, so name the missing
+/// positional instead.  Only failing invocations reach this.
+fn option_error(
+    command: &str,
+    positionals: &[String],
+    slots: &[&str],
+    message: String,
+) -> CliError {
+    let shifted = positionals
+        .iter()
+        .zip(slots)
+        .find(|(argument, _)| argument.starts_with("--"));
+    CliError::Usage(match shifted {
+        Some((argument, slot)) => format!(
+            "{command} requires {} before its options; found {argument:?} in place of {slot}",
+            slots.join(" ")
+        ),
+        None => message,
+    })
 }
