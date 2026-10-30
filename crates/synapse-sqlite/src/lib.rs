@@ -338,7 +338,10 @@ impl fmt::Display for RefStoreError {
             Self::InvalidRefName { value } => write!(formatter, "invalid Ref name: {value:?}"),
             Self::InvalidCommitOid { value } => write!(formatter, "invalid Commit OID: {value:?}"),
             Self::InvalidMetadata { message } => formatter.write_str(message),
-            Self::Validation(error) => write!(formatter, "head validation failed: {error}"),
+            // `code()` already reports the validation code; repeat only its message.
+            Self::Validation(error) => {
+                write!(formatter, "head validation failed: {}", error.message())
+            }
             Self::RefConflict {
                 ref_name,
                 expected_head,

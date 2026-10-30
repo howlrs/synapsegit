@@ -2280,6 +2280,52 @@ fn core_errors_print_the_stable_code_once() {
     }
 }
 
+#[cfg(unix)]
+#[test]
+fn ref_validation_errors_print_the_stable_code_once() {
+    use std::os::unix::fs::PermissionsExt;
+
+    // A Ref update rejected by closure validation nests the validation code
+    // inside the RefStore message; it is printed once there too.
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    assert_success(&run(&["init", repository.to_str().unwrap()]));
+    creator_run_session(&temp, &repository, "tampered", "adopt");
+    let repository = repository.to_str().unwrap();
+    let refs = String::from_utf8(run(&["refs", repository]).stdout).unwrap();
+    let decision = refs
+        .lines()
+        .find_map(|line| line.strip_prefix("decision/creator/tampered\t"))
+        .unwrap()
+        .to_owned();
+    let mut blobs = vec![Path::new(repository).join("cas/objects/blob")];
+    while let Some(path) = blobs.pop() {
+        if path.is_dir() {
+            blobs.extend(
+                fs::read_dir(&path)
+                    .unwrap()
+                    .map(|entry| entry.unwrap().path()),
+            );
+        } else {
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+            fs::write(&path, b"tampered").unwrap();
+        }
+    }
+    let rejected = run(&[
+        "update-ref",
+        repository,
+        "proposal/agent/check",
+        "-",
+        &decision,
+    ]);
+    assert_eq!(rejected.status.code(), Some(1));
+    let stderr = String::from_utf8(rejected.stderr).unwrap();
+    assert!(
+        stderr.starts_with("oid_mismatch: head validation failed: closure issue for blob:"),
+        "{stderr}"
+    );
+}
+
 #[test]
 fn a_missing_positional_argument_is_named_instead_of_the_shifted_option() {
     let temp = TempDirectory::new();
