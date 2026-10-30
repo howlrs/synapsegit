@@ -148,6 +148,37 @@ fn basename_aliases_keep_the_legacy_contract_without_resolving_symlinks() {
     let present_error = String::from_utf8(present_error.stderr).unwrap();
     assert!(present_error.starts_with("usage_error: unknown command \"unknown\""));
     assert!(present_error.contains("synapse-present export"));
+
+    // Help after a present subcommand must not export into `./--help` or
+    // validate `--help` as a bundle, for either invocation name.
+    let workspace = temporary.join("work");
+    fs::create_dir(&workspace).unwrap();
+    drop(Repository::open(workspace.join("repo")).unwrap());
+    for (program, prefix, usage) in [
+        (binary(), &["present"][..], "synapse present export <repo>"),
+        (present, &[][..], "synapse-present export <repo>"),
+    ] {
+        for arguments in [
+            &["export", "repo", "--help"][..],
+            &["export", "repo", "out", "-h"],
+            &["preview", "--help"],
+            &["preview", "out", "-h"],
+        ] {
+            let output = Command::new(&program)
+                .current_dir(&workspace)
+                .args(prefix)
+                .args(arguments)
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{program:?} {arguments:?}");
+            assert!(
+                String::from_utf8(output.stdout).unwrap().contains(usage),
+                "{program:?} {arguments:?}"
+            );
+            assert!(output.stderr.is_empty(), "{program:?} {arguments:?}");
+        }
+    }
+    assert_eq!(fs::read_dir(&workspace).unwrap().count(), 1);
 }
 
 #[test]

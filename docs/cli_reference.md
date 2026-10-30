@@ -66,6 +66,12 @@ synapse present export <repo> <output-dir> [--session <id>]
 synapse present preview <bundle-dir>
 ```
 
+`synapse present --help`、`-h`、`help`は上のusageをstdoutへ出してexit code 0で終了する。`export`と`preview`も、
+後ろの引数のどこかに`--help`または`-h`という引数そのものがあれば、他の引数やoptionにかかわらず同じusageを
+stdoutへ出してexit code 0で終了し、repositoryの読み取り、bundleの検証、出力先の作成を行わない
+（`synapse present export <repo> --help`は`--help`というdirectoryを作らない）。その名前のdirectoryを
+出力先・検証対象にする場合は`./--help`のように指定する。互換名`synapse-present`でも同じである。
+
 `export` accepts `--locale en|ja` once. Omitting it preserves the frozen
 English v1 bytes; supplying either value selects the identified localized v2
 bundle and renderer profile, while `projection.json` stays the v1 semantic
