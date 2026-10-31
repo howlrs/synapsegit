@@ -159,6 +159,48 @@ pub struct ClosureIssue {
     pub kind: ClosureIssueKind,
 }
 
+impl fmt::Display for ClosureIssueKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Missing => formatter.write_str("missing object"),
+            Self::Corrupt { detail } => write!(formatter, "corrupt object: {detail}"),
+            Self::ReadFailure { detail } => write!(formatter, "read failure: {detail}"),
+            Self::ReferenceTypeMismatch { expected, actual } => write!(
+                formatter,
+                "reference kind mismatch: expected {}, actual {}",
+                expected.prefix(),
+                actual.prefix()
+            ),
+            Self::ReferenceSemanticMismatch { expected, actual } => write!(
+                formatter,
+                "reference semantic mismatch: expected {expected}, actual {actual}"
+            ),
+            Self::InvalidObject { detail } => write!(formatter, "invalid object: {detail}"),
+            Self::InvalidReference { value, detail } => {
+                write!(formatter, "invalid reference {value:?}: {detail}")
+            }
+            Self::Cycle { path } => write!(formatter, "cycle: {}", path.join(" -> ")),
+            Self::ResourceLimit { resource, limit } => {
+                write!(formatter, "{resource} resource limit {limit}")
+            }
+        }
+    }
+}
+
+impl fmt::Display for ClosureIssue {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{}: {}", self.oid, self.kind)?;
+        match (&self.referenced_by, &self.role) {
+            (Some(source), Some(role)) => {
+                write!(formatter, " (referenced by {source} at {role})")
+            }
+            (Some(source), None) => write!(formatter, " (referenced by {source})"),
+            (None, Some(role)) => write!(formatter, " (at {role})"),
+            (None, None) => Ok(()),
+        }
+    }
+}
+
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ClosureReport {
     pub root: String,
@@ -672,6 +714,26 @@ pub enum FsckIssueKind {
     CorruptObject { oid: String, detail: String },
     ReadFailure { oid: String, detail: String },
     Closure(ClosureIssue),
+}
+
+/// One line naming the check that found the issue: the store layout, the
+/// stored object itself, or the closure of a Ref head.
+impl fmt::Display for FsckIssueKind {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::InvalidStorePath { path, detail } => {
+                write!(formatter, "store path {path:?}: {detail}")
+            }
+            Self::MissingScannedObject { oid } => write!(formatter, "object {oid}: missing object"),
+            Self::CorruptObject { oid, detail } => {
+                write!(formatter, "object {oid}: corrupt object: {detail}")
+            }
+            Self::ReadFailure { oid, detail } => {
+                write!(formatter, "object {oid}: read failure: {detail}")
+            }
+            Self::Closure(issue) => write!(formatter, "closure {issue}"),
+        }
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -2160,5 +2222,146 @@ mod tests {
             pointer_limited.exceeded,
             Some(ReferenceExtractionLimit::ReferenceBytes)
         );
+    }
+
+    #[test]
+    fn fsck_and_closure_issues_display_as_one_readable_line() {
+        let blob = "blob:sg-oid-v1:sha256:aa".to_owned();
+        let tree = "tree:sg-oid-v1:sha256:bb".to_owned();
+        let closure = |kind, referenced_by: Option<&str>, role| {
+            FsckIssueKind::Closure(ClosureIssue {
+                oid: blob.clone(),
+                referenced_by: referenced_by.map(str::to_owned),
+                role,
+                kind,
+            })
+            .to_string()
+        };
+        let entry = || {
+            Some(ReferenceRole::TreeEntry {
+                segment: "current.image".into(),
+            })
+        };
+        let cases = [
+            (
+                FsckIssueKind::InvalidStorePath {
+                    path: "objects/blob/stray.txt".into(),
+                    detail: "unexpected file".into(),
+                }
+                .to_string(),
+                r#"store path "objects/blob/stray.txt": unexpected file"#,
+            ),
+            (
+                FsckIssueKind::MissingScannedObject { oid: blob.clone() }.to_string(),
+                "object blob:sg-oid-v1:sha256:aa: missing object",
+            ),
+            (
+                FsckIssueKind::CorruptObject {
+                    oid: blob.clone(),
+                    detail: "OID digest mismatch".into(),
+                }
+                .to_string(),
+                "object blob:sg-oid-v1:sha256:aa: corrupt object: OID digest mismatch",
+            ),
+            (
+                FsckIssueKind::ReadFailure {
+                    oid: blob.clone(),
+                    detail: "permission denied".into(),
+                }
+                .to_string(),
+                "object blob:sg-oid-v1:sha256:aa: read failure: permission denied",
+            ),
+            (
+                closure(ClosureIssueKind::Missing, Some(&tree), entry()),
+                r#"closure blob:sg-oid-v1:sha256:aa: missing object (referenced by tree:sg-oid-v1:sha256:bb at entries["current.image"])"#,
+            ),
+            (
+                closure(
+                    ClosureIssueKind::Corrupt {
+                        detail: "OID digest mismatch".into(),
+                    },
+                    Some(&tree),
+                    None,
+                ),
+                "closure blob:sg-oid-v1:sha256:aa: corrupt object: OID digest mismatch (referenced by tree:sg-oid-v1:sha256:bb)",
+            ),
+            (
+                closure(
+                    ClosureIssueKind::ReadFailure {
+                        detail: "permission denied".into(),
+                    },
+                    None,
+                    Some(ReferenceRole::CommitSnapshot),
+                ),
+                "closure blob:sg-oid-v1:sha256:aa: read failure: permission denied (at snapshot)",
+            ),
+            (
+                closure(
+                    ClosureIssueKind::ReferenceTypeMismatch {
+                        expected: ObjectKind::Tree,
+                        actual: ObjectKind::Blob,
+                    },
+                    None,
+                    None,
+                ),
+                "closure blob:sg-oid-v1:sha256:aa: reference kind mismatch: expected tree, actual blob",
+            ),
+            (
+                closure(
+                    ClosureIssueKind::ReferenceSemanticMismatch {
+                        expected: "record_type observation".into(),
+                        actual: "record_type activity".into(),
+                    },
+                    None,
+                    None,
+                ),
+                "closure blob:sg-oid-v1:sha256:aa: reference semantic mismatch: expected record_type observation, actual record_type activity",
+            ),
+            (
+                closure(
+                    ClosureIssueKind::InvalidObject {
+                        detail: "not canonical".into(),
+                    },
+                    None,
+                    None,
+                ),
+                "closure blob:sg-oid-v1:sha256:aa: invalid object: not canonical",
+            ),
+            (
+                closure(
+                    ClosureIssueKind::InvalidReference {
+                        value: "blob:bad".into(),
+                        detail: "invalid OID".into(),
+                    },
+                    None,
+                    None,
+                ),
+                r#"closure blob:sg-oid-v1:sha256:aa: invalid reference "blob:bad": invalid OID"#,
+            ),
+            (
+                closure(
+                    ClosureIssueKind::Cycle {
+                        path: vec![blob.clone(), tree.clone(), blob.clone()],
+                    },
+                    None,
+                    None,
+                ),
+                "closure blob:sg-oid-v1:sha256:aa: cycle: blob:sg-oid-v1:sha256:aa -> tree:sg-oid-v1:sha256:bb -> blob:sg-oid-v1:sha256:aa",
+            ),
+            (
+                closure(
+                    ClosureIssueKind::ResourceLimit {
+                        resource: "closure nodes",
+                        limit: 10,
+                    },
+                    None,
+                    None,
+                ),
+                "closure blob:sg-oid-v1:sha256:aa: closure nodes resource limit 10",
+            ),
+        ];
+        for (actual, expected) in cases {
+            assert_eq!(actual, expected);
+        }
     }
 }

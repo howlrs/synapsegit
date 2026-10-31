@@ -291,6 +291,80 @@ fn existing_repository_commands_preserve_deep_cas_layout_failures() {
 }
 
 #[test]
+fn fsck_lists_each_issue_as_one_readable_line() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    let repository_text = repository.to_str().unwrap();
+    creator_run_session(&temp, &repository, "damaged", "defer");
+    let blob_oid = |name: &str| {
+        let output = run(&[
+            "put-blob",
+            repository_text,
+            temp.join(name).to_str().unwrap(),
+        ]);
+        assert_success(&output);
+        String::from_utf8(output.stdout).unwrap().trim().to_owned()
+    };
+    let blob_path = |oid: &str| {
+        let digest = oid.rsplit(':').next().unwrap();
+        repository.join(format!(
+            "cas/objects/blob/{}/{}",
+            &digest[..2],
+            &digest[2..]
+        ))
+    };
+    let original = blob_oid("original.bin");
+    let current = blob_oid("current.bin");
+    fs::remove_file(blob_path(&original)).unwrap();
+    fs::write(blob_path(&original), b"tampered").unwrap();
+    fs::remove_file(blob_path(&current)).unwrap();
+
+    let output = run(&["fsck", repository_text]);
+    assert_eq!(output.status.code(), Some(1));
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    let issues: Vec<&str> = stderr
+        .lines()
+        .filter(|line| line.starts_with("issue: "))
+        .collect();
+    // One line per counted issue; a closure issue repeats for each Ref head
+    // whose closure reaches the object.
+    assert!(
+        stdout.ends_with(&format!(" issues={}\n", issues.len())),
+        "{stdout}"
+    );
+    let corrupt = format!(
+        "issue: object {original}: corrupt object: OID digest mismatch; content calculates to blob:"
+    );
+    assert_eq!(
+        issues
+            .iter()
+            .filter(|line| line.starts_with(&corrupt))
+            .count(),
+        1,
+        "{stderr}"
+    );
+    let missing = issues
+        .iter()
+        .filter(|line| {
+            line.starts_with(&format!(
+                "issue: closure {current}: missing object (referenced by tree:"
+            )) && line.ends_with(" at entries[\"current.image\"])")
+        })
+        .count();
+    assert_eq!(missing, 2, "{stderr}");
+    for line in &issues {
+        for notation in ["Closure(", "ClosureIssue", "Some(", "{ ", "Missing"] {
+            assert!(!line.contains(notation), "{notation:?} in {line}");
+        }
+    }
+    assert!(
+        stderr.contains("\nfsck_failed: fsck found integrity issues\n"),
+        "{stderr}"
+    );
+}
+
+#[test]
 fn concurrent_cli_exports_restore_consistent_ref_update_prefixes() {
     const ROUNDS: usize = 16;
     const REF_NAME: &str = "proposal/agent/export-race";

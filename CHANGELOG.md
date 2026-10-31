@@ -18,6 +18,14 @@ milestone.
   (role, x, y, note). A derived session's source is printed as
   `reused_reference_source_*` lines instead of `reused_reference_source`.
   Values stay escaped, and the JSON output is unchanged (#187).
+- `synapse fsck` prints each issue on stderr as one readable line, such as
+  `issue: closure <oid>: missing object (referenced by <tree-oid> at
+  entries["current.image"])`, instead of Rust's internal notation
+  (`Closure(ClosureIssue { ... })`). Each line names the check that found it:
+  `store path`, `object`, or `closure`. When closure validation rejects a Ref
+  update or archive restore, the error message describes the issue the same
+  way, for example `missing object` instead of `Missing`. Exit codes, error
+  codes, and the stdout summary are unchanged.
 
 ### Fixed
 

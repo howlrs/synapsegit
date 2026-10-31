@@ -1266,7 +1266,7 @@ fn validate_closure_report(report: &ClosureReport) -> std::result::Result<(), Va
     };
     Err(ValidationError::new(
         code,
-        format!("closure issue for {}: {:?}", issue.oid, issue.kind),
+        format!("closure issue for {}: {}", issue.oid, issue.kind),
     ))
 }
 
@@ -2215,6 +2215,40 @@ mod archive_tests {
 
         let error = validate_closure_report(&report).unwrap_err();
         assert_eq!(error.code(), "resource_limit");
+    }
+
+    #[test]
+    fn closure_issue_errors_describe_the_issue_without_rust_notation() {
+        let root = "commit:sg-oid-v1:sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+        let blob = "blob:sg-oid-v1:sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+        let report = |kind| ClosureReport {
+            root: root.to_owned(),
+            nodes: Default::default(),
+            edges: Vec::new(),
+            issues: vec![synapse_cas::ClosureIssue {
+                oid: blob.to_owned(),
+                referenced_by: Some(root.to_owned()),
+                role: None,
+                kind,
+            }],
+            truncated: false,
+        };
+
+        let missing = validate_closure_report(&report(ClosureIssueKind::Missing)).unwrap_err();
+        assert_eq!(missing.code(), "closure_missing");
+        assert_eq!(
+            missing.message(),
+            format!("closure issue for {blob}: missing object")
+        );
+        let corrupt = validate_closure_report(&report(ClosureIssueKind::Corrupt {
+            detail: "OID digest mismatch".into(),
+        }))
+        .unwrap_err();
+        assert_eq!(corrupt.code(), "oid_mismatch");
+        assert_eq!(
+            corrupt.message(),
+            format!("closure issue for {blob}: corrupt object: OID digest mismatch")
+        );
     }
 
     #[test]
