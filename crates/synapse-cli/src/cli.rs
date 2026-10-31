@@ -493,7 +493,6 @@ fn print_creator_decision_json(
     Ok(())
 }
 
-/// Usage and a short description for one command, or `None` when unknown.
 /// Whether `--help` or `-h` appears after a command anywhere except as an
 /// option value.  Every Core option takes exactly one value, so the argument
 /// after an `--option` is skipped: `--rationale -h` still records "-h", while
@@ -513,6 +512,7 @@ fn requests_help(arguments: &[String]) -> bool {
     false
 }
 
+/// Usage and a short description for one command, or `None` when unknown.
 fn command_help(command: &str) -> Option<String> {
     if command == "inbox" {
         return Some(INBOX_USAGE.to_owned());
