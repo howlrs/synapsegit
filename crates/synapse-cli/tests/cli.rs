@@ -68,7 +68,7 @@ fn run_owned_with_timeout(arguments: Vec<String>) -> Output {
         if Instant::now() >= deadline {
             let _ = child.kill();
             let _ = child.wait();
-            panic!("creator-run did not reject a non-regular input within two seconds");
+            panic!("the command did not reject a non-regular input within two seconds");
         }
         thread::sleep(Duration::from_millis(10));
     }
@@ -2659,6 +2659,65 @@ fn creator_run_rejects_non_regular_inputs_for_every_role_without_mutating_the_re
         }
         drop(socket);
         fs::remove_file(&path).unwrap_or_else(|_| fs::remove_dir(&path).unwrap());
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn put_commands_and_note_files_reject_non_regular_inputs_by_their_own_path() {
+    let temporary = TempDirectory::new();
+    let repository = temporary.join("repository");
+    assert_success(&run(&["init", repository.to_str().unwrap()]));
+    let image = temporary.join("image.bin");
+    fs::write(&image, b"ordinary input").unwrap();
+    let directory = temporary.join("directory-input");
+    fs::create_dir(&directory).unwrap();
+    let fifo = temporary.join("fifo-input");
+    assert!(
+        Command::new("mkfifo")
+            .arg(&fifo)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let (repository_text, image) = (repository.to_str().unwrap(), image.to_str().unwrap());
+    for input in [&directory, &fifo] {
+        let input = input.to_str().unwrap();
+        let creator_run = [
+            &["creator-run", repository_text, "note", image, image, image][..],
+            &["--subject", "S", "--creator", "C", "--decision", "defer"],
+            &["--generation-note-file", input],
+        ]
+        .concat();
+        for (operation, arguments) in [
+            (
+                "open blob input file",
+                vec!["put-blob", repository_text, input],
+            ),
+            (
+                "open structured input file",
+                vec!["put-record", repository_text, input],
+            ),
+            ("open structured input file", creator_run),
+        ] {
+            let before = directory_contents(&repository);
+            let failure =
+                run_owned_with_timeout(arguments.iter().map(|value| (*value).to_owned()).collect());
+            assert_eq!(failure.status.code(), Some(1), "{arguments:?}");
+            let stderr = String::from_utf8(failure.stderr).unwrap();
+            assert!(
+                stderr.starts_with(&format!(
+                    "storage_error: {operation} {input}: not a regular file\n"
+                )),
+                "{stderr}"
+            );
+            assert!(
+                stderr.contains("hint: check that each input path exists"),
+                "{stderr}"
+            );
+            assert!(failure.stdout.is_empty());
+            assert_eq!(directory_contents(&repository), before, "{arguments:?}");
+        }
     }
 }
 

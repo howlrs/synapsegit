@@ -23,5 +23,6 @@ synapse-sqlite = { path = "../synapse-sqlite" }
 synapse-local-http = { path = "../synapse-local-http" }
 synapse-publication = { path = "../synapse-publication" }
 serde = { workspace = true, features = ["derive"] }
+rustix = { workspace = true, features = ["fs"] }
 serde_json.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
