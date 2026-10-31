@@ -34,6 +34,18 @@ milestone.
   `./--help` directory and `synapse restore <archive-dir> --help` restored a
   repository there. An option value such as `--rationale -h` is still
   recorded as given; use `./--help` for a path with that name.
+- Core CLI errors print the stable error code once. `put-record`,
+  `put-blob --claimed`, and similar commands previously printed
+  `schema_invalid: schema_invalid: ...` or `oid_mismatch: oid_mismatch: ...`,
+  and a Ref update rejected by closure validation printed
+  `oid_mismatch: head validation failed: oid_mismatch: ...`. The code and exit
+  status are unchanged.
+- When `creator-run`, `inbox put`, `inbox decide`, or `update-ref` is missing
+  a positional argument, the usage error now names the missing argument, for
+  example `found "--subject" in place of <ai-output>`. It previously reported
+  the following option value as an unknown option (`invalid or duplicate
+  creator-run option "S"`) or said that it required a value. Only the error
+  text changes; accepted arguments are unchanged.
 
 ## [1.3.0] - 2026-10-15
 

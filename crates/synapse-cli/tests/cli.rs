@@ -2247,6 +2247,148 @@ fn help_after_command_arguments_never_runs_the_command() {
 }
 
 #[test]
+fn core_errors_print_the_stable_code_once() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    assert_success(&run(&["init", repository.to_str().unwrap()]));
+    let blob = temp.join("blob.bin");
+    fs::write(&blob, b"blob").unwrap();
+    let record = temp.join("record.json");
+    fs::write(&record, br#"{"object_type":"record"}"#).unwrap();
+    let (repository, blob, record) = (
+        repository.to_str().unwrap(),
+        blob.to_str().unwrap(),
+        record.to_str().unwrap(),
+    );
+    let zero_blob = format!("blob:sg-oid-v1:sha256:{}", "0".repeat(64));
+    for (code, arguments) in [
+        ("schema_invalid", vec!["put-record", repository, record]),
+        (
+            "schema_invalid",
+            vec!["put-blob", repository, blob, "--claimed", "nonsense"],
+        ),
+        (
+            "oid_mismatch",
+            vec!["put-blob", repository, blob, "--claimed", &zero_blob],
+        ),
+    ] {
+        let output = run(&arguments);
+        assert_eq!(output.status.code(), Some(1), "{arguments:?}");
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert!(stderr.starts_with(&format!("{code}: ")), "{stderr}");
+        assert!(!stderr.contains(&format!("{code}: {code}")), "{stderr}");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn ref_validation_errors_print_the_stable_code_once() {
+    use std::os::unix::fs::PermissionsExt;
+
+    // A Ref update rejected by closure validation nests the validation code
+    // inside the RefStore message; it is printed once there too.
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    assert_success(&run(&["init", repository.to_str().unwrap()]));
+    creator_run_session(&temp, &repository, "tampered", "adopt");
+    let repository = repository.to_str().unwrap();
+    let refs = String::from_utf8(run(&["refs", repository]).stdout).unwrap();
+    let decision = refs
+        .lines()
+        .find_map(|line| line.strip_prefix("decision/creator/tampered\t"))
+        .unwrap()
+        .to_owned();
+    let mut blobs = vec![Path::new(repository).join("cas/objects/blob")];
+    while let Some(path) = blobs.pop() {
+        if path.is_dir() {
+            blobs.extend(
+                fs::read_dir(&path)
+                    .unwrap()
+                    .map(|entry| entry.unwrap().path()),
+            );
+        } else {
+            fs::set_permissions(&path, fs::Permissions::from_mode(0o600)).unwrap();
+            fs::write(&path, b"tampered").unwrap();
+        }
+    }
+    let rejected = run(&[
+        "update-ref",
+        repository,
+        "proposal/agent/check",
+        "-",
+        &decision,
+    ]);
+    assert_eq!(rejected.status.code(), Some(1));
+    let stderr = String::from_utf8(rejected.stderr).unwrap();
+    assert!(
+        stderr.starts_with("oid_mismatch: head validation failed: closure issue for blob:"),
+        "{stderr}"
+    );
+}
+
+#[test]
+fn a_missing_positional_argument_is_named_instead_of_the_shifted_option() {
+    let temp = TempDirectory::new();
+    let synapse = |arguments: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_synapse"))
+            .args(arguments)
+            .current_dir(&temp.0)
+            .output()
+            .unwrap()
+    };
+    let options = ["--subject", "S", "--creator", "C"];
+    for (arguments, expected) in [
+        (
+            [
+                &["creator-run", "repo", "s", "o", "c"][..],
+                &options,
+                &["--decision", "defer"],
+            ]
+            .concat(),
+            "creator-run requires <repo> <session> <original> <current> <ai-output> before its options; found \"--subject\" in place of <ai-output>",
+        ),
+        (
+            [&["inbox", "put", "inbox", "slug", "o", "c"][..], &options].concat(),
+            "inbox put requires <inbox-dir> <slug> <original> <current> <ai-output> before its options; found \"--subject\" in place of <ai-output>",
+        ),
+        (
+            vec![
+                "inbox",
+                "decide",
+                "inbox",
+                "slug",
+                "--decision",
+                "defer",
+                "--rationale",
+                "r",
+            ],
+            "inbox decide requires <inbox-dir> <slug> <repo> before its options; found \"--decision\" in place of <repo>",
+        ),
+        (
+            vec!["update-ref", "repo", "refs/heads/x", "-", "--actor", "a"],
+            "update-ref requires <repo> <ref> <expected-oid|-> <new-oid> before its options; found \"--actor\" in place of <new-oid>",
+        ),
+    ] {
+        let output = synapse(&arguments);
+        assert_eq!(output.status.code(), Some(1), "{arguments:?}");
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert_eq!(
+            stderr.lines().next(),
+            Some(format!("usage_error: {expected}").as_str()),
+            "{arguments:?}"
+        );
+    }
+    // With every positional argument present, the option itself is named.
+    let unknown = synapse(&["creator-run", "repo", "s", "o", "c", "a", "--bogus", "x"]);
+    assert!(
+        String::from_utf8(unknown.stderr)
+            .unwrap()
+            .starts_with("usage_error: invalid or duplicate creator-run option \"--bogus\"\n")
+    );
+    assert!(fs::read_dir(&temp.0).unwrap().next().is_none());
+}
+
+#[test]
 fn common_errors_add_one_hint_line_after_the_stable_code() {
     let temp = TempDirectory::new();
     let repository = temp.join("repo");
