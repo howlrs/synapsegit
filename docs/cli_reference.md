@@ -272,9 +272,10 @@ Blob は JSON ではないため `put-blob` を使う。
 CLI は `Created` / `AlreadyPresent` の disposition を表示しない。
 
 全 put command の `<file>` と `creator-run`／`inbox put` の `--generation-note-file` は、non-blocking open した
-descriptor が regular file であることを確認してから読む。directory、FIFO、socket などは読まずに
+descriptor が regular file であることを確認してから読む。directory、FIFO、socket、device などは読まずに
 `storage_error: open blob input file <file>: not a regular file`（JSON 入力では `open structured input file`）で
-拒否し、hint を付ける。repository は変更しない。
+拒否し、hint を付ける。repository は変更しない。v1.3.0 までは読めた pipe（`/dev/stdin` や `<(...)` として渡したもの）と
+`/dev/null` も拒否するため、標準入力などの内容は一度 file に書き出してから渡す。
 
 ### `update-ref <repo> <ref> <expected-oid|-> <new-oid> [options]`
 

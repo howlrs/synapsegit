@@ -59,13 +59,16 @@ milestone.
   creator-run option "S"`) or said that it required a value. Only the error
   text changes; accepted arguments are unchanged.
 - `put-blob`, `put-record`, `build-tree`, `commit`, `put-object`, and
-  `--generation-note-file` now reject a directory, FIFO, or socket input with
+  `--generation-note-file` now read only a regular file. A directory, FIFO,
+  socket, or device input is rejected with
   `storage_error: open ... input file <file>: not a regular file` and the
   usual input hint, without touching the repository. Previously a FIFO
   blocked the command indefinitely, and a directory given to `put-blob` was
   reported by the repository's internal staging-file path instead of the
   input path. Inputs are opened without blocking, as `creator-run` already
-  does.
+  does. A pipe passed as `/dev/stdin` or `<(...)`, and `/dev/null`, were
+  read by earlier versions and are now rejected too; write such input to a
+  file first.
 
 ## [1.3.0] - 2026-10-15
 
