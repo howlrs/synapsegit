@@ -93,7 +93,9 @@ pending reviewはサーバープロセス内に限られ、再起動後の再開
 synapse creator-report /path/to/repo session-1
 ```
 
-生成メモは`generation_note_user_declared`、有効なピンは`decision_pins_private`として表示されます。
+現在の開発ツリーでは、生成メモは`generation_note_tool="..."`のように1項目1行で表示されます。
+有効なピンは`decision_pins_private=<件数>`の後に、1件1行のタブ区切り（role、x、y、引用符付きのメモ）で表示されます。
+v1.3.0では、生成メモは`generation_note_user_declared`、ピンは`decision_pins_private`の各1行に、Rustの内部表記で表示されます。
 未対応・不正なピン形式は`decision_pins=unavailable`と表示し、判断履歴の検証とは分けて扱います。
 通常のCore archive／restoreは、これらのprivateメモと画像への対応を保持します。
 

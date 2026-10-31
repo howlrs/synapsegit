@@ -537,9 +537,10 @@ fn creator_run_records_a_generation_note_file_before_creating_the_repository() {
     ]);
     assert_success(&created);
     let created = String::from_utf8(created.stdout).unwrap();
-    assert!(created.contains("generation_note_user_declared="));
-    assert!(created.contains("画像ツール"));
-    assert!(created.contains("青い空\\n構図を比較する"));
+    assert!(created.contains("\ngeneration_note_tool=\"画像ツール\"\n"));
+    assert!(created.contains("\ngeneration_note_model=\"model-\\\"quoted\\\"\"\n"));
+    assert!(created.contains("\ngeneration_note_prompt=\"青い空\\n構図を比較する\"\n"));
+    assert!(created.contains("\ngeneration_note_intent=\"採否の前に候補を残す\"\n"));
 
     let report = run(&[
         "creator-report",
@@ -922,12 +923,143 @@ fn creator_report_prints_private_user_declared_notes_separately_and_escaped() {
     ]);
     assert_success(&report);
     let text = String::from_utf8(report.stdout).unwrap();
-    assert!(text.contains("generation_note_user_declared="));
-    assert!(text.contains("日本語\\nPRIVATE_NOTE\\u{1b}[31m"));
+    // Omitted note fields are shown as declared empty strings.
+    assert!(text.contains("\ngeneration_note_tool=\"\"\n"));
+    assert!(text.contains("\ngeneration_note_prompt=\"日本語\\nPRIVATE_NOTE\\u{1b}[31m\"\n"));
     assert!(text.contains("rationale=\"別の判断理由\\nforged=decision\\u{1b}[31m\""));
     assert!(!text.contains("\nrationale=forged=decision"));
     assert!(text.contains("rationale_source=creator"));
     assert!(!text.contains('\u{1b}'));
+}
+
+#[test]
+fn creator_report_text_prints_notes_pins_and_source_without_rust_struct_notation() {
+    use synapse_creator::{
+        ANNOTATIONS_FORMAT, CreatorAnnotations, CreatorBeginOptions, CreatorDecisionOptions,
+        CreatorDisposition, CreatorGenerationNote, CreatorImageRole, CreatorPin,
+        CreatorSourceBinding, begin_creator_session_with_note, begin_creator_session_with_source,
+        creator_report, decide_creator_session, decide_creator_session_with_annotations,
+    };
+
+    let temporary = TempDirectory::new();
+    let repository = temporary.join("repo");
+    let original = temporary.join("original.png");
+    let current = temporary.join("current.png");
+    let proposal = temporary.join("proposal.png");
+    fs::write(&original, b"text original image").unwrap();
+    fs::write(&current, b"text current image").unwrap();
+    fs::write(&proposal, b"text proposal image").unwrap();
+    let options = |session: &str| CreatorBeginOptions {
+        repository: repository.clone(),
+        session: session.into(),
+        original_image: original.clone(),
+        current_image: current.clone(),
+        ai_output: proposal.clone(),
+        subject_label: "Text report subject".into(),
+        creator_name: "Aki".into(),
+    };
+    let text_report = |session: &str| {
+        let output = run(&["creator-report", repository.to_str().unwrap(), session]);
+        assert_success(&output);
+        String::from_utf8(output.stdout).unwrap()
+    };
+
+    let note = CreatorGenerationNote {
+        tool: "Synthetic tutorial generator".into(),
+        model: "unknown".into(),
+        prompt: "青い空\tと\"雲\"".into(),
+        intent: "構図を比べる".into(),
+    };
+    let mut pending = begin_creator_session_with_note(&options("pinned"), Some(&note)).unwrap();
+    let blobs = pending.receipt().clone();
+    let annotations = CreatorAnnotations {
+        format: ANNOTATIONS_FORMAT.into(),
+        pins: vec![
+            CreatorPin {
+                role: CreatorImageRole::Current,
+                blob_oid: blobs.current_blob_oid.clone(),
+                x: 120_000,
+                y: 450_000,
+                note: "左上の色".into(),
+            },
+            CreatorPin {
+                role: CreatorImageRole::AiOutput,
+                blob_oid: blobs.ai_output_blob_oid.clone(),
+                x: 500_000,
+                y: 1_000_000,
+                note: "線が\t強い\nforged=pin".into(),
+            },
+        ],
+    };
+    let receipt = decide_creator_session_with_annotations(
+        &mut pending,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Adopt,
+            rationale: None,
+        },
+        Some(&annotations),
+    )
+    .unwrap();
+
+    let text = text_report("pinned");
+    assert!(
+        text.contains(concat!(
+            "\ndecision_pins_private=2\n",
+            "current\t120000\t450000\t\"左上の色\"\n",
+            "ai_output\t500000\t1000000\t\"線が\\t強い\\nforged=pin\"\n",
+        )),
+        "{text}"
+    );
+    assert!(!text.contains("\nforged=pin"), "{text}");
+    assert!(
+        text.contains(concat!(
+            "\ngeneration_note_tool=\"Synthetic tutorial generator\"\n",
+            "generation_note_model=\"unknown\"\n",
+            "generation_note_prompt=\"青い空\\tと\\\"雲\\\"\"\n",
+            "generation_note_intent=\"構図を比べる\"\n",
+        )),
+        "{text}"
+    );
+
+    let mut derived = begin_creator_session_with_source(
+        &options("derived"),
+        None,
+        &CreatorSourceBinding::from_report(&creator_report(&repository, "pinned").unwrap()),
+    )
+    .unwrap();
+    decide_creator_session(
+        &mut derived,
+        &CreatorDecisionOptions {
+            disposition: CreatorDisposition::Defer,
+            rationale: None,
+        },
+    )
+    .unwrap();
+    let derived = text_report("derived");
+    assert!(
+        derived.contains(&format!(
+            concat!(
+                "\nreused_reference_source_format=\"synapsegit-creator-source-v1\"\n",
+                "reused_reference_source_session=\"pinned\"\n",
+                "reused_reference_source_proposal_head={:?}\n",
+                "reused_reference_source_decision_head={:?}\n",
+                "reused_reference_source_disposition=\"adopt\"\n",
+                "reused_reference_source_original_blob_oid={:?}\n",
+                "reused_reference_source_current_blob_oid={:?}\n",
+            ),
+            receipt.proposal_head,
+            receipt.decision_head,
+            receipt.original_blob_oid,
+            receipt.current_blob_oid,
+        )),
+        "{derived}"
+    );
+
+    for report in [&text, &derived] {
+        for notation in ["Creator", "AiOutput", " { ", "Some(", "None"] {
+            assert!(!report.contains(notation), "{notation:?} in {report}");
+        }
+    }
 }
 
 fn json_stdout(output: &Output) -> serde_json::Value {

@@ -1024,12 +1024,33 @@ fn print_creator_report(report: &CreatorReport) -> Result<(), CliError> {
     if let Some(recorded_at) = &report.decision_recorded_at {
         outln!("decision_recorded_at={recorded_at}");
     }
+    // Keep every field escaped: this is a human-readable report surface, not a
+    // shell-safe serialization format.
     if let Some(source) = &report.source {
-        outln!("reused_reference_source={source:?}");
+        outln!("reused_reference_source_format={:?}", source.format);
+        outln!("reused_reference_source_session={:?}", source.session);
+        outln!(
+            "reused_reference_source_proposal_head={:?}",
+            source.proposal_head
+        );
+        outln!(
+            "reused_reference_source_decision_head={:?}",
+            source.decision_head
+        );
+        outln!(
+            "reused_reference_source_disposition={:?}",
+            source.disposition
+        );
+        outln!(
+            "reused_reference_source_original_blob_oid={:?}",
+            source.original_blob_oid
+        );
+        outln!(
+            "reused_reference_source_current_blob_oid={:?}",
+            source.current_blob_oid
+        );
     }
     if let Some(source) = &report.reuse_source {
-        // Keep every field escaped: this is a human-readable report surface,
-        // not a shell-safe serialization format.
         outln!("reused_three_blob_source_format={:?}", source.format);
         outln!("reused_three_blob_source_kind={:?}", source.kind);
         outln!("reused_three_blob_source_session={:?}", source.session);
@@ -1058,10 +1079,24 @@ fn print_creator_report(report: &CreatorReport) -> Result<(), CliError> {
         outln!("decision_pins=unavailable");
     }
     if let Some(annotations) = &report.annotations {
-        outln!("decision_pins_private={annotations:?}");
+        // Like `timeline=`, a count line and then one tab-separated row per
+        // pin in display order.  The verified role already names its Blob.
+        outln!("decision_pins_private={}", annotations.pins.len());
+        for pin in &annotations.pins {
+            outln!(
+                "{}\t{}\t{}\t{:?}",
+                pin.role.as_str(),
+                pin.x,
+                pin.y,
+                pin.note
+            );
+        }
     }
     if let Some(note) = &report.generation_note {
-        outln!("generation_note_user_declared={note:?}");
+        outln!("generation_note_tool={:?}", note.tool);
+        outln!("generation_note_model={:?}", note.model);
+        outln!("generation_note_prompt={:?}", note.prompt);
+        outln!("generation_note_intent={:?}", note.intent);
     }
     match &report.rationale {
         Some(value) => outln!("rationale={value:?}"),

@@ -493,9 +493,15 @@ recording timestampになる。time basisはObservationなら`observation_record
 `activity_recorded_at_fallback`であり、unknownなcapture／valid timeを撮影時刻、AI execution time、
 外部eventの物理順序へ昇格させない。
 
-`creator-report` prints `generation_note_user_declared` when a proposal contains a private generation note. The text is escaped with Rust debug string formatting, remains user-declared, and is separate from `rationale`. The localhost import form, `creator-run --generation-note-file`, and trusted `begin_creator_session_with_note` API create these notes. Normal archives include notes; public bundles do not.
+`creator-report` prints a private generation note, when a proposal contains one, as four lines: `generation_note_tool`, `generation_note_model`, `generation_note_prompt`, and `generation_note_intent`. Each value is escaped with Rust debug string formatting, and a field the note omitted is shown as `""`. The note remains user-declared and is separate from `rationale`. The localhost import form, `creator-run --generation-note-file`, and trusted `begin_creator_session_with_note` API create these notes. Normal archives include notes; public bundles do not.
 
-`creator-report` prints escaped `decision_pins_private` when valid private pins exist, or `decision_pins=unavailable` for an unsupported/malformed annotation extension. Annotation display failure is separate from the verified Human Decision lineage.
+`creator-report` prints `decision_pins_private=<count>` when valid private pins exist, followed by one tab-separated line per pin in display order: role (`original`, `current`, or `ai_output`), `x`, `y` (integers in [0, 1000000] across the whole oriented image), and the escaped note. It prints `decision_pins=unavailable` for an unsupported/malformed annotation extension. Annotation display failure is separate from the verified Human Decision lineage.
+
+A derived session prints its fixed source as `reused_reference_source_format`, `_session`, `_proposal_head`, `_decision_head`, `_disposition`, `_original_blob_oid`, and `_current_blob_oid` lines, escaped like the `reused_three_blob_source_*` lines.
+
+開発版（**Unreleased**、v1.3.0配布archiveには未収録）の行形式です。v1.3.0は生成メモを
+`generation_note_user_declared=`、ピンを`decision_pins_private=`、派生元を`reused_reference_source=`の
+各1行に、`CreatorGenerationNote { ... }`のようなRustの内部表記で出力します。JSON出力は変わりません。
 
 開発版（**Unreleased**、v1.3.0配布archiveには未収録）では、annotation全体や各pinを位置依存のJSON配列で
 保存した不正な拡張も`decision_pins=unavailable`になります。保存済みのbyteや判断は書き換えず、
