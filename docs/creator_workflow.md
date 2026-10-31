@@ -7,17 +7,15 @@ English: [Creator workflow](./creator_workflow.en.md).
 _制作の流れを説明するイラストです。操作を覚える前に、準備・判断・記録の役割を押さえてください。
 操作の準備は[AIエージェントに頼む](./ai_agent_guide.ja.md)こともできます。_
 
-対象はv1.3.0です。生成メモはv0.11.0、判断ピン・通常の派生セッション・公開用文章フォームはv0.8.0で導入されました。中断／Deferからの新しい再レビューと任意のInbox取り込みも利用できます。
-v1.3.0 release binaryを[install guide](install.md)から導入するか、
+対象はv1.4.0です。生成メモはv0.11.0、判断ピン・通常の派生セッション・公開用文章フォームはv0.8.0で導入されました。中断／Deferからの新しい再レビューと任意のInbox取り込みも利用できます。
+v1.4.0 release binaryを[install guide](install.md)から導入するか、
 [source build](quickstart.md#1-build-する)で作成した`synapse`を
 [localhost runbook](../deploy/local/README.md)に従って起動してください。
-
-以下で「現在の開発ツリー」と書く **Unreleased** の修正は、v1.3.0のrelease archiveには含まれません。
 
 `synapse serve --import-root KEY=PATH` を使う場合、producerは`PATH/<slug>`へ3つの画像を書き、strict manifestを最後に書く。ブラウザはpathではなくslugだけを送る。確認を閉じるとprocess-private stagingは直ちに破棄され、Proposal作成は確認した同じstaged bytesだけを使う。
 CLIやAIエージェントからは`synapse inbox put`でこの形式の候補を書き出せる。repositoryを開かず、判断も記録しない。判断は人がブラウザで行う。
 
-現在の開発ツリーでは、同じInbox画面内で、候補の選択、一覧へ戻る操作、Proposal作成を同時には実行できません。いずれかのrequest中は関係するcontrolを無効にし、requestが失敗した場合は再び操作できます。遅れて届いた応答で確認中の候補が入れ替わることを防ぎます。Proposalの作成結果が不明な場合は、別の取り込みを試す前にセッションの履歴を確認してください。
+v1.4.0以降では、同じInbox画面内で、候補の選択、一覧へ戻る操作、Proposal作成を同時には実行できません。いずれかのrequest中は関係するcontrolを無効にし、requestが失敗した場合は再び操作できます。遅れて届いた応答で確認中の候補が入れ替わることを防ぎます。Proposalの作成結果が不明な場合は、別の取り込みを試す前にセッションの履歴を確認してください。
 
 具体的な写真と工程地図の割り当ては、v1.0.0で記録した開発者本人の
 [星月夜の上塗り事例](./examples/starry-night/README.ja.md)を参照してください。
@@ -82,7 +80,7 @@ pending画面の「画像上の判断メモ」で表示可能な画像を選び�
 Deferもそのセッションの判断を完了します。同じ判断の編集・再開はできません。
 pending reviewはサーバープロセス内に限られ、再起動後の再開には対応していません。
 
-現在の開発ツリーでは、`annotations`とその`pins`配列の各要素はJSON objectでなければなりません。不正な形のピンrequestはpending reviewを消費する前に拒否されるため、正しい形式へ直して通常どおり判断できます。保存済みのextensionが未対応または不正な形なら、ピンだけを利用不可として表示し、検証済みの判断履歴は読めるままにします。
+v1.4.0以降では、`annotations`とその`pins`配列の各要素はJSON objectでなければなりません。不正な形のピンrequestはpending reviewを消費する前に拒否されるため、正しい形式へ直して通常どおり判断できます。保存済みのextensionが未対応または不正な形なら、ピンだけを利用不可として表示し、検証済みの判断履歴は読めるままにします。
 
 ## 3. 完了した記録を読み返す
 
@@ -93,9 +91,9 @@ pending reviewはサーバープロセス内に限られ、再起動後の再開
 synapse creator-report /path/to/repo session-1
 ```
 
-現在の開発ツリーでは、生成メモは`generation_note_tool="..."`のように1項目1行で表示されます。
+v1.4.0以降では、生成メモは`generation_note_tool="..."`のように1項目1行で表示されます。
 有効なピンは`decision_pins_private=<件数>`の後に、1件1行のタブ区切り（role、x、y、引用符付きのメモ）で表示されます。
-v1.3.0では、生成メモは`generation_note_user_declared`、ピンは`decision_pins_private`の各1行に、Rustの内部表記で表示されます。
+v1.3.0までは、生成メモは`generation_note_user_declared`、ピンは`decision_pins_private`の各1行に、Rustの内部表記で表示されます。
 未対応・不正なピン形式は`decision_pins=unavailable`と表示し、判断履歴の検証とは分けて扱います。
 通常のCore archive／restoreは、これらのprivateメモと画像への対応を保持します。
 

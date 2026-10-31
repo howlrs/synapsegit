@@ -31,8 +31,7 @@ No pin is published separately. Failed validation does not consume pending
 review authority or advance the Decision Ref. CAS orphans after a later failure
 are not published decisions. Public bundles do not copy these notes.
 
-The current development tree (**Unreleased**, not included in the v1.3.0
-archives) rejects positional arrays for the annotations or a pin at the
+From v1.4.0, the localhost application rejects positional arrays for the annotations or a pin at the
 localhost JSON parsing boundary with HTTP 400 `local_request_denied`. The
 pending review remains available for a corrected object-shaped request.
 

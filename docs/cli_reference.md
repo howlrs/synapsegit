@@ -505,11 +505,11 @@ recording timestampになる。time basisはObservationなら`observation_record
 
 A derived session prints its fixed source as `reused_reference_source_format`, `_session`, `_proposal_head`, `_decision_head`, `_disposition`, `_original_blob_oid`, and `_current_blob_oid` lines, escaped like the `reused_three_blob_source_*` lines.
 
-開発版（**Unreleased**、v1.3.0配布archiveには未収録）の行形式です。v1.3.0は生成メモを
+v1.4.0以降の行形式です。v1.3.0までは生成メモを
 `generation_note_user_declared=`、ピンを`decision_pins_private=`、派生元を`reused_reference_source=`の
 各1行に、`CreatorGenerationNote { ... }`のようなRustの内部表記で出力します。JSON出力は変わりません。
 
-開発版（**Unreleased**、v1.3.0配布archiveには未収録）では、annotation全体や各pinを位置依存のJSON配列で
+v1.4.0以降では、annotation全体や各pinを位置依存のJSON配列で
 保存した不正な拡張も`decision_pins=unavailable`になります。保存済みのbyteや判断は書き換えず、
 検証済みの判断履歴は引き続き読めます。正しいobject形式と上限は
 [判断ピンの契約](../spec/application/creator-decision-pins/v1/README.md)を参照してください。
@@ -938,7 +938,7 @@ issue: closure <oid>: missing object (referenced by <tree-oid> at entries["curre
 
 closure の issue は Ref head ごとに検査するため、複数の Ref から到達する同じ object の問題は Ref の数だけ表示され、
 stdout の `issues=<count>` もその件数を数える。行の文言は人向けであり、自動処理には exit code と `fsck_failed` を使う。
-開発版（**Unreleased**、v1.3.0配布archiveには未収録）の形式で、v1.3.0 は各 issue を
+v1.4.0以降の形式で、v1.3.0 までは各 issue を
 `Closure(ClosureIssue { ... })` のような Rust の内部表記で出力する。
 Ref が0件なら stored Commit 全件を root とする。
 

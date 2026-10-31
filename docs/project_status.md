@@ -2,25 +2,27 @@
 
 Audience: users、contributors、maintainers
 Status: public project snapshot
-Applies to: v1.3.0 stable release
-Last verified: 2026-10-15
+Applies to: v1.4.0 stable release
+Last verified: 2026-10-31
 
-v1.3.0は、AIエージェントがInboxへ候補を置き、人がlocalhost UIで画像を確認して判断する
+v1.4.0は、AIエージェントがInboxへ候補を置き、人がlocalhost UIで画像を確認して判断する
 local single-user向けのreleaseである。v1形式は[互換性方針](./compatibility.md)に従って凍結済みで、
 formal Core Stage 1は別の研究として続ける。
 実利用者3〜5人の評価は未実施であり、人間のUX評価・参加者数・Human Decisionの実績は主張しない。
 [#192](https://github.com/howlrs/synapsegit/issues/192)では、v1.0.0公開条件としてCodex、Gemini、Claudeが
 4件の隔離したAIモック環境で主要フローを実運用試験し、localhost UIを目視確認した。Gemini・Claudeの独立reviewを受け、公開条件2を満たすと判断し、PR #197のmergeでIssueを完了した。合成素材でのrehearsalは実利用者評価の結果ではない。
-両platformの手順は[v1.3.0 release notes](./releases/v1.3.0.md)を使う。
+両platformの手順は[v1.4.0 release notes](./releases/v1.4.0.md)を使う。
 
-tagged v1.3.0 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
+tagged v1.4.0 sourceのworkspace librariesには、generic regular-file application向けのsource-level C1
 boundaryが含まれる。これはdeterministic mapper／bounded checkout、固定v1 JSON contract、sequential
 Proposal／Decision workflow、host-authenticated one-shot approval、Proposal／Decision CAS前後を別SQLite
 journalへ結ぶ明示的なrestart recovery／reconciliation orchestration、local public projectionである。
-v1.3.0 release archiveは一つの`synapse` executableと相対compatibility symlinkで、Core、loopback UI、presentation commandを提供する。このboundaryのHTTP／CLI／browser UI、新binary、model
+v1.4.0 release archiveは一つの`synapse` executableと相対compatibility symlinkで、Core、loopback UI、presentation commandを提供する。このboundaryのHTTP／CLI／browser UI、新binary、model
 invocation、remote publish、durable identity／ACL、multi-process linearizability、production serviceを提供しない。
 
 ## 現在の成果
+
+- v1.4.0は、`--help`をcommandの後ろのどこに置いてもhelpを出して何も書き出さないようにし、error codeの二重表示をなくし、位置引数の不足を名前で示す。`creator-report`と`fsck`のtext出力はRustの内部表記をやめて1項目1行にし、put commandと`--generation-note-file`はregular fileだけを読む（FIFOで止まらず、pipeや`/dev/null`は拒否する）。localhost Inboxの操作競合と判断ピンJSONの配列受理も直す。Core形式・error code・JSON出力・Human Decision境界は変更しない
 
 - v1.3.0は、取り込みフォームと新しいAI outputの派生フォームで使用ツールと生成モデルを折り畳みの外へ並べ、生成モデルが操作中のAIエージェントのモデルと異なり得ること、分からなければ空欄でよいことを説明する。生成メモの形式・上限・CLI・Inbox・API・archive・public bundleは変更せず、モデルは任意のまま。記入率への効果は未測定である
 
@@ -159,16 +161,16 @@ v1はcaller-supplied AI attribution／execution未検証だけを受け、verifi
 
 | Item | Status |
 |---|---|
-| Localhost Inbox and fresh interrupted/Defer review | Included in v1.3.0; inspect retained Inbox bytes before a person supplies a decision; no source decision rewrite |
+| Localhost Inbox and fresh interrupted/Defer review | Included in v1.4.0; inspect retained Inbox bytes before a person supplies a decision; no source decision rewrite |
 | Public repository | Available |
-| v1.3.0 GitHub Release | [Release assets and notes](https://github.com/howlrs/synapsegit/releases/tag/v1.3.0) |
-| Linux x86_64 GNU binary | Release archive for glibc 2.34+; verify against the v1.3.0 `SHA256SUMS` |
+| v1.4.0 GitHub Release | [Release assets and notes](https://github.com/howlrs/synapsegit/releases/tag/v1.4.0) |
+| Linux x86_64 GNU binary | Release archive for glibc 2.34+; verify against the v1.4.0 `SHA256SUMS` |
 | macOS arm64 binary | Release archive built and smoke-tested on macOS 14; not signed or notarized |
-| Source build from fixed tag | Available from `v1.3.0`; Rust 1.88+ |
-| SHA-256 release checksum | The v1.3.0 `SHA256SUMS` lists both platform archives; verify before extraction |
-| Build provenance attestation | Verify the v1.3.0 archives against `refs/tags/v1.3.0`; the tag workflow checks the digest, tagged commit, and GitHub-hosted runner |
+| Source build from fixed tag | Available from `v1.4.0`; Rust 1.88+ |
+| SHA-256 release checksum | The v1.4.0 `SHA256SUMS` lists both platform archives; verify before extraction |
+| Build provenance attestation | Verify the v1.4.0 archives against `refs/tags/v1.4.0`; the tag workflow checks the digest, tagged commit, and GitHub-hosted runner |
 | Unified CLI | One physical `synapse` executable; `synapse-local` and `synapse-present` are relative compatibility symlinks |
-| Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v1.3.0 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
+| Generic artifact v1 Rust sequential/durable workflow and application contract | Included in tagged v1.4.0 source/workspace libraries; explicit local journal/recovery API, not exposed as HTTP/CLI/UI, a new binary, or remote publish |
 | crates.io / GHCR / OS packages | Intentionally unavailable; GitHub Releases only |
 | Source use, Fork, and redistribution terms | Custom source-available license available; not open source |
 

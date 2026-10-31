@@ -1,6 +1,6 @@
 # Security policy
 
-SynapseGit v1.3.0 is suitable for local single-user use, not for a
+SynapseGit v1.4.0 is suitable for local single-user use, not for a
 public, multi-user, or production deployment.
 
 ## Supported versions

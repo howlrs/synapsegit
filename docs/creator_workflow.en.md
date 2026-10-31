@@ -7,7 +7,7 @@
 _Concept illustration of preparation, human choice and the record. You can
 ask an [AI agent](./ai_agent_guide.md) to handle the preparation commands._
 
-This focused guide is for the v1.3.0 release binary. It explains the path
+This focused guide is for the v1.4.0 release binary. It explains the path
 after the [15-minute mural tutorial](./tutorial/README.md): record your own
 three images, keep optional private notes, make a Human Decision, and begin a
 fresh review when another candidate is needed.
@@ -18,9 +18,6 @@ Install the release from the [installation guide](./install.md), then use the
 is an optional detailed reference. The browser interface is single-user and
 serves only IPv4 loopback. The security limits are summarized in the
 [privacy and trust summary](./security_model.en.md).
-
-The **Unreleased** changes described below as **current development tree** are
-not included in the v1.3.0 release archive.
 
 ## Record a proposal and optional generation notes
 
@@ -144,7 +141,7 @@ per-pin adoption, partial adoption, or editing/reopening of the same session.
 Pending review authority is process-local: after a restart, do not recreate it
 from values displayed in the browser.
 
-In the current development tree, `annotations` and each element of its `pins`
+From v1.4.0, `annotations` and each element of its `pins`
 array must be JSON objects. A malformed pin request is rejected before it
 consumes the pending review, so the person can correct the request and decide normally.
 If an older stored extension has an unsupported or malformed pin shape, its
@@ -167,10 +164,10 @@ shows generation notes and valid pins:
 synapse creator-report /path/to/repository session-1
 ```
 
-In the current development tree, each generation note field has its own line,
+From v1.4.0, each generation note field has its own line,
 such as `generation_note_tool="..."`, and `decision_pins_private=<count>` is
 followed by one tab-separated line per pin: role, x, y, and the quoted note.
-v1.3.0 prints the note as `generation_note_user_declared` and the pins as
+v1.3.0 and earlier print the note as `generation_note_user_declared` and the pins as
 `decision_pins_private`, each on one line in Rust's internal notation.
 
 The built-in image comparison is manual viewing only. It can show two images
@@ -225,7 +222,7 @@ before it begins a Proposal from retained bytes. Closing that confirmation
 discards the process-private staging. Inbox does not make the producer or its
 output trusted, and it does not invoke a model.
 
-In the current development tree, one Inbox page handles candidate selection,
+From v1.4.0, one Inbox page handles candidate selection,
 return to the list, and Proposal creation one request at a time. The relevant
 controls stay disabled while a request is pending and become available again
 after a request failure. This prevents a later response from replacing the
