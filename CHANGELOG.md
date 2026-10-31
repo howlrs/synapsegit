@@ -28,6 +28,12 @@ milestone.
   `storage_error`. Help no longer reads the repository, verifies a bundle, or
   creates the output directory; use `./--help` for a path with that name
   (#240).
+- Core commands now print their help and exit 0 when `--help` or `-h`
+  appears after other arguments, not only immediately after the command.
+  Previously `synapse export <repo> --help` wrote an archive into a new
+  `./--help` directory and `synapse restore <archive-dir> --help` restored a
+  repository there. An option value such as `--rationale -h` is still
+  recorded as given; use `./--help` for a path with that name.
 
 ## [1.3.0] - 2026-10-15
 

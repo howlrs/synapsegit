@@ -38,6 +38,10 @@ stdoutの読み手が先に閉じた場合（`| head`など）は残りの出力
 
 `synapse COMMAND --help`、`synapse COMMAND -h`、`synapse help COMMAND`は、そのcommandのusageと短い説明を
 stdoutへ出してexit code 0で終了する。commandは実行しない（`synapse init --help`はrepositoryを作らない）。
+`--help`／`-h`はcommandの後ろの引数のどこにあってもよい。例えば`synapse export <repo> --help`はarchiveを
+書き出さず、`synapse restore <archive-dir> --help`はrepositoryを復元しない。optionの値の位置にある
+`--help`／`-h`（`--rationale -h`など）は従来どおり値として扱う。その名前のpathを指定する場合は
+`./--help`のように書く。
 `--version`、`-V`、`version` は `synapse <package-version>` を stdout に出して exit code 0 で終了する。
 
 ## `synapse present` CLI

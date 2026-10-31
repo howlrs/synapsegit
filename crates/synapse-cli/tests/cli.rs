@@ -2152,6 +2152,100 @@ fn every_command_has_its_own_help_and_help_never_runs_the_command() {
     assert!(String::from_utf8_lossy(&unknown.stderr).starts_with("usage_error: "));
 }
 
+#[cfg(unix)]
+#[test]
+fn help_after_command_arguments_never_runs_the_command() {
+    let temp = TempDirectory::new();
+    let synapse = |arguments: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_synapse"))
+            .args(arguments)
+            .current_dir(&temp.0)
+            .output()
+            .unwrap()
+    };
+    assert_success(&synapse(&["init", "repo"]));
+    assert_success(&synapse(&["export", "repo", "archive"]));
+    fs::create_dir(temp.join("inbox")).unwrap();
+    for name in ["original.bin", "current.bin", "candidate.bin"] {
+        fs::write(temp.join(name), name).unwrap();
+    }
+    let snapshot = || {
+        let mut names = fs::read_dir(&temp.0)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect::<Vec<_>>();
+        names.sort();
+        (names, directory_contents(&temp.0))
+    };
+    let before = snapshot();
+    let images = ["original.bin", "current.bin", "candidate.bin"];
+    let creator_run = [&["creator-run", "repo", "s"][..], &images].concat();
+    let inbox_put = [&["inbox", "put", "inbox", "slug"][..], &images].concat();
+    for (command, arguments) in [
+        // These used to write an archive or a repository named `--help`/`-h`.
+        ("export", vec!["export", "repo", "--help"]),
+        ("export", vec!["export", "repo", "-h"]),
+        ("restore", vec!["restore", "archive", "--help"]),
+        ("init", vec!["init", "fresh", "-h"]),
+        ("restore", vec!["restore", "archive", "restored", "--help"]),
+        ("put-blob", vec!["put-blob", "repo", "original.bin", "-h"]),
+        (
+            "update-ref",
+            vec!["update-ref", "repo", "refs/heads/main", "-", "--help"],
+        ),
+        (
+            "creator-run",
+            [
+                &creator_run[..],
+                &["--subject", "S", "--creator", "C", "--decision", "adopt"],
+                &["--help"],
+            ]
+            .concat(),
+        ),
+        (
+            "inbox",
+            [&inbox_put[..], &["--subject", "S", "--creator", "C", "-h"]].concat(),
+        ),
+        (
+            "inbox",
+            vec!["inbox", "decide", "inbox", "slug", "repo", "--help"],
+        ),
+        ("creator-report", vec!["creator-report", "repo", "s", "-h"]),
+    ] {
+        let output = synapse(&arguments);
+        assert_success(&output);
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert!(stdout.starts_with("Usage:\n"), "{arguments:?}: {stdout}");
+        assert!(
+            stdout.contains(&format!("synapse {command}")),
+            "{arguments:?}"
+        );
+        assert!(output.stderr.is_empty(), "{arguments:?}");
+        assert!(snapshot() == before, "{arguments:?} changed the directory");
+    }
+
+    // An option value is never a help request, and an explicit path still
+    // names a directory called `--help`.
+    let recorded = synapse(
+        &[
+            &creator_run[..],
+            &["--subject", "S", "--creator", "-h", "--decision", "defer"],
+            &["--rationale", "--help"],
+        ]
+        .concat(),
+    );
+    assert_success(&recorded);
+    let report = synapse(&["creator-report", "repo", "s"]);
+    assert_success(&report);
+    let report = String::from_utf8(report.stdout).unwrap();
+    assert!(report.contains("creator_name=\"-h\"\n"), "{report}");
+    assert!(report.contains("rationale=\"--help\"\n"), "{report}");
+    assert_success(&synapse(&["export", "repo", "./--help"]));
+    assert!(temp.join("--help/manifest.json").is_file());
+    assert_success(&synapse(&["restore", "./--help", "./-h"]));
+    assert!(temp.join("-h").is_dir());
+}
+
 #[test]
 fn common_errors_add_one_hint_line_after_the_stable_code() {
     let temp = TempDirectory::new();
