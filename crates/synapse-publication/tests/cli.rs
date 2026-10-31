@@ -123,6 +123,89 @@ fn help_and_version_follow_the_companion_binary_contract() {
 }
 
 #[test]
+fn subcommand_help_anywhere_prints_usage_without_reading_or_writing() {
+    let temporary = TempDirectory::new("subcommand-help");
+    empty_repository(&temporary.join("repository"));
+    let entries = || {
+        let mut names = fs::read_dir(&temporary.0)
+            .unwrap()
+            .map(|entry| entry.unwrap().file_name())
+            .collect::<Vec<_>>();
+        names.sort();
+        names
+    };
+    let before = entries();
+    for arguments in [
+        &["export", "--help"][..],
+        &["export", "-h"],
+        &["export", "repository", "--help"],
+        &["export", "repository", "-h"],
+        &["export", "repository", "bundle", "--help"],
+        &[
+            "export",
+            "repository",
+            "bundle",
+            "--public",
+            "--locale",
+            "ja",
+            "-h",
+        ],
+        &[
+            "export",
+            "missing-repository",
+            "bundle",
+            "--help",
+            "--unknown",
+        ],
+        &["preview", "--help"],
+        &["preview", "-h"],
+        &["preview", "missing-bundle", "--help"],
+    ] {
+        let output = command()
+            .current_dir(&temporary.0)
+            .args(arguments)
+            .output()
+            .unwrap();
+        assert_success(&output);
+        let stdout = String::from_utf8(output.stdout).unwrap();
+        assert!(
+            stdout.contains("synapse-present export <repo> <output-dir>"),
+            "{arguments:?}: {stdout}"
+        );
+        assert!(
+            stdout.contains("synapse-present preview <bundle-dir>"),
+            "{arguments:?}: {stdout}"
+        );
+        assert!(
+            output.stderr.is_empty(),
+            "{arguments:?}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(entries(), before, "{arguments:?} changed the directory");
+    }
+
+    // A directory literally named `--help` stays reachable as a path.
+    let exported = command()
+        .current_dir(&temporary.0)
+        .args(["export", "repository", "./--help"])
+        .output()
+        .unwrap();
+    assert_success(&exported);
+    assert!(temporary.join("--help/projection.json").is_file());
+    let previewed = command()
+        .current_dir(&temporary.0)
+        .args(["preview", "./--help"])
+        .output()
+        .unwrap();
+    assert_success(&previewed);
+    assert!(
+        String::from_utf8(previewed.stdout)
+            .unwrap()
+            .starts_with("target=synapse\nvisibility=private_review\n")
+    );
+}
+
+#[test]
 fn a_closed_stdout_discards_output_and_keeps_the_exit_status() {
     let temporary = TempDirectory::new("closed-stdout");
     let repository = temporary.join("repository");

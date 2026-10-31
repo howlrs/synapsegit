@@ -102,6 +102,18 @@ fn run(args: Vec<String>, help_program: &str, version_program: &str) -> Result<(
         return Err(CliError::Usage("a command is required".into()));
     };
     match command {
+        // `--help` or `-h` anywhere after a subcommand wins over every other
+        // argument, so asking for help never reads a repository, verifies a
+        // bundle, or writes an output directory.  A path with that name is
+        // still reachable as `./--help`.
+        "export" | "preview"
+            if args[1..]
+                .iter()
+                .any(|argument| matches!(argument.as_str(), "--help" | "-h")) =>
+        {
+            outln!("{}", USAGE.replace("synapse-present", help_program));
+            Ok(())
+        }
         "export" => export(&args),
         "preview" => preview(&args),
         "help" | "--help" | "-h" => {

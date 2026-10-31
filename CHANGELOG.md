@@ -20,6 +20,14 @@ milestone.
   fields. Invalid API inputs leave the pending review available. Malformed
   stored pin extensions are reported as unavailable while the verified Human
   decision remains readable; valid object-shaped pins keep their format.
+- `synapse present export` and `synapse present preview`, including the
+  `synapse-present` compatibility name, now print their usage and exit 0 when
+  `--help` or `-h` appears anywhere after the subcommand. Previously
+  `present export <repo> --help` wrote a private review bundle into a new
+  `./--help` directory, and `present preview --help` failed with
+  `storage_error`. Help no longer reads the repository, verifies a bundle, or
+  creates the output directory; use `./--help` for a path with that name
+  (#240).
 
 ## [1.3.0] - 2026-10-15
 
