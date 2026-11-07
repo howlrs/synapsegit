@@ -132,7 +132,7 @@ GitHub Settingsへのuploadは、このrepositoryの画像更新とは別の操�
 | Channel | Support | Notes |
 |---|---|---|
 | Linux x86_64 GNU archive | Supported release path | Ubuntu 22.04 build、glibc 2.34+ |
-| macOS arm64（Apple Silicon）archive | Supported release path | macOS 14でbuild・test・archive smoke。Appleの署名・notarizationなし |
+| macOS arm64（Apple Silicon）archive | Supported release path | macOS 15でbuild・test・archive smoke（v1.4.0までのarchiveはmacOS 14）。Appleの署名・notarizationなし |
 | Tagged source build | Best-effort | Rust 1.88+、対応Unix-like host |
 | Windows | Unsupported | atomic archive publication path未対応 |
 | Linux ARM64 prebuilt | Not published | release pipelineで未検証。tagged source buildを使う |
@@ -143,7 +143,7 @@ GitHub Settingsへのuploadは、このrepositoryの画像更新とは別の操�
 
 ## Release asset構成
 
-tag workflowは、Linux x86_64（`ubuntu-22.04`）とmacOS arm64（`macos-14`）のjobで、それぞれtest、release build、
+tag workflowは、Linux x86_64（`ubuntu-22.04`）とmacOS arm64（`macos-15`）のjobで、それぞれtest、release build、
 archive作成、展開後smoke（`scripts/smoke_release_archive.sh`）、build provenance attestationを行う。publish jobは
 両方のarchiveを集め、`scripts/assemble_release_assets.sh`で2行の`SHA256SUMS`にまとめてからdraft releaseへuploadする。
 利用者は`sha256sum --check --ignore-missing SHA256SUMS`（macOSでは該当行を`shasum -a 256 --check`へ渡す）で、
