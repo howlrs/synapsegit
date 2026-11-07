@@ -8,8 +8,8 @@ use std::thread;
 use synapse_canonical::{ErrorCode, ResourceLimits};
 use synapse_cas::{
     ClosureIssueKind, ClosureNodeState, FileObjectStore, FsckIssueKind, GraphLimits, ObjectKind,
-    ObjectState, PutDisposition, ReferenceRole, StoreError, StoreLimits, fsck, fsck_all,
-    verify_closure,
+    ObjectState, ObjectStore, PutDisposition, ReferenceRole, StoreError, StoreLimits,
+    VerifiedObjectMemo, fsck, fsck_all, verify_closure,
 };
 
 static NEXT_TEMP_DIRECTORY: AtomicU64 = AtomicU64::new(0);
@@ -869,6 +869,26 @@ fn bounded_inventory_stays_bounded_while_skipping_os_metadata() {
         Some(ErrorCode::ResourceLimit)
     );
     assert_eq!(store.list_oids_limited(64).unwrap(), [blob.oid.clone()]);
+}
+
+#[test]
+fn verified_memo_notices_an_object_removed_or_resized_during_a_check() {
+    let (temporary, store) = open_store("memo-removal");
+    let removed = store.put_blob(b"removed later".as_slice()).unwrap();
+    let resized = store.put_blob(b"resized later".as_slice()).unwrap();
+    let memo = VerifiedObjectMemo::new(&store);
+    assert!(memo.get_verified(&removed.oid).unwrap().is_some());
+    assert!(memo.get_verified(&resized.oid).unwrap().is_some());
+    assert!(memo.get_verified(&removed.oid).unwrap().is_some());
+
+    fs::remove_file(object_path(temporary.path(), &removed.oid)).unwrap();
+    fs::write(object_path(temporary.path(), &resized.oid), b"short").unwrap();
+
+    assert!(memo.get_verified(&removed.oid).unwrap().is_none());
+    assert!(matches!(
+        memo.get_verified(&resized.oid).unwrap_err(),
+        StoreError::CorruptObject { .. }
+    ));
 }
 
 #[test]

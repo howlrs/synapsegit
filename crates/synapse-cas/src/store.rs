@@ -1,10 +1,13 @@
 use sha2::{Digest, Sha256};
+use std::cell::{Cell, RefCell};
+use std::collections::HashMap;
 use std::error::Error;
 use std::ffi::OsStr;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 use synapse_canonical::{
     CoreError, ErrorCode, ObjectKind, ResourceLimits, Value, canonical_bytes_with_limits,
@@ -19,6 +22,10 @@ const DEFAULT_MAX_BLOB_BYTES: u64 = 512 * 1024 * 1024;
 /// OS metadata files one bounded directory scan skips on top of its own entry
 /// limit, so an otherwise empty directory can still hold a few of them.
 const MAX_IGNORED_ENTRIES_BEYOND_LIMIT: usize = 16;
+/// Raw structured bytes one [`VerifiedObjectMemo`] keeps parsed. A Record is
+/// about 1 KiB, so this covers every object of a repository within the Creator
+/// limits. Past it, structured objects are simply read again.
+const MAX_MEMOIZED_STRUCTURED_BYTES: u64 = 32 * 1024 * 1024;
 
 /// Deployment limits for filesystem object ingestion and verification.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -157,7 +164,7 @@ pub struct ObjectInfo {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VerifiedObject {
     info: ObjectInfo,
-    structured: Option<Value>,
+    structured: Option<Arc<Value>>,
 }
 
 impl VerifiedObject {
@@ -178,7 +185,7 @@ impl VerifiedObject {
     }
 
     pub fn structured(&self) -> Option<&Value> {
-        self.structured.as_ref()
+        self.structured.as_deref()
     }
 
     #[cfg(test)]
@@ -199,7 +206,7 @@ impl VerifiedObject {
                 kind,
                 byte_len,
             },
-            structured: Some(value),
+            structured: Some(Arc::new(value)),
         }
     }
 }
@@ -217,6 +224,14 @@ pub enum ObjectState {
 pub trait ObjectStore {
     fn get_verified(&self, oid: &str) -> Result<Option<VerifiedObject>, StoreError>;
     fn list_oids(&self) -> Result<Vec<String>, StoreError>;
+
+    /// Whether an object verified earlier in this operation still looks the
+    /// same, without reading it. [`VerifiedObjectMemo`] asks this before it
+    /// answers from memory. A store with nothing cheaper than a full read can
+    /// rely on the cooperative no-removal boundary and keep this default.
+    fn still_stored(&self, _object: &VerifiedObject) -> Result<bool, StoreError> {
+        Ok(true)
+    }
 }
 
 /// Object-store inventory boundary whose implementation bounds enumeration
@@ -232,6 +247,90 @@ pub trait BoundedObjectStore: ObjectStore {
         kind: ObjectKind,
         max_objects: usize,
     ) -> Result<Vec<String>, StoreError>;
+}
+
+/// Read-through memo of the objects verified during one integrity check.
+///
+/// A complete check reaches the same object from its inventory and again from
+/// every closure that contains it, and a Blob costs a full SHA-256 each time.
+/// Within one check those reads prove nothing new, so this answers them from
+/// the first verification. Create one memo per check and drop it afterwards:
+/// answering from it later would report bytes that are no longer re-read.
+///
+/// Each answer first confirms that the object is still stored at the same
+/// length, so an object that disappears during the check stays visible as
+/// missing, as a Projection rebuild requires. A change that keeps the length
+/// is left to the next check.
+///
+/// Only verified objects are kept. Missing and corrupt objects always reach
+/// the store, so they are reported from each place that refers to them. A Blob
+/// costs only its OID and length here. Structured objects keep their parsed
+/// body up to a fixed byte budget and are read again past that.
+pub struct VerifiedObjectMemo<'store, S: ?Sized> {
+    store: &'store S,
+    verified: RefCell<HashMap<String, VerifiedObject>>,
+    structured_bytes: Cell<u64>,
+}
+
+impl<'store, S: ?Sized> VerifiedObjectMemo<'store, S> {
+    pub fn new(store: &'store S) -> Self {
+        Self {
+            store,
+            verified: RefCell::new(HashMap::new()),
+            structured_bytes: Cell::new(0),
+        }
+    }
+
+    fn remember(&self, object: &VerifiedObject) {
+        if object.kind() != ObjectKind::Blob {
+            let total = self
+                .structured_bytes
+                .get()
+                .saturating_add(object.byte_len());
+            if total > MAX_MEMOIZED_STRUCTURED_BYTES {
+                return;
+            }
+            self.structured_bytes.set(total);
+        }
+        self.verified
+            .borrow_mut()
+            .insert(object.oid().to_owned(), object.clone());
+    }
+}
+
+impl<S: ObjectStore + ?Sized> ObjectStore for VerifiedObjectMemo<'_, S> {
+    fn get_verified(&self, oid: &str) -> Result<Option<VerifiedObject>, StoreError> {
+        let known = self.verified.borrow().get(oid).cloned();
+        if let Some(object) = known {
+            if matches!(self.store.still_stored(&object), Ok(true)) {
+                return Ok(Some(object));
+            }
+            self.verified.borrow_mut().remove(oid);
+        }
+        let object = self.store.get_verified(oid)?;
+        if let Some(object) = &object {
+            self.remember(object);
+        }
+        Ok(object)
+    }
+
+    fn list_oids(&self) -> Result<Vec<String>, StoreError> {
+        self.store.list_oids()
+    }
+
+    fn still_stored(&self, object: &VerifiedObject) -> Result<bool, StoreError> {
+        self.store.still_stored(object)
+    }
+}
+
+impl<S: BoundedObjectStore + ?Sized> BoundedObjectStore for VerifiedObjectMemo<'_, S> {
+    fn list_oids_by_kind_limited(
+        &self,
+        kind: ObjectKind,
+        max_objects: usize,
+    ) -> Result<Vec<String>, StoreError> {
+        self.store.list_oids_by_kind_limited(kind, max_objects)
+    }
 }
 
 /// Local create-if-absent filesystem content-addressed store.
@@ -772,6 +871,7 @@ impl ObjectStore for FileObjectStore {
             )?;
             self.verify_raw_bytes(oid, kind, &bytes)
                 .map_err(|error| stored_object_error(oid, error))?
+                .map(Arc::new)
         };
         Ok(Some(VerifiedObject {
             info: ObjectInfo {
@@ -792,6 +892,10 @@ impl ObjectStore for FileObjectStore {
             });
         }
         Ok(inventory.oids)
+    }
+
+    fn still_stored(&self, object: &VerifiedObject) -> Result<bool, StoreError> {
+        Ok(self.stored_object_byte_len(object.oid())? == Some(object.byte_len()))
     }
 }
 

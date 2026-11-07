@@ -18,6 +18,7 @@ pub use graph::{
 };
 pub use store::{
     BoundedObjectStore, FileObjectStore, ObjectInfo, ObjectState, ObjectStore, PutDisposition,
-    PutResult, StoreError, StoreLimits, VerifiedObject, is_os_metadata_file_name,
+    PutResult, StoreError, StoreLimits, VerifiedObject, VerifiedObjectMemo,
+    is_os_metadata_file_name,
 };
 pub use synapse_canonical::ObjectKind;
