@@ -26,6 +26,10 @@ milestone.
 
 ### Changed
 
+- Updated `jsonschema` 0.58.2 → 0.60.2, `tokio` 1.53.1 → 1.54.1, `toml` 1.1.6 →
+  1.1.8, and compatible transitive crates, and regenerated
+  `THIRD_PARTY_NOTICES.md`. `rusqlite` stays at 0.39.0 because 0.41 needs Rust
+  1.89 and the workspace remains on 1.88.
 - One integrity check reads and hashes each object once. A check reached the
   same image from its inventory and again from every Ref and from the report
   index. On a 2.1 GiB repository, opening a session page fell from 5.6 to
