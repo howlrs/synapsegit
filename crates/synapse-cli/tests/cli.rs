@@ -6,6 +6,7 @@ use std::sync::{Arc, Barrier};
 use std::thread;
 #[cfg(unix)]
 use std::time::{Duration, Instant};
+use synapse_canonical::sha256_hex;
 use synapse_core::Repository;
 
 static NEXT_TEMP: AtomicU64 = AtomicU64::new(0);
@@ -334,6 +335,350 @@ fn every_command_keeps_working_after_a_file_manager_opens_the_repository() {
         restored.to_str().unwrap(),
     ]));
     assert_success(&run(&["fsck", restored.to_str().unwrap()]));
+}
+
+fn stored_blob_path(repository: &Path, bytes: &[u8]) -> PathBuf {
+    let digest = sha256_hex(bytes);
+    repository.join(format!(
+        "cas/objects/blob/{}/{}",
+        &digest[..2],
+        &digest[2..]
+    ))
+}
+
+fn stored_objects(repository: &Path, family: &str) -> Vec<PathBuf> {
+    let mut objects = fs::read_dir(repository.join("cas/objects").join(family))
+        .unwrap()
+        .flat_map(|prefix| fs::read_dir(prefix.unwrap().path()).unwrap())
+        .map(|object| object.unwrap().path())
+        .collect::<Vec<_>>();
+    objects.sort();
+    objects
+}
+
+#[test]
+fn repair_recovers_a_repository_that_one_damaged_image_stopped() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    let repository_text = repository.to_str().unwrap();
+    creator_run_session(&temp, &repository, "damaged", "adopt");
+    creator_run_session(&temp, &repository, "untouched", "reject");
+    let refs_before = fs::read(repository.join("refs.sqlite3")).unwrap();
+    let image = stored_blob_path(&repository, b"original");
+    fs::write(&image, b"bit rot").unwrap();
+    assert!(
+        !run(&["creator-report", repository_text, "untouched"])
+            .status
+            .success()
+    );
+
+    let original = temp.join("original.bin");
+    let output = run(&[
+        "repair",
+        repository_text,
+        "--from",
+        original.to_str().unwrap(),
+    ]);
+
+    assert_success(&output);
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    assert!(stdout.contains(" remaining=0"), "{stdout}");
+    assert!(stdout.contains("repaired=1 "), "{stdout}");
+    assert_eq!(fs::read(&image).unwrap(), b"original");
+    assert_eq!(
+        fs::read(repository.join("refs.sqlite3")).unwrap(),
+        refs_before
+    );
+    assert_success(&run(&["fsck", repository_text]));
+    assert_success(&run(&["creator-report", repository_text, "untouched"]));
+    assert_success(&run(&[
+        "export",
+        repository_text,
+        temp.join("archive").to_str().unwrap(),
+    ]));
+    let quarantined = fs::read_dir(repository.join("cas/quarantine"))
+        .unwrap()
+        .map(|entry| fs::read(entry.unwrap().path()).unwrap())
+        .collect::<Vec<_>>();
+    assert_eq!(quarantined, [b"bit rot".to_vec()]);
+}
+
+#[test]
+fn repair_restores_structured_objects_from_an_archive_or_a_repository_copy() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    let repository_text = repository.to_str().unwrap();
+    creator_run_session(&temp, &repository, "records", "adopt");
+    let archive = temp.join("archive");
+    assert_success(&run(&[
+        "export",
+        repository_text,
+        archive.to_str().unwrap(),
+    ]));
+    let copy = temp.join("copy");
+    copy_directory(&repository, &copy);
+    let tree = stored_objects(&repository, "tree").remove(0);
+    let tree_bytes = fs::read(&tree).unwrap();
+    let record = stored_objects(&repository, "record").remove(0);
+    let record_bytes = fs::read(&record).unwrap();
+
+    for source in [archive, copy] {
+        fs::remove_file(&tree).unwrap();
+        fs::write(&record, b"{").unwrap();
+
+        let output = run(&[
+            "repair",
+            repository_text,
+            "--from",
+            source.to_str().unwrap(),
+        ]);
+
+        assert_success(&output);
+        assert!(
+            String::from_utf8_lossy(&output.stdout).contains("repaired=2 remaining=0"),
+            "{}",
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert_eq!(fs::read(&tree).unwrap(), tree_bytes);
+        assert_eq!(fs::read(&record).unwrap(), record_bytes);
+    }
+}
+
+#[test]
+fn repair_follows_damage_revealed_by_a_restored_object() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    let repository_text = repository.to_str().unwrap();
+    creator_run_session(&temp, &repository, "layers", "adopt");
+    let archive = temp.join("archive");
+    assert_success(&run(&[
+        "export",
+        repository_text,
+        archive.to_str().unwrap(),
+    ]));
+
+    // With the Trees gone, nothing points at the images until they are back.
+    for tree in stored_objects(&repository, "tree") {
+        fs::remove_file(tree).unwrap();
+    }
+    fs::remove_file(stored_blob_path(&repository, b"original")).unwrap();
+
+    let output = run(&[
+        "repair",
+        repository_text,
+        "--from",
+        archive.to_str().unwrap(),
+    ]);
+
+    assert_success(&output);
+    assert_success(&run(&["fsck", repository_text]));
+}
+
+#[test]
+fn repair_reports_a_copy_that_differs_and_damage_it_cannot_restore() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    let repository_text = repository.to_str().unwrap();
+    creator_run_session(&temp, &repository, "stuck", "adopt");
+    let archive = temp.join("archive");
+    assert_success(&run(&[
+        "export",
+        repository_text,
+        archive.to_str().unwrap(),
+    ]));
+    let image = stored_blob_path(&repository, b"original");
+    fs::write(&image, b"bit rot").unwrap();
+    let archived_image = fs::read_dir(archive.join("objects"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| fs::read(path).unwrap() == b"original")
+        .unwrap();
+    fs::write(&archived_image, b"also damaged").unwrap();
+    let unrelated = temp.join("unrelated.png");
+    fs::write(&unrelated, b"some other picture").unwrap();
+
+    let output = run(&[
+        "repair",
+        repository_text,
+        "--from",
+        archive.to_str().unwrap(),
+        "--from",
+        unrelated.to_str().unwrap(),
+    ]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&output.stdout).contains("repaired=0 remaining=1"));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("has no usable copy of blob:"), "{stderr}");
+    assert!(
+        stderr.contains(&format!(
+            "warning: nothing was restored from {}",
+            unrelated.display()
+        )),
+        "{stderr}"
+    );
+    assert!(stderr.contains("fsck_failed:"), "{stderr}");
+    assert_eq!(fs::read(&image).unwrap(), b"bit rot");
+    assert!(!repository.join("cas/quarantine").exists());
+}
+
+#[test]
+fn repair_tries_the_next_source_when_a_backup_is_damaged_too() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    let repository_text = repository.to_str().unwrap();
+    creator_run_session(&temp, &repository, "two-copies", "adopt");
+    let archive = temp.join("archive");
+    assert_success(&run(&[
+        "export",
+        repository_text,
+        archive.to_str().unwrap(),
+    ]));
+    let image = stored_blob_path(&repository, b"original");
+    fs::write(&image, b"bit rot").unwrap();
+    let archived_image = fs::read_dir(archive.join("objects"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| fs::read(path).unwrap() == b"original")
+        .unwrap();
+    fs::remove_file(&archived_image).unwrap();
+
+    let output = run(&[
+        "repair",
+        repository_text,
+        "--from",
+        archive.to_str().unwrap(),
+        "--from",
+        temp.join("original.bin").to_str().unwrap(),
+    ]);
+
+    assert_success(&output);
+    assert_eq!(fs::read(&image).unwrap(), b"original");
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("has no usable copy of blob:"), "{stderr}");
+}
+
+#[test]
+fn repair_moves_past_a_backup_copy_damaged_in_any_way() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    let repository_text = repository.to_str().unwrap();
+    creator_run_session(&temp, &repository, "rotten-backup", "adopt");
+    let good = temp.join("good");
+    copy_directory(&repository, &good);
+    let record = stored_objects(&repository, "record").remove(0);
+    let bytes = fs::read(&record).unwrap();
+    fs::write(&record, b"{").unwrap();
+
+    for damage in [
+        b"\xff\xfe not UTF-8".as_slice(),
+        b"\xef\xbb\xbf{}",
+        br#"{"a":1,"a":2}"#,
+        b"1.5",
+        b"",
+    ] {
+        let rotten = temp.join("rotten");
+        copy_directory(&good, &rotten);
+        let copy = rotten.join(record.strip_prefix(&repository).unwrap());
+        fs::write(&copy, damage).unwrap();
+
+        let output = run(&[
+            "repair",
+            repository_text,
+            "--from",
+            rotten.to_str().unwrap(),
+            "--from",
+            good.to_str().unwrap(),
+        ]);
+
+        assert_success(&output);
+        assert_eq!(fs::read(&record).unwrap(), bytes);
+        let stderr = String::from_utf8(output.stderr).unwrap();
+        assert!(stderr.contains("has no usable copy of record:"), "{stderr}");
+        fs::remove_dir_all(&rotten).unwrap();
+        fs::write(&record, b"{").unwrap();
+    }
+}
+
+#[test]
+fn repair_says_when_a_damaged_record_holds_other_objects_back() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    let repository_text = repository.to_str().unwrap();
+    creator_run_session(&temp, &repository, "held", "adopt");
+    let image = stored_blob_path(&repository, b"original");
+    fs::write(&image, b"bit rot").unwrap();
+    let record = stored_objects(&repository, "record").remove(0);
+    fs::write(&record, b"{").unwrap();
+
+    let output = run(&[
+        "repair",
+        repository_text,
+        "--from",
+        temp.join("original.bin").to_str().unwrap(),
+    ]);
+
+    assert_eq!(output.status.code(), Some(1));
+    assert_eq!(fs::read(&image).unwrap(), b"bit rot");
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    let digest = record.iter().rev().take(2).collect::<Vec<_>>();
+    let oid = format!(
+        "record:sg-oid-v1:sha256:{}{}",
+        digest[1].to_str().unwrap(),
+        digest[0].to_str().unwrap()
+    );
+    assert!(
+        stderr.contains(&format!(
+            "warning: {oid} has no usable copy and could be a Tombstone"
+        )),
+        "{stderr}"
+    );
+    assert!(stderr.contains("was held back until"), "{stderr}");
+}
+
+#[cfg(unix)]
+#[test]
+fn repair_accepts_a_symlink_to_the_original_file() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    let repository_text = repository.to_str().unwrap();
+    creator_run_session(&temp, &repository, "linked", "adopt");
+    let image = stored_blob_path(&repository, b"original");
+    fs::write(&image, b"bit rot").unwrap();
+    let link = temp.join("linked.bin");
+    std::os::unix::fs::symlink(temp.join("original.bin"), &link).unwrap();
+
+    assert_success(&run(&[
+        "repair",
+        repository_text,
+        "--from",
+        link.to_str().unwrap(),
+    ]));
+
+    assert_eq!(fs::read(&image).unwrap(), b"original");
+}
+
+#[test]
+fn repair_requires_a_source_it_can_use() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    let repository_text = repository.to_str().unwrap();
+    assert_success(&run(&["init", repository_text]));
+
+    let no_source = run(&["repair", repository_text]);
+    assert_eq!(no_source.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&no_source.stderr).contains("usage_error:"));
+
+    let folder = temp.join("folder");
+    fs::create_dir(&folder).unwrap();
+    let unknown = run(&[
+        "repair",
+        repository_text,
+        "--from",
+        folder.to_str().unwrap(),
+    ]);
+    assert_eq!(unknown.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&unknown.stderr).contains("archive_invalid:"));
 }
 
 #[test]

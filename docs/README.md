@@ -194,7 +194,7 @@ flowchart LR
 |---|---|---|
 | strict JSON、canonical bytes、OID | 実装済み | `synapse-canonical`、golden tests |
 | concrete schema と semantic validation | 実装済み | `synapse-schema`、20 schemas |
-| filesystem CAS、typed closure、Tombstone、fsck | 実装済み | `synapse-cas` |
+| filesystem CAS、typed closure、Tombstone、fsck、OIDに一致するbytesからのrepair | 実装済み | `synapse-cas` |
 | Ref compare-and-swap と reflog | 実装済み | `synapse-sqlite` |
 | validated ingest、directory export / restore | 実装済み | `synapse-core` |
 | low-level local Core repository round-trip CLI（structured JSONはcaller-supplied） | 実装済み | `synapse-cli`、[Quickstart](./quickstart.md) |

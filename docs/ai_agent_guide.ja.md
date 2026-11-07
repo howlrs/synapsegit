@@ -184,7 +184,7 @@ fileは64 MiB以下、PNGは4,096 chunk以下、metadata payload合計は256 KiB
 | `creator_session_exists` / `creator_session_incomplete` | 新しいsession名を選ぶ。履歴は書き換えられない。 |
 | `resource_limit` | fileやrepositoryの上限に達した。人に報告する。 |
 | `storage_error` | pathと権限を確認する。続く場合は人に報告する。 |
-| `fsck_failed` | 作業を止めて人に報告する。履歴を修復しようとしない。 |
+| `fsck_failed` | 作業を止めて人に報告する。repositoryを編集しない。人が正しい写しを示したら、`synapse repair REPO --from PATH`で壊れたobjectを履歴を変えずに戻せる。 |
 
 ## AIエージェントへの指示の例
 

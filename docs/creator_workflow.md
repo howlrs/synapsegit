@@ -158,6 +158,28 @@ completeな派生セッションを含む全件exportも失敗し、bundle出力
 同じprojectの通常セッションは`--session`で選択してexportできます。既存v1 bundleの検証は継続できます。
 派生セッションの公開には、再利用の意味を保持する新しい公開形式が必要です。
 
+## 記録が壊れたときに元へ戻す
+
+`synapse fsck`や画面が整合性の問題を報告すると、SynapseGitは新しい記録も、そのrepositoryのsession表示も止めます。壊れた可能性のある記録を、正しいものとして見せないためです。保存先の不具合や同期ソフトの競合が原因になり得ます。
+
+壊れたデータの正しい写しがあれば、そのデータだけを元に戻せます。
+
+1. `synapse serve`など、repositoryを使っているものを止める。同期ソフトも止める。
+2. `synapse fsck REPO`を実行し、`issue:`の行で壊れた範囲を確認する。
+3. 写しを`--from`で指定して`synapse repair`を実行する。`--from`は複数指定でき、次の3種類を指定できる。
+
+    ```bash
+    synapse repair REPO --from ./archives/2026-11-01      # synapse exportで作ったarchive
+    synapse repair REPO --from /Volumes/backup/REPO       # repositoryのコピー
+    synapse repair REPO --from ./images/original.png      # 取り込んだときの元ファイル
+    ```
+
+4. `repaired=<戻した件数> remaining=<残った件数>`を確認する。`remaining=0`で終了コードが0なら、元どおり使える。
+
+使われるのは、内容のハッシュが記録と完全に一致するデータだけです。編集し直した画像や再書き出しした画像は別のデータなので、使われません。判断、理由、履歴、Refは変わらず、新しい記録も作りません。壊れていたファイルは消さず、`cas/quarantine/`へ移します。Tombstoneで削除を記録したデータは戻しません。指定した写しの中の削除の記録も確認し、見つかればそのデータを戻さず`warning:`で知らせます。その削除が事実なら、CLI referenceの`repair`の手順で削除の記録を加えてください。壊れた記録（Record）に写しがないと、それが削除の記録である可能性を排除できないので何も戻しません。`warning:`が出たら、その記録の写しを指定してください。削除の記録がrepositoryから跡形もなく失われ、指定した写しにもない場合は、SynapseGitはそれを検出できず、そのデータを戻すことがあります。
+
+正しい写しがなければ戻せません。`refs.sqlite3`が壊れた場合も`repair`の対象外で、archiveから新しいrepositoryへ`synapse restore`します。いずれに備えても、節目ごとに`synapse export`でarchiveを別の場所へ保存してください。
+
 ## 保存契約と関連資料
 
 - [生成メモの保存契約](../spec/application/creator-generation-note/v1/README.md)

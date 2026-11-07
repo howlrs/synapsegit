@@ -8,7 +8,7 @@ use std::thread;
 use synapse_canonical::{ErrorCode, ResourceLimits};
 use synapse_cas::{
     ClosureIssueKind, ClosureNodeState, FileObjectStore, FsckIssueKind, GraphLimits, ObjectKind,
-    ObjectState, ObjectStore, PutDisposition, ReferenceRole, StoreError, StoreLimits,
+    ObjectState, ObjectStore, PutDisposition, ReferenceRole, Repair, StoreError, StoreLimits,
     VerifiedObjectMemo, fsck, fsck_all, verify_closure,
 };
 
@@ -941,6 +941,99 @@ fn fsck_reports_one_closure_for_each_root_that_shares_a_head() {
 
     assert_eq!(report.closures.len(), 2);
     assert!(report.closures.iter().all(|closure| closure.root == root));
+}
+
+#[test]
+fn repair_replaces_a_corrupt_object_and_keeps_the_damaged_file() {
+    let (temporary, store) = open_store("repair-corrupt");
+    let blob = store.put_blob(b"good bytes".as_slice()).unwrap();
+    let path = object_path(temporary.path(), &blob.oid);
+    fs::write(&path, b"bad bytes").unwrap();
+
+    let repair = store
+        .repair_object(&blob.oid, b"good bytes".as_slice())
+        .unwrap();
+
+    let Repair::Restored {
+        quarantined: Some(quarantined),
+    } = repair
+    else {
+        panic!("corrupt object was not quarantined: {repair:?}");
+    };
+    assert_eq!(fs::read(&quarantined).unwrap(), b"bad bytes");
+    assert_eq!(fs::read(&path).unwrap(), b"good bytes");
+    assert!(fsck_all(&store, GraphLimits::default()).unwrap().is_clean());
+}
+
+#[test]
+fn repair_restores_a_missing_structured_object() {
+    let (temporary, store) = open_store("repair-missing");
+    let record = put_record(&store, "lost");
+    let path = object_path(temporary.path(), &record);
+    let bytes = fs::read(&path).unwrap();
+    fs::remove_file(&path).unwrap();
+
+    let repair = store.repair_object(&record, bytes.as_slice()).unwrap();
+
+    assert_eq!(repair, Repair::Restored { quarantined: None });
+    assert_eq!(fs::read(&path).unwrap(), bytes);
+}
+
+#[test]
+fn repair_refuses_bytes_of_another_object_and_changes_nothing() {
+    let (temporary, store) = open_store("repair-wrong-bytes");
+    let blob = store.put_blob(b"good bytes".as_slice()).unwrap();
+    let path = object_path(temporary.path(), &blob.oid);
+    fs::write(&path, b"bad bytes").unwrap();
+    let before = filesystem_snapshot(temporary.path());
+
+    let error = store
+        .repair_object(&blob.oid, b"other bytes".as_slice())
+        .unwrap_err();
+
+    assert_error_code(&error, ErrorCode::OidMismatch);
+    assert_eq!(filesystem_snapshot(temporary.path()), before);
+}
+
+#[test]
+fn repair_refuses_structured_bytes_that_are_not_canonical() {
+    let (temporary, store) = open_store("repair-canonical");
+    let record = put_record(&store, "canonical");
+    let path = object_path(temporary.path(), &record);
+    let mut padded = fs::read(&path).unwrap();
+    padded.push(b' ');
+    fs::remove_file(&path).unwrap();
+
+    let error = store.repair_object(&record, padded.as_slice()).unwrap_err();
+
+    assert_error_code(&error, ErrorCode::SchemaInvalid);
+    assert!(!path.exists());
+}
+
+#[test]
+fn repair_leaves_an_intact_object_alone() {
+    let (temporary, store) = open_store("repair-intact");
+    let blob = store.put_blob(b"good bytes".as_slice()).unwrap();
+    let before = filesystem_snapshot(temporary.path());
+
+    let repair = store
+        .repair_object(&blob.oid, b"good bytes".as_slice())
+        .unwrap();
+
+    assert_eq!(repair, Repair::AlreadyIntact);
+    assert_eq!(filesystem_snapshot(temporary.path()), before);
+}
+
+#[test]
+fn repair_needs_a_writable_store() {
+    let (temporary, store) = open_store("repair-read-only");
+    let blob = store.put_blob(b"good bytes".as_slice()).unwrap();
+    let read_only = FileObjectStore::open_existing_read_only(temporary.path()).unwrap();
+
+    assert!(matches!(
+        read_only.repair_object(&blob.oid, b"good bytes".as_slice()),
+        Err(StoreError::ReadOnly)
+    ));
 }
 
 #[test]

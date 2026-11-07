@@ -274,6 +274,28 @@ or rationales. Downloading the file makes no Core or Ref write and does not
 create, upload, or share a bundle. Follow the [public-text workflow](./presentation_sidecar.en.md)
 for limits and the separate bundle command.
 
+## Put a damaged record back
+
+When `synapse fsck` or the localhost pages report an integrity problem, SynapseGit stops new recording and stops showing the sessions of that repository, so that a record that may be damaged is never shown as correct. A failing disk or a sync tool conflict can cause this.
+
+If you have a good copy of the damaged data, you can put back just that data.
+
+1. Stop whatever uses the repository, including `synapse serve` and any sync tool.
+2. Run `synapse fsck REPO`. Its `issue:` lines show what is damaged.
+3. Run `synapse repair` with the copy as `--from`. You can give several, in any of these three forms:
+
+    ```bash
+    synapse repair REPO --from ./archives/2026-11-01      # an archive from synapse export
+    synapse repair REPO --from /Volumes/backup/REPO       # a copy of the repository
+    synapse repair REPO --from ./images/original.png      # the file you imported
+    ```
+
+4. Read `repaired=<restored> remaining=<left>`. With `remaining=0` and exit code 0, the repository works as before.
+
+Only data whose content hash exactly matches the record is used. An image you edited or exported again is different data, so it is not used. Decisions, reasons, history, and Refs do not change, and no new record is created. The damaged file is not deleted: it moves to `cas/quarantine/`. Data whose deletion is recorded by a Tombstone is not brought back. The copies you give are checked for such records too: if one is found, the data is not restored and a `warning:` says so. If that deletion is real, add its record as the `repair` section of the CLI reference describes. If a damaged Record has no copy, it might be such a deletion record, so nothing is restored; if a `warning:` says so, give a copy of that Record. If a deletion record is gone from the repository with no trace and is not in your copies either, SynapseGit cannot see it and may bring that data back.
+
+Without a good copy, the data cannot be put back. A damaged `refs.sqlite3` is also outside `repair`: use `synapse restore` from an archive into a new repository. To be ready for both, save a `synapse export` archive somewhere else at each milestone.
+
 ## What stays private
 
 Ordinary Core archives retain generation notes, decision pins, and fixed

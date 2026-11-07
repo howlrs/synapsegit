@@ -129,7 +129,7 @@ To look at it in the browser, run
 | Add an optional generation note and pins on the images | Import form and session page |
 | Read past decisions with times and a timeline | Session pages, `creator-list`, `creator-report` (text or JSON) |
 | Try another candidate from a record, or review a deferred or interrupted one again in a new session | Session page |
-| Check integrity, back up, and restore | Maintenance page, `fsck`, `export`, `restore` |
+| Check integrity, back up, restore, and put damaged data back from a good copy | Maintenance page, `fsck`, `export`, `restore`, `repair` |
 | Make a local read-only view without private notes | `synapse present` and the public-text form |
 | Use the pages in Japanese or English | Language switch in the header |
 

@@ -36,6 +36,7 @@ Usage:
   synapse update-ref <repo> <ref> <expected-oid|-> <new-oid> [--actor <id>] [--message <text>]
   synapse refs <repo>
   synapse fsck <repo>
+  synapse repair <repo> --from <archive-dir|repository|file> [--from <path>]...
   synapse export <repo> <archive-dir>
   synapse restore <archive-dir> <repo>
   synapse serve --project KEY=PATH [--label KEY=LABEL] [--archive-root PATH] [--import-root KEY=PATH] [--port PORT]
@@ -186,7 +187,7 @@ impl CliError {
                 Some("list the sessions with `synapse creator-list REPO`")
             }
             "fsck_failed" => Some(
-                "history is never rewritten automatically; review the listed issues and keep a verified archive",
+                "history is never rewritten automatically; to put damaged objects back from a good copy, run `synapse repair REPO --from PATH`",
             ),
             "resource_limit" => Some(
                 "a fixed limit was reached; use a smaller file, or record new work in a new repository when this one is full",
@@ -333,6 +334,54 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
                 return Err(CliError::FsckFailed);
             }
         }
+        "repair" => {
+            let (repository, sources) = parse_repair_args(&args)?;
+            let repository = Repository::open_existing(repository)?;
+            let report = repository.repair_objects(&sources)?;
+            for object in &report.repaired {
+                outln!("repaired {} from {}", object.oid, object.source.display());
+                if let Some(path) = &object.quarantined {
+                    outln!("quarantined {}", path.display());
+                }
+            }
+            outln!(
+                "repaired={} remaining={}",
+                report.repaired.len(),
+                report.remaining.len()
+            );
+            for (source, oid) in &report.mismatched {
+                eprintln!("warning: {} has no usable copy of {oid}", source.display());
+            }
+            for (oid, path) in &report.set_aside {
+                outln!("quarantined {}", path.display());
+                eprintln!("warning: {oid} has a Tombstone, so it was not restored");
+            }
+            for erased in &report.erased_in_source {
+                eprintln!(
+                    "warning: {} was not restored because {} holds its Tombstone {}; if that deletion is real, add the Tombstone with `synapse put-record`, otherwise leave that copy out",
+                    erased.oid,
+                    erased.source.display(),
+                    erased.tombstone
+                );
+            }
+            for oid in &report.undecided {
+                eprintln!(
+                    "warning: {oid} has no usable copy and could be a Tombstone, so nothing else was restored; give a copy of this Record"
+                );
+            }
+            for oid in &report.held_back {
+                eprintln!("warning: {oid} was held back until those Records are restored");
+            }
+            for source in &report.unused_sources {
+                eprintln!("warning: nothing was restored from {}", source.display());
+            }
+            for issue in &report.fsck.issues {
+                eprintln!("issue: {}", issue.kind);
+            }
+            if !report.fsck.is_clean() {
+                return Err(CliError::FsckFailed);
+            }
+        }
         "export" => {
             require_len(&args, 3)?;
             let mut repository = Repository::open_existing(&args[1])?;
@@ -353,6 +402,23 @@ fn run(args: Vec<String>) -> Result<(), CliError> {
         other => return Err(CliError::Usage(format!("unknown command {other:?}"))),
     }
     Ok(())
+}
+
+fn parse_repair_args(args: &[String]) -> Result<(&String, Vec<PathBuf>), CliError> {
+    let usage = || CliError::Usage("repair requires <repo> and at least one --from <path>".into());
+    let repository = args.get(1).ok_or_else(usage)?;
+    let mut sources = Vec::new();
+    let mut rest = args[2..].iter();
+    while let Some(option) = rest.next() {
+        match (option.as_str(), rest.next()) {
+            ("--from", Some(path)) => sources.push(PathBuf::from(path)),
+            _ => return Err(CliError::Usage(format!("invalid repair option {option:?}"))),
+        }
+    }
+    if sources.is_empty() {
+        return Err(usage());
+    }
+    Ok((repository, sources))
 }
 
 fn init_repository(path: &Path) -> Result<(), CliError> {
@@ -557,6 +623,9 @@ fn command_help(command: &str) -> Option<String> {
         "refs" => "Print the current Refs as <name><TAB><commit-oid>.",
         "fsck" => {
             "Check stored objects and the closure of the current Refs. Exits 1 with fsck_failed when an issue is found."
+        }
+        "repair" => {
+            "Put damaged or missing objects back from good copies of their bytes: an export archive, a copy of the repository, or an original file. Only bytes that hash to the object's OID are used. Refs, the reflog, and intact objects do not change, and damaged files move to cas/quarantine. Exits 1 with fsck_failed when damage remains."
         }
         "export" => {
             "Write a checksum-bound directory archive to a new <archive-dir>. An existing destination is never replaced."

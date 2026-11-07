@@ -197,6 +197,13 @@ archive/
 layout と validation rule は [archive profile](../spec/core/v0.1/archive-profile.md) を参照する。
 checksum は整合性検査で、暗号化や署名ではない。
 
+## 壊れた repository は元に戻せますか
+
+正しい bytes の写し（archive、repository のコピー、取り込んだ元 file）があれば、`synapse repair` で壊れた object だけを戻せる。
+内容 hash が OID と一致する bytes だけを使うので、戻るのは記録されていたものと同じ bytes であり、Ref、reflog、履歴は変わらない。
+写しがない object は戻せず、`refs.sqlite3` の破損は `restore` で別の repository へ戻す。手順は
+[Creator 操作ガイド](./creator_workflow.md#記録が壊れたときに元へ戻す)を参照する。
+
 ## 既存 repository へ restore できますか
 
 Refs / reflog が空で、CAS が空、または同じ archive の失敗 restore が残した exact object subset の場合だけ可能。

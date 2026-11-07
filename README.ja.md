@@ -119,7 +119,7 @@ synapse creator-report "$HOME/SynapseGit/demo" session-1
 | 任意の生成メモと、画像上のピンを付ける | 取り込みのformとセッションの画面 |
 | 過去の判断を、日時とタイムラインで読み返す | セッションの画面、`creator-list`、`creator-report`（textまたはJSON） |
 | 記録から次の案を試す。保留や中断した提案を新しいセッションで改めて判断する | セッションの画面 |
-| 整合性を確認し、backupを作り、復元する | 「管理」ページ、`fsck`、`export`、`restore` |
+| 整合性を確認し、backupを作り、復元する。壊れたデータを正しい写しから元に戻す | 「管理」ページ、`fsck`、`export`、`restore`、`repair` |
 | 非公開のメモを含まない、ローカルの閲覧用bundleを作る | `synapse present`と公開用の制作ノート |
 | 日本語または英語の画面で使う | headerの言語切り替え |
 
