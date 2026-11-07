@@ -703,7 +703,8 @@ impl TombstoneCatalog {
         Ok(())
     }
 
-    fn tombstone_for(&self, target: &str) -> Option<&String> {
+    /// The lowest Tombstone OID that resolves `target`, if any does.
+    pub fn tombstone_for(&self, target: &str) -> Option<&String> {
         self.targets.get(target)
     }
 }
@@ -824,6 +825,15 @@ pub fn fsck(
     roots: &[String],
     limits: GraphLimits,
 ) -> Result<FsckReport, StoreError> {
+    fsck_with_tombstones(store, roots, limits).map(|(report, _)| report)
+}
+
+/// As [`fsck`], also returning the Tombstones found by the same pass.
+pub fn fsck_with_tombstones(
+    store: &FileObjectStore,
+    roots: &[String],
+    limits: GraphLimits,
+) -> Result<(FsckReport, TombstoneCatalog), StoreError> {
     let inventory = store.inventory()?;
     let mut issues = inventory
         .invalid_paths
@@ -884,12 +894,15 @@ pub fn fsck(
         closures.push(closure);
     }
 
-    Ok(FsckReport {
-        objects_seen,
-        objects_verified,
-        closures,
-        issues,
-    })
+    Ok((
+        FsckReport {
+            objects_seen,
+            objects_verified,
+            closures,
+            issues,
+        },
+        verifier.tombstones,
+    ))
 }
 
 pub fn fsck_all(store: &FileObjectStore, limits: GraphLimits) -> Result<FsckReport, StoreError> {

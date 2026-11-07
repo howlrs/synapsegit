@@ -218,7 +218,7 @@ adopt, reject, or defer on the person's behalf.
 | `creator_session_exists` / `creator_session_incomplete` | Choose a new session name. History is never rewritten. |
 | `resource_limit` | A file or repository limit was reached; report it to the person. |
 | `storage_error` | Check the paths and permissions; report it if it persists. |
-| `fsck_failed` | Stop and report it. Do not try to repair the history. |
+| `fsck_failed` | Stop and report it. Do not edit the repository. If the person points you to a good copy, `synapse repair REPO --from PATH` puts damaged objects back without changing history. |
 
 ## What you can tell an agent
 

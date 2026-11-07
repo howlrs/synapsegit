@@ -22,7 +22,7 @@ pub use human_decision::{
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cell::{Cell, RefCell};
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::error::Error;
 use std::ffi::{OsStr, OsString};
 use std::fmt;
@@ -33,8 +33,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use synapse_canonical::{CoreError, ErrorCode, ObjectKind, lower_hex, parse_oid, sha256_hex};
 use synapse_cas::{
     ClosureIssueKind, ClosureReport, FileObjectStore, FsckIssue, FsckIssueKind, FsckReport,
-    GraphLimits, ObjectStore, PreparedClosureVerifier, PutResult, StoreError, StoreLimits,
-    TombstoneCatalog, fsck, is_os_metadata_file_name,
+    GraphLimits, ObjectStore, PreparedClosureVerifier, PutResult, Repair, StoreError, StoreLimits,
+    TombstoneCatalog, fsck, fsck_with_tombstones, is_os_metadata_file_name,
 };
 pub use synapse_cas::{TombstoneScanLimits, VerifiedObjectMemo};
 use synapse_schema::{ingest, ingest_claimed};
@@ -771,6 +771,169 @@ impl Repository {
         })
     }
 
+    /// Put damaged or missing objects back from good copies of their bytes.
+    ///
+    /// Each path in `sources` is an export archive, a copy of a repository, or
+    /// a regular file holding the bytes of one Blob, such as an original image.
+    /// An object is restored only from bytes that hash to its OID, so this
+    /// proves it is putting back what was stored. Refs, the reflog, and every
+    /// intact object stay as they are, and no object is created, so history is
+    /// not rewritten. Damaged files move to the store's quarantine directory.
+    /// An object with a Tombstone is not brought back, because its absence is
+    /// a recorded fact. Only a damaged file still at its path moves aside.
+    ///
+    /// The repository alone cannot be trusted to know its Tombstones, because
+    /// the same damage can reach them, and a Tombstone is usually referenced
+    /// by nothing. So every Record the sources hold is read before anything is
+    /// restored, and a Tombstone in any source stops its target from coming
+    /// back. It only ever stops a restore: a source cannot add a Record the
+    /// repository does not name, so a forged Tombstone can withhold help but
+    /// cannot write a new fact. A damaged Record with no copy could be a
+    /// Tombstone for anything, so then nothing is restored and the objects are
+    /// reported as held back. Records go first, because they can change what
+    /// may be restored next. A Tombstone that the repository lost with no trace
+    /// and no source holds cannot be seen, here or by `fsck`.
+    ///
+    /// Objects reachable from any reflog entry count, as they do for export.
+    /// Restoring a Tree or Commit can reveal the next damaged object behind it,
+    /// so this repeats until nothing more can be restored. The caller must keep
+    /// other processes out of the repository while this runs.
+    pub fn repair_objects(&self, sources: &[PathBuf]) -> Result<RepairReport> {
+        self.ensure_writable()?;
+        let sources = sources
+            .iter()
+            .map(|path| RepairSource::open(path, self.objects.limits()))
+            .collect::<Result<Vec<_>>>()?;
+        let mut copies = RecordCopies::default();
+        for source in &sources {
+            source.read_records(&self.objects, &mut copies)?;
+        }
+        let mut used = vec![false; sources.len()];
+        let mut repaired = Vec::new();
+        let mut set_aside = Vec::new();
+        let mut mismatched = BTreeSet::new();
+        loop {
+            let (fsck, damaged, tombstoned) = self.inspect_damage()?;
+            let mut progress = false;
+            for oid in &tombstoned {
+                if let Some(path) = self.objects.quarantine_if_corrupt(oid)? {
+                    progress = true;
+                    set_aside.push((oid.clone(), path));
+                }
+            }
+            let (records, others): (Vec<_>, Vec<_>) = damaged
+                .iter()
+                .filter(|oid| copies.tombstone_for(oid).is_none())
+                .cloned()
+                .partition(|oid| is_record_oid(oid));
+            let undecided = damaged
+                .iter()
+                .filter(|oid| is_record_oid(oid) && !copies.usable.contains(*oid))
+                .cloned()
+                .collect::<Vec<_>>();
+            let round = match (!undecided.is_empty(), records.is_empty()) {
+                (true, _) => &[][..],
+                (false, true) => &others[..],
+                (false, false) => &records[..],
+            };
+            for oid in round {
+                for (index, source) in sources.iter().enumerate() {
+                    match source.repair(&self.objects, oid)? {
+                        RepairAttempt::NoCopy => {}
+                        RepairAttempt::Mismatch => {
+                            mismatched.insert((source.path().to_path_buf(), oid.clone()));
+                        }
+                        RepairAttempt::Done(Repair::AlreadyIntact) => break,
+                        RepairAttempt::Done(Repair::Restored { quarantined }) => {
+                            used[index] = true;
+                            progress = true;
+                            repaired.push(RepairedObject {
+                                oid: oid.clone(),
+                                source: source.path().to_path_buf(),
+                                quarantined,
+                            });
+                            break;
+                        }
+                    }
+                }
+            }
+            if !progress {
+                return Ok(RepairReport {
+                    repaired,
+                    erased_in_source: damaged
+                        .iter()
+                        .filter_map(|oid| {
+                            let (source, tombstone) = copies.tombstone_for(oid)?;
+                            Some(ErasedInSource {
+                                oid: oid.clone(),
+                                tombstone: tombstone.clone(),
+                                source: source.to_path_buf(),
+                            })
+                        })
+                        .collect(),
+                    held_back: if records.is_empty() {
+                        Vec::new()
+                    } else {
+                        records
+                            .into_iter()
+                            .filter(|oid| !undecided.is_empty() && !undecided.contains(oid))
+                            .chain(others)
+                            .collect()
+                    },
+                    undecided,
+                    remaining: damaged.into_iter().chain(tombstoned).collect(),
+                    set_aside,
+                    mismatched: mismatched.into_iter().collect(),
+                    unused_sources: sources
+                        .iter()
+                        .zip(used)
+                        .filter(|(_, used)| !used)
+                        .map(|(source, _)| source.path().to_path_buf())
+                        .collect(),
+                    fsck,
+                });
+            }
+        }
+    }
+
+    /// Check every stored object and the closure of every current and
+    /// historical head, then list what a good copy could restore.
+    fn inspect_damage(&self) -> Result<(FsckReport, Vec<String>, Vec<String>)> {
+        let mut roots = self
+            .refs
+            .list()?
+            .into_iter()
+            .map(|record| record.head)
+            .chain(self.refs.reflog()?.into_iter().map(|entry| entry.new_head))
+            .collect::<Vec<_>>();
+        roots.sort_unstable();
+        roots.dedup();
+        let (fsck, tombstones) = fsck_with_tombstones(&self.objects, &roots, self.graph_limits)?;
+        let mut damaged = BTreeSet::new();
+        let mut tombstoned = BTreeSet::new();
+        for issue in &fsck.issues {
+            let oid = match &issue.kind {
+                FsckIssueKind::CorruptObject { oid, .. }
+                | FsckIssueKind::MissingScannedObject { oid } => oid,
+                FsckIssueKind::Closure(closure) => match closure.kind {
+                    ClosureIssueKind::Missing | ClosureIssueKind::Corrupt { .. } => &closure.oid,
+                    _ => continue,
+                },
+                _ => continue,
+            };
+            if tombstones.tombstone_for(oid).is_some() {
+                tombstoned.insert(oid.clone());
+            } else {
+                damaged.insert(oid.clone());
+            }
+        }
+        Ok((
+            fsck,
+            damaged.into_iter().collect(),
+            tombstoned.into_iter().collect(),
+        ))
+    }
+
     pub fn export_archive(&mut self, destination: impl AsRef<Path>) -> Result<()> {
         self.export_archive_with_limits(destination, ArchiveExportLimits::default())
     }
@@ -1159,6 +1322,225 @@ impl Repository {
             _ => self.objects.limits().structured.max_input_bytes as u64,
         })
     }
+}
+
+/// One object [`Repository::repair_objects`] put back.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RepairedObject {
+    pub oid: String,
+    pub source: PathBuf,
+    /// Where the damaged file went, when there was one at the object's path.
+    pub quarantined: Option<PathBuf>,
+}
+
+/// Outcome of [`Repository::repair_objects`].
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct RepairReport {
+    pub repaired: Vec<RepairedObject>,
+    /// Objects still damaged or missing, including a Ref head that a Tombstone
+    /// resolves, which keeps the repository unclean with nothing to restore.
+    pub remaining: Vec<String>,
+    /// Damaged Records no source holds. Each could be a Tombstone for anything.
+    pub undecided: Vec<String>,
+    /// Objects not attempted, because of `undecided`.
+    pub held_back: Vec<String>,
+    /// Objects with a Tombstone and where their damaged file went.
+    pub set_aside: Vec<(String, PathBuf)>,
+    /// Objects not restored because a source holds a Tombstone for them.
+    pub erased_in_source: Vec<ErasedInSource>,
+    /// Sources that hold an object but could not supply its exact bytes.
+    pub mismatched: Vec<(PathBuf, String)>,
+    /// Sources that restored nothing.
+    pub unused_sources: Vec<PathBuf>,
+    /// The final check, which sees anything these fields do not describe.
+    pub fsck: FsckReport,
+}
+
+/// A damaged object that a source says was erased.
+///
+/// The repository does not have this Tombstone and `repair` does not add it:
+/// bytes that verify prove only their own identity, so only the operator can
+/// say that this deletion really happened here.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ErasedInSource {
+    pub oid: String,
+    pub tombstone: String,
+    pub source: PathBuf,
+}
+
+/// What the sources of one repair can say about Records.
+#[derive(Default)]
+struct RecordCopies {
+    /// Records at least one source holds intact.
+    usable: HashSet<String>,
+    /// The Tombstones among them, by source.
+    tombstones: Vec<(PathBuf, TombstoneCatalog)>,
+}
+
+impl RecordCopies {
+    fn tombstone_for(&self, target: &str) -> Option<(&Path, &String)> {
+        self.tombstones.iter().find_map(|(source, catalog)| {
+            let tombstone = catalog.tombstone_for(target)?;
+            Some((source.as_path(), tombstone))
+        })
+    }
+}
+
+enum RepairAttempt {
+    NoCopy,
+    Mismatch,
+    Done(Repair),
+}
+
+enum RepairSource {
+    Archive {
+        path: PathBuf,
+        objects: HashMap<String, PathBuf>,
+    },
+    Repository {
+        path: PathBuf,
+        objects: FileObjectStore,
+    },
+    Blob {
+        path: PathBuf,
+        resolved: PathBuf,
+        oid: String,
+    },
+}
+
+impl RepairSource {
+    fn open(path: &Path, limits: StoreLimits) -> Result<Self> {
+        let resolved = fs::canonicalize(path)
+            .map_err(|error| RepositoryError::io("inspect repair source", path, error))?;
+        if resolved.is_file() {
+            let (mut file, _) = open_regular_limited(&resolved, limits.max_blob_bytes)?;
+            let mut digest = Sha256::new();
+            let mut buffer = vec![0_u8; 64 * 1024];
+            loop {
+                let count = file
+                    .read(&mut buffer)
+                    .map_err(|error| RepositoryError::io("hash repair source", path, error))?;
+                if count == 0 {
+                    break;
+                }
+                digest.update(&buffer[..count]);
+            }
+            return Ok(Self::Blob {
+                path: path.to_path_buf(),
+                resolved,
+                oid: format!("blob:sg-oid-v1:sha256:{}", lower_hex(digest.finalize())),
+            });
+        }
+        if path.join(MANIFEST_FILE).is_file() {
+            let (manifest, _) = read_verified_manifest(path)?;
+            return Ok(Self::Archive {
+                path: path.to_path_buf(),
+                objects: manifest
+                    .objects
+                    .into_iter()
+                    .map(|object| (object.oid, path.join(object.path)))
+                    .collect(),
+            });
+        }
+        if path.join("cas").join("objects").is_dir() {
+            return Ok(Self::Repository {
+                path: path.to_path_buf(),
+                objects: FileObjectStore::open_existing_read_only(path.join("cas"))?,
+            });
+        }
+        Err(RepositoryError::ArchiveInvalid(format!(
+            "repair source {} is not a file, an export archive, or a repository",
+            path.display()
+        )))
+    }
+
+    fn path(&self) -> &Path {
+        match self {
+            Self::Archive { path, .. }
+            | Self::Repository { path, .. }
+            | Self::Blob { path, .. } => path,
+        }
+    }
+
+    fn open_copy(&self, oid: &str, limit: u64) -> Result<Option<File>> {
+        match self {
+            Self::Blob {
+                resolved,
+                oid: blob,
+                ..
+            } if blob == oid => open_regular_limited(resolved, limit).map(|(file, _)| Some(file)),
+            Self::Blob { .. } => Ok(None),
+            Self::Archive { objects, .. } => objects.get(oid).map_or(Ok(None), |path| {
+                open_regular_limited(path, limit).map(|(file, _)| Some(file))
+            }),
+            Self::Repository { objects, .. } => {
+                objects.open_object_file(oid).map_err(RepositoryError::from)
+            }
+        }
+    }
+
+    /// Add every Record this source holds intact. A copy that does not verify
+    /// is skipped, because a backup can be damaged too.
+    fn read_records(&self, target: &FileObjectStore, copies: &mut RecordCopies) -> Result<()> {
+        let limit = target.limits().structured.max_input_bytes as u64;
+        let oids = match self {
+            Self::Blob { .. } => Vec::new(),
+            Self::Archive { objects, .. } => objects
+                .keys()
+                .filter(|oid| is_record_oid(oid))
+                .cloned()
+                .collect(),
+            Self::Repository { objects, .. } => objects
+                .list_oids_at_valid_paths()?
+                .into_iter()
+                .filter(|oid| is_record_oid(oid))
+                .collect(),
+        };
+        let mut tombstones = TombstoneCatalog::default();
+        for oid in oids {
+            let Ok(Some(file)) = self.open_copy(&oid, limit) else {
+                continue;
+            };
+            let mut bytes = Vec::new();
+            if file.take(limit).read_to_end(&mut bytes).is_err() {
+                continue;
+            }
+            if let Ok(object) = target.verify_structured_copy(&oid, &bytes) {
+                tombstones.observe(&object)?;
+                copies.usable.insert(oid);
+            }
+        }
+        copies
+            .tombstones
+            .push((self.path().to_path_buf(), tombstones));
+        Ok(())
+    }
+
+    fn repair(&self, target: &FileObjectStore, oid: &str) -> Result<RepairAttempt> {
+        let limit = match parse_oid(oid)? {
+            ObjectKind::Blob => target.limits().max_blob_bytes,
+            _ => target.limits().structured.max_input_bytes as u64,
+        };
+        // A backup can be damaged too. One copy it cannot supply must not stop
+        // the next source from restoring the object.
+        let Ok(file) = self.open_copy(oid, limit) else {
+            return Ok(RepairAttempt::Mismatch);
+        };
+        let Some(file) = file else {
+            return Ok(RepairAttempt::NoCopy);
+        };
+        match target.repair_object(oid, file) {
+            Ok(repair) => Ok(RepairAttempt::Done(repair)),
+            // Any coded error is about the bytes of this copy, whatever form
+            // the damage took. Only a storage failure ends the repair.
+            Err(error) if error.code().is_some() => Ok(RepairAttempt::Mismatch),
+            Err(error) => Err(error.into()),
+        }
+    }
+}
+
+fn is_record_oid(oid: &str) -> bool {
+    parse_oid(oid).is_ok_and(|kind| kind == ObjectKind::Record)
 }
 
 fn require_repository_directory(path: &Path, requested: &Path) -> Result<()> {

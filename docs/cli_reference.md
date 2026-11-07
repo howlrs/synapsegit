@@ -199,7 +199,7 @@ synapse present preview public-view
 ## Repository layout
 
 `init`、または新規作成を仕様とする `creator-run` は、指定 root の下に次を作る。既存repositoryを
-前提とする command（`put-*`、`build-tree`、`commit`、`update-ref`、`refs`、`fsck`、`export`、
+前提とする command（`put-*`、`build-tree`、`commit`、`update-ref`、`refs`、`fsck`、`repair`、`export`、
 `creator-report`）はlayoutを作成しない。root、`cas/`、または`refs.sqlite3`がない、またはそれらの
 種類が違う場合は`repository_not_found`で失敗し、`synapse init PATH`を案内する。CASの内部directoryや
 SQLite schema／contentsの破損は既存repositoryのstorage failureとして、それぞれの検証errorで失敗する。
@@ -213,6 +213,7 @@ Finderの`.DS_Store`と`._*`、Explorerの`Thumbs.db`と`desktop.ini`は、OSが
 <repo>/
 ├── cas/
 │   ├── objects/    immutable objects grouped by family and digest prefix
+│   ├── quarantine/ damaged files moved aside by `repair`; created only when needed
 │   └── tmp/        publication staging files
 └── refs.sqlite3    mutable Refs and append-only reflog
 ```
@@ -952,6 +953,35 @@ Ref が0件なら stored Commit 全件を root とする。
 `fsck` は全 structured object の concrete JSON Schema を再実行しない。
 Core ingest / restore を通った object は投入時に schema 検証済みである。
 
+### `repair <repo> --from <path> [--from <path>]...`
+
+壊れた、または欠けたobjectを、同じbytesの写しから元に戻す。`--from`には次のいずれかを1つ以上指定する。
+
+- `export`で作ったarchive directory。manifest checksumを検証してから読む
+- repositoryのコピー（`cas/objects`を持つdirectory）
+- 通常file。全体が1つのBlobの内容として照合される（取り込んだ元画像など）
+
+objectはOIDと完全に一致するbytesだけから戻し、structured objectはcanonicalであることも求める。一致しない写しや
+読めない写しは使わず、次の`--from`を試す。Ref、reflog、壊れていないobjectは変更せず、新しいobjectも作らない。壊れていたfileは
+上書きせず`cas/quarantine/`へ移す。対象には、current Refだけでなくreflogのheadから到達するobjectも含む（`export`が
+要求する範囲と同じ）。Treeなどを戻すとその先の破損が見えることがあるので、戻せるものがなくなるまで検査を繰り返す。
+Tombstoneが解決するobjectは、削除の記録を尊重して戻さない。そのpathに壊れたfileが残っていれば`cas/quarantine/`へ移す。
+Tombstoneは同じ破損で失われ得るので、戻し始める前に`--from`の全Recordを読み、壊れたobjectのTombstoneがどれかの`--from`にあれば、そのobjectを戻さない（`warning:`で示す）。
+`--from`のTombstoneは戻すことを止めるだけで、repositoryが名指ししていないRecordを`repair`が追加することはない。その削除が事実なら、Tombstoneのfile（archiveなら`objects/`内のfile）を`put-record`で加える。
+壊れたRecordに写しがなければ、それが何のTombstoneであるかを排除できないので、何も戻さない（`warning:`で示す）。reflogからだけ届くRecordでも同じである。Recordは他のobjectより先に戻す。
+repositoryから跡形もなく失われ、`--from`にもないTombstoneは検出できず、その対象を戻し得る。
+
+```text
+repaired <oid> from <path>
+quarantined <path>
+repaired=<count> remaining=<count>
+```
+
+`remaining`は壊れたまま、または欠けたまま残ったobjectの数で、TombstoneがあるためRef headとして解決できないCommitも含む。stderrには、使えなかった写しと、何も戻せなかった`--from`を
+`warning:`で、検査に残った問題を`fsck`と同じ`issue:`で出す。問題が残れば`fsck_failed`で終了する。
+
+他のprocessがrepositoryを使っていない状態で実行する。`refs.sqlite3`の破損は対象外で、`restore`を使う。
+
 ### `export <repo> <archive-dir>`
 
 Refs / reflog を snapshot し、ObjectStore 全体を checksum 付き directory archive へ export する。
@@ -1042,9 +1072,9 @@ directory archive を検証し、object、reflog、Refs を復元する。
 | `stale_base` | Creative AI publicationでContextPack expected baseとlive base Refが不一致。Human Decisionのdecision/base競合は`ref_conflict` |
 | `ref_conflict` | current target Ref、またはHuman Decisionのtrusted proposal Ref/headとexpectationが不一致 |
 | `resource_limit` | Core parser / graph / Blob、graph dynamic reference metadata、archive inventory / bytes / head-validation work / manifest limit |
-| `archive_invalid` | export destination exists、export元head closure invalid、またはrestore manifest／checksum／archive graph invalid |
+| `archive_invalid` | export destination exists、export元head closure invalid、restore manifest／checksum／archive graph invalid、または`repair`の`--from`がarchive、repository、fileのいずれでもない |
 | `archive_not_empty` | restore target に unrelated data または existing Ref がある |
-| `fsck_failed` | `fsck`、`creator-run`、`creator-report`が一件以上のintegrity issueを発見 |
+| `fsck_failed` | `fsck`、`repair`、`creator-run`、`creator-report`が一件以上のintegrity issueを発見 |
 | `creator_session_exists` | `creator-run`のproposal／decision Refがcomplete sessionとして既に存在するcreate-only conflict |
 | `creator_session_incomplete` | base Ref公開後等にproposal／decision Refがpartial stateで残ったcreate-only session。自動resume／cleanupしない |
 | `creator_session_not_found` | `creator-report`に必要なcurrent proposal／decision Refがない |

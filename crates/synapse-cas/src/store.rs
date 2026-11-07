@@ -17,6 +17,7 @@ use synapse_canonical::{
 
 const OBJECTS_DIRECTORY: &str = "objects";
 const TEMP_DIRECTORY: &str = "tmp";
+const QUARANTINE_DIRECTORY: &str = "quarantine";
 const DEFAULT_IO_BUFFER_BYTES: usize = 64 * 1024;
 const DEFAULT_MAX_BLOB_BYTES: u64 = 512 * 1024 * 1024;
 /// OS metadata files one bounded directory scan skips on top of its own entry
@@ -209,6 +210,16 @@ impl VerifiedObject {
             structured: Some(Arc::new(value)),
         }
     }
+}
+
+/// What [`FileObjectStore::repair_object`] did.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub enum Repair {
+    /// The stored object already verifies, so nothing changed.
+    AlreadyIntact,
+    /// The verified bytes are in place. `quarantined` is where the damaged
+    /// file went, and is `None` when no file was at the object's path.
+    Restored { quarantined: Option<PathBuf> },
 }
 
 /// Result of a verified object-state lookup.
@@ -643,8 +654,17 @@ impl FileObjectStore {
     fn put_blob_inner(
         &self,
         claimed_oid: Option<&str>,
-        mut reader: impl Read,
+        reader: impl Read,
     ) -> Result<PutResult, StoreError> {
+        let (staged, oid, byte_len) = self.stage_blob(claimed_oid, reader)?;
+        self.publish_staged(staged, oid, ObjectKind::Blob, byte_len)
+    }
+
+    fn stage_blob(
+        &self,
+        claimed_oid: Option<&str>,
+        mut reader: impl Read,
+    ) -> Result<(StagedFile, String, u64), StoreError> {
         self.ensure_writable()?;
         let mut staged = self.create_staged_file()?;
         let mut digest = Sha256::new();
@@ -692,7 +712,7 @@ impl FileObjectStore {
             )
             .into());
         }
-        self.publish_staged(staged, oid, ObjectKind::Blob, byte_len)
+        Ok((staged, oid, byte_len))
     }
 
     fn put_structured_inner(
@@ -701,6 +721,18 @@ impl FileObjectStore {
         input: &[u8],
         require_canonical_input: bool,
     ) -> Result<PutResult, StoreError> {
+        let (staged, oid, byte_len) =
+            self.stage_structured(claimed_oid, input, require_canonical_input)?;
+        let kind = parse_oid(&oid)?;
+        self.publish_staged(staged, oid, kind, byte_len)
+    }
+
+    fn stage_structured(
+        &self,
+        claimed_oid: Option<&str>,
+        input: &[u8],
+        require_canonical_input: bool,
+    ) -> Result<(StagedFile, String, u64), StoreError> {
         self.ensure_writable()?;
         let value = parse_strict_with_limits(input, self.limits.structured)?;
         let canonical = canonical_bytes_with_limits(&value, self.limits.structured)?;
@@ -732,12 +764,134 @@ impl FileObjectStore {
         staged.file.sync_all().map_err(|error| {
             StoreError::io("sync staged structured object", &staged.path, error)
         })?;
-        self.publish_staged(
-            staged,
-            oid.clone(),
-            parse_oid(&oid)?,
-            canonical.len() as u64,
-        )
+        Ok((staged, oid, canonical.len() as u64))
+    }
+
+    /// Put verified bytes back for one object whose stored copy is damaged or
+    /// missing, which is what makes a good copy of those bytes useful again.
+    ///
+    /// `reader` must yield the exact bytes of `oid`; anything else fails with
+    /// the store's normal digest or canonical-form error and changes nothing.
+    /// Objects stay immutable: an intact object is never touched, a damaged
+    /// file moves into `quarantine/` rather than being overwritten, and the
+    /// verified bytes are published through the same create-if-absent link as
+    /// any other object. Interrupting this leaves the object missing at worst,
+    /// and a later repair picks it up.
+    pub fn repair_object(&self, oid: &str, mut reader: impl Read) -> Result<Repair, StoreError> {
+        self.ensure_writable()?;
+        let kind = parse_oid(oid)?;
+        let (staged, oid, byte_len) = if kind == ObjectKind::Blob {
+            self.stage_blob(Some(oid), reader)?
+        } else {
+            let limit = self.limits.structured.max_input_bytes as u64;
+            let mut input = Vec::new();
+            reader
+                .by_ref()
+                .take(limit + 1)
+                .read_to_end(&mut input)
+                .map_err(|error| StoreError::io("read repair input", Path::new(oid), error))?;
+            if input.len() as u64 > limit {
+                return Err(resource_limit(format!(
+                    "repair input is larger than the {limit} byte limit"
+                )));
+            }
+            self.stage_structured(Some(oid), &input, true)?
+        };
+        let quarantined = match self.object_state(&oid)? {
+            ObjectState::Present(_) => return Ok(Repair::AlreadyIntact),
+            ObjectState::Missing => None,
+            ObjectState::Corrupt { .. } => Some(self.quarantine_object(&oid, kind)?),
+        };
+        self.publish_staged(staged, oid, kind, byte_len)?;
+        Ok(Repair::Restored { quarantined })
+    }
+
+    /// Move a damaged file aside without restoring anything. A Tombstone says
+    /// the object's bytes are gone, so what remains at its path is not the
+    /// object and stops the store from matching that record.
+    pub fn quarantine_if_corrupt(&self, oid: &str) -> Result<Option<PathBuf>, StoreError> {
+        self.ensure_writable()?;
+        let kind = parse_oid(oid)?;
+        match self.object_state(oid)? {
+            ObjectState::Corrupt { .. } => self.quarantine_object(oid, kind).map(Some),
+            ObjectState::Present(_) | ObjectState::Missing => Ok(None),
+        }
+    }
+
+    fn quarantine_object(&self, oid: &str, kind: ObjectKind) -> Result<PathBuf, StoreError> {
+        let directory = self.root.join(QUARANTINE_DIRECTORY);
+        ensure_real_directory(&directory)?;
+        let source = self.object_path_for_valid_oid(oid, kind);
+        let digest = oid.rsplit(':').next().unwrap_or(oid);
+        for attempt in 0..1024 {
+            let target = directory.join(format!("{}-{digest}-{attempt}", kind.prefix()));
+            match fs::symlink_metadata(&target) {
+                Ok(_) => continue,
+                Err(error) if error.kind() == io::ErrorKind::NotFound => {}
+                Err(error) => {
+                    return Err(StoreError::io("inspect quarantined object", target, error));
+                }
+            }
+            fs::rename(&source, &target)
+                .map_err(|error| StoreError::io("quarantine damaged object", &source, error))?;
+            sync_directory(&directory)?;
+            if let Some(parent) = source.parent() {
+                sync_directory(parent)?;
+            }
+            return Ok(target);
+        }
+        Err(StoreError::io(
+            "quarantine damaged object",
+            directory,
+            io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "quarantine name attempts exhausted",
+            ),
+        ))
+    }
+
+    /// List every object at a valid path, passing over anything else. A copy
+    /// of a repository used as a repair source may hold a stray file, which
+    /// says nothing about the objects next to it.
+    pub fn list_oids_at_valid_paths(&self) -> Result<Vec<String>, StoreError> {
+        Ok(self.inventory()?.oids)
+    }
+
+    /// Verify that `bytes` are the exact stored form of a structured object,
+    /// without storing them. Repair uses this to read what a backup holds
+    /// before it trusts any of that backup's copies.
+    pub fn verify_structured_copy(
+        &self,
+        oid: &str,
+        bytes: &[u8],
+    ) -> Result<VerifiedObject, StoreError> {
+        let kind = parse_oid(oid)?;
+        let structured = self
+            .verify_raw_bytes(oid, kind, bytes)?
+            .map(Arc::new)
+            .ok_or_else(|| {
+                CoreError::new(ErrorCode::SchemaInvalid, "a Blob has no structured form")
+            })?;
+        Ok(VerifiedObject {
+            info: ObjectInfo {
+                oid: oid.to_owned(),
+                kind,
+                byte_len: bytes.len() as u64,
+            },
+            structured: Some(structured),
+        })
+    }
+
+    /// Open the stored file of one object as a repair source. The bytes are
+    /// not verified here, because [`Self::repair_object`] verifies its input.
+    pub fn open_object_file(&self, oid: &str) -> Result<Option<File>, StoreError> {
+        let (_, path) = self.validated_object_path(oid)?;
+        if regular_file_metadata_if_present(&path, oid)?.is_none() {
+            return Ok(None);
+        }
+        File::open(&path)
+            .map(Some)
+            .map_err(|error| StoreError::io("open object", path, error))
     }
 
     fn publish_staged(

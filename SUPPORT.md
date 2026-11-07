@@ -33,7 +33,9 @@ private material; redact it when it is not required to reproduce the problem.
 The current supported evaluation path is the local CLI and loopback-only
 application described in [README.md](./README.md). Public reverse-proxy deployment,
 multi-user hosting, production cloud operation, image-difference interpretation,
-and recovery from manually edited object or SQLite files are outside the
-current support scope.
+and recovery from manually edited SQLite files are outside the current support
+scope. Damaged or missing objects can be put back from a good copy with
+`synapse repair`; see
+[Put a damaged record back](./docs/creator_workflow.en.md#put-a-damaged-record-back).
 
 For development contributions, use [CONTRIBUTING.md](./CONTRIBUTING.md).

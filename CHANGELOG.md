@@ -7,6 +7,23 @@ milestone.
 
 ## [Unreleased]
 
+### Added
+
+- `synapse repair REPO --from PATH` puts damaged or missing objects back from a
+  good copy: an export archive, a copy of the repository, or an original file.
+  One damaged image used to stop every session page, `creator-report`,
+  `creator-run`, and `export` for the whole repository, with no way back short
+  of restoring an older archive into a new repository. Only bytes that hash to
+  the object's OID are used, so what comes back is what was stored. Refs, the
+  reflog, and intact objects do not change, no object is created, and damaged
+  files move to `cas/quarantine/`. An object with a Tombstone is not brought
+  back, and only a damaged file left at its path moves aside. A Tombstone in a
+  given copy also stops its target from coming back, but `repair` never adds a
+  Record the repository does not name. If a damaged Record has no copy, nothing
+  is restored, because it could be such a Tombstone. Without a good
+  copy the object stays damaged, and a damaged `refs.sqlite3` still needs
+  `restore`. See "Put a damaged record back" in the Creator workflow.
+
 ### Changed
 
 - One integrity check reads and hashes each object once. A check reached the

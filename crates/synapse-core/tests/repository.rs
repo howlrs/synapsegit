@@ -7,8 +7,8 @@ use synapse_cas::{
     verify_closure,
 };
 use synapse_core::{
-    ArchiveExportLimits, ArchiveRestoreLimits, FsckLimits, RefArchiveExportLimits, Repository,
-    RepositoryError, directory_is_empty_for_repository,
+    ArchiveExportLimits, ArchiveRestoreLimits, ErasedInSource, FsckLimits, RefArchiveExportLimits,
+    Repository, RepositoryError, directory_is_empty_for_repository,
 };
 use synapse_schema::ingest;
 use synapse_sqlite::{
@@ -1381,6 +1381,343 @@ fn bounded_restore_limits_the_shared_tombstone_inventory_scan() {
     let error = configured.restore_from(&archive).unwrap_err();
     assert_eq!(error.code(), "resource_limit");
     assert!(configured.refs().is_empty().unwrap());
+}
+
+#[test]
+fn repair_does_not_bring_back_a_tombstoned_object() {
+    let temporary = TempDirectory::new("repair-tombstone");
+    let repository_path = temporary.join("repo");
+    let mut repository = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&repository);
+    let proposal = oid("proposal-commit.json");
+    repository
+        .update_ref(RefUpdate {
+            ref_name: "proposal/agent/run-erased",
+            expected_head: None,
+            new_head: &proposal,
+            metadata: ReflogMetadata::at(1),
+        })
+        .unwrap();
+    let erased_blob = blob_oid(&fixture("proposal.txt"));
+    let erased_path = object_path(&repository_path, &erased_blob);
+    let source = fixture_directory().join("proposal.txt");
+
+    fs::remove_file(&erased_path).unwrap();
+    let missing = repository
+        .repair_objects(std::slice::from_ref(&source))
+        .unwrap();
+    assert!(missing.repaired.is_empty());
+    assert!(missing.remaining.is_empty());
+    assert!(missing.fsck.is_clean(), "{:?}", missing.fsck.issues);
+    assert!(!erased_path.exists());
+
+    fs::write(&erased_path, b"damaged bytes of an erased object").unwrap();
+    let corrupt = repository
+        .repair_objects(std::slice::from_ref(&source))
+        .unwrap();
+    assert!(corrupt.repaired.is_empty());
+    assert_eq!(corrupt.set_aside.len(), 1);
+    assert_eq!(corrupt.set_aside[0].0, erased_blob);
+    assert_eq!(
+        fs::read(&corrupt.set_aside[0].1).unwrap(),
+        b"damaged bytes of an erased object"
+    );
+    assert!(!erased_path.exists());
+    assert!(corrupt.fsck.is_clean(), "{:?}", corrupt.fsck.issues);
+}
+
+#[test]
+fn repair_does_not_bring_back_an_object_whose_tombstone_is_damaged_too() {
+    let temporary = TempDirectory::new("repair-damaged-tombstone");
+    let repository_path = temporary.join("repo");
+    let mut repository = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&repository);
+    let proposal = oid("proposal-commit.json");
+    repository
+        .update_ref(RefUpdate {
+            ref_name: "proposal/agent/run-erased",
+            expected_head: None,
+            new_head: &proposal,
+            metadata: ReflogMetadata::at(1),
+        })
+        .unwrap();
+    let source = temporary.join("source");
+    load_fixture_store(&Repository::open(&source).unwrap());
+    let erased_path = object_path(&repository_path, &blob_oid(&fixture("proposal.txt")));
+    let tombstone_path = object_path(&repository_path, &oid("tombstone.json"));
+    fs::remove_file(&erased_path).unwrap();
+    fs::write(&tombstone_path, b"{").unwrap();
+
+    let report = repository.repair_objects(&[source]).unwrap();
+
+    assert!(report.fsck.is_clean(), "{:?}", report.fsck.issues);
+    assert!(
+        !erased_path.exists(),
+        "the erased payload came back: {:?}",
+        report.repaired
+    );
+    assert_eq!(report.repaired.len(), 1);
+    assert_eq!(report.repaired[0].oid, oid("tombstone.json"));
+}
+
+/// A repository holding the fixture store, with `proposal/agent/run-erased` at
+/// the proposal Commit and one more Tombstone that targets `target`.
+fn repository_with_tombstone_for(path: &Path, target: &str) -> (Repository, String) {
+    let mut repository = Repository::open(path).unwrap();
+    load_fixture_store(&repository);
+    repository
+        .update_ref(RefUpdate {
+            ref_name: "proposal/agent/run-erased",
+            expected_head: None,
+            new_head: &oid("proposal-commit.json"),
+            metadata: ReflogMetadata::at(1),
+        })
+        .unwrap();
+    let tombstone = String::from_utf8(fixture("tombstone.json"))
+        .unwrap()
+        .replace(&blob_oid(&fixture("proposal.txt")), target)
+        .replace("000000000080", "000000000081");
+    let stored = repository.put_object(tombstone.as_bytes()).unwrap();
+    (repository, stored.oid)
+}
+
+#[test]
+fn repair_does_not_bring_back_a_record_whose_tombstone_is_damaged_too() {
+    let temporary = TempDirectory::new("repair-record-tombstone");
+    let target = oid("context-pack.json");
+    let repository_path = temporary.join("repo");
+    let source = temporary.join("source");
+    let (repository, tombstone) = repository_with_tombstone_for(&repository_path, &target);
+    drop(repository_with_tombstone_for(&source, &target));
+    let target_path = object_path(&repository_path, &target);
+    let tombstone_path = object_path(&repository_path, &tombstone);
+    fs::remove_file(&target_path).unwrap();
+    fs::write(&tombstone_path, b"{").unwrap();
+
+    let report = repository.repair_objects(&[source]).unwrap();
+
+    assert!(report.fsck.is_clean(), "{:?}", report.fsck.issues);
+    assert_eq!(report.repaired.len(), 1, "{:?}", report.repaired);
+    assert_eq!(report.repaired[0].oid, tombstone);
+    assert!(!target_path.exists());
+}
+
+#[test]
+fn repair_restores_nothing_while_a_damaged_record_has_no_copy() {
+    let temporary = TempDirectory::new("repair-record-no-copy");
+    let target = oid("context-pack.json");
+    let repository_path = temporary.join("repo");
+    let (repository, tombstone) = repository_with_tombstone_for(&repository_path, &target);
+    // This source predates the Tombstone, so it offers the erased Record.
+    let source = temporary.join("source");
+    load_fixture_store(&Repository::open(&source).unwrap());
+    let target_path = object_path(&repository_path, &target);
+    fs::remove_file(&target_path).unwrap();
+    fs::write(object_path(&repository_path, &tombstone), b"{").unwrap();
+
+    let report = repository.repair_objects(&[source]).unwrap();
+
+    assert!(report.repaired.is_empty(), "{:?}", report.repaired);
+    assert_eq!(report.undecided, [tombstone.clone()]);
+    assert_eq!(report.held_back, [target.clone()]);
+    assert!(report.remaining.contains(&tombstone));
+    assert!(!target_path.exists());
+}
+
+#[test]
+fn repair_lets_a_tombstone_only_a_source_holds_stop_a_restore_but_not_add_a_record() {
+    let temporary = TempDirectory::new("repair-source-tombstone");
+    let repository_path = temporary.join("repo");
+    let source = temporary.join("source");
+    let mut repository = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&repository);
+    load_fixture_store(&Repository::open(&source).unwrap());
+    repository
+        .update_ref(RefUpdate {
+            ref_name: "proposal/agent/run-erased",
+            expected_head: None,
+            new_head: &oid("proposal-commit.json"),
+            metadata: ReflogMetadata::at(1),
+        })
+        .unwrap();
+    let erased_blob = blob_oid(&fixture("proposal.txt"));
+    let erased_path = object_path(&repository_path, &erased_blob);
+    let tombstone_path = object_path(&repository_path, &oid("tombstone.json"));
+    fs::remove_file(&erased_path).unwrap();
+    fs::remove_file(&tombstone_path).unwrap();
+
+    let report = repository
+        .repair_objects(std::slice::from_ref(&source))
+        .unwrap();
+
+    assert!(report.repaired.is_empty(), "{:?}", report.repaired);
+    assert_eq!(
+        report.erased_in_source,
+        [ErasedInSource {
+            oid: erased_blob,
+            tombstone: oid("tombstone.json"),
+            source,
+        }]
+    );
+    assert!(!erased_path.exists());
+    assert!(!tombstone_path.exists());
+    assert!(!report.fsck.is_clean());
+
+    repository.put_object(&fixture("tombstone.json")).unwrap();
+    assert!(repository.fsck().unwrap().is_clean());
+}
+
+#[test]
+fn repair_does_not_let_a_forged_tombstone_block_a_later_good_copy() {
+    let temporary = TempDirectory::new("repair-forged-tombstone");
+    let target = blob_oid(&fixture("proposal.txt"));
+    let repository_path = temporary.join("repo");
+    let mut repository = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&repository);
+    repository
+        .update_ref(RefUpdate {
+            ref_name: "proposal/agent/run-kept",
+            expected_head: None,
+            new_head: &oid("proposal-commit.json"),
+            metadata: ReflogMetadata::at(1),
+        })
+        .unwrap();
+    // Without its fixture Tombstone, this object is simply damaged here.
+    fs::remove_file(object_path(&repository_path, &oid("tombstone.json"))).unwrap();
+    let forged = temporary.join("forged");
+    let (_, forged_tombstone) = repository_with_tombstone_for(&forged, &target);
+    let target_path = object_path(&repository_path, &target);
+    fs::remove_file(&target_path).unwrap();
+
+    let first = repository.repair_objects(&[forged]).unwrap();
+
+    assert!(first.repaired.is_empty(), "{:?}", first.repaired);
+    assert_eq!(first.erased_in_source.len(), 1);
+    assert!(!target_path.exists());
+    assert!(!object_path(&repository_path, &forged_tombstone).exists());
+
+    let second = repository
+        .repair_objects(&[fixture_directory().join("proposal.txt")])
+        .unwrap();
+
+    assert_eq!(second.repaired.len(), 1);
+    assert!(target_path.is_file());
+    assert!(second.fsck.is_clean(), "{:?}", second.fsck.issues);
+}
+
+#[test]
+fn repair_counts_a_tombstoned_ref_head_as_remaining() {
+    let temporary = TempDirectory::new("repair-tombstoned-head");
+    let head = oid("proposal-commit.json");
+    let repository_path = temporary.join("repo");
+    let (repository, _) = repository_with_tombstone_for(&repository_path, &head);
+    fs::remove_file(object_path(&repository_path, &head)).unwrap();
+
+    let report = repository
+        .repair_objects(&[fixture_directory().join("proposal.txt")])
+        .unwrap();
+
+    assert_eq!(report.remaining, [head]);
+    assert!(!report.fsck.is_clean());
+}
+
+#[test]
+fn repair_reads_a_repository_copy_that_holds_a_stray_file() {
+    let temporary = TempDirectory::new("repair-stray-source");
+    let repository_path = temporary.join("repo");
+    let source = temporary.join("source");
+    let mut repository = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&repository);
+    load_fixture_store(&Repository::open(&source).unwrap());
+    repository
+        .update_ref(RefUpdate {
+            ref_name: "proposal/agent/run-kept",
+            expected_head: None,
+            new_head: &oid("proposal-commit.json"),
+            metadata: ReflogMetadata::at(1),
+        })
+        .unwrap();
+    let record = oid("context-pack.json");
+    let record_path = object_path(&source, &record);
+    fs::write(
+        record_path.with_file_name("sync-conflict"),
+        b"not an object",
+    )
+    .unwrap();
+    let damaged = object_path(&repository_path, &record);
+    let bytes = fs::read(&damaged).unwrap();
+    fs::write(&damaged, b"{").unwrap();
+
+    let report = repository.repair_objects(&[source]).unwrap();
+
+    assert_eq!(report.repaired.len(), 1);
+    assert_eq!(fs::read(&damaged).unwrap(), bytes);
+}
+
+#[test]
+fn repair_holds_other_objects_back_while_a_record_stays_damaged() {
+    let temporary = TempDirectory::new("repair-unresolved-record");
+    let repository_path = temporary.join("repo");
+    let mut repository = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&repository);
+    let proposal = oid("proposal-commit.json");
+    repository
+        .update_ref(RefUpdate {
+            ref_name: "proposal/agent/run-erased",
+            expected_head: None,
+            new_head: &proposal,
+            metadata: ReflogMetadata::at(1),
+        })
+        .unwrap();
+    let erased_blob = blob_oid(&fixture("proposal.txt"));
+    let erased_path = object_path(&repository_path, &erased_blob);
+    let tombstone_path = object_path(&repository_path, &oid("tombstone.json"));
+    fs::remove_file(&erased_path).unwrap();
+    fs::write(&tombstone_path, b"{").unwrap();
+
+    let report = repository
+        .repair_objects(&[fixture_directory().join("proposal.txt")])
+        .unwrap();
+
+    assert!(report.repaired.is_empty());
+    assert_eq!(report.held_back, [erased_blob]);
+    assert!(report.remaining.contains(&oid("tombstone.json")));
+    assert!(!erased_path.exists());
+}
+
+#[test]
+fn repair_restores_objects_that_only_the_reflog_still_reaches() {
+    let temporary = TempDirectory::new("repair-reflog");
+    let repository_path = temporary.join("repo");
+    let mut repository = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&repository);
+    let base = oid("base-commit.json");
+    let proposal = oid("proposal-commit.json");
+    for (expected_head, new_head) in [(None, &proposal), (Some(proposal.as_str()), &base)] {
+        repository
+            .update_ref(RefUpdate {
+                ref_name: "proposal/agent/run-history",
+                expected_head,
+                new_head,
+                metadata: ReflogMetadata::at(1),
+            })
+            .unwrap();
+    }
+    let only_in_history = object_path(&repository_path, &proposal);
+    let bytes = fs::read(&only_in_history).unwrap();
+    let source = temporary.join("source");
+    {
+        let copy = Repository::open(&source).unwrap();
+        load_fixture_store(&copy);
+    }
+    fs::remove_file(&only_in_history).unwrap();
+    assert!(repository.fsck().unwrap().is_clean());
+
+    let report = repository.repair_objects(&[source]).unwrap();
+
+    assert_eq!(report.repaired.len(), 1);
+    assert_eq!(report.repaired[0].oid, proposal);
+    assert_eq!(fs::read(&only_in_history).unwrap(), bytes);
 }
 
 #[test]
