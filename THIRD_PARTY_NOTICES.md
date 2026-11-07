@@ -76,9 +76,9 @@ linked into every distributed binary.
 | indexmap | 2.14.0 | Apache-2.0 OR MIT | https://github.com/indexmap-rs/indexmap |
 | itoa | 1.0.18 | MIT OR Apache-2.0 | https://github.com/dtolnay/itoa |
 | js-sys | 0.3.103 | MIT OR Apache-2.0 | https://github.com/wasm-bindgen/wasm-bindgen/tree/master/crates/js-sys |
-| jsonschema-regex | 0.58.2 | MIT | https://github.com/Stranger6667/jsonschema |
-| jsonschema-value | 0.58.2 | MIT | https://github.com/Stranger6667/jsonschema |
-| jsonschema | 0.58.2 | MIT | https://github.com/Stranger6667/jsonschema |
+| jsonschema-regex | 0.60.2 | MIT | https://github.com/Stranger6667/jsonschema |
+| jsonschema-value | 0.60.2 | MIT | https://github.com/Stranger6667/jsonschema |
+| jsonschema | 0.60.2 | MIT | https://github.com/Stranger6667/jsonschema |
 | libc | 0.2.186 | MIT OR Apache-2.0 | https://github.com/rust-lang/libc |
 | libsqlite3-sys | 0.37.0 | MIT | https://github.com/rusqlite/rusqlite |
 | linux-raw-sys | 0.12.1 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | https://github.com/sunfishcode/linux-raw-sys |
@@ -112,25 +112,25 @@ linked into every distributed binary.
 | redox_syscall | 0.5.18 | MIT | https://gitlab.redox-os.org/redox-os/syscall |
 | ref-cast-impl | 1.0.25 | MIT OR Apache-2.0 | https://github.com/dtolnay/ref-cast |
 | ref-cast | 1.0.25 | MIT OR Apache-2.0 | https://github.com/dtolnay/ref-cast |
-| referencing | 0.58.2 | MIT | https://github.com/Stranger6667/jsonschema |
+| referencing | 0.60.2 | MIT | https://github.com/Stranger6667/jsonschema |
 | regex-automata | 0.4.18 | MIT OR Apache-2.0 | https://github.com/rust-lang/regex |
 | regex-syntax | 0.8.11 | MIT OR Apache-2.0 | https://github.com/rust-lang/regex |
 | regex | 1.13.0 | MIT OR Apache-2.0 | https://github.com/rust-lang/regex |
 | rsqlite-vfs | 0.1.1 | MIT | registry+https://github.com/rust-lang/crates.io-index |
 | rusqlite | 0.39.0 | MIT | https://github.com/rusqlite/rusqlite |
 | rustc-hash | 2.1.3 | Apache-2.0 OR MIT | https://github.com/rust-lang/rustc-hash |
-| rustix | 1.1.5 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | https://github.com/bytecodealliance/rustix |
+| rustix | 1.1.6 | Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT | https://github.com/bytecodealliance/rustix |
 | rustversion | 1.0.23 | MIT OR Apache-2.0 | https://github.com/dtolnay/rustversion |
 | ryu | 1.0.23 | Apache-2.0 OR BSL-1.0 | https://github.com/dtolnay/ryu |
 | scopeguard | 1.2.0 | MIT OR Apache-2.0 | https://github.com/bluss/scopeguard |
 | serde_core | 1.0.229 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
 | serde_derive | 1.0.229 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
-| serde_json | 1.0.151 | MIT OR Apache-2.0 | https://github.com/serde-rs/json |
+| serde_json | 1.0.154 | MIT OR Apache-2.0 | https://github.com/serde-rs/json |
 | serde_path_to_error | 0.1.20 | MIT OR Apache-2.0 | https://github.com/dtolnay/path-to-error |
-| serde_spanned | 1.1.1 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
+| serde_spanned | 1.1.2 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
 | serde_urlencoded | 0.7.1 | MIT/Apache-2.0 | https://github.com/nox/serde_urlencoded |
 | serde | 1.0.229 | MIT OR Apache-2.0 | https://github.com/serde-rs/serde |
-| sha2 | 0.11.0 | MIT OR Apache-2.0 | https://github.com/RustCrypto/hashes |
+| sha2 | 0.11.1 | MIT OR Apache-2.0 | https://github.com/RustCrypto/hashes |
 | shlex | 2.0.1 | MIT OR Apache-2.0 | https://github.com/comex/rust-shlex |
 | signal-hook-registry | 1.4.8 | MIT OR Apache-2.0 | https://github.com/vorner/signal-hook |
 | slab | 0.4.12 | MIT | https://github.com/tokio-rs/slab |
@@ -148,11 +148,11 @@ linked into every distributed binary.
 | tinyvec_macros | 0.1.1 | MIT OR Apache-2.0 OR Zlib | https://github.com/Soveu/tinyvec_macros |
 | tinyvec | 1.12.0 | Zlib OR Apache-2.0 OR MIT | https://github.com/Lokathor/tinyvec |
 | tokio-macros | 2.7.0 | MIT | https://github.com/tokio-rs/tokio |
-| tokio | 1.53.1 | MIT | https://github.com/tokio-rs/tokio |
-| toml_datetime | 1.1.1+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
-| toml_parser | 1.1.3+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
-| toml_writer | 1.1.2+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
-| toml | 1.1.6+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
+| tokio | 1.54.1 | MIT | https://github.com/tokio-rs/tokio |
+| toml_datetime | 1.1.2+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
+| toml_parser | 1.1.5+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
+| toml_writer | 1.1.3+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
+| toml | 1.1.8+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
 | tower-layer | 0.3.3 | MIT | https://github.com/tower-rs/tower |
 | tower-service | 0.3.3 | MIT | https://github.com/tower-rs/tower |
 | tower | 0.5.3 | MIT | https://github.com/tower-rs/tower |
@@ -161,7 +161,7 @@ linked into every distributed binary.
 | typenum | 1.20.1 | MIT OR Apache-2.0 | https://github.com/paholg/typenum |
 | unicode-general-category | 1.1.0 | Apache-2.0 | https://github.com/yeslogic/unicode-general-category |
 | unicode-ident | 1.0.24 | (MIT OR Apache-2.0) AND Unicode-3.0 | https://github.com/dtolnay/unicode-ident |
-| unicode-normalization | 0.1.25 | MIT OR Apache-2.0 | https://github.com/unicode-rs/unicode-normalization |
+| unicode-normalization | 0.1.26 | (MIT OR Apache-2.0) AND Unicode-3.0 | https://github.com/unicode-rs/unicode-normalization |
 | uuid-simd | 0.8.0 | MIT | https://github.com/Nugine/simd |
 | vcpkg | 0.2.15 | MIT/Apache-2.0 | https://github.com/mcgoo/vcpkg-rs |
 | version_check | 0.9.5 | MIT/Apache-2.0 | https://github.com/SergioBenitez/version_check |
@@ -227,12 +227,12 @@ Applies to:
 - regex 1.13.0 — LICENSE-APACHE
 - regex-automata 0.4.18 — LICENSE-APACHE
 - regex-syntax 0.8.11 — LICENSE-APACHE
-- rustix 1.1.5 — LICENSE-APACHE
+- rustix 1.1.6 — LICENSE-APACHE
 - scopeguard 1.2.0 — LICENSE-APACHE
 - signal-hook-registry 1.4.8 — LICENSE-APACHE
 - smallvec 1.15.2 — LICENSE-APACHE
 - socket2 0.6.5 — LICENSE-APACHE
-- unicode-normalization 0.1.25 — LICENSE-APACHE
+- unicode-normalization 0.1.26 — LICENSE-APACHE
 - vcpkg 0.2.15 — LICENSE-APACHE
 - version_check 0.9.5 — LICENSE-APACHE
 - wasi 0.11.1+wasi-snapshot-preview1 — LICENSE-APACHE
@@ -577,7 +577,7 @@ Applies to:
 - serde 1.0.229 — LICENSE-APACHE
 - serde_core 1.0.229 — LICENSE-APACHE
 - serde_derive 1.0.229 — LICENSE-APACHE
-- serde_json 1.0.151 — LICENSE-APACHE
+- serde_json 1.0.154 — LICENSE-APACHE
 - serde_path_to_error 0.1.20 — LICENSE-APACHE
 - serde_urlencoded 0.7.1 — LICENSE-APACHE
 - syn 2.0.119 — LICENSE-APACHE
@@ -781,12 +781,12 @@ Applies to:
 - ref-cast 1.0.25 — LICENSE-MIT
 - ref-cast-impl 1.0.25 — LICENSE-MIT
 - rustc-hash 2.1.3 — LICENSE-MIT
-- rustix 1.1.5 — LICENSE-MIT
+- rustix 1.1.6 — LICENSE-MIT
 - rustversion 1.0.23 — LICENSE-MIT
 - serde 1.0.229 — LICENSE-MIT
 - serde_core 1.0.229 — LICENSE-MIT
 - serde_derive 1.0.229 — LICENSE-MIT
-- serde_json 1.0.151 — LICENSE-MIT
+- serde_json 1.0.154 — LICENSE-MIT
 - serde_path_to_error 0.1.20 — LICENSE-MIT
 - syn 2.0.119 — LICENSE-MIT
 - syn 3.0.3 — LICENSE-MIT
@@ -1340,7 +1340,7 @@ Applies to:
 - crypto-common 0.2.2 — LICENSE-APACHE
 - digest 0.11.3 — LICENSE-APACHE
 - hybrid-array 0.4.13 — LICENSE-APACHE
-- sha2 0.11.0 — LICENSE-APACHE
+- sha2 0.11.1 — LICENSE-APACHE
 
 SHA-256: `a9040321c3712d8fd0b09cf52b17445de04a23a10165049ae187cd39e5c86be5`
 
@@ -1648,11 +1648,6 @@ Applies to:
 - bytecount 0.6.9 — LICENSE.Apache2
 - fallible-iterator 0.3.0 — LICENSE-APACHE
 - fallible-streaming-iterator 0.1.9 — LICENSE-APACHE
-- serde_spanned 1.1.1 — LICENSE-APACHE
-- toml 1.1.6+spec-1.1.0 — LICENSE-APACHE
-- toml_datetime 1.1.1+spec-1.1.0 — LICENSE-APACHE
-- toml_parser 1.1.3+spec-1.1.0 — LICENSE-APACHE
-- toml_writer 1.1.2+spec-1.1.0 — LICENSE-APACHE
 - unicode-general-category 1.1.0 — LICENSE
 
 SHA-256: `b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1`
@@ -3342,7 +3337,7 @@ SHA-256: `f1fa5f9e9d8f7827ae2235e742dd00bdf6106d4c5753df928e521d7541b7f9b6`
 Applies to:
 
 - heck 0.5.0 — LICENSE-MIT
-- unicode-normalization 0.1.25 — LICENSE-MIT
+- unicode-normalization 0.1.26 — LICENSE-MIT
 
 SHA-256: `7b63ecd5f1902af1b63729947373683c32745c16a10e8e6292e2e2dcd7e90ae0`
 
@@ -4045,10 +4040,10 @@ SHA-256: `ecc269ef87fd38a1d98e30bfac9ba964a9dbd9315c3770fed98d4d7cb5882055`
 
 Applies to:
 
-- jsonschema 0.58.2 — LICENSE
-- jsonschema-regex 0.58.2 — Stranger6667-jsonschema-LICENSE
-- jsonschema-value 0.58.2 — Stranger6667-jsonschema-LICENSE
-- referencing 0.58.2 — LICENSE
+- jsonschema 0.60.2 — LICENSE
+- jsonschema-regex 0.60.2 — Stranger6667-jsonschema-LICENSE
+- jsonschema-value 0.60.2 — Stranger6667-jsonschema-LICENSE
+- referencing 0.60.2 — LICENSE
 
 SHA-256: `117829c3ca21efb132d81a44b55363d395ab8eea18526873bc828da4c0e5f038`
 
@@ -4213,7 +4208,7 @@ SHA-256: `3290ae0fbc9ddb77d2239121d710f0bb9d31b3b4744e6d97fe01e652b4c1870b`
 Applies to:
 
 - linux-raw-sys 0.12.1 — LICENSE-Apache-2.0_WITH_LLVM-exception
-- rustix 1.1.5 — LICENSE-Apache-2.0_WITH_LLVM-exception
+- rustix 1.1.6 — LICENSE-Apache-2.0_WITH_LLVM-exception
 - wasi 0.11.1+wasi-snapshot-preview1 — LICENSE-Apache-2.0_WITH_LLVM-exception
 - wasip2 1.0.4+wasi-0.2.12 — LICENSE-Apache-2.0_WITH_LLVM-exception
 - wit-bindgen 0.57.1 — LICENSE-Apache-2.0_WITH_LLVM-exception
@@ -5607,7 +5602,7 @@ SHA-256: `e1c1975c3474cce31722836f101a40ffaf1cc784e4d2f38ce3e77b9712934e78`
 
 Applies to:
 
-- rustix 1.1.5 — COPYRIGHT
+- rustix 1.1.6 — COPYRIGHT
 
 SHA-256: `377c2e7c53250cc5905c0b0532d35973392af16ffb9596a41d99d202cf3617c9`
 
@@ -5707,15 +5702,229 @@ SHA-256: `fb77f0a9c53e473abe5103c8632ef9f0f2874d4fb3f17cb2d8c661aab9cee9d7`
     IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
     DEALINGS IN THE SOFTWARE.
 
+### Notice 05c58f1374a0
+
+Applies to:
+
+- serde_spanned 1.1.2 — LICENSE-APACHE
+- toml 1.1.8+spec-1.1.0 — LICENSE-APACHE
+- toml_datetime 1.1.2+spec-1.1.0 — LICENSE-APACHE
+- toml_parser 1.1.5+spec-1.1.0 — LICENSE-APACHE
+- toml_writer 1.1.3+spec-1.1.0 — LICENSE-APACHE
+
+SHA-256: `05c58f1374a0ba16711c4f60552df215d72078d374bbd245ad438388c87c3573`
+
+                                     Apache License
+                               Version 2.0, January 2004
+                            http://www.apache.org/licenses/
+
+       TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+       1. Definitions.
+
+          "License" shall mean the terms and conditions for use, reproduction,
+          and distribution as defined by Sections 1 through 9 of this document.
+
+          "Licensor" shall mean the copyright owner or entity authorized by
+          the copyright owner that is granting the License.
+
+          "Legal Entity" shall mean the union of the acting entity and all
+          other entities that control, are controlled by, or are under common
+          control with that entity. For the purposes of this definition,
+          "control" means (i) the power, direct or indirect, to cause the
+          direction or management of such entity, whether by contract or
+          otherwise, or (ii) ownership of fifty percent (50%) or more of the
+          outstanding shares, or (iii) beneficial ownership of such entity.
+
+          "You" (or "Your") shall mean an individual or Legal Entity
+          exercising permissions granted by this License.
+
+          "Source" form shall mean the preferred form for making modifications,
+          including but not limited to software source code, documentation
+          source, and configuration files.
+
+          "Object" form shall mean any form resulting from mechanical
+          transformation or translation of a Source form, including but
+          not limited to compiled object code, generated documentation,
+          and conversions to other media types.
+
+          "Work" shall mean the work of authorship, whether in Source or
+          Object form, made available under the License, as indicated by a
+          copyright notice that is included in or attached to the work
+          (an example is provided in the Appendix below).
+
+          "Derivative Works" shall mean any work, whether in Source or Object
+          form, that is based on (or derived from) the Work and for which the
+          editorial revisions, annotations, elaborations, or other modifications
+          represent, as a whole, an original work of authorship. For the purposes
+          of this License, Derivative Works shall not include works that remain
+          separable from, or merely link (or bind by name) to the interfaces of,
+          the Work and Derivative Works thereof.
+
+          "Contribution" shall mean any work of authorship, including
+          the original version of the Work and any modifications or additions
+          to that Work or Derivative Works thereof, that is intentionally
+          submitted to Licensor for inclusion in the Work by the copyright owner
+          or by an individual or Legal Entity authorized to submit on behalf of
+          the copyright owner. For the purposes of this definition, "submitted"
+          means any form of electronic, verbal, or written communication sent
+          to the Licensor or its representatives, including but not limited to
+          communication on electronic mailing lists, source code control systems,
+          and issue tracking systems that are managed by, or on behalf of, the
+          Licensor for the purpose of discussing and improving the Work, but
+          excluding communication that is conspicuously marked or otherwise
+          designated in writing by the copyright owner as "Not a Contribution."
+
+          "Contributor" shall mean Licensor and any individual or Legal Entity
+          on behalf of whom a Contribution has been received by Licensor and
+          subsequently incorporated within the Work.
+
+       2. Grant of Copyright License. Subject to the terms and conditions of
+          this License, each Contributor hereby grants to You a perpetual,
+          worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+          copyright license to reproduce, prepare Derivative Works of,
+          publicly display, publicly perform, sublicense, and distribute the
+          Work and such Derivative Works in Source or Object form.
+
+       3. Grant of Patent License. Subject to the terms and conditions of
+          this License, each Contributor hereby grants to You a perpetual,
+          worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+          (except as stated in this section) patent license to make, have made,
+          use, offer to sell, sell, import, and otherwise transfer the Work,
+          where such license applies only to those patent claims licensable
+          by such Contributor that are necessarily infringed by their
+          Contribution(s) alone or by combination of their Contribution(s)
+          with the Work to which such Contribution(s) was submitted. If You
+          institute patent litigation against any entity (including a
+          cross-claim or counterclaim in a lawsuit) alleging that the Work
+          or a Contribution incorporated within the Work constitutes direct
+          or contributory patent infringement, then any patent licenses
+          granted to You under this License for that Work shall terminate
+          as of the date such litigation is filed.
+
+       4. Redistribution. You may reproduce and distribute copies of the
+          Work or Derivative Works thereof in any medium, with or without
+          modifications, and in Source or Object form, provided that You
+          meet the following conditions:
+
+          (a) You must give any other recipients of the Work or
+              Derivative Works a copy of this License; and
+
+          (b) You must cause any modified files to carry prominent notices
+              stating that You changed the files; and
+
+          (c) You must retain, in the Source form of any Derivative Works
+              that You distribute, all copyright, patent, trademark, and
+              attribution notices from the Source form of the Work,
+              excluding those notices that do not pertain to any part of
+              the Derivative Works; and
+
+          (d) If the Work includes a "NOTICE" text file as part of its
+              distribution, then any Derivative Works that You distribute must
+              include a readable copy of the attribution notices contained
+              within such NOTICE file, excluding those notices that do not
+              pertain to any part of the Derivative Works, in at least one
+              of the following places: within a NOTICE text file distributed
+              as part of the Derivative Works; within the Source form or
+              documentation, if provided along with the Derivative Works; or,
+              within a display generated by the Derivative Works, if and
+              wherever such third-party notices normally appear. The contents
+              of the NOTICE file are for informational purposes only and
+              do not modify the License. You may add Your own attribution
+              notices within Derivative Works that You distribute, alongside
+              or as an addendum to the NOTICE text from the Work, provided
+              that such additional attribution notices cannot be construed
+              as modifying the License.
+
+          You may add Your own copyright statement to Your modifications and
+          may provide additional or different license terms and conditions
+          for use, reproduction, or distribution of Your modifications, or
+          for any such Derivative Works as a whole, provided Your use,
+          reproduction, and distribution of the Work otherwise complies with
+          the conditions stated in this License.
+
+       5. Submission of Contributions. Unless You explicitly state otherwise,
+          any Contribution intentionally submitted for inclusion in the Work
+          by You to the Licensor shall be under the terms and conditions of
+          this License, without any additional terms or conditions.
+          Notwithstanding the above, nothing herein shall supersede or modify
+          the terms of any separate license agreement you may have executed
+          with Licensor regarding such Contributions.
+
+       6. Trademarks. This License does not grant permission to use the trade
+          names, trademarks, service marks, or product names of the Licensor,
+          except as required for reasonable and customary use in describing the
+          origin of the Work and reproducing the content of the NOTICE file.
+
+       7. Disclaimer of Warranty. Unless required by applicable law or
+          agreed to in writing, Licensor provides the Work (and each
+          Contributor provides its Contributions) on an "AS IS" BASIS,
+          WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+          implied, including, without limitation, any warranties or conditions
+          of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+          PARTICULAR PURPOSE. You are solely responsible for determining the
+          appropriateness of using or redistributing the Work and assume any
+          risks associated with Your exercise of permissions under this License.
+
+       8. Limitation of Liability. In no event and under no legal theory,
+          whether in tort (including negligence), contract, or otherwise,
+          unless required by applicable law (such as deliberate and grossly
+          negligent acts) or agreed to in writing, shall any Contributor be
+          liable to You for damages, including any direct, indirect, special,
+          incidental, or consequential damages of any character arising as a
+          result of this License or out of the use or inability to use the
+          Work (including but not limited to damages for loss of goodwill,
+          work stoppage, computer failure or malfunction, or any and all
+          other commercial damages or losses), even if such Contributor
+          has been advised of the possibility of such damages.
+
+       9. Accepting Warranty or Additional Liability. While redistributing
+          the Work or Derivative Works thereof, You may choose to offer,
+          and charge a fee for, acceptance of support, warranty, indemnity,
+          or other liability obligations and/or rights consistent with this
+          License. However, in accepting such obligations, You may act only
+          on Your own behalf and on Your sole responsibility, not on behalf
+          of any other Contributor, and only if You agree to indemnify,
+          defend, and hold each Contributor harmless for any liability
+          incurred by, or claims asserted against, such Contributor by reason
+          of your accepting any such warranty or additional liability.
+
+       END OF TERMS AND CONDITIONS
+
+       APPENDIX: How to apply the Apache License to your work.
+
+          To apply the Apache License to your work, attach the following
+          boilerplate notice, with the fields enclosed by brackets "{}"
+          replaced with your own identifying information. (Don't include
+          the brackets!)  The text should be enclosed in the appropriate
+          comment syntax for the file format. We also recommend that a
+          file or class name and description of purpose be included on the
+          same "printed page" as the copyright notice for easier
+          identification within third-party archives.
+
+       Copyright Individual contributors
+
+       Licensed under the Apache License, Version 2.0 (the "License");
+       you may not use this file except in compliance with the License.
+       You may obtain a copy of the License at
+
+           http://www.apache.org/licenses/LICENSE-2.0
+
+       Unless required by applicable law or agreed to in writing, software
+       distributed under the License is distributed on an "AS IS" BASIS,
+       WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+       See the License for the specific language governing permissions and
+       limitations under the License.
+
 ### Notice 6efb0476a1cc
 
 Applies to:
 
-- serde_spanned 1.1.1 — LICENSE-MIT
-- toml 1.1.6+spec-1.1.0 — LICENSE-MIT
-- toml_datetime 1.1.1+spec-1.1.0 — LICENSE-MIT
-- toml_parser 1.1.3+spec-1.1.0 — LICENSE-MIT
-- toml_writer 1.1.2+spec-1.1.0 — LICENSE-MIT
+- serde_spanned 1.1.2 — LICENSE-MIT
+- toml 1.1.8+spec-1.1.0 — LICENSE-MIT
+- toml_datetime 1.1.2+spec-1.1.0 — LICENSE-MIT
+- toml_parser 1.1.5+spec-1.1.0 — LICENSE-MIT
+- toml_writer 1.1.3+spec-1.1.0 — LICENSE-MIT
 
 SHA-256: `6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6`
 
@@ -5777,7 +5986,7 @@ SHA-256: `b9eb266294324f672cbe945fe8f2e32f85024f0d61a1a7d14382cdde0ac44769`
 
 Applies to:
 
-- sha2 0.11.0 — LICENSE-MIT
+- sha2 0.11.1 — LICENSE-MIT
 
 SHA-256: `831e0f43ad0bf014c1c4fec5767aae470434c1d66d6e671be2d823e729063e25`
 
@@ -6332,7 +6541,7 @@ SHA-256: `6abdec69ada0c5f06d4819d9a0db0824ce54d610665df0b64c774480db9c1f2a`
 
 Applies to:
 
-- tokio 1.53.1 — LICENSE
+- tokio 1.54.1 — LICENSE
 
 SHA-256: `253cd04c6714889df2d32f3f64d669179a1c95c76ac43c40882c52eb06bc3552`
 
@@ -6715,6 +6924,7 @@ SHA-256: `a825bd853ab71619a4923d7b4311221427848070ff44d990da39b0b274c1683f`
 Applies to:
 
 - unicode-ident 1.0.24 — LICENSE-UNICODE
+- unicode-normalization 0.1.26 — LICENSE-UNICODE
 
 SHA-256: `f7db81051789b729fea528a63ec4c938fdcb93d9d61d97dc8cc2e9df6d47f2a1`
 
@@ -6762,7 +6972,7 @@ SHA-256: `f7db81051789b729fea528a63ec4c938fdcb93d9d61d97dc8cc2e9df6d47f2a1`
 
 Applies to:
 
-- unicode-normalization 0.1.25 — COPYRIGHT
+- unicode-normalization 0.1.26 — COPYRIGHT
 
 SHA-256: `23860c2a7b5d96b21569afedf033469bab9fe14a1b24a35068b8641c578ce24d`
 
