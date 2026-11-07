@@ -190,6 +190,18 @@ fn catalog_rejects_missing_file_and_nonempty_nonrepository_paths_without_writing
 }
 
 #[test]
+fn catalog_treats_a_folder_with_only_os_metadata_as_empty() {
+    let temporary = TempDirectory::new();
+    let folder = temporary.directory("folder-made-in-finder");
+    fs::write(folder.join(".DS_Store"), b"finder").unwrap();
+
+    LocalService::new([registration("project", "Project", &folder)]).unwrap();
+
+    assert!(folder.join("cas/objects").is_dir());
+    assert!(folder.join("refs.sqlite3").is_file());
+}
+
+#[test]
 fn empty_project_reads_share_a_stable_bounded_snapshot_shape() {
     let temporary = TempDirectory::new();
     let repository = temporary.directory("repository");

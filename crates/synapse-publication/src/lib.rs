@@ -713,10 +713,15 @@ pub fn verify_bundle(root: impl AsRef<Path>) -> Result<VerifiedBundle> {
             "bundle checksum inventory does not match the selected target profile".into(),
         ));
     }
-    if actual_files != expected_files {
-        return Err(PublicationError::InvalidBundle(
-            "bundle contains an unlisted or missing file".into(),
-        ));
+    if let Some(file) = actual_files.difference(&expected_files).next() {
+        return Err(PublicationError::InvalidBundle(format!(
+            "bundle contains the unlisted file {file:?}; remove that file or export the bundle again"
+        )));
+    }
+    if let Some(file) = expected_files.difference(&actual_files).next() {
+        return Err(PublicationError::InvalidBundle(format!(
+            "bundle is missing the listed file {file:?}; export the bundle again"
+        )));
     }
 
     let projection_bytes = read_regular_file(&root.join(&manifest.projection_path))?;
@@ -2324,6 +2329,32 @@ mod replacement_tests {
             destination,
             io::Error::new(io::ErrorKind::Unsupported, "injected exchange failure"),
         ))
+    }
+
+    #[test]
+    fn invalid_inventory_names_the_file_to_remove_or_restore() {
+        let root = test_root("inventory-error");
+        let repository = root.join("repo");
+        drop(Repository::open(&repository).unwrap());
+        let destination = root.join("bundle");
+        export_bundle(&ExportOptions {
+            projection: ProjectionOptions::new(&repository),
+            destination: destination.clone(),
+            target: OutputTarget::Synapse,
+            locale: None,
+            replace: false,
+        })
+        .unwrap();
+
+        fs::write(destination.join(".DS_Store"), b"finder").unwrap();
+        let unlisted = verify_bundle(&destination).err().unwrap().to_string();
+        assert!(unlisted.contains("\".DS_Store\""), "{unlisted}");
+        fs::remove_file(destination.join(".DS_Store")).unwrap();
+        assert!(verify_bundle(&destination).is_ok());
+
+        fs::remove_file(destination.join("story.md")).unwrap();
+        let missing = verify_bundle(&destination).err().unwrap().to_string();
+        assert!(missing.contains("story.md"), "{missing}");
     }
 
     #[test]

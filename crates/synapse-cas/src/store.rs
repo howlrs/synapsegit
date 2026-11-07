@@ -1,5 +1,6 @@
 use sha2::{Digest, Sha256};
 use std::error::Error;
+use std::ffi::OsStr;
 use std::fmt;
 use std::fs::{self, File, OpenOptions};
 use std::io::{self, BufReader, Read, Write};
@@ -15,6 +16,9 @@ const OBJECTS_DIRECTORY: &str = "objects";
 const TEMP_DIRECTORY: &str = "tmp";
 const DEFAULT_IO_BUFFER_BYTES: usize = 64 * 1024;
 const DEFAULT_MAX_BLOB_BYTES: u64 = 512 * 1024 * 1024;
+/// OS metadata files one bounded directory scan skips on top of its own entry
+/// limit, so an otherwise empty directory can still hold a few of them.
+const MAX_IGNORED_ENTRIES_BEYOND_LIMIT: usize = 16;
 
 /// Deployment limits for filesystem object ingestion and verification.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -833,6 +837,9 @@ fn scan_inventory(root: &Path) -> Result<StoreInventory, StoreError> {
         .map_err(|error| StoreError::io("scan object directory", &objects, error))?;
     for entry in entries {
         let entry = entry.map_err(|error| StoreError::io("read object entry", &objects, error))?;
+        if is_ignored_os_metadata(&entry) {
+            continue;
+        }
         let path = entry.path();
         let Some(family) = entry.file_name().to_str().map(str::to_owned) else {
             invalid_paths.push(invalid_path(root, &path, "object family is not UTF-8"));
@@ -1062,6 +1069,30 @@ fn scan_kind_inventory_at_most(
     Ok(oids)
 }
 
+/// Whether `name` is a file a desktop system creates by itself in any folder
+/// a person opens or copies: Finder's `.DS_Store` and `._*` AppleDouble files,
+/// and Explorer's `Thumbs.db` and `desktop.ini`.
+///
+/// These are never objects, because no OID resolves to such a path. Refusing
+/// them would make a repository unusable as soon as someone looks at it, so
+/// the object store and repository-creation checks skip them instead.
+pub fn is_os_metadata_file_name(name: &OsStr) -> bool {
+    name.to_str().is_some_and(|name| {
+        name == ".DS_Store"
+            || name.starts_with("._")
+            || name.eq_ignore_ascii_case("Thumbs.db")
+            || name.eq_ignore_ascii_case("desktop.ini")
+    })
+}
+
+/// Whether a directory entry is an OS metadata file the inventory skips. Only
+/// regular files qualify: a directory or symlink with one of these names is
+/// not something a desktop system leaves behind, so it stays an invalid path.
+fn is_ignored_os_metadata(entry: &fs::DirEntry) -> bool {
+    is_os_metadata_file_name(&entry.file_name())
+        && entry.file_type().is_ok_and(|kind| kind.is_file())
+}
+
 fn read_directory_at_most<F>(
     path: &Path,
     max_entries: usize,
@@ -1073,8 +1104,18 @@ where
 {
     let entries = fs::read_dir(path).map_err(|error| StoreError::io(operation, path, error))?;
     let mut result = Vec::new();
+    let mut ignored = 0_usize;
     for entry in entries {
         let entry = entry.map_err(|error| StoreError::io(operation, path, error))?;
+        if is_ignored_os_metadata(&entry) {
+            // Skipped entries still cost directory work, so they stay inside
+            // this scan's bound instead of making it unbounded.
+            ignored += 1;
+            if ignored > max_entries.saturating_add(MAX_IGNORED_ENTRIES_BEYOND_LIMIT) {
+                return Err(exceeded());
+            }
+            continue;
+        }
         if result.len() == max_entries {
             return Err(exceeded());
         }
@@ -1095,6 +1136,9 @@ fn scan_family(
     for entry in entries {
         let entry = entry
             .map_err(|error| StoreError::io("read object prefix entry", family_path, error))?;
+        if is_ignored_os_metadata(&entry) {
+            continue;
+        }
         let prefix_path = entry.path();
         let prefix = entry.file_name();
         let Some(prefix) = prefix.to_str() else {
@@ -1137,6 +1181,9 @@ fn scan_prefix(
     for entry in entries {
         let entry =
             entry.map_err(|error| StoreError::io("read digest entry", prefix_path, error))?;
+        if is_ignored_os_metadata(&entry) {
+            continue;
+        }
         let path = entry.path();
         let suffix = entry.file_name();
         let Some(suffix) = suffix.to_str() else {

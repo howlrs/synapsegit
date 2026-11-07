@@ -205,6 +205,10 @@ synapse present preview public-view
 SQLite schema／contentsの破損は既存repositoryのstorage failureとして、それぞれの検証errorで失敗する。
 いずれの場合もcommandはlayoutを補完しない。
 
+Finderの`.DS_Store`と`._*`、Explorerの`Thumbs.db`と`desktop.ini`は、OSがフォルダを開いただけで置く通常fileである。
+どのOIDもこのpathを指さないため、`cas/objects/`以下にあってもobjectとしても破損としても数えず、archiveにも含めない。
+同じ名前でも通常fileでないもの（directoryやsymlink）は不正なpathとして扱う。
+
 ```text
 <repo>/
 ├── cas/
@@ -222,6 +226,7 @@ disposable derived indexである。
 ### `init <repo>`
 
 存在しないpathまたは空のdirectoryにrepository directory、filesystem ObjectStore、SQLite RefStoreを作成する。
+`.DS_Store`、`._.DS_Store`、`Thumbs.db`、`desktop.ini`だけが入ったdirectoryも空として扱い、そのfileは変更しない。
 complete existing repositoryはそのまま開く。非空でrepositoryではないdirectory、top-level partial layout、または
 directoryではないpathは変更せず`repository_not_empty`で拒否する。partial layoutやCAS／SQLiteの内部検証failureは
 crashまたは手作業の中断を示し得るため、archiveから別の空directoryへ`restore`するか、内容を確認してからoperatorが
@@ -938,6 +943,8 @@ issue: closure <oid>: missing object (referenced by <tree-oid> at entries["curre
 
 closure の issue は Ref head ごとに検査するため、複数の Ref から到達する同じ object の問題は Ref の数だけ表示され、
 stdout の `issues=<count>` もその件数を数える。行の文言は人向けであり、自動処理には exit code と `fsck_failed` を使う。
+壊れた Record や store 内の不明な file があっても検査は打ち切らず、残りの検査を続けてすべてを issue として出す
+（v1.4.0 までは、これらの1件目を error として表示してそこで終了した）。
 v1.4.0以降の形式で、v1.3.0 までは各 issue を
 `Closure(ClosureIssue { ... })` のような Rust の内部表記で出力する。
 Ref が0件なら stored Commit 全件を root とする。

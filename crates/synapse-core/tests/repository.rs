@@ -8,7 +8,7 @@ use synapse_cas::{
 };
 use synapse_core::{
     ArchiveExportLimits, ArchiveRestoreLimits, FsckLimits, RefArchiveExportLimits, Repository,
-    RepositoryError,
+    RepositoryError, directory_is_empty_for_repository,
 };
 use synapse_schema::ingest;
 use synapse_sqlite::{
@@ -502,6 +502,61 @@ fn bounded_fsck_checks_empty_ref_commit_roots_and_enforces_every_work_budget() {
             .code(),
         "resource_limit"
     );
+}
+
+#[test]
+fn bounded_fsck_reports_a_corrupt_record_instead_of_failing() {
+    let temporary = TempDirectory::new("bounded-fsck-corrupt-record");
+    let repository_path = temporary.join("repo");
+    let repository = Repository::open(&repository_path).unwrap();
+    load_fixture_store(&repository);
+    let records = repository
+        .objects()
+        .list_oids()
+        .unwrap()
+        .into_iter()
+        .filter(|oid| oid.starts_with("record:"))
+        .take(2)
+        .collect::<Vec<_>>();
+    for record in &records {
+        fs::write(object_path(&repository_path, record), b"{").unwrap();
+    }
+
+    let report = repository.fsck_with_limits(FsckLimits::default()).unwrap();
+
+    assert!(!report.is_clean());
+    for record in &records {
+        assert!(
+            report
+                .issues
+                .iter()
+                .any(|issue| issue.kind.to_string().contains(record)),
+            "{record} is missing from {:?}",
+            report.issues
+        );
+    }
+}
+
+#[test]
+fn directory_is_empty_for_repository_ignores_only_os_metadata_files() {
+    let temporary = TempDirectory::new("repository-empty");
+    let directory = temporary.join("folder");
+    fs::create_dir(&directory).unwrap();
+    assert!(directory_is_empty_for_repository(&directory).unwrap());
+
+    fs::write(directory.join(".DS_Store"), b"finder").unwrap();
+    fs::write(directory.join("._.DS_Store"), b"finder on exfat").unwrap();
+    fs::write(directory.join("desktop.ini"), b"explorer").unwrap();
+    assert!(directory_is_empty_for_repository(&directory).unwrap());
+
+    for name in ["notes.txt", "._notes.txt"] {
+        fs::write(directory.join(name), b"work").unwrap();
+        assert!(!directory_is_empty_for_repository(&directory).unwrap());
+        fs::remove_file(directory.join(name)).unwrap();
+    }
+
+    fs::create_dir(directory.join("Thumbs.db")).unwrap();
+    assert!(!directory_is_empty_for_repository(&directory).unwrap());
 }
 
 #[test]

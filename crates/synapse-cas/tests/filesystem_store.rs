@@ -8,7 +8,8 @@ use std::thread;
 use synapse_canonical::{ErrorCode, ResourceLimits};
 use synapse_cas::{
     ClosureIssueKind, ClosureNodeState, FileObjectStore, FsckIssueKind, GraphLimits, ObjectKind,
-    ObjectState, PutDisposition, ReferenceRole, StoreError, StoreLimits, fsck_all, verify_closure,
+    ObjectState, PutDisposition, ReferenceRole, StoreError, StoreLimits, fsck, fsck_all,
+    verify_closure,
 };
 
 static NEXT_TEMP_DIRECTORY: AtomicU64 = AtomicU64::new(0);
@@ -778,6 +779,148 @@ fn fsck_reports_invalid_layout_while_list_rejects_it() {
             if path.ends_with("objects/unknown-family")
     )));
     assert_eq!(store.read_raw(&blob.oid).unwrap().unwrap(), b"valid object");
+}
+
+fn write_os_metadata(directory: &Path) {
+    for name in [
+        ".DS_Store",
+        "._AppleDouble",
+        "Thumbs.db",
+        "thumbs.db",
+        "desktop.ini",
+        "Desktop.ini",
+    ] {
+        fs::write(directory.join(name), b"written by a file manager").unwrap();
+    }
+}
+
+#[test]
+fn os_metadata_files_are_neither_objects_nor_damage() {
+    let (temporary, store) = open_store("os-metadata");
+    let blob = store
+        .put_blob(b"opened in a file manager".as_slice())
+        .unwrap();
+    let record = put_record(&store, "opened");
+    let objects = temporary.path().join("objects");
+    write_os_metadata(&objects);
+    write_os_metadata(&objects.join("blob"));
+    write_os_metadata(&objects.join("record"));
+    write_os_metadata(object_path(temporary.path(), &blob.oid).parent().unwrap());
+    write_os_metadata(object_path(temporary.path(), &record).parent().unwrap());
+
+    let expected = [blob.oid.clone(), record.clone()];
+    assert_eq!(store.list_oids().unwrap(), expected);
+    assert_eq!(store.list_oids_limited(2).unwrap(), expected);
+    assert_eq!(
+        store
+            .list_oids_by_kind_limited(ObjectKind::Blob, 1)
+            .unwrap(),
+        [blob.oid.clone()]
+    );
+    let report = fsck_all(&store, GraphLimits::default()).unwrap();
+    assert!(report.is_clean(), "{:?}", report.issues);
+    assert_eq!(report.objects_seen, 2);
+}
+
+#[test]
+fn only_regular_files_count_as_os_metadata() {
+    let (temporary, store) = open_store("os-metadata-kinds");
+    let blob = store.put_blob(b"object".as_slice()).unwrap();
+    let family = temporary.path().join("objects").join("blob");
+    fs::create_dir(family.join(".DS_Store")).unwrap();
+
+    assert!(matches!(
+        store.list_oids_limited(1).unwrap_err(),
+        StoreError::InvalidStoreLayout { .. }
+    ));
+    let report = fsck_all(&store, GraphLimits::default()).unwrap();
+    assert!(report.issues.iter().any(|issue| matches!(
+        &issue.kind,
+        FsckIssueKind::InvalidStorePath { path, .. } if path.ends_with("objects/blob/.DS_Store")
+    )));
+
+    fs::remove_dir(family.join(".DS_Store")).unwrap();
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(
+            object_path(temporary.path(), &blob.oid),
+            family.join(".DS_Store"),
+        )
+        .unwrap();
+        assert!(matches!(
+            store.list_oids_limited(1).unwrap_err(),
+            StoreError::InvalidStoreLayout { .. }
+        ));
+    }
+}
+
+#[test]
+fn bounded_inventory_stays_bounded_while_skipping_os_metadata() {
+    let (temporary, store) = open_store("os-metadata-bound");
+    let blob = store.put_blob(b"object".as_slice()).unwrap();
+    let prefix = object_path(temporary.path(), &blob.oid);
+    let prefix = prefix.parent().unwrap();
+    for index in 0..64 {
+        fs::write(prefix.join(format!("._{index}")), b"").unwrap();
+    }
+
+    assert_eq!(
+        store.list_oids_limited(1).unwrap_err().code(),
+        Some(ErrorCode::ResourceLimit)
+    );
+    assert_eq!(store.list_oids_limited(64).unwrap(), [blob.oid.clone()]);
+}
+
+#[test]
+fn fsck_lists_all_damage_instead_of_stopping_at_a_corrupt_record() {
+    let (temporary, store) = open_store("complete-damage-report");
+    let blob = store.put_blob(b"image".as_slice()).unwrap();
+    let first = put_record(&store, "first");
+    let second = put_record(&store, "second");
+    let tree = put_tree(&store, &[("image", "blob", &blob.oid)]);
+    let root = put_commit(&store, &[], &tree, &[&first, &second], &[]);
+    fs::write(object_path(temporary.path(), &blob.oid), b"bit rot").unwrap();
+    fs::write(object_path(temporary.path(), &first), b"{").unwrap();
+    fs::write(object_path(temporary.path(), &second), b"{").unwrap();
+    let stray = object_path(temporary.path(), &blob.oid).with_file_name("sync-conflict");
+    fs::write(&stray, b"not an object").unwrap();
+
+    let report = fsck(&store, std::slice::from_ref(&root), GraphLimits::default()).unwrap();
+
+    assert!(!report.is_clean());
+    assert_eq!(report.closures.len(), 1);
+    for damaged in [&blob.oid, &first, &second] {
+        assert!(
+            report.issues.iter().any(|issue| matches!(
+                &issue.kind,
+                FsckIssueKind::CorruptObject { oid, .. } if oid == damaged
+            )),
+            "{damaged} is missing from {:?}",
+            report.issues
+        );
+    }
+    assert!(report.issues.iter().any(|issue| matches!(
+        &issue.kind,
+        FsckIssueKind::InvalidStorePath { path, .. } if path.ends_with("sync-conflict")
+    )));
+}
+
+#[test]
+fn fsck_reports_one_closure_for_each_root_that_shares_a_head() {
+    let (_temporary, store) = open_store("shared-head");
+    let blob = store.put_blob(b"image".as_slice()).unwrap();
+    let tree = put_tree(&store, &[("image", "blob", &blob.oid)]);
+    let root = put_commit(&store, &[], &tree, &[], &[]);
+
+    let report = fsck(
+        &store,
+        &[root.clone(), root.clone()],
+        GraphLimits::default(),
+    )
+    .unwrap();
+
+    assert_eq!(report.closures.len(), 2);
+    assert!(report.closures.iter().all(|closure| closure.root == root));
 }
 
 #[test]

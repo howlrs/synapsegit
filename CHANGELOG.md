@@ -7,6 +7,29 @@ milestone.
 
 ## [Unreleased]
 
+### Fixed
+
+- A repository keeps working after a file manager opens its folders. Finder's
+  `.DS_Store` and `._*` files and Explorer's `Thumbs.db` and `desktop.ini`
+  inside `cas/objects/` previously made `fsck`, `creator-report`, `creator-run`,
+  `export`, and the session pages fail with `schema_invalid: invalid store
+  path`. These files are never objects, so they are now skipped. A directory
+  or symlink with one of these names is still an invalid path.
+- `synapse init` and `synapse serve` accept a folder that holds only such files
+  as empty, so a folder created in Finder can become a repository.
+- `synapse fsck` lists all damage. A corrupt Record or an unknown file in the
+  store ended the check at the first one with a single error, which hid every
+  other issue; a damaged image next to a damaged Record was not reported at
+  all. They are now reported as `issue:` lines like any other damage, the
+  localhost maintenance check finishes with a dirty result, and `creator-report`
+  and `creator-run` refuse a repository with a corrupt Record as `fsck_failed`
+  instead of `oid_mismatch`.
+- `synapse fsck` no longer takes time proportional to Refs times Records. It
+  read every Record again for each Ref, which took 5 seconds for 66 sessions.
+- `synapse present preview` and `present export --replace` name the file when a
+  bundle has an unlisted or missing file, such as a `.DS_Store` left by opening
+  the bundle in Finder, instead of only reporting that one exists.
+
 ## [1.4.0] - 2026-10-31
 
 ### Changed

@@ -902,7 +902,7 @@ fn prepared_report_reader_reuses_one_fsck_and_projection_across_sessions() {
         Ok(_) => panic!("fresh reader accepted a corrupt Record inventory"),
         Err(error) => error,
     };
-    assert_eq!(error.code(), "oid_mismatch");
+    assert_eq!(error.code(), "fsck_failed");
 }
 
 #[test]
@@ -954,7 +954,7 @@ fn legacy_snapshot_report_preserves_fsck_session_and_projection_error_order() {
         "missing-but-valid-name",
     )
     .unwrap_err();
-    assert_eq!(fsck_error.code(), "oid_mismatch");
+    assert_eq!(fsck_error.code(), "fsck_failed");
 }
 
 #[test]

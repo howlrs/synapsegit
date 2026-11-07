@@ -34,7 +34,8 @@ use synapse_canonical::{CoreError, ErrorCode, ObjectKind, lower_hex, parse_oid, 
 pub use synapse_cas::TombstoneScanLimits;
 use synapse_cas::{
     ClosureIssueKind, ClosureReport, FileObjectStore, FsckIssue, FsckIssueKind, FsckReport,
-    GraphLimits, PreparedClosureVerifier, PutResult, StoreError, StoreLimits, fsck,
+    GraphLimits, PreparedClosureVerifier, PutResult, StoreError, StoreLimits, TombstoneCatalog,
+    fsck, is_os_metadata_file_name,
 };
 use synapse_schema::{ingest, ingest_claimed};
 use synapse_sqlite::{
@@ -627,6 +628,7 @@ impl Repository {
         let mut inventoried_object_bytes = 0_u64;
         let mut stored_commits = Vec::new();
         let mut issues = Vec::new();
+        let mut tombstones = TombstoneCatalog::bounded(limits.tombstone_scan)?;
 
         for oid in &inventory {
             if parse_oid(oid)? == ObjectKind::Commit {
@@ -662,6 +664,7 @@ impl Repository {
                     objects_verified = objects_verified.checked_add(1).ok_or_else(|| {
                         resource_limit("fsck verified object count overflowed usize")
                     })?;
+                    tombstones.observe(&object)?;
                 }
                 Ok(None) => issues.push(FsckIssue {
                     kind: FsckIssueKind::MissingScannedObject { oid: oid.clone() },
@@ -685,7 +688,7 @@ impl Repository {
         }
 
         let verifier =
-            PreparedClosureVerifier::new(&self.objects, self.graph_limits, limits.tombstone_scan)?;
+            PreparedClosureVerifier::from_catalog(&self.objects, self.graph_limits, tombstones);
         let mut distinct_heads = HashSet::new();
         let mut closure_nodes = 0_usize;
         let mut closure_edges = 0_usize;
@@ -1655,6 +1658,26 @@ fn read_verified_manifest(archive: &Path) -> Result<(ArchiveManifest, String)> {
     let manifest: ArchiveManifest = serde_json::from_slice(&manifest_bytes)?;
     manifest.validate()?;
     Ok((manifest, expected_checksum))
+}
+
+/// Whether a directory holds nothing but files the desktop system put there.
+///
+/// A folder created in Finder or Explorer often holds a `.DS_Store` or
+/// `desktop.ini` before anything else, and it is still the empty folder the
+/// person meant to turn into a repository. Inside the object store any `._*`
+/// name can be skipped, because none can be an object. Here such a file may be
+/// someone's work, so the only one accepted is the companion of `.DS_Store`.
+pub fn directory_is_empty_for_repository(path: impl AsRef<Path>) -> io::Result<bool> {
+    for entry in fs::read_dir(path)? {
+        let entry = entry?;
+        let name = entry.file_name();
+        let os_metadata = is_os_metadata_file_name(&name)
+            && (!name.as_encoded_bytes().starts_with(b"._") || name == "._.DS_Store");
+        if !(os_metadata && entry.file_type()?.is_file()) {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// Resource limits for one read-only, synchronous archive inspection.

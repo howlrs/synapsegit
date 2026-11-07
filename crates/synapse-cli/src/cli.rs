@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::{SystemTime, UNIX_EPOCH};
 use synapse_canonical::{DEFAULT_MAX_STRUCTURED_BYTES, ObjectKind};
-use synapse_core::{Repository, RepositoryError};
+use synapse_core::{Repository, RepositoryError, directory_is_empty_for_repository};
 use synapse_creator::{
     CreatorDisposition, CreatorError, CreatorGenerationNote, CreatorReport, CreatorRunOptions,
     CreatorRunReceipt, CreatorSessionState, ImportInboxCandidate, creator_report,
@@ -360,10 +360,8 @@ fn init_repository(path: &Path) -> Result<(), CliError> {
         Ok(_) => match Repository::open_existing(path) {
             Ok(_) => return Ok(()),
             Err(_)
-                if std::fs::read_dir(path)
-                    .map_err(|source| CliError::io("inspect repository path", path, source))?
-                    .next()
-                    .is_some() =>
+                if !directory_is_empty_for_repository(path)
+                    .map_err(|source| CliError::io("inspect repository path", path, source))? =>
             {
                 return Err(CliError::InitTargetNotEmpty(path.to_path_buf()));
             }
