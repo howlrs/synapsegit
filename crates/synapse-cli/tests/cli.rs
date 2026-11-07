@@ -2641,6 +2641,42 @@ fn a_missing_positional_argument_is_named_instead_of_the_shifted_option() {
 }
 
 #[test]
+fn resource_limit_says_what_to_do_next() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    assert_success(&run(&["init", repository.to_str().unwrap()]));
+    let oversized = temp.join("oversized.bin");
+    fs::File::create(&oversized)
+        .unwrap()
+        .set_len(64 * 1024 * 1024 + 1)
+        .unwrap();
+    fs::write(temp.join("small.bin"), b"small").unwrap();
+
+    let output = run(&[
+        "creator-run",
+        repository.to_str().unwrap(),
+        "oversized",
+        oversized.to_str().unwrap(),
+        temp.join("small.bin").to_str().unwrap(),
+        temp.join("small.bin").to_str().unwrap(),
+        "--subject",
+        "Subject",
+        "--creator",
+        "Aki",
+        "--decision",
+        "adopt",
+    ]);
+
+    assert_eq!(output.status.code(), Some(1));
+    let stderr = String::from_utf8(output.stderr).unwrap();
+    assert!(stderr.contains("resource_limit:"), "{stderr}");
+    assert!(
+        stderr.contains("\nhint: a fixed limit was reached; use a smaller file"),
+        "{stderr}"
+    );
+}
+
+#[test]
 fn common_errors_add_one_hint_line_after_the_stable_code() {
     let temp = TempDirectory::new();
     let repository = temp.join("repo");

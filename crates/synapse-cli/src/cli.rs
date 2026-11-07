@@ -188,6 +188,9 @@ impl CliError {
             "fsck_failed" => Some(
                 "history is never rewritten automatically; review the listed issues and keep a verified archive",
             ),
+            "resource_limit" => Some(
+                "a fixed limit was reached; use a smaller file, or record new work in a new repository when this one is full",
+            ),
             _ => None,
         }
     }

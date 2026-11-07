@@ -48,7 +48,7 @@ pub const CREATOR_FSCK_MAX_REF_ROOTS: usize = 10_000;
 /// Maximum complete CAS inventory retained by one creator integrity check.
 pub const CREATOR_FSCK_MAX_OBJECTS: usize = 25_000;
 /// Maximum cumulative raw CAS bytes read by the inventory verification phase.
-pub const CREATOR_FSCK_MAX_OBJECT_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+pub const CREATOR_FSCK_MAX_OBJECT_BYTES: u64 = 16 * 1024 * 1024 * 1024;
 /// Maximum cumulative closure nodes visited across distinct current heads.
 pub const CREATOR_FSCK_MAX_CLOSURE_NODES: usize = 250_000;
 /// Maximum cumulative closure edges visited across distinct current heads.
