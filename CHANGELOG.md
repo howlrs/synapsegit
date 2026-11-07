@@ -7,6 +7,10 @@ milestone.
 
 ## [Unreleased]
 
+### Changed
+
+- Updated `toml` 1.1.8 → 1.2.0 and regenerated `THIRD_PARTY_NOTICES.md`.
+
 ## [1.5.0] - 2026-11-07
 
 ### Added
