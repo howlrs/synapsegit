@@ -14,7 +14,8 @@ use serde_json::{Map as JsonMap, Value as JsonValue};
 use std::collections::BTreeMap;
 use std::path::Path;
 use synapse_canonical::ObjectKind;
-use synapse_core::{FsckLimits, Repository};
+use synapse_cas::FileObjectStore;
+use synapse_core::{FsckLimits, Repository, VerifiedObjectMemo};
 use synapse_observation::{
     BYTE_IDENTITY_ADAPTER_ID, BYTE_IDENTITY_ADAPTER_VERSION, byte_identity_configuration_oid,
     byte_identity_implementation_oid,
@@ -622,6 +623,7 @@ pub(crate) fn creator_report_from_snapshot_with_limits(
 
 struct CreatorReportVerification<'source> {
     repository: &'source Repository,
+    objects: VerifiedObjectMemo<'source, FileObjectStore>,
     snapshot: &'source RefSnapshot,
     fsck_objects: usize,
 }
@@ -640,7 +642,8 @@ fn verify_creator_report_snapshot<'source>(
     snapshot: &'source RefSnapshot,
     fsck_limits: FsckLimits,
 ) -> Result<CreatorReportVerification<'source>> {
-    let fsck = repository.fsck_snapshot_with_limits(snapshot, fsck_limits)?;
+    let objects = VerifiedObjectMemo::new(repository.objects());
+    let fsck = repository.fsck_snapshot_through(&objects, snapshot, fsck_limits)?;
     if !fsck.is_clean() {
         return Err(CreatorError::Integrity(format!(
             "creator report refused {} fsck issue(s)",
@@ -649,6 +652,7 @@ fn verify_creator_report_snapshot<'source>(
     }
     Ok(CreatorReportVerification {
         repository,
+        objects,
         snapshot,
         fsck_objects: fsck.objects_verified,
     })
@@ -770,15 +774,13 @@ impl<'source> PreparedCreatorReportReader<'source> {
     fn from_verification(verification: CreatorReportVerification<'source>) -> Result<Self> {
         let CreatorReportVerification {
             repository,
+            objects,
             snapshot,
             fsck_objects,
         } = verification;
         let mut projection = SqliteProjectionStore::open_in_memory()?;
-        let rebuild = projection.rebuild_with_limits(
-            repository.objects(),
-            snapshot,
-            ProjectionLimits::default(),
-        )?;
+        let rebuild =
+            projection.rebuild_with_limits(&objects, snapshot, ProjectionLimits::default())?;
         Ok(Self {
             repository,
             snapshot,

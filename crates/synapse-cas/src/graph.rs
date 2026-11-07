@@ -1,4 +1,7 @@
-use crate::store::{BoundedObjectStore, FileObjectStore, ObjectStore, StoreError, VerifiedObject};
+use crate::store::{
+    BoundedObjectStore, FileObjectStore, ObjectStore, StoreError, VerifiedObject,
+    VerifiedObjectMemo,
+};
 use std::collections::{BTreeMap, HashSet};
 use std::fmt;
 use synapse_canonical::{CoreError, ErrorCode, ObjectKind, Value, parse_oid};
@@ -836,12 +839,13 @@ pub fn fsck(
     let mut objects_verified = 0;
     let mut stored_commits = Vec::new();
     let mut tombstones = TombstoneCatalog::default();
+    let objects = VerifiedObjectMemo::new(store);
 
     for oid in &inventory.oids {
         if parse_oid(oid).is_ok_and(|kind| kind == ObjectKind::Commit) {
             stored_commits.push(oid.clone());
         }
-        match store.get_verified(oid) {
+        match objects.get_verified(oid) {
             Ok(Some(object)) => {
                 objects_verified += 1;
                 tombstones.observe(&object)?;
@@ -871,7 +875,7 @@ pub fn fsck(
     };
     let mut closures = Vec::with_capacity(graph_roots.len());
     // Several Refs often share a head, and each still reports its own closure.
-    let mut verifier = PreparedClosureVerifier::from_catalog(store, limits, tombstones);
+    let mut verifier = PreparedClosureVerifier::from_catalog(&objects, limits, tombstones);
     for root in graph_roots {
         let closure = verifier.verify(&root)?;
         issues.extend(closure.issues.iter().cloned().map(|issue| FsckIssue {
@@ -2128,6 +2132,89 @@ mod tests {
         .expect("one byte over the cumulative limit must fail closed");
         assert_eq!(byte_error.code(), Some(ErrorCode::ResourceLimit));
         assert!(byte_error.to_string().contains("max_record_bytes 9"));
+    }
+
+    fn counting_store(objects: Vec<VerifiedObject>) -> CountingBoundedStore {
+        CountingBoundedStore {
+            inner: MockStore {
+                objects: objects
+                    .into_iter()
+                    .map(|object| (object.oid().to_owned(), object))
+                    .collect(),
+            },
+            inventory_calls: Cell::new(0),
+            get_calls: Cell::new(0),
+        }
+    }
+
+    #[test]
+    fn memo_verifies_each_object_once_across_closures_that_share_it() {
+        let record = format!("record:sg-oid-v1:sha256:{}", "1".repeat(64));
+        let tree = format!("tree:sg-oid-v1:sha256:{}", "2".repeat(64));
+        let first = format!("commit:sg-oid-v1:sha256:{}", "3".repeat(64));
+        let second = format!("commit:sg-oid-v1:sha256:{}", "4".repeat(64));
+        let store = counting_store(vec![
+            VerifiedObject::test_structured(
+                &record,
+                ObjectKind::Record,
+                record_value("actor", "urn:test:actor", None, Value::Object(Vec::new())),
+            ),
+            VerifiedObject::test_structured(&tree, ObjectKind::Tree, one_record_tree(&record)),
+            VerifiedObject::test_structured(&first, ObjectKind::Commit, root_commit_value(&tree)),
+            VerifiedObject::test_structured(&second, ObjectKind::Commit, root_commit_value(&tree)),
+        ]);
+        let memo = VerifiedObjectMemo::new(&store);
+        let verifier = PreparedClosureVerifier::from_catalog(
+            &memo,
+            GraphLimits::default(),
+            TombstoneCatalog::default(),
+        );
+
+        assert!(verifier.verify_uncached(&first).unwrap().is_complete());
+        assert!(verifier.verify_uncached(&second).unwrap().is_complete());
+
+        assert_eq!(store.get_calls.get(), 4);
+    }
+
+    #[test]
+    fn memo_asks_the_store_again_for_objects_it_did_not_verify() {
+        let missing = format!("blob:sg-oid-v1:sha256:{}", "5".repeat(64));
+        let store = counting_store(Vec::new());
+        let memo = VerifiedObjectMemo::new(&store);
+
+        assert!(memo.get_verified(&missing).unwrap().is_none());
+        assert!(memo.get_verified(&missing).unwrap().is_none());
+
+        assert_eq!(store.get_calls.get(), 2);
+    }
+
+    #[test]
+    fn memo_keeps_blobs_but_stops_keeping_structured_objects_past_its_budget() {
+        let huge = 64 * 1024 * 1024;
+        let record = format!("record:sg-oid-v1:sha256:{}", "6".repeat(64));
+        let blob = format!("blob:sg-oid-v1:sha256:{}", "7".repeat(64));
+        let store = counting_store(vec![
+            VerifiedObject::test_structured_with_len(
+                &record,
+                ObjectKind::Record,
+                Value::Object(Vec::new()),
+                huge,
+            ),
+            VerifiedObject::test_structured_with_len(
+                &blob,
+                ObjectKind::Blob,
+                Value::Object(Vec::new()),
+                huge,
+            ),
+        ]);
+        let memo = VerifiedObjectMemo::new(&store);
+
+        for _ in 0..2 {
+            memo.get_verified(&record).unwrap().unwrap();
+            memo.get_verified(&blob).unwrap().unwrap();
+        }
+
+        assert_eq!(store.get_calls.get(), 3);
     }
 
     #[test]

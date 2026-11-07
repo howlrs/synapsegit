@@ -31,12 +31,12 @@ use std::io::{self, Read, Write};
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use synapse_canonical::{CoreError, ErrorCode, ObjectKind, lower_hex, parse_oid, sha256_hex};
-pub use synapse_cas::TombstoneScanLimits;
 use synapse_cas::{
     ClosureIssueKind, ClosureReport, FileObjectStore, FsckIssue, FsckIssueKind, FsckReport,
-    GraphLimits, PreparedClosureVerifier, PutResult, StoreError, StoreLimits, TombstoneCatalog,
-    fsck, is_os_metadata_file_name,
+    GraphLimits, ObjectStore, PreparedClosureVerifier, PutResult, StoreError, StoreLimits,
+    TombstoneCatalog, fsck, is_os_metadata_file_name,
 };
+pub use synapse_cas::{TombstoneScanLimits, VerifiedObjectMemo};
 use synapse_schema::{ingest, ingest_claimed};
 use synapse_sqlite::{
     RefArchive, RefRecord, RefStoreError, RefUpdate, ReflogEntry, SqliteRefStore, ValidationError,
@@ -614,6 +614,18 @@ impl Repository {
         snapshot: &RefSnapshot,
         limits: FsckLimits,
     ) -> Result<FsckReport> {
+        self.fsck_snapshot_through(&VerifiedObjectMemo::new(&self.objects), snapshot, limits)
+    }
+
+    /// As [`Self::fsck_snapshot_with_limits`], reading through `objects` so a
+    /// caller that goes on to read the same snapshot within one consistency
+    /// operation does not verify every object a second time.
+    pub fn fsck_snapshot_through(
+        &self,
+        objects: &VerifiedObjectMemo<'_, FileObjectStore>,
+        snapshot: &RefSnapshot,
+        limits: FsckLimits,
+    ) -> Result<FsckReport> {
         validate_fsck_limits(limits)?;
         if snapshot.refs.len() > limits.max_ref_roots {
             return Err(resource_limit(format!(
@@ -652,7 +664,7 @@ impl Repository {
                     limits.max_object_bytes
                 )));
             }
-            match self.objects.get_verified(oid) {
+            match objects.get_verified(oid) {
                 Ok(Some(object)) => {
                     if object.byte_len() != byte_len {
                         return Err(RepositoryError::io(
@@ -688,7 +700,7 @@ impl Repository {
         }
 
         let verifier =
-            PreparedClosureVerifier::from_catalog(&self.objects, self.graph_limits, tombstones);
+            PreparedClosureVerifier::from_catalog(objects, self.graph_limits, tombstones);
         let mut distinct_heads = HashSet::new();
         let mut closure_nodes = 0_usize;
         let mut closure_edges = 0_usize;

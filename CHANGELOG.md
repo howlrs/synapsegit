@@ -7,6 +7,14 @@ milestone.
 
 ## [Unreleased]
 
+### Changed
+
+- One integrity check reads and hashes each object once. A check reached the
+  same image from its inventory and again from every Ref and from the report
+  index. On a 2.1 GiB repository, opening a session page fell from 5.6 to
+  1.0 seconds and `creator-run` from 19.7 to 5.8 seconds. The check itself is
+  unchanged: every stored object and every Ref closure is still verified.
+
 ### Fixed
 
 - A repository keeps working after a file manager opens its folders. Finder's

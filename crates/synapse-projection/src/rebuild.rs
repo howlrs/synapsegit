@@ -4,7 +4,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use synapse_canonical::{ErrorCode, ObjectKind, Value, parse_oid};
 use synapse_cas::{
-    ClosureIssueKind, ClosureNodeState, FileObjectStore, GraphLimits, PreparedClosureVerifier,
+    BoundedObjectStore, ClosureIssueKind, ClosureNodeState, GraphLimits, PreparedClosureVerifier,
     StoreError, TombstoneScanLimits,
 };
 use synapse_schema::validate;
@@ -44,9 +44,9 @@ impl SqliteProjectionStore {
     /// previous projection remains queryable. Tombstone discovery uses
     /// [`TombstoneScanLimits::default`]; use [`Self::rebuild_with_limits`] to
     /// configure it explicitly.
-    pub fn rebuild(
+    pub fn rebuild<S: BoundedObjectStore + ?Sized>(
         &mut self,
-        object_store: &FileObjectStore,
+        object_store: &S,
         refs: &RefSnapshot,
         limits: GraphLimits,
     ) -> Result<RebuildReport> {
@@ -57,9 +57,9 @@ impl SqliteProjectionStore {
     /// used by all Ref closures. Empty snapshots do not perform that scan. The
     /// prepared catalog is valid only for this cooperative no-GC/no-removal
     /// operation; Tombstones published later appear on the next rebuild.
-    pub fn rebuild_with_limits(
+    pub fn rebuild_with_limits<S: BoundedObjectStore + ?Sized>(
         &mut self,
-        object_store: &FileObjectStore,
+        object_store: &S,
         refs: &RefSnapshot,
         limits: ProjectionLimits,
     ) -> Result<RebuildReport> {
@@ -222,8 +222,8 @@ pub(crate) struct BuildPlan {
 }
 
 impl BuildPlan {
-    pub(crate) fn from_sources(
-        store: &FileObjectStore,
+    pub(crate) fn from_sources<S: BoundedObjectStore + ?Sized>(
+        store: &S,
         snapshot: &RefSnapshot,
         limits: ProjectionLimits,
     ) -> Result<Self> {
@@ -444,9 +444,9 @@ impl BuildPlan {
         Ok(plan)
     }
 
-    fn map_present_objects(
+    fn map_present_objects<S: BoundedObjectStore + ?Sized>(
         &mut self,
-        store: &FileObjectStore,
+        store: &S,
         max_derived_rows: usize,
     ) -> Result<()> {
         let present_oids = self
@@ -591,8 +591,8 @@ fn map_source_store_error(error: StoreError) -> ProjectionError {
     }
 }
 
-fn validate_resolving_tombstone(
-    store: &FileObjectStore,
+fn validate_resolving_tombstone<S: BoundedObjectStore + ?Sized>(
+    store: &S,
     target_oid: &str,
     tombstone_oid: &str,
 ) -> Result<()> {
