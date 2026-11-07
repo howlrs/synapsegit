@@ -44,7 +44,7 @@ the same boundary while preserving their established error order.
 
 Creator begin, Human decision, and report use the bounded Core fsck boundary.
 One operation is limited to 10,000 Ref roots, 25,000 complete-inventory CAS
-objects, 4 GiB of inventoried raw bytes, 250,000 cumulative closure nodes,
+objects, 16 GiB of inventoried raw bytes, 250,000 cumulative closure nodes,
 2,500,000 cumulative closure edges, and a 25,000 Record / 512 MiB Tombstone
 scan. These values are fixed by the trusted creator integration and cannot be
 raised by HTTP input. Each input Blob is also limited to 64 MiB and the three

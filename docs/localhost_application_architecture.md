@@ -307,7 +307,7 @@ whole reflog or by performing two independently raced reads.
 The project status route does not run repository-wide `fsck` implicitly.
 Creator begin, decision, and report operations do run a repository-wide
 integrity check, but use Core's bounded fsck entry points with fixed creator
-limits: 10,000 Ref roots, 25,000 CAS objects, 4 GiB of inventoried raw bytes,
+limits: 10,000 Ref roots, 25,000 CAS objects, 16 GiB of inventoried raw bytes,
 250,000 cumulative closure nodes, 2,500,000 cumulative closure edges, and a
 25,000 Record / 512 MiB Tombstone scan. Begin reserves its own bounded growth
 and all eight per-project pending-review decisions, checks the exact prospective two-Ref snapshot, and only then

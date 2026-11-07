@@ -162,6 +162,7 @@ flowchart LR
 - `fsck` は Tombstone の索引を全 object の検証と同じ走査で作る。壊れた Record や store 内の不明な path は issue として報告し、一件目で検査を打ち切らない。壊れた Record が Tombstone だった可能性は排除できないので、その target の closure issue は `missing` と報告され得るが、report はどのみち clean にならない。closure 検証、export、Ref 更新などの Tombstone 走査は従来どおり fail-closed である。
 - OS が置く metadata file（`.DS_Store`、`._*`、`Thumbs.db`、`desktop.ini`。通常 file のみ）は inventory から除外する。どの OID もこの path を指さないので、検証の対象は変わらない。bounded inventory は除外した entry も directory ごとの上限に数える。
 - `fsck` は全 structured object へ JSON Schema を再適用するものではない。Core ingest / restore を通した object は投入時に schema 検証済みである。
+- 一回の検査の中では、同じobjectを読み直さない。inventoryで検証したobjectは、closureやreportのProjection rebuildでは一度目の検証結果を使う。結果を使う前にfileが同じ長さで残っていることを確認するので、検査中に消えたobjectは欠落として扱われ、Projection rebuildは仕様どおり失敗する。長さの変わらない書き換えは次の検査で見つかる。結果を保持するのはその検査の間だけで、次の検査はbytesを読み直す。欠落と破損は保持しないので、参照元ごとに報告される。
 - creator begin／decision／reportが使うbounded `fsck`は、Ref、complete CAS inventory、raw bytes、全root合算closure work、Tombstone scanをoperation-wideに制限する。limit超過は`resource_limit`でfail closedにする。
 - localhost maintenanceは互換用`Repository::fsck`を呼ばず、server-fixedな`fsck_with_limits`だけを使う。dirty reportも完走した検査として`clean=false`とaggregate countだけを返し、object OID、path、issue detailをHTTPへ出さない。
 - creator beginは1 file 64 MiB／3 files 192 MiB、固定graph増分、localhostがprojectごとに保持できる8件すべてのHuman decision増分を予約し、全CAS生成後かつRef公開前にprospective snapshotをbounded fsckする。decisionも公開前に同じadmission／prospective検査を行う。Ref publication自身のhead validatorも`PreparedClosureVerifier`のbounded Tombstone catalogを使い、互換用のunbounded scanへ戻らない。
@@ -180,7 +181,7 @@ flowchart LR
 | closure depth | 512 |
 | closure dynamic reference-role metadata | 64 MiB（hard ceiling） |
 | creator fsck Ref roots / CAS objects | 10,000 / 25,000 |
-| creator fsck inventoried raw object bytes | 4 GiB |
+| creator fsck inventoried raw object bytes | 16 GiB |
 | creator fsck cumulative closure nodes / edges | 250,000 / 2,500,000 |
 | creator fsck Tombstone Record scan | 25,000 Records / 512 MiB |
 | localhost maintenance fsck Ref roots / CAS objects | 100,000 / 100,000 |

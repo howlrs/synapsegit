@@ -14,6 +14,14 @@ milestone.
   index. On a 2.1 GiB repository, opening a session page fell from 5.6 to
   1.0 seconds and `creator-run` from 19.7 to 5.8 seconds. The check itself is
   unchanged: every stored object and every Ref closure is still verified.
+- A repository can hold 16 GiB of objects before `creator-run`, `inbox decide`,
+  and the localhost import stop accepting new sessions, up from 4 GiB. Three
+  5 MiB images per session reached the old limit after about 260 sessions.
+  Because each object is now read once, a session page at 16 GiB takes less
+  time than it took at 4 GiB. The 25,000 object limit is unchanged. A version
+  before this one refuses to report on a repository above 4 GiB with
+  `resource_limit` and leaves it unchanged. A `resource_limit` error on the
+  command line now also says what to do next.
 
 ### Fixed
 
