@@ -291,6 +291,52 @@ fn existing_repository_commands_preserve_deep_cas_layout_failures() {
 }
 
 #[test]
+fn init_accepts_a_folder_with_only_os_metadata() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("folder-made-in-finder");
+    fs::create_dir(&repository).unwrap();
+    fs::write(repository.join(".DS_Store"), b"finder").unwrap();
+
+    assert_success(&run(&["init", repository.to_str().unwrap()]));
+
+    assert_success(&run(&["fsck", repository.to_str().unwrap()]));
+    assert_eq!(fs::read(repository.join(".DS_Store")).unwrap(), b"finder");
+}
+
+#[test]
+fn every_command_keeps_working_after_a_file_manager_opens_the_repository() {
+    let temp = TempDirectory::new();
+    let repository = temp.join("repo");
+    let repository_text = repository.to_str().unwrap();
+    creator_run_session(&temp, &repository, "viewed", "adopt");
+    let objects = repository.join("cas/objects");
+    fs::write(objects.join(".DS_Store"), b"finder").unwrap();
+    fs::write(objects.join("blob/.DS_Store"), b"finder").unwrap();
+    let prefix = fs::read_dir(objects.join("record"))
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .find(|path| path.is_dir())
+        .unwrap();
+    fs::write(prefix.join(".DS_Store"), b"finder").unwrap();
+
+    assert_success(&run(&["fsck", repository_text]));
+    assert_success(&run(&["creator-report", repository_text, "viewed"]));
+    let archive = temp.join("archive");
+    assert_success(&run(&[
+        "export",
+        repository_text,
+        archive.to_str().unwrap(),
+    ]));
+    let restored = temp.join("restored");
+    assert_success(&run(&[
+        "restore",
+        archive.to_str().unwrap(),
+        restored.to_str().unwrap(),
+    ]));
+    assert_success(&run(&["fsck", restored.to_str().unwrap()]));
+}
+
+#[test]
 fn fsck_lists_each_issue_as_one_readable_line() {
     let temp = TempDirectory::new();
     let repository = temp.join("repo");

@@ -3,7 +3,7 @@ use std::error::Error;
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
-use synapse_core::Repository;
+use synapse_core::{Repository, directory_is_empty_for_repository};
 
 use crate::MAX_PROJECTS;
 
@@ -159,19 +159,16 @@ impl ProjectCatalog {
             // Empty directories are explicitly supported as new local
             // projects. Any nonempty directory must already be a complete
             // repository, so unrelated user directories cannot be modified.
-            let empty = fs::read_dir(&canonical_path)
-                .map_err(|error| {
-                    CatalogError::new(
-                        "storage_error",
-                        format!(
-                            "repository for project {:?} could not be inspected",
-                            registration.project_key
-                        ),
-                    )
-                    .with_diagnostic(error.to_string())
-                })?
-                .next()
-                .is_none();
+            let empty = directory_is_empty_for_repository(&canonical_path).map_err(|error| {
+                CatalogError::new(
+                    "storage_error",
+                    format!(
+                        "repository for project {:?} could not be inspected",
+                        registration.project_key
+                    ),
+                )
+                .with_diagnostic(error.to_string())
+            })?;
             let open = if empty {
                 Repository::open(&canonical_path)
             } else {

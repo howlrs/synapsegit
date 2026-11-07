@@ -159,6 +159,8 @@ flowchart LR
 - graph 参照先は object upload 順序を許すため、Ref 更新時に resolve して検査する。
 - `fsck` は全 stored object の pathname、OID、canonical bytes を検査し、current Ref head の closure を辿る。
 - Ref が一つもない `fsck` は stored Commit 全件を root にする。
+- `fsck` は Tombstone の索引を全 object の検証と同じ走査で作る。壊れた Record や store 内の不明な path は issue として報告し、一件目で検査を打ち切らない。壊れた Record が Tombstone だった可能性は排除できないので、その target の closure issue は `missing` と報告され得るが、report はどのみち clean にならない。closure 検証、export、Ref 更新などの Tombstone 走査は従来どおり fail-closed である。
+- OS が置く metadata file（`.DS_Store`、`._*`、`Thumbs.db`、`desktop.ini`。通常 file のみ）は inventory から除外する。どの OID もこの path を指さないので、検証の対象は変わらない。bounded inventory は除外した entry も directory ごとの上限に数える。
 - `fsck` は全 structured object へ JSON Schema を再適用するものではない。Core ingest / restore を通した object は投入時に schema 検証済みである。
 - creator begin／decision／reportが使うbounded `fsck`は、Ref、complete CAS inventory、raw bytes、全root合算closure work、Tombstone scanをoperation-wideに制限する。limit超過は`resource_limit`でfail closedにする。
 - localhost maintenanceは互換用`Repository::fsck`を呼ばず、server-fixedな`fsck_with_limits`だけを使う。dirty reportも完走した検査として`clean=false`とaggregate countだけを返し、object OID、path、issue detailをHTTPへ出さない。

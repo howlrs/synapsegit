@@ -402,6 +402,31 @@ fn dirty_fsck_is_a_completed_count_only_result() {
 }
 
 #[test]
+fn dirty_fsck_completes_when_a_record_is_corrupt() {
+    let temporary = TempDirectory::new();
+    let repository_path = temporary.directory("private-repository");
+    let repository = Repository::open(&repository_path).unwrap();
+    let stored = repository
+        .objects()
+        .put_structured_unchecked(br#"{"object_type":"record","name":"damaged"}"#)
+        .unwrap();
+    let digest = stored.oid.rsplit(':').next().unwrap();
+    let object_path = repository_path
+        .join("cas/objects/record")
+        .join(&digest[..2])
+        .join(&digest[2..]);
+    let service = service_for(&repository_path);
+    fs::write(&object_path, b"{").unwrap();
+
+    let result = service.run_maintenance_fsck("project").unwrap();
+
+    assert!(!result.clean);
+    assert_eq!(result.objects_seen, 1);
+    assert_eq!(result.objects_verified, 0);
+    assert_eq!(result.issue_count, 1);
+}
+
+#[test]
 fn nested_fsck_failures_only_expose_paths_as_diagnostics() {
     let temporary = TempDirectory::new();
     let repository_path = temporary.directory("private-repository");

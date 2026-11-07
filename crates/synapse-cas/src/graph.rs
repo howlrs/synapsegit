@@ -226,7 +226,7 @@ impl ClosureReport {
 pub struct PreparedClosureVerifier<'store, S: BoundedObjectStore + ?Sized> {
     store: &'store S,
     graph_limits: GraphLimits,
-    tombstones: BTreeMap<String, String>,
+    tombstones: TombstoneCatalog,
     report_cache: BTreeMap<String, ClosureReport>,
 }
 
@@ -238,12 +238,23 @@ impl<'store, S: BoundedObjectStore + ?Sized> PreparedClosureVerifier<'store, S> 
     ) -> Result<Self, StoreError> {
         validate_tombstone_scan_limits(tombstone_limits)?;
         let tombstones = collect_tombstones_bounded(store, tombstone_limits)?;
-        Ok(Self {
+        Ok(Self::from_catalog(store, graph_limits, tombstones))
+    }
+
+    /// Build a verifier from a catalog the caller already filled while reading
+    /// every Record, so that one integrity check does not scan them twice and
+    /// a corrupt Record stays a reported issue instead of ending the check.
+    pub fn from_catalog(
+        store: &'store S,
+        graph_limits: GraphLimits,
+        tombstones: TombstoneCatalog,
+    ) -> Self {
+        Self {
             store,
             graph_limits,
             tombstones,
             report_cache: BTreeMap::new(),
-        })
+        }
     }
 
     pub fn verify(&mut self, root: &str) -> Result<ClosureReport, StoreError> {
@@ -305,7 +316,7 @@ pub fn verify_closure<S: ObjectStore + ?Sized>(
     // require a hard inventory bound use PreparedClosureVerifier, whose store
     // must implement BoundedObjectStore.
     if parse_oid(root)? != ObjectKind::Commit {
-        return verify_closure_with_tombstones(store, root, limits, &BTreeMap::new());
+        return verify_closure_with_tombstones(store, root, limits, &TombstoneCatalog::default());
     }
     let tombstones = collect_tombstones(store)?;
     verify_closure_with_tombstones(store, root, limits, &tombstones)
@@ -315,7 +326,7 @@ fn verify_closure_with_tombstones<S: ObjectStore + ?Sized>(
     store: &S,
     root: &str,
     limits: GraphLimits,
-    tombstones: &BTreeMap<String, String>,
+    tombstones: &TombstoneCatalog,
 ) -> Result<ClosureReport, StoreError> {
     let root_kind = parse_oid(root)?;
     let mut report = ClosureReport {
@@ -417,7 +428,7 @@ fn verify_closure_with_tombstones<S: ObjectStore + ?Sized>(
                 let object = match store.get_verified(&visit.oid) {
                     Ok(Some(object)) => object,
                     Ok(None) => {
-                        if let Some(tombstone_oid) = tombstones.get(&visit.oid) {
+                        if let Some(tombstone_oid) = tombstones.tombstone_for(&visit.oid) {
                             report.nodes.insert(
                                 visit.oid.clone(),
                                 ClosureNode {
@@ -610,16 +621,98 @@ fn verify_closure_with_tombstones<S: ObjectStore + ?Sized>(
     Ok(report)
 }
 
-fn collect_tombstones<S: ObjectStore + ?Sized>(
-    store: &S,
-) -> Result<BTreeMap<String, String>, StoreError> {
-    collect_tombstones_from_oids(store, store.list_oids()?, None)
+/// Tombstone targets found in the Records of one consistency operation.
+///
+/// A Tombstone is only discovered by reading every Record, which every
+/// complete integrity check already does for its own reasons. Filling the
+/// catalog from that same pass reads each Record once, and it lets the check
+/// keep going past a corrupt Record, which [`PreparedClosureVerifier::new`]
+/// must refuse because it cannot rule out that the Record is a Tombstone.
+#[derive(Clone, Debug, Default)]
+pub struct TombstoneCatalog {
+    limits: Option<TombstoneScanLimits>,
+    records: usize,
+    record_bytes: u64,
+    targets: BTreeMap<String, String>,
+}
+
+impl TombstoneCatalog {
+    /// A catalog that charges each observed Record to `limits`.
+    pub fn bounded(limits: TombstoneScanLimits) -> Result<Self, StoreError> {
+        validate_tombstone_scan_limits(limits)?;
+        Ok(Self {
+            limits: Some(limits),
+            ..Self::default()
+        })
+    }
+
+    /// Add one verified object. Objects other than Records are ignored.
+    pub fn observe(&mut self, object: &VerifiedObject) -> Result<(), StoreError> {
+        if object.kind() != ObjectKind::Record {
+            return Ok(());
+        }
+        if let Some(limits) = self.limits {
+            self.records += 1;
+            if self.records > limits.max_record_objects {
+                return Err(tombstone_scan_resource_limit(format!(
+                    "exceeds max_record_objects {}",
+                    limits.max_record_objects
+                )));
+            }
+            self.record_bytes = self
+                .record_bytes
+                .checked_add(object.byte_len())
+                .ok_or_else(|| {
+                    tombstone_scan_resource_limit("verified Record bytes overflowed u64")
+                })?;
+            if self.record_bytes > limits.max_record_bytes {
+                return Err(tombstone_scan_resource_limit(format!(
+                    "exceeds max_record_bytes {}",
+                    limits.max_record_bytes
+                )));
+            }
+        }
+        let oid = object.oid();
+        let Some(value) = object.structured() else {
+            return Ok(());
+        };
+        if value.get("record_type").and_then(Value::as_str) != Some("tombstone") {
+            return Ok(());
+        }
+        let Some(target) = value
+            .get("payload")
+            .and_then(|payload| payload.get("target_ref"))
+            .and_then(Value::as_str)
+        else {
+            return Ok(());
+        };
+        if target == oid || parse_oid(target).is_err() {
+            return Ok(());
+        }
+        self.targets
+            .entry(target.to_owned())
+            .and_modify(|existing: &mut String| {
+                if oid < existing.as_str() {
+                    oid.clone_into(existing);
+                }
+            })
+            .or_insert_with(|| oid.to_owned());
+        Ok(())
+    }
+
+    fn tombstone_for(&self, target: &str) -> Option<&String> {
+        self.targets.get(target)
+    }
+}
+
+fn collect_tombstones<S: ObjectStore + ?Sized>(store: &S) -> Result<TombstoneCatalog, StoreError> {
+    collect_tombstones_from_oids(store, store.list_oids()?, TombstoneCatalog::default())
 }
 
 fn collect_tombstones_bounded<S: BoundedObjectStore + ?Sized>(
     store: &S,
     limits: TombstoneScanLimits,
-) -> Result<BTreeMap<String, String>, StoreError> {
+) -> Result<TombstoneCatalog, StoreError> {
     let oids = store.list_oids_by_kind_limited(ObjectKind::Record, limits.max_record_objects)?;
     if oids.len() > limits.max_record_objects {
         return Err(tombstone_scan_resource_limit(format!(
@@ -627,62 +720,24 @@ fn collect_tombstones_bounded<S: BoundedObjectStore + ?Sized>(
             limits.max_record_objects
         )));
     }
-    collect_tombstones_from_oids(store, oids, Some(limits.max_record_bytes))
+    collect_tombstones_from_oids(store, oids, TombstoneCatalog::bounded(limits)?)
 }
 
 fn collect_tombstones_from_oids<S: ObjectStore + ?Sized>(
     store: &S,
     mut oids: Vec<String>,
-    max_record_bytes: Option<u64>,
-) -> Result<BTreeMap<String, String>, StoreError> {
+    mut catalog: TombstoneCatalog,
+) -> Result<TombstoneCatalog, StoreError> {
     oids.sort_unstable();
     oids.dedup();
-    let mut result = BTreeMap::new();
-    let mut verified_record_bytes = 0_u64;
     for oid in oids {
-        if parse_oid(&oid).is_ok_and(|kind| kind == ObjectKind::Record) {
-            let Some(object) = store.get_verified(&oid)? else {
-                continue;
-            };
-            if let Some(max_record_bytes) = max_record_bytes {
-                verified_record_bytes = verified_record_bytes
-                    .checked_add(object.byte_len())
-                    .ok_or_else(|| {
-                        tombstone_scan_resource_limit("verified Record bytes overflowed u64")
-                    })?;
-                if verified_record_bytes > max_record_bytes {
-                    return Err(tombstone_scan_resource_limit(format!(
-                        "exceeds max_record_bytes {max_record_bytes}"
-                    )));
-                }
-            }
-            let Some(value) = object.structured() else {
-                continue;
-            };
-            if value.get("record_type").and_then(Value::as_str) != Some("tombstone") {
-                continue;
-            }
-            let Some(target) = value
-                .get("payload")
-                .and_then(|payload| payload.get("target_ref"))
-                .and_then(Value::as_str)
-            else {
-                continue;
-            };
-            if target == oid || parse_oid(target).is_err() {
-                continue;
-            }
-            result
-                .entry(target.to_owned())
-                .and_modify(|existing: &mut String| {
-                    if oid < *existing {
-                        existing.clone_from(&oid);
-                    }
-                })
-                .or_insert(oid);
+        if parse_oid(&oid).is_ok_and(|kind| kind == ObjectKind::Record)
+            && let Some(object) = store.get_verified(&oid)?
+        {
+            catalog.observe(&object)?;
         }
     }
-    Ok(result)
+    Ok(catalog)
 }
 
 fn validate_tombstone_scan_limits(limits: TombstoneScanLimits) -> Result<(), StoreError> {
@@ -757,6 +812,10 @@ impl FsckReport {
 
 /// Verify every stored object and the required closure of the supplied Commit
 /// roots. With an empty root list, every stored Commit is used as a graph root.
+///
+/// Damage is reported in the returned [`FsckReport`], so that one damaged
+/// object or stray path never hides another. Only an operational failure or a
+/// configured limit ends the check with an error.
 pub fn fsck(
     store: &FileObjectStore,
     roots: &[String],
@@ -776,13 +835,17 @@ pub fn fsck(
     let objects_seen = inventory.oids.len();
     let mut objects_verified = 0;
     let mut stored_commits = Vec::new();
+    let mut tombstones = TombstoneCatalog::default();
 
     for oid in &inventory.oids {
         if parse_oid(oid).is_ok_and(|kind| kind == ObjectKind::Commit) {
             stored_commits.push(oid.clone());
         }
         match store.get_verified(oid) {
-            Ok(Some(_)) => objects_verified += 1,
+            Ok(Some(object)) => {
+                objects_verified += 1;
+                tombstones.observe(&object)?;
+            }
             Ok(None) => issues.push(FsckIssue {
                 kind: FsckIssueKind::MissingScannedObject { oid: oid.clone() },
             }),
@@ -807,8 +870,10 @@ pub fn fsck(
         roots.to_vec()
     };
     let mut closures = Vec::with_capacity(graph_roots.len());
+    // Several Refs often share a head, and each still reports its own closure.
+    let mut verifier = PreparedClosureVerifier::from_catalog(store, limits, tombstones);
     for root in graph_roots {
-        let closure = verify_closure(store, &root, limits)?;
+        let closure = verifier.verify(&root)?;
         issues.extend(closure.issues.iter().cloned().map(|issue| FsckIssue {
             kind: FsckIssueKind::Closure(issue),
         }));
@@ -2114,7 +2179,7 @@ mod tests {
             },
         )
         .unwrap();
-        assert_eq!(verifier.tombstones.get(&target), Some(&lower));
+        assert_eq!(verifier.tombstones.tombstone_for(&target), Some(&lower));
 
         let first_root = format!("commit:sg-oid-v1:sha256:{}", "5".repeat(64));
         let second_root = format!("commit:sg-oid-v1:sha256:{}", "6".repeat(64));
