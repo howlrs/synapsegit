@@ -151,8 +151,8 @@ linked into every distributed binary.
 | tokio | 1.54.1 | MIT | https://github.com/tokio-rs/tokio |
 | toml_datetime | 1.1.2+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
 | toml_parser | 1.1.5+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
-| toml_writer | 1.1.3+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
-| toml | 1.1.8+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
+| toml_writer | 1.2.0+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
+| toml | 1.2.0+spec-1.1.0 | MIT OR Apache-2.0 | https://github.com/toml-rs/toml |
 | tower-layer | 0.3.3 | MIT | https://github.com/tower-rs/tower |
 | tower-service | 0.3.3 | MIT | https://github.com/tower-rs/tower |
 | tower | 0.5.3 | MIT | https://github.com/tower-rs/tower |
@@ -5707,10 +5707,10 @@ SHA-256: `fb77f0a9c53e473abe5103c8632ef9f0f2874d4fb3f17cb2d8c661aab9cee9d7`
 Applies to:
 
 - serde_spanned 1.1.2 — LICENSE-APACHE
-- toml 1.1.8+spec-1.1.0 — LICENSE-APACHE
+- toml 1.2.0+spec-1.1.0 — LICENSE-APACHE
 - toml_datetime 1.1.2+spec-1.1.0 — LICENSE-APACHE
 - toml_parser 1.1.5+spec-1.1.0 — LICENSE-APACHE
-- toml_writer 1.1.3+spec-1.1.0 — LICENSE-APACHE
+- toml_writer 1.2.0+spec-1.1.0 — LICENSE-APACHE
 
 SHA-256: `05c58f1374a0ba16711c4f60552df215d72078d374bbd245ad438388c87c3573`
 
@@ -5921,10 +5921,10 @@ SHA-256: `05c58f1374a0ba16711c4f60552df215d72078d374bbd245ad438388c87c3573`
 Applies to:
 
 - serde_spanned 1.1.2 — LICENSE-MIT
-- toml 1.1.8+spec-1.1.0 — LICENSE-MIT
+- toml 1.2.0+spec-1.1.0 — LICENSE-MIT
 - toml_datetime 1.1.2+spec-1.1.0 — LICENSE-MIT
 - toml_parser 1.1.5+spec-1.1.0 — LICENSE-MIT
-- toml_writer 1.1.3+spec-1.1.0 — LICENSE-MIT
+- toml_writer 1.2.0+spec-1.1.0 — LICENSE-MIT
 
 SHA-256: `6efb0476a1cc085077ed49357026d8c173bf33017278ef440f222fb9cbcb66e6`
 
