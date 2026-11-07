@@ -7,6 +7,8 @@ milestone.
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-07
+
 ### Added
 
 - `synapse repair REPO --from PATH` puts damaged or missing objects back from a
@@ -26,6 +28,8 @@ milestone.
 
 ### Changed
 
+- The macOS arm64 archive is built and smoke-tested on macOS 15. GitHub retired
+  its macOS 14 runners on November 2, 2026.
 - Updated `jsonschema` 0.58.2 → 0.60.2, `tokio` 1.53.1 → 1.54.1, `toml` 1.1.6 →
   1.1.8, and compatible transitive crates, and regenerated
   `THIRD_PARTY_NOTICES.md`. `rusqlite` stays at 0.39.0 because 0.41 needs Rust
@@ -1053,7 +1057,8 @@ First Stage 0 preview.
   2026-07-15, the rights holders offer v0.1.0 under the current custom
   source-available license; the original archive remains unchanged.
 
-[Unreleased]: https://github.com/howlrs/synapsegit/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/howlrs/synapsegit/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/howlrs/synapsegit/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/howlrs/synapsegit/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/howlrs/synapsegit/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/howlrs/synapsegit/compare/v1.1.0...v1.2.0
