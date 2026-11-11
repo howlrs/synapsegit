@@ -252,14 +252,9 @@ pre {
 }
 
 .brand__mark {
-  display: grid;
+  display: block;
   width: 1.85rem;
   height: 1.85rem;
-  place-items: center;
-  border-radius: 50% 45% 55% 42%;
-  color: var(--on-action);
-  background: var(--action);
-  font-size: 0.82rem;
 }
 
 .primary-nav ul,

@@ -1,5 +1,7 @@
 # SynapseGit
 
+<img src="./docs/assets/brand/synapsegit-icon.svg" alt="" width="72" height="72" align="right">
+
 [English](./README.md) | [日本語](./README.ja.md)
 
 [![CI](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml/badge.svg)](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml)
