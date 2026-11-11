@@ -9,6 +9,9 @@ use crate::views::{
 
 pub(crate) const APP_CSS: &str = include_str!("../assets/app.css");
 pub(crate) const APP_JS: &str = include_str!("../assets/app.js");
+// Byte-identical copy of docs/assets/brand/synapsegit-icon.svg, kept inside the
+// crate because the container build context excludes docs/.
+pub(crate) const APP_ICON: &str = include_str!("../assets/icon.svg");
 
 pub(crate) async fn css_asset() -> Response {
     ([(CONTENT_TYPE, "text/css; charset=utf-8")], APP_CSS).into_response()
@@ -16,6 +19,10 @@ pub(crate) async fn css_asset() -> Response {
 
 pub(crate) async fn js_asset() -> Response {
     ([(CONTENT_TYPE, "text/javascript; charset=utf-8")], APP_JS).into_response()
+}
+
+pub(crate) async fn icon_asset() -> Response {
+    ([(CONTENT_TYPE, "image/svg+xml")], APP_ICON).into_response()
 }
 
 #[derive(Template)]

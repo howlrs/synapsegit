@@ -128,6 +128,36 @@ GitHub SettingsのSocial previewへ明示的にuploadしない限り、repositor
 生成promptとhashは[`assets/image-generation.json`](./assets/image-generation.json)に記録します。
 GitHub Settingsへのuploadは、このrepositoryの画像更新とは別の操作です。
 
+## Project icon
+
+projectのiconは[`docs/assets/brand/synapsegit-icon.svg`](./assets/brand/synapsegit-icon.svg)を正本とする。
+64 × 64のviewBoxを持つ静的SVGで、script、font、外部参照を含まない。
+
+<img src="./assets/brand/synapsegit-icon.svg" alt="SynapseGitのicon。S字の線が白抜きの円と塗りの円を結ぶ" width="96" height="96">
+
+形は次を表す。
+
+- S字の線: 候補から判断までを結ぶ、履歴の1本の線。`SynapseGit`の頭文字でもある
+- 白抜きの円: まだ誰も判断していないAIの候補
+- 塗りの円: 記録された人の判断
+
+色は3色に限る。地の`#0c5143`はlocal applicationの`--accent-strong`、線は`#ffffff`、
+判断の円は`#f2b84b`である。iconは内容の真正性、著作者、Gitとの互換性、他projectとの提携を示さない。
+
+| 使用箇所 | 参照するfile | 備考 |
+|---|---|---|
+| local applicationのheaderとbrowser tab | `crates/synapse-local-http/assets/icon.svg`（`/assets/icon.svg`として配信） | 正本とbyte単位で同一。container buildのcontextが`docs/`を含まないためcrate内に複製を置き、`synapse-local-http`のtestが一致を検査する |
+| README | 正本を相対pathで参照 | release archiveには同梱しない |
+| 外部の紹介site | 正本の複製 | 複製側に正本のpathを残す |
+
+変更するときは正本を編集し、crate内の複製を同じbyteで置き換える。外部siteで使うときは形、色、
+縦横比を変えず、16 px相当でも円2つとS字が区別できる大きさで表示する。PNGなどのrasterが必要な
+場合は正本から書き出す。repositoryにはrasterを置いていない。
+
+2026-11-11版は、ownerの依頼でAI agentがSVG sourceを直接記述した。画像生成toolの出力ではないため、
+[`assets/image-generation.json`](./assets/image-generation.json)には記録しない。GitHubのavatarや
+Social previewへの設定は、このrepositoryへの追加とは別の操作である。
+
 ## Release channelと対応platform
 
 | Channel | Support | Notes |

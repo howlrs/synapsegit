@@ -7,6 +7,17 @@ milestone.
 
 ## [Unreleased]
 
+### Added
+
+- SynapseGit has a project icon: an S-shaped line that joins an open circle
+  (an AI candidate nobody has decided on yet) to a filled circle (a recorded
+  human decision). The local app shows it beside the product name and as the
+  browser tab icon, served from `/assets/icon.svg`; it replaces the "SG"
+  letters in the header. The source is `docs/assets/brand/synapsegit-icon.svg`,
+  a static SVG with no script, font, or external reference.
+  `docs/distribution.md` describes where it is used and how other sites may
+  reuse it.
+
 ### Changed
 
 - Updated `toml` 1.1.8 → 1.2.0 and regenerated `THIRD_PARTY_NOTICES.md`.

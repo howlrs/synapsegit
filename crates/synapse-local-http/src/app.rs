@@ -25,7 +25,7 @@ use crate::i18n::negotiate_page_language;
 use crate::security::{SecurityPolicy, enforce_local_request};
 use crate::staging::MAX_CREATOR_FILE_AGGREGATE_BYTES;
 use crate::state::{AppState, BlockingGates, OperationRegistry};
-use crate::templates::{css_asset, js_asset};
+use crate::templates::{css_asset, icon_asset, js_asset};
 
 pub(crate) const MAX_CONCURRENT_CREATOR_UPLOADS: usize = 2;
 // The file aggregate is the contractual payload. This small fixed allowance
@@ -152,6 +152,7 @@ pub(crate) fn build_with_identity(
         )
         .route("/assets/app.css", get(css_asset))
         .route("/assets/app.js", get(js_asset))
+        .route("/assets/icon.svg", get(icon_asset))
         .route("/api/v1/health", get(api_health))
         .route("/api/v1/projects", get(api_projects))
         .route(

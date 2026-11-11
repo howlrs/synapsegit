@@ -35,7 +35,7 @@ use crate::state::{
     MAX_BLOCKING_OPERATIONS_PER_PROJECT, MAX_OPERATION_ENTRIES, OperationRegistry,
     OperationRegistryError,
 };
-use crate::templates::APP_JS;
+use crate::templates::{APP_ICON, APP_JS};
 
 static NEXT_DIRECTORY: AtomicU64 = AtomicU64::new(0);
 
@@ -2154,6 +2154,63 @@ async fn bootstrap_is_non_cacheable_and_contains_only_the_process_token() {
     let html = std::str::from_utf8(&body).unwrap();
     assert!(html.contains(&"a".repeat(64)));
     assert!(!html.contains("repository_path"));
+}
+
+#[tokio::test]
+async fn pages_link_the_project_icon_and_it_is_served_as_a_static_svg() {
+    let (_directory, app) = test_app();
+    let page = app
+        .clone()
+        .oneshot(request("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let html = to_bytes(page.into_body(), 2 * 1024 * 1024).await.unwrap();
+    let html = std::str::from_utf8(&html).unwrap();
+    assert!(html.contains(r#"<link rel="icon" href="/assets/icon.svg" type="image/svg+xml">"#));
+    assert!(html.contains(r#"<img class="brand__mark" src="/assets/icon.svg" alt="""#));
+
+    let response = app
+        .oneshot(request("/assets/icon.svg").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+        response.headers().get(CONTENT_TYPE).unwrap(),
+        "image/svg+xml"
+    );
+    assert_eq!(
+        response.headers().get(header::CACHE_CONTROL).unwrap(),
+        "public, max-age=0, must-revalidate"
+    );
+    assert_eq!(
+        response.headers().get("x-content-type-options").unwrap(),
+        "nosniff"
+    );
+    let body = to_bytes(response.into_body(), 64 * 1024).await.unwrap();
+    assert_eq!(body, APP_ICON.as_bytes());
+    // A static mark: nothing in it may load, run, or reference anything else.
+    for forbidden in [
+        "<script",
+        "href",
+        "url(",
+        "<style",
+        "<foreignObject",
+        "<image",
+    ] {
+        assert!(!APP_ICON.contains(forbidden), "icon contains {forbidden}");
+    }
+}
+
+#[test]
+fn embedded_icon_matches_the_documented_brand_master() {
+    let master =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/assets/brand/synapsegit-icon.svg");
+    assert_eq!(
+        fs::read(&master).unwrap(),
+        APP_ICON.as_bytes(),
+        "crates/synapse-local-http/assets/icon.svg must be a byte-identical copy of {}",
+        master.display()
+    );
 }
 
 #[tokio::test]
