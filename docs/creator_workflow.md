@@ -12,6 +12,18 @@ v1.5.0 release binaryを[install guide](install.md)から導入するか、
 [source build](quickstart.md#1-build-する)で作成した`synapse`を
 [localhost runbook](../deploy/local/README.md)に従って起動してください。
 
+## 最初は小さな1件から始める
+
+たとえば、夕景の空を暖色にした案を試すとします。元のラフ、現在の作業版、AIで空の色を変えた候補を用意して、エージェントに比較画面の準備を頼みます。[自分の画像で使う依頼文](./ai_agent_guide.ja.md#aiエージェントへの指示の例)
+
+下の作例では、左が現在の作業版、右が暖色の候補です。
+
+![空と自転車の人物を描いた2案。鉛筆の先が、夕空と上着の色が近くなったところを指している。](./assets/creator-colour-review.png)
+
+人物の輪郭と空の境目を見てください。輪郭が見えにくくなったら、その場所にピンを付け、「人物が背景に溶ける」と理由を書いて不採用を選べます。別の配色ができたら、完了した記録から同じラフと作業版を引き継いで、新しい候補を比較できます。
+
+### エージェントが使うInboxの仕組み
+
 `synapse serve --import-root KEY=PATH` を使う場合、producerは`PATH/<slug>`へ3つの画像を書き、strict manifestを最後に書く。ブラウザはpathではなくslugだけを送る。確認を閉じるとprocess-private stagingは直ちに破棄され、Proposal作成は確認した同じstaged bytesだけを使う。
 CLIやAIエージェントからは`synapse inbox put`でこの形式の候補を書き出せる。repositoryを開かず、判断も記録しない。判断は人がブラウザで行う。
 

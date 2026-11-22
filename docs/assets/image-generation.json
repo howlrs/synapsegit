@@ -164,6 +164,20 @@
       "selection": "agent integration; no Human Decision recorded",
       "backend_model_id": null,
       "output_note": "The tool supplied these actual dimensions; no resizing, cropping or image re-encoding was performed."
+    },
+    {
+      "path": "docs/assets/creator-colour-review.png",
+      "sha256": "9a1186f8c05148e42abb070ad16b6506e7753e674a05deca8a2258838116fad9",
+      "width": 1536,
+      "height": 1024,
+      "bytes": 3270322,
+      "postprocessing": "none; original generated PNG bytes copied unchanged",
+      "revision": "2026-11-23",
+      "role": "conceptual illustration of a creator reviewing a colour variation",
+      "synthetic": true,
+      "transparent_background": false,
+      "selection": "agent integration; no Human Decision recorded",
+      "backend_model_id": null
     }
   ],
   "documentation_illustration_revision": "2026-10-03",

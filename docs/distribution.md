@@ -10,10 +10,11 @@ Last verified: 2026-11-07
 
 ## 配布の対象
 
-現在のprimary audienceは、Linux CLIを扱えるtechnical creator、creative provenance／
-human-in-the-loop AIを評価する研究者・tool builder、Rust developerである。画家、建築家、
-施工・修復担当、デザイナーは将来の対象だが、capture、visual diff、restart-durable review、
-production serviceが必要な一般導入にはまだ適さない。v0.3.0で導入されたlocalhost UIの
+現在のprimary audienceは、AIで作った画像候補を自分で見比べて選びたいクリエイター、creative provenance／
+human-in-the-loop AIを評価する研究者・tool builder、Rust developerである。creator向けの評価には、
+Linux x86_64またはApple Silicon搭載Macの配布版を使える。手元でコマンドを実行できるAIエージェントに画像の取り込み準備を任せ、制作者がブラウザで採否を決める。画家、建築家、施工・修復担当、
+デザイナーも、制作の一工程でOriginal・Current・候補の3画像を用意できれば対象となる。capture、
+visual diff、restart-durable review、production serviceが必要な一般導入にはまだ適さない。v0.3.0で導入されたlocalhost UIの
 boundedな三file import、same-process Human review、read-only diagnostics、確認付きbackground
 `fsck`はv0.4.0にも収録される。この範囲に限ってwrite-capable／maintenance-capableである。
 
@@ -88,7 +89,7 @@ publication bundleやgeneric-artifact workflow、remote publishの配布経路�
 
 推奨description:
 
-> Git-like, local-first Rust CLI and viewer for creative-work provenance: files, observations, AI proposals, evidence, and human decisions.
+> Review AI image variations on your computer. Let an agent prepare the comparison, then keep the images, your decision and your reason together.
 
 推奨topics:
 

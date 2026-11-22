@@ -3,213 +3,91 @@
 [English](./README.md) | [日本語](./README.ja.md)
 
 [![CI](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml/badge.svg)](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml)
-![v1.5.0](https://img.shields.io/badge/release-v1.5.0-0a7f3f)
+[![v1.5.0](https://img.shields.io/badge/release-v1.5.0-0a7f3f)](https://github.com/howlrs/synapsegit/releases/tag/v1.5.0)
 ![Linux x86_64](https://img.shields.io/badge/binary-Linux%20x86__64-555)
 ![macOS arm64](https://img.shields.io/badge/binary-macOS%20arm64-555)
 [![License: source-available](https://img.shields.io/badge/license-source--available-blue)](./LICENSE)
 
-**AIが何を提案し、あなたが何を決めたかを、手元に記録する。**
+**AIで試した案を、選んだ理由ごと残せます。** SynapseGitは、見比べた画像とあなたの判断を手元に保存する制作記録ツールです。いつもの画像生成ツールで作った案を使えます。準備はAIエージェントに頼み、あなたはブラウザで画像を見て、採用・不採用・保留を選びます。
 
-SynapseGitは、元の状態（Original）、今の状態（Current）、AIが作った案（AI output）、
-それに対するあなたの判断（採用・不採用・保留）を、検証できる履歴としてあなたのコンピューターに記録します。
-コマンドの操作はAIエージェントに任せられますが、判断はあなたが行います。後から、あなた自身や作業を
-引き継ぐ人が、何が提案され、何を選び、なぜそうしたかを確かめられます。
+たとえば、夕景のイラストで空の色を変える場面なら、次の3枚が一組です。
 
-SynapseGitは、証拠、AIの提案、人の判断を分けて扱います。記録の識別子はファイルの内容が変わっていない
-ことを確かめるもので、作者性、真実、著作権、許可、物理的な変化を証明するものではありません。
-
-[![元の画像・現在の画像・AIの候補を見比べ、人が採用・不採用・保留を選び、その判断を手元の履歴に残す](./docs/assets/creator-overview.ja.png)](./docs/assets/creator-overview.ja.png)
-
-_仕組みを説明するイラストです。普段のAIツールで候補を用意し、画像を見て自分で決めます。
-SynapseGitは、その経緯を自分のコンピューターに残します。_
-
-画像はクリック／タップで拡大できます。
-
-## 解決すること
-
-完成したファイルだけでは、どう決めたかが分かりません。
-
-- どれが元の参照で、手を加える前はどんな状態だったか
-- どの出力がAIによるもので、AIに何を頼んだか
-- 人はそれを採用したのか、採用しなかったのか、保留したのか。その理由は何か
-
-SynapseGitは、それぞれを独立した記録として残し、最後に作られたファイルを自動で採用したことにはしません。
-
-| 入力 | 提案 | 人の判断 | 確かめられる結果 |
-|---|---|---|---|
-| OriginalとCurrentのファイル | あなたが用意したAI output | `adopt`、`reject`、`defer` | report、timeline、整合性の確認、backup、ローカルの閲覧用bundle |
-
-## 1つの例
-
-画像付きの[15分 壁画チュートリアル](./docs/tutorial/README.ja.md)では、3枚の合成画像を使い、
-実行するコマンド、実際のlocalhostの画面、困ったときの対処を順に確認できます。
-
-| Original | Current | AI proposal |
+| 元の画像（Original） | 現在の画像（Current） | AIの候補（AI output） |
 |---|---|---|
-| ![海辺の壁画の合成original画像](./docs/tutorial/assets/mural-original.png) | ![保全上の問題が見える合成current画像](./docs/tutorial/assets/mural-current.png) | ![控えめな処置案の合成画像](./docs/tutorial/assets/mural-ai-proposal.png) |
+| 色の基準にした最初のラフ | 今の作業版の書き出し | AIで空を赤くした案 |
 
-画像は生成したfixtureであり、実在の作品や処置の証拠ではありません。
-このrepositoryでは[2026-10-02版の画像](./docs/assets/image-generation.json)を使います。
-v1.5.0 archiveにはこの3枚のtutorial画像を同梱します。以前のreleaseはその版の素材を保持するため、
-sessionで使ったreleaseと素材の版を記録してください。
+[![同じ海岸を走る自転車の配色例。左は淡い青空でオレンジの上着が目立ち、右は赤い夕空に上着の色が近い。鉛筆が右の人物を指している。](./docs/assets/creator-colour-review.png)](./docs/assets/creator-colour-review.png)
 
-## 実制作での使い方を見る
+**最初に目に入るのは、自転車の人ですか、それとも空ですか？** 左が作業版、右が候補という想定のイラストです。夕焼けの印象を強めたいなら右を採用できます。人物を主役にしたいなら、「上着が空に溶けるので、背景の赤を弱めたい」と理由を残せます。
 
-[「星月夜の上塗り」事例](./docs/examples/starry-night/README.ja.md)は、開発者本人によるv1.0.0の
-制作で、5件のHuman `adopt`判断と[固定した公開bundle](https://github.com/howlrs/synapsegit-starry-night/tree/45db60e3497f5392a9fb93135698021d23e42059/synapsegit/bundle)を示します。
-現物写真と工程地図をOriginal・Current・AI outputへ割り当てる例です。採用は提案bytesを選んだ
-記録であり、その地図どおりに塗ったことや物理的変化を証明しません。
+自分の制作に合うかは、まず1案で試せます。次の修正を始めるとき、エージェントに「前の案ではどこが気になった？」と尋ねてください。見比べた画像と自分の言葉が、次にAIへ何を頼むかを決める手がかりになります。
 
 ## 始める
 
-### 1. installする
+### 1. 同梱の3枚でAIに準備を頼む
 
-v1.5.0の配布archiveはRust toolchainなしで使えます。Linux x86_64（glibc 2.34以降）と
-Apple SiliconのmacOSに対応します。他のplatformでは
-[tagged sourceからbuild](./docs/install.md#build-from-a-tagged-source-release)できます。
+手元のファイルを読んでターミナルでコマンドを実行できるAIエージェントを使います。まず対応環境の手順に沿って配布ファイルを検証し、`synapse`をインストールします。配布版の利用にはRustは不要です。[Linux x86_64（glibc 2.34以降）](./docs/install.md#install-the-linux-x86-64-release) ／ [Apple Silicon搭載Mac](./docs/install.md#install-the-macos-arm64-release)
 
-```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.5.0/synapsegit-v1.5.0-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.5.0/SHA256SUMS
-sha256sum --check --ignore-missing SHA256SUMS
-```
+インストールもエージェントに任せるなら、上の手順を渡し、「この環境用のv1.5.0を手順どおり検証してインストールし、サンプルの入ったフォルダを教えて」と頼めます。
 
-確認に失敗したら、そこで止めてください。build provenanceの確認、macOSの手順、単一の`synapse`実行fileと
-互換用linkの置き場所は
-[installation guide](./docs/install.md)にあります。
+展開した配布フォルダをエージェントで開き、次の依頼文を貼り付けてください。教材は架空の壁画の画像です。
 
-### 2. AIエージェントに準備を任せ、判断は自分でする
+> このフォルダの `AI_AGENT_GUIDE.ja.md` を読んで、SynapseGitで壁画の案を1件試せるようにして。
+> `docs/tutorial/assets/` の `mural-original.png` を元の画像、`mural-current.png` を現在の画像、`mural-ai-proposal.png` を候補に使って。
+> 対象名は「壁画の練習」、作成者名は「体験用」で、練習用のプロジェクトとInboxを準備して。
+> 候補をInboxに置いたら、私がブラウザで比較できるローカルURLを教えて。判断と理由は私が入力するので、そこで待って。
 
-[![AIに候補の準備を頼み、自分で画像を比較して判断し、後から画像・判断・理由を見返す3ステップ](./docs/assets/creator-journey.ja.png)](./docs/assets/creator-journey.ja.png)
+リポジトリをクローンした場合は、ルートで同じ依頼文を使い、ガイド名だけを `docs/ai_agent_guide.ja.md` に変更します。自分の作品で試すときは、3つのファイルのパス、対象名、作成者名を差し替えてください。
 
-_制作の流れを説明するイラストです。準備の操作はエージェントに頼めます。
-採用・不採用・保留は、画像を確認した自分で選びます。_
+### 2. 画像を見比べ、選んだ理由を残す
 
-AIエージェントに[AIエージェント向けガイド](./docs/ai_agent_guide.ja.md)を渡します（release archiveにも
-`AI_AGENT_GUIDE.ja.md`として入っています）。そのうえで、例えば次のように頼みます。
+1. エージェントが返した `http://127.0.0.1:…` を同じコンピューターで開きます。プロジェクトの「取り込む」で「取り込み待ち」の「確認する」を押し、「取り込み内容を確認」に並ぶ3枚を確かめて、その欄の「提案を作成」を選びます。
+2. 現在の画像と候補を並べて確認します。縦横のサイズが同じ画像は重ねて比較できます。理由を書き残したいときはここで入力し、採用・不採用・保留から自分の判断を選んで確定します。
+3. 記録後、エージェントに「今の壁画の記録を開いて、私が選んだ判断と、書き残した理由を教えて」と頼んでみてください。次の案を試すときも、この判断は元の記録に残ります。
 
-> 先にSynapseGitのAIエージェント向けガイドを読んで。この3枚（元の画像・現在の画像・候補）を
-> 記録する準備をして、私が画像を見比べて判断できる画面を開いて。判断は私がするので、代わりに選ばないで。
+[![壁画の画像を見比べるローカル画面](./docs/assets/synapse-local/image-comparison.png)](./docs/assets/synapse-local/image-comparison.png)
 
-URLを開き、プロジェクトの「取り込む」ページで候補を確認して提案を作成し、画像を見比べてから、
-採用・不採用・保留を選びます。その後、エージェントは`synapse creator-list`と
-`synapse creator-report --format json`で結果を読み、`synapse export`でbackupを作れます。
+*チュートリアルの合成画像を使った実際の比較画面（v1.0.0-rc.1撮影）。表示言語は日本語・英語を選べます。*
 
-### 3. コマンドから直接記録する
+### コマンドで起動する
+
+自分で操作する場合は、次の2行でプロジェクトを用意し、ブラウザで取り込みを始められます。
 
 ```bash
 synapse init "$HOME/SynapseGit/demo"
-synapse creator-run "$HOME/SynapseGit/demo" session-1 \
-  /path/to/original.png /path/to/current.png /path/to/candidate.png \
-  --subject "制作中の作品" --creator "あなたの名前" \
-  --decision defer --rationale "この候補は後で見直す。"
-synapse creator-report "$HOME/SynapseGit/demo" session-1
+synapse serve --project "demo=$HOME/SynapseGit/demo"
 ```
 
-ブラウザで見るには、`synapse serve --project "demo=$HOME/SynapseGit/demo"`を実行し、表示された
-`http://127.0.0.1:...`のURLを開きます。各コマンドは`--help`で使い方を表示します。
+表示されたURLを開き、プロジェクトの「取り込む」で3枚を選びます。コマンドだけで判断とレポートの確認まで進める手順もあります。[15分 壁画チュートリアル](./docs/tutorial/README.ja.md)
 
-## 今できること
+## 実際の作品ではどう使う？
 
-| できること | 場所 |
+[「星月夜の上塗り」](./docs/examples/starry-night/README.ja.md)では、開発者がレプリカにアクリル絵の具を重ねる過程を記録しました。明るい青を塗る工程では、最初の写真、白を塗り終えた写真、AIが提案した「次に青を置く場所」の地図を見比べています。公開された5件の採用記録から、各工程で選んだ提案をたどれます。[記録をまとめた公開用ファイル](https://github.com/howlrs/synapsegit-starry-night/tree/45db60e3497f5392a9fb93135698021d23e42059/synapsegit/bundle)
+
+## 次にしたいこと
+
+| やりたいこと | 読む資料 |
 |---|---|
-| Original、Current、AI outputと、あなたの判断と理由を記録する | ブラウザの「取り込む」ページ、`synapse creator-run` |
-| AIエージェントに判断させずに候補をInboxへ置いてもらい、ブラウザで判断する | `synapse inbox put`と「取り込む」ページ |
-| 2枚の画像を並べて、または重ねて、全体表示・100%・200%で見比べる | セッションの画面 |
-| 任意の生成メモと、画像上のピンを付ける | 取り込みのformとセッションの画面 |
-| 過去の判断を、日時とタイムラインで読み返す | セッションの画面、`creator-list`、`creator-report`（textまたはJSON） |
-| 記録から次の案を試す。保留や中断した提案を新しいセッションで改めて判断する | セッションの画面 |
-| 整合性を確認し、backupを作り、復元する。壊れたデータを正しい写しから元に戻す | 「管理」ページ、`fsck`、`export`、`restore`、`repair` |
-| 非公開のメモを含まない、ローカルの閲覧用bundleを作る | `synapse present`と公開用の制作ノート |
-| 日本語または英語の画面で使う | headerの言語切り替え |
+| エージェントに候補の準備や記録の読み返しを頼む | [AIエージェント向けガイド](./docs/ai_agent_guide.ja.md) |
+| 生成時のプロンプトを控える、気になる箇所にピンを付ける、同じ参照画像で別案を試す | [クリエイター向け操作ガイド](./docs/creator_workflow.md) |
+| 作品の経緯を人に見せるために、公開用の文章と閲覧用ファイルを用意する | [公開用の制作ノート](./docs/presentation_sidecar.md) |
+| 記録をバックアップ・復元する | [ローカルアプリの運用手順](./deploy/local/README.md) ／ [CLIリファレンス](./docs/cli_reference.md) |
+| 技術仕様やライブラリの機能を調べる | [Core Protocol](./spec/core/v0.1/README.md) ／ [実装の範囲](./docs/implementation_boundaries.md) ／ [資料一覧](./docs/README.md) |
 
-![syntheticな壁画の例を表示した実際のSynapseGit Localプロジェクト画面](./docs/assets/synapse-local/overview-hero.png)
+## 記録の範囲と利用条件
 
-_こちらは実際の画面キャプチャです。`127.0.0.1`だけで配信され、hosted serviceやmulti-user serviceでは
-ありません。_
-
-## しないこと
-
-- **AIモデルを実行しません。** AI outputはあなたが用意したファイルです。SynapseGitはそれを外部で用意された
-  もの（caller-supplied）として記録し、どのモデルが作ったかを主張しません。
-- **画像ではなく、ファイルの内容を比べます。** 一致確認はbytesが同じかどうかを示します。同じ内容でも
-  対象物が変わっていないことの証明にはならず、内容が違っても見た目や物理的な変化の証明にはなりません。
-  位置合わせや差分解析はありません。
-- **記録した判断は、そのセッションでは変えられません。** 同じ画像を新しいセッションで改めて判断でき、
-  元の記録は残ります。
-- **ローカルで1人が使うものです。** `synapse serve`は`127.0.0.1`だけで動きます。hosted serviceや
-  multi-user serviceはなく、何もuploadしません。
-- **platform:** v1.5.0 archiveはLinux x86_64とmacOS arm64用です。Windowsには対応しません。
-  Linux ARM64はsourceからbuildします。
-
-配布binaryではなく、Rust libraryとしてだけある機能もあります。実装者は
-[実装の境界とlibraryだけの機能](./docs/implementation_boundaries.md)を参照してください。
-
-## 仕組み
-
-```mermaid
-flowchart LR
-    F["Original / current / candidate files"] --> O["Immutable objects\ncontent-addressed IDs"]
-    O --> P["AI-attributed proposal"]
-    P --> H["Human decision\nadopt / reject / defer"]
-    H --> C["Commit + mutable Ref"]
-    C --> R["Report / local application"]
-    C --> A["Verified export / restore"]
-    C --> V["Read-only publication bundle\nJSON / Markdown / static HTML"]
-```
-
-1. **観測**: 元の状態と今の状態のファイルを、そのまま残す。
-2. **提案**: 出力をAIによるものとして記録する。どう作られたかは主張しない。
-3. **判断**: 人が採用・不採用・保留を選ぶ。
-4. **確認**: 識別子、履歴、repositoryの整合性を確かめる。
-5. **提示**: 非公開のメモを含まない、ローカルの閲覧用bundleを作る。
-
-詳しくは[Core Protocol](./spec/core/v0.1/README.md)と[runtime architecture](./docs/runtime_architecture.md)を
-参照してください。
-
-## ドキュメント
-
-| 目的 | 最初に読む資料 |
-|---|---|
-| 画像付きの例を試す | [15分 壁画チュートリアル](./docs/tutorial/README.ja.md) |
-| releaseをinstallする、tagからbuildする | [Installation](./docs/install.md) |
-| AIエージェントにコマンドを任せる | [AIエージェント向けガイド](./docs/ai_agent_guide.ja.md) |
-| 生成メモ、画像の比較、次の案を試す | [Creator操作ガイド](./docs/creator_workflow.md) |
-| 公開用の文章とローカルのbundleを用意する | [公開用の制作ノート](./docs/presentation_sidecar.md) |
-| プライバシーと信頼の限界を知る | [Security model](./docs/security_model.md) |
-| コマンドとerrorを調べる | [CLI reference](./docs/cli_reference.md) |
-| loopbackだけで動く画面を運用する | [Local application runbook](./deploy/local/README.md) |
-| 何が互換のまま保たれるかを知る | [互換性方針](./docs/compatibility.md) |
-| v1.0の範囲とリリース条件を見る | [v1.0 release plan](./docs/v1_release_plan.md) |
-| Rust libraryを組み込む | [実装の境界](./docs/implementation_boundaries.md) / [Generic artifact v1](./spec/application/generic-artifact/v1/README.md) |
-| すべての資料を見る | [ドキュメント一覧](./docs/README.md) |
+- SynapseGitは1人で使うローカルアプリです。画像生成は普段のツールで行います。SynapseGitの画面は `127.0.0.1` だけで開きます。
+- 見た目は自分の目で比較します。自動検証の対象はファイルの内容と記録の整合性です。作者、権利、モデルの実行、現物がどう変わったかは、この記録からは証明できません。
+- 理由やプロンプトは非公開の制作記録で、通常のバックアップにも含まれます。公開用のファイルには元画像や非公開メモは入りません。[データの扱い](./docs/security_model.md)
+- v1.5.0の配布版はLinux x86_64とmacOS arm64に対応します。Linux ARM64はソースからのビルドが必要です。Windowsはサポート対象外です。[インストール手順](./docs/install.md)
+- 自分の環境で非商用評価として試せます。商用・本番・ホスティング利用には別途書面での許可が必要です。[ライセンス](./LICENSE)
 
 ## リリースと互換性
 
-- SynapseGit v1.5.0はlocal single-user向けのreleaseです。各releaseはGitHubで公開し、SHA-256 checksumとbuild provenance
-  attestationを付けます。crates.ioやcontainer registryでは配布しません。
-- v1.0.0から、object、識別子、archiveの形式はv1.xの間固定され、公開したすべての版のrepositoryと
-  archiveを読めます。[互換性方針](./docs/compatibility.md)を参照してください。
-- 各releaseの変更は[CHANGELOG](./CHANGELOG.md)と[v1.5.0 release notes](./docs/releases/v1.5.0.md)にあります。
-  重要なデータで試す前に、該当する資料を読んでください。
+v1.5.0の配布ファイルには、SHA-256チェックサムとビルド元を確認するための証明が付いています。v1.xでは記録の形式を維持しており、過去のリリースで作った記録とバックアップを読み込めます。[v1.5.0の配布ファイルと検証情報](https://github.com/howlrs/synapsegit/releases/tag/v1.5.0) ／ [変更履歴](./CHANGELOG.md) ／ [互換性方針](./docs/compatibility.md)
 
-## Security、support、license
+## サポートとライセンス
 
-`synapse serve`はloopbackのまま利用し、reverse proxyの背後へ公開したり、process-local browser
-tokenをmulti-user認証として扱ったりしないでください。脆弱性の疑いはpublic Issueではなく、
-[GitHub private vulnerability reporting](https://github.com/howlrs/synapsegit/security/advisories/new)から
-報告してください。対応範囲と必要情報は[SECURITY.md](./SECURITY.md)にあります。
+使い方の質問や不具合はサポート窓口で受け付けています。脆弱性の疑いはGitHubの非公開報告窓口にお寄せください。[サポート](./SUPPORT.md) ／ [脆弱性の報告](./SECURITY.md) ／ [開発への参加](./CONTRIBUTING.md)
 
-質問と再現可能な不具合の窓口は[SUPPORT.md](./SUPPORT.md)、変更への参加方法は
-[CONTRIBUTING.md](./CONTRIBUTING.md)を参照してください。
-
-Copyright (c) 2026 howlrs and K-Terashima. SynapseGitには独自の
-[`SynapseGit Source-Available License 1.0`](./LICENSE)が適用されます。OSI承認の
-open-source licenseではありません。GitHub Fork、Fork内でのsource改変、upstreamへの
-Pull Request、および非商用評価のための管理下環境でのbuild／実行／testを許可します。
-商用・production・hosted利用と、許可されたGitHub Forkの範囲外での再配布には、別途書面の
-許可が必要です。元のarchiveに`LICENSE`が含まれていないv0.1.0にも、このlicenseを適用します。
-[日本語概要](./docs/license_ja.md)は参考訳であり、root `LICENSE`が正本です。
-
-Rust依存componentには[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md)に収録した
-各third-party licenseが適用されます。
+Copyright (c) 2026 howlrs and K-Terashima. 独自のSynapseGit Source-Available License 1.0を適用します。GitHubでのフォーク、フォーク内での改変、プルリクエスト、管理下の環境での非商用評価が可能です。許可されたフォークの範囲外での再配布には別途書面での許可が必要です。条件の正本は英語版です。[ライセンス全文](./LICENSE) ／ [日本語の概要](./docs/license_ja.md) ／ [第三者ライセンス](./THIRD_PARTY_NOTICES.md)

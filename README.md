@@ -3,235 +3,91 @@
 [English](./README.md) | [日本語](./README.ja.md)
 
 [![CI](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml/badge.svg)](https://github.com/howlrs/synapsegit/actions/workflows/ci.yml)
-![v1.5.0](https://img.shields.io/badge/release-v1.5.0-0a7f3f)
+[![v1.5.0](https://img.shields.io/badge/release-v1.5.0-0a7f3f)](https://github.com/howlrs/synapsegit/releases/tag/v1.5.0)
 ![Linux x86_64](https://img.shields.io/badge/binary-Linux%20x86__64-555)
 ![macOS arm64](https://img.shields.io/badge/binary-macOS%20arm64-555)
 [![License: source-available](https://img.shields.io/badge/license-source--available-blue)](./LICENSE)
 
-**Keep a local record of what an AI proposed and what you decided.**
+**Keep the image you tried and the reason you chose it.** SynapseGit gives you a local history of the alternatives you considered while making an image. Make a candidate in your usual AI image tool, ask an agent to set up the comparison, then choose Adopt, Reject, or Defer in your browser.
 
-SynapseGit records the original, the current state, an AI-made candidate, and
-your decision about it (adopt, reject, or defer) as verifiable history on your
-own computer. You can let an AI agent run the commands; the decision stays
-yours. Later you, or someone you hand the work to, can see what was proposed,
-what you chose, and why.
+Suppose you're trying a different sky in an illustration. One review uses three images:
 
-SynapseGit keeps evidence, AI proposals, and human decisions apart. Its
-identifiers verify that file contents are unchanged; they do not prove
-authorship, truth, copyright, permission, or physical change.
-
-[![Original, current and AI candidate images are compared by a person who chooses adopt, reject or defer; the decision is recorded locally](./docs/assets/creator-overview.en.png)](./docs/assets/creator-overview.en.png)
-
-_Concept illustration: an AI tool supplies a candidate; you compare the images
-and decide. SynapseGit keeps the record on your computer._
-
-Click or tap an illustration to view it at full size.
-
-## The problem it solves
-
-A final file rarely shows how it was decided:
-
-- Which state was the original reference, and what did it look like before?
-- Which output came from an AI, and what was it asked to do?
-- Did a person adopt it, reject it, or set it aside, and why?
-
-SynapseGit records each of these as its own step instead of treating the latest
-generated file as accepted.
-
-| Input | Proposal | Human Decision | Result you can check |
-|---|---|---|---|
-| Original and current files | An AI output you supply | `adopt`, `reject`, or `defer` | Report, timeline, integrity check, backup, and a local read-only view |
-
-## One example
-
-The illustrated [15-minute mural tutorial](./docs/tutorial/README.md) walks
-through three synthetic images with exact commands, the real localhost pages,
-and troubleshooting.
-
-| Original | Current | AI proposal |
+| Original | Current | AI output |
 |---|---|---|
-| ![Synthetic original coastal mural](./docs/tutorial/assets/mural-original.png) | ![Synthetic current mural with visible conservation issues](./docs/tutorial/assets/mural-current.png) | ![Synthetic restrained treatment proposal](./docs/tutorial/assets/mural-ai-proposal.png) |
+| The first colour study you want to keep as a reference | An export of the illustration as it stands | An AI variation with a redder sky |
 
-The images are generated fixtures, not evidence of a real artwork or treatment.
-This repository uses the [2026-10-02 image revision](./docs/assets/image-generation.json).
-The v1.5.0 archive bundles these three tutorial images. Earlier releases retain their bundled
-materials; record the release and material revision used for any session.
+[![Two colour studies of a cyclist on the coast. An orange jacket stands out against the pale sky on the left and blends into the red sunset on the right. A pencil points to the rider in the warm version.](./docs/assets/creator-colour-review.png)](./docs/assets/creator-colour-review.png)
 
-## A real painting workflow
+**What catches your eye first, the rider or the sky?** Imagine the print on the left is your working image and the one on the right is the candidate. If the sunset is your subject, you might adopt the warmer version. If the rider is your subject, you might write, “The jacket blends into the sky. Try less red behind the rider.”
 
-[Painting over *The Starry Night*](./docs/examples/starry-night/README.md) shows a
-developer-led v1.0.0 workflow with five recorded Human `adopt` decisions and a
-[pinned public bundle](https://github.com/howlrs/synapsegit-starry-night/tree/45db60e3497f5392a9fb93135698021d23e42059/synapsegit/bundle).
-It demonstrates how physical-work photos and a stage map occupy Original,
-Current, and AI-output roles. An adopted map records selected proposal bytes;
-it does not establish that the painting followed the map or changed physically.
+To see whether this fits your practice, try it on one variation. When you return for the next edit, ask your agent, “What bothered me about the last version?” The images and your own words can help you decide what to ask the AI to try next.
 
 ## Get started
 
-### 1. Install
+### 1. Ask your agent to prepare the sample
 
-The prebuilt v1.5.0 archives need no Rust toolchain. They support Linux x86_64
-(glibc 2.34 or newer) and macOS on Apple Silicon. Other platforms can
-[build from a tagged source](./docs/install.md#build-from-a-tagged-source-release).
+Use an AI agent that can read files and run terminal commands on your computer. Follow the instructions for your platform to verify the release archive and install `synapse`. The prebuilt release runs without Rust. [Linux x86_64 (glibc 2.34+)](./docs/install.md#install-the-linux-x86-64-release) · [Mac with Apple Silicon](./docs/install.md#install-the-macos-arm64-release)
 
-```bash
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.5.0/synapsegit-v1.5.0-x86_64-unknown-linux-gnu.tar.gz
-curl -LO https://github.com/howlrs/synapsegit/releases/download/v1.5.0/SHA256SUMS
-sha256sum --check --ignore-missing SHA256SUMS
-```
+For help with installation, give the agent the instructions for your platform and ask, “Verify and install v1.5.0 for this computer using these instructions, then show me the folder containing the samples.”
 
-Stop if the check fails. The [installation guide](./docs/install.md) shows the
-build-provenance check, the macOS steps, and how to install `synapse` with its
-compatibility symlinks.
+Open the extracted release folder in your agent and paste this request. The sample uses three images of a fictional mural.
 
-### 2. Let your AI agent prepare, and decide yourself
+> Read `AI_AGENT_GUIDE.md` in this folder and help me review one mural proposal in SynapseGit.
+> In `docs/tutorial/assets/`, use `mural-original.png` as Original, `mural-current.png` as Current, and `mural-ai-proposal.png` as the candidate.
+> Set up a practice project and an Inbox. Use “Mural study” for the subject and “Demo creator” for the creator name.
+> Put the candidate in the Inbox and give me the local URL where I can compare the images. Wait there so I can enter my own decision and reason.
 
-[![Three steps: ask an AI agent to prepare a candidate, compare the images and decide, then revisit images, decisions and reasons locally](./docs/assets/creator-journey.en.png)](./docs/assets/creator-journey.en.png)
+Using a source checkout? Open the repository root and change the guide name in the request to `docs/ai_agent_guide.md`. To try your own images, replace the three file paths, the subject and the creator name.
 
-_An illustrated workflow, not an application screenshot. The agent handles
-preparation; the choice is yours._
+### 2. Compare the images and record your choice
 
-Give your AI agent the [AI agent guide](./docs/ai_agent_guide.md) (it is also
-bundled in the release archive as `AI_AGENT_GUIDE.md`). Then ask, for example:
+1. Open the agent’s `http://127.0.0.1:…` URL on the same computer. On the project’s **Import** page, choose **Review** under **Waiting to import**, check the three images under **Review the import**, then select **Create proposal** in that form.
+2. Compare Current with the candidate side by side. Images with matching dimensions can also be overlaid. Enter a reason if you wish, then choose Adopt, Reject, or Defer and confirm.
+3. Once it’s recorded, ask the agent, “Read back my decision on this mural and the reason I gave.” That decision stays in the original record when you try another candidate.
 
-> Read the SynapseGit AI agent guide first. Prepare these three images (original,
-> current and candidate) for recording, and open the page where I can compare them.
-> I will make the decision; do not choose for me.
+[![The local comparison screen with two of the sample mural images](./docs/assets/synapse-local/image-comparison.png)](./docs/assets/synapse-local/image-comparison.png)
 
-Open the URL, go to the project's **Import** page, review the candidate,
-create the proposal, compare the images, and choose Adopt, Reject, or Defer.
-The agent can then read the result with `synapse creator-list` and
-`synapse creator-report --format json`, and make a backup with
-`synapse export`.
+*The comparison screen with the synthetic tutorial images, captured in v1.0.0-rc.1. The interface is available in English and Japanese.*
 
-### 3. Or record directly from the command line
+### Start the browser yourself
+
+To run the browser workflow yourself, start a project with these two commands:
 
 ```bash
 synapse init "$HOME/SynapseGit/demo"
-synapse creator-run "$HOME/SynapseGit/demo" session-1 \
-  /path/to/original.png /path/to/current.png /path/to/candidate.png \
-  --subject "My creative work" --creator "Your name" \
-  --decision defer --rationale "Review this candidate later."
-synapse creator-report "$HOME/SynapseGit/demo" session-1
+synapse serve --project "demo=$HOME/SynapseGit/demo"
 ```
 
-To look at it in the browser, run
-`synapse serve --project "demo=$HOME/SynapseGit/demo"` and open the printed
-`http://127.0.0.1:...` URL. Every command explains itself with `--help`.
+Open the printed URL and select the three files on the project's **Import** page. For a CLI-only walkthrough using `creator-run` to record a decision and `creator-report` to read it back, follow the [15-minute mural tutorial](./docs/tutorial/README.md).
 
-## What you can do now
+## See how a painter used it
 
-| You can | Where |
+In [Painting over *The Starry Night*](./docs/examples/starry-night/README.md), the developer painted over a replica in acrylics. For the light-blue stage, the three images were a photo of the untouched replica, a photo after the white paint went on, and an AI-attributed map suggesting where to put the blue. The five recorded adoptions show which proposals the painter selected. [Browse the public record](https://github.com/howlrs/synapsegit-starry-night/tree/45db60e3497f5392a9fb93135698021d23e42059/synapsegit/bundle)
+
+## Where to go next
+
+| I want to… | Guide |
 |---|---|
-| Record an original, a current state, an AI output, and your decision with a reason | Browser Import page or `synapse creator-run` |
-| Let an AI agent place candidates in an inbox without deciding, then decide in the browser | `synapse inbox put` and the Import page |
-| Compare two images side by side or overlaid, at fit, 100%, or 200% | Session page |
-| Add an optional generation note and pins on the images | Import form and session page |
-| Read past decisions with times and a timeline | Session pages, `creator-list`, `creator-report` (text or JSON) |
-| Try another candidate from a record, or review a deferred or interrupted one again in a new session | Session page |
-| Check integrity, back up, restore, and put damaged data back from a good copy | Maintenance page, `fsck`, `export`, `restore`, `repair` |
-| Make a local read-only view without private notes | `synapse present` and the public-text form |
-| Use the pages in Japanese or English | Language switch in the header |
+| Have my agent prepare candidates and read back past decisions | [AI agent guide](./docs/ai_agent_guide.md) |
+| Save a prompt, pin a detail in an image, or try another candidate with the same references | [Creator workflow](./docs/creator_workflow.en.md) |
+| Write a public account of a decision and make a read-only copy to share | [Public-text workflow](./docs/presentation_sidecar.en.md) |
+| Back up and restore a project | [Local application runbook (Japanese)](./deploy/local/README.md) · [CLI reference (Japanese)](./docs/cli_reference.md) |
+| Explore the protocol or embed the libraries | [Core Protocol](./spec/core/v0.1/README.md) · [Implementation boundaries](./docs/implementation_boundaries.en.md) · [Documentation index](./docs/README.md#english-reader-path) |
 
-![Actual SynapseGit Local project overview for the synthetic mural example](./docs/assets/synapse-local/overview-hero.png)
+## What the record tells you
 
-_The actual `synapse serve` page, served only from `127.0.0.1`. It is not a
-hosted or multi-user service._
-
-## What it does not do
-
-- **It does not run AI models.** The AI output is a file you supply; SynapseGit
-  records it as caller-supplied and does not claim which model, if any, made it.
-- **It compares file contents, not pictures.** A match check shows whether the
-  bytes are the same. Identical files do not prove the subject is unchanged,
-  and different files do not prove a visual or physical change. There is no
-  pixel registration or difference analysis.
-- **A recorded decision is final for that session.** You can review the same
-  images again in a new session; the earlier record stays.
-- **It is local and single-user.** `synapse serve` serves only `127.0.0.1`.
-  There is no hosted or multi-user service, and nothing is uploaded.
-- **Platforms:** v1.5.0 provides Linux x86_64 and macOS arm64 archives. Windows is not supported;
-  Linux ARM64 needs a source build.
-
-Some workspace features exist only as Rust libraries, not in the packaged
-binaries. Implementers can read
-[Implementation boundaries and library-only features](./docs/implementation_boundaries.en.md).
-
-## How it works
-
-```mermaid
-flowchart LR
-    F["Original / current / candidate files"] --> O["Immutable objects\ncontent-addressed IDs"]
-    O --> P["AI-attributed proposal"]
-    P --> H["Human decision\nadopt / reject / defer"]
-    H --> C["Commit + mutable Ref"]
-    C --> R["Report / local application"]
-    C --> A["Verified export / restore"]
-    C --> V["Read-only publication bundle\nJSON / Markdown / static HTML"]
-```
-
-1. **Observe**: keep the exact original and current files.
-2. **Propose**: record an output as AI-attributed without claiming how it was
-   made.
-3. **Decide**: a person adopts, rejects, or defers.
-4. **Verify**: check identifiers, history, and repository integrity.
-5. **Present**: derive a local read-only view without private notes.
-
-The [Core Protocol](./spec/core/v0.1/README.md) and the
-[runtime architecture (Japanese)](./docs/runtime_architecture.md) describe the
-details.
-
-## Documentation
-
-| Goal | Start here |
-|---|---|
-| Try the illustrated example | [15-minute mural tutorial](./docs/tutorial/README.md) |
-| Install a release or build from a tag | [Installation](./docs/install.md) |
-| Let an AI agent run the commands | [AI agent guide](./docs/ai_agent_guide.md) |
-| Record notes, review images, and try another candidate | [Creator workflow](./docs/creator_workflow.en.md) |
-| Prepare public text and a local bundle | [Public-text workflow](./docs/presentation_sidecar.en.md) |
-| Understand privacy and trust limits | [Privacy and trust summary](./docs/security_model.en.md) |
-| Look up commands and errors | [CLI reference (Japanese)](./docs/cli_reference.md) |
-| Run the loopback-only application | [Local application runbook (Japanese)](./deploy/local/README.md) |
-| See what stays compatible | [Compatibility policy](./docs/compatibility.md) |
-| See the v1.0 scope and release criteria | [v1.0 release plan (Japanese)](./docs/v1_release_plan.md) |
-| Embed the Rust libraries | [Implementation boundaries](./docs/implementation_boundaries.en.md) / [Generic artifact v1](./spec/application/generic-artifact/v1/README.md) |
-| Browse everything | [Documentation index](./docs/README.md#english-reader-path) |
+- SynapseGit runs locally for one person. Image generation happens in your usual tool. The SynapseGit browser interface listens only on `127.0.0.1`.
+- You judge the images visually. SynapseGit checks file contents and record integrity. Those checks cannot establish authorship, rights, model execution or changes to a physical work.
+- Reasons and prompts belong to the private record and its backups. A public bundle excludes raw images and private notes. [Privacy and trust summary](./docs/security_model.en.md)
+- The v1.5.0 binaries support Linux x86_64 and macOS arm64. Linux ARM64 requires a source build. Windows is unsupported. [Installation guide](./docs/install.md)
+- You can try SynapseGit on your computer for non-commercial evaluation. Commercial, production or hosted use requires separate written permission. [License](./LICENSE)
 
 ## Releases and compatibility
 
-- SynapseGit v1.5.0 is a local single-user release. Each release is published on GitHub with
-  SHA-256 checksums and a build-provenance attestation; crates.io and container
-  registries are not used.
-- From v1.0.0, the object, identifier, and archive formats are frozen for
-  v1.x, and repositories and archives from every published release stay
-  readable. See the [compatibility policy](./docs/compatibility.md).
-- What changed in each release is in the [changelog](./CHANGELOG.md) and the
-  [v1.5.0 release notes](./docs/releases/v1.5.0.md). Read the applicable notes
-  before using it with important data.
+Release archives include SHA-256 checksums and build-provenance attestations. The object, identifier and archive formats are stable within v1.x, and repositories and archives from earlier releases remain readable. [v1.5.0 downloads and verification](https://github.com/howlrs/synapsegit/releases/tag/v1.5.0) · [Changelog](./CHANGELOG.md) · [Compatibility policy](./docs/compatibility.md)
 
-## Security, support, and license
+## Support and license
 
-Keep `synapse serve` on loopback; do not put it behind a reverse proxy or treat
-its process-local browser token as multi-user authentication. Report a
-suspected vulnerability through
-[GitHub private vulnerability reporting](https://github.com/howlrs/synapsegit/security/advisories/new),
-not a public issue. See [SECURITY.md](./SECURITY.md) for the supported scope and
-report contents.
+For questions and reproducible bugs, see the support guide. Use GitHub's private reporting channel for suspected vulnerabilities. [Support](./SUPPORT.md) · [Security policy and reporting](./SECURITY.md) · [Contributing](./CONTRIBUTING.md)
 
-Questions and reproducible bugs are welcome through the paths in
-[SUPPORT.md](./SUPPORT.md). Contributions should start with
-[CONTRIBUTING.md](./CONTRIBUTING.md).
-
-Copyright (c) 2026 howlrs and K-Terashima. SynapseGit uses the custom
-[SynapseGit Source-Available License 1.0](./LICENSE), not an OSI-approved
-open-source license. It permits GitHub Forks, source changes in those Forks,
-upstream pull requests, and controlled local build/run/test for non-commercial
-evaluation. Commercial, production, or hosted use and redistribution outside
-the permitted GitHub Fork workflow require separate written permission. The
-license also covers v0.1.0, although its original archive predates the bundled
-license file. A non-authoritative [Japanese summary](./docs/license_ja.md) is
-available; the root `LICENSE` is controlling.
-
-Third-party Rust components remain under the terms collected in
-[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md).
+Copyright (c) 2026 howlrs and K-Terashima. The custom SynapseGit Source-Available License 1.0 permits GitHub Forks, changes within those Forks, upstream pull requests and non-commercial evaluation on systems you control. Redistribution outside the permitted GitHub Fork workflow requires separate written permission. The English license governs. [Full license](./LICENSE) · [Japanese summary](./docs/license_ja.md) · [Third-party notices](./THIRD_PARTY_NOTICES.md)
