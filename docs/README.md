@@ -1,10 +1,17 @@
 # SynapseGit documentation
 
+[English reader path](#english-reader-path)
+
 [![元の画像、現在の画像、AIの候補を人が比較して判断し、その経緯を手元に残すSynapseGitの仕組み](./assets/creator-overview.ja.png)](./assets/creator-overview.ja.png)
 
-AIを使うクリエイターは、まず[制作の流れ](./creator_workflow.md)の説明画像をご覧ください。
-操作の準備は[AIエージェントに頼む](./ai_agent_guide.ja.md)こともできます。
-上の画像は仕組みを説明するイラストで、アプリの画面キャプチャではありません。
+初めて試すなら、READMEの依頼文をエージェントに渡すと、同梱の壁画を手元で見比べられます。自分の制作で試すときは、基準の画像、現在の作業版、AIの候補を1枚ずつ選んでください。
+
+- [壁画サンプルで始める](../README.ja.md#始める)
+- [自分の画像でエージェントに頼む](./ai_agent_guide.ja.md#aiエージェントへの指示の例)
+- [比較画面の使い方と、次の案の試し方](./creator_workflow.md)
+
+<details>
+<summary>配布版と開発用ライブラリの技術概要</summary>
 
 このディレクトリは、SynapseGit Core を「試す」「評価する」「実装する」ための入口である。
 現在の状態は **v1.5.0 stable release / v1形式は凍結済み**。OID・schema・local repository の縦断経路に加え、
@@ -80,10 +87,11 @@ HTTP／JWT、durable／distributed ACL・permit、Projection application route�
 membership resolver、OS sandbox／egress、Grant revocation、organization／quorum／release approvalは未実装である。
 creator PilotのidentityとAI outputはtrusted local integrationが供給し、実利用者の本人確認やmodel実行を行わない。
 
+</details>
+
 ## English reader path
 
-The English README and tutorial support a first evaluation without requiring a
-Japanese document. Continue from the tutorial with these focused guides:
+Start with the [sample request in the README](../README.md#get-started), or use the [request for your own images](./ai_agent_guide.md#what-you-can-tell-an-agent).
 
 1. [Creator workflow](./creator_workflow.en.md): generation notes, decision
    pins, derived and fresh re-review sessions, Inbox, limits, and private

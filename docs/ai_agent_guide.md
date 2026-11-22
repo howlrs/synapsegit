@@ -222,9 +222,22 @@ adopt, reject, or defer on the person's behalf.
 
 ## What you can tell an agent
 
-> Use SynapseGit to record this candidate. Read its AI agent guide first.
-> Put the candidate into the inbox with `synapse inbox put`, start
-> `synapse serve`, and give me the URL. Do not make the decision for me.
+Give the agent this guide and the local paths to three images. For a colour study, you could use these files.
+
+| Image role | File to choose |
+|---|---|
+| Original | The colour sketch you are using as a reference |
+| Current | An export of the version you are working on |
+| AI output | The new colour variation you want to consider |
+
+Replace the bracketed values with your own.
+
+> Follow this guide to set up an image comparison in SynapseGit.
+> Use [sketch path] for Original, [working image path] for Current and [variation path] for the AI candidate.
+> The subject is [work title] and the creator name is [display name].
+> Put the three files in the Inbox and give me the local URL. I'll review the images there and decide.
+
+If you want a generation note, add the tool, model, prompt or creative intent to your request. Include only the details you know.
 
 ## More detail
 

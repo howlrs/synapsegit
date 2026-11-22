@@ -13,11 +13,21 @@ three images, keep optional private notes, make a Human Decision, and begin a
 fresh review when another candidate is needed.
 
 Install the release from the [installation guide](./install.md), then use the
-[English README startup command](../README.md#3-or-record-directly-from-the-command-line) to start
+[two commands in the README](../README.md#start-the-browser-yourself) to start
 `synapse serve`. The [local application runbook (Japanese)](../deploy/local/README.md)
 is an optional detailed reference. The browser interface is single-user and
 serves only IPv4 loopback. The security limits are summarized in the
 [privacy and trust summary](./security_model.en.md).
+
+## A small first session
+
+Suppose you want to try a warmer sky in an illustration. Set aside the original sketch, the current working image and the AI variation, then ask your agent to prepare the comparison. [Copy a request for your own images](./ai_agent_guide.md#what-you-can-tell-an-agent)
+
+In this illustrated example, the working image is on the left and the warmer candidate is on the right.
+
+![A pencil points to the rider whose orange jacket is close in colour to the sunset in the second print.](./assets/creator-colour-review.png)
+
+Look at the edge of the figure against the sky. If the warmer sky makes the figure hard to see, you can pin that spot, write “The figure disappears into the background” and choose Reject. When you have another colour variation, start a new candidate from this completed record to compare it with the same sketch and working image.
 
 ## Record a proposal and optional generation notes
 
